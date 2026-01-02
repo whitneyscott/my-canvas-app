@@ -1,0 +1,44 @@
+<!-- Tab: <%= tab.name %> -->
+<div class="tab-content<%= tab.isActive ? ' active' : '' %>" id="tab-<%= tab.name %>">
+    <div class="tab-header">
+        <div class="count-badge" id="<%= tab.name %>Count">0 <%= tab.displayName.toLowerCase() %></div>
+        <button class="sync-btn" id="sync-<%= tab.name %>" onclick="syncChanges('<%= tab.name %>')" disabled>
+            <span>💾</span>
+            Sync to Canvas
+            <span class="changes-count hidden" id="changesCount-<%= tab.name %>">0</span>
+        </button>
+        <button class="refresh-btn" onclick="refreshTab('<%= tab.name %>')" id="refresh-<%= tab.name %>">
+            <span class="refresh-icon"></span>
+            Refresh
+        </button>
+    </div>
+    <div class="tab-loading hidden" id="loading-<%= tab.name %>">
+        <span class="spinner"></span>
+        <span>Loading <%= tab.displayName.toLowerCase() %>...</span>
+    </div>
+    <div class="tab-error hidden" id="error-<%= tab.name %>"></div>
+    <div class="table-container">
+        <table class="data-table" id="<%= tab.name %>Table">
+            <% if (tab.customThead) { %>
+                <thead>
+                    <tr>
+                        <th class="checkbox-header">
+                            <input type="checkbox" class="select-all-checkbox" id="selectAll-<%= tab.name %>" onchange="toggleSelectAll('<%= tab.name %>', this.checked)">
+                        </th>
+                        <% tab.customThead.forEach(header => { %>
+                            <th><%= header %></th>
+                        <% }); %>
+                    </tr>
+                </thead>
+            <% } else { %>
+                <thead></thead>
+            <% } %>
+            <tbody id="<%= tab.name %>TableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+
+
+
+

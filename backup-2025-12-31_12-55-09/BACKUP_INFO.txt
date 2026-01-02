@@ -1,0 +1,27 @@
+﻿Backup created: 2025-12-31_12-55-09
+Purpose: Before implementing AccommodationService with Prisma
+
+Files backed up:
+  - src
+  - test
+  - unstable
+  - views
+  - .env
+  - .gitignore
+  - .prettierrc
+  - browser operation
+  - create-backup.ps1
+  - eslint.config.mjs
+  - nest-cli.json
+  - package-lock.json
+  - package.json
+  - README.md
+  - start-dev-safe.bat
+  - start-dev-safe.ps1
+  - To Do
+  - tsconfig.build.json
+  - tsconfig.json
+
+To restore:
+1. Copy files from this backup directory back to project root
+2. Restore any deleted files from this backup

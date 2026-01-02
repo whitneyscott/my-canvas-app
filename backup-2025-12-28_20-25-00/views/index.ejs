@@ -1,0 +1,1698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas LMS Bulk Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            padding-bottom: 50px; /* Space for collapsed debug panel */
+        }
+        
+        h1 {
+            margin-bottom: 20px;
+            color: #2d3e50;
+        }
+        
+        .course-selector {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 6px;
+        }
+        
+        .course-selector select {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        
+        .course-details {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .course-details h2 {
+            margin-bottom: 10px;
+            color: #2d3e50;
+        }
+        
+        .course-details p {
+            margin: 5px 0;
+        }
+        
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .tab-button {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        
+        .tab-button:hover {
+            background: #f5f5f5;
+            color: #2d3e50;
+        }
+        
+        .tab-button.active {
+            color: #2d3e50;
+            border-bottom-color: #2d3e50;
+            font-weight: 600;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .tab-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 10px;
+        }
+        
+        .count-badge {
+            padding: 6px 12px;
+            background: #e8f4f8;
+            color: #2d3e50;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        
+        .sync-btn, .refresh-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        
+        .sync-btn {
+            background: #28a745;
+            color: white;
+        }
+        
+        .sync-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .sync-btn.has-changes {
+            background: #ffc107;
+            color: #333;
+        }
+        
+        .sync-btn.has-changes:disabled {
+            background: #ccc;
+        }
+        
+        .refresh-btn {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .refresh-btn:hover {
+            background: #5a6268;
+        }
+        
+        .changes-count {
+            background: rgba(255, 255, 255, 0.3);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        
+        .changes-count.hidden {
+            display: none;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        
+        .data-table thead {
+            background: #f8f9fa;
+            border-bottom: 2px solid #ddd;
+        }
+        
+        .data-table th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #2d3e50;
+            border-right: 1px solid #ddd;
+        }
+        
+        .data-table th:last-child {
+            border-right: none;
+        }
+        
+        .data-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+            border-right: 1px solid #eee;
+        }
+        
+        .data-table td:last-child {
+            border-right: none;
+        }
+        
+        .data-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .data-table tbody tr.selected {
+            background: #e3f2fd;
+        }
+        
+        .data-table tbody tr.modified {
+            background: #fff3cd;
+        }
+        
+        .checkbox-header {
+            width: 40px;
+        }
+        
+        .checkbox-cell {
+            text-align: center;
+            width: 40px;
+        }
+        
+        .readonly-cell {
+            color: #666;
+            font-style: italic;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .tab-loading, .tab-error {
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .tab-loading {
+            color: #666;
+        }
+        
+        .tab-error {
+            color: #dc3545;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+        }
+        
+        .tab-loading.hidden, .tab-error.hidden {
+            display: none;
+        }
+        
+        .cell-editable {
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .cell-editable:hover {
+            background: #e3f2fd;
+        }
+        
+        .cell-input {
+            width: 100%;
+            padding: 4px 8px;
+            border: 2px solid #2196F3;
+            border-radius: 3px;
+            font-size: inherit;
+            font-family: inherit;
+        }
+        
+        .debug-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            border-top: 2px solid #333;
+            z-index: 1000;
+        }
+        
+        .debug-panel.collapsed {
+            max-height: 30px;
+            overflow: hidden;
+        }
+        
+        /* Add padding to main content so it doesn't get hidden behind debug panel when expanded */
+        .container {
+            padding-bottom: 50px;
+        }
+        
+        .debug-panel:not(.collapsed) ~ .container,
+        .debug-panel:not(.collapsed) ~ * .container {
+            padding-bottom: 220px;
+        }
+        
+        .debug-panel-header {
+            background: #252526;
+            padding: 8px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+        }
+        
+        .debug-panel-header:hover {
+            background: #2d2d30;
+        }
+        
+        .debug-panel-content {
+            padding: 10px 15px;
+        }
+        
+        .debug-log {
+            margin: 2px 0;
+            padding: 2px 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .debug-log.info {
+            color: #d4d4d4;
+        }
+        
+        .debug-log.success {
+            color: #89d185;
+        }
+        
+        .debug-log.error {
+            color: #f48771;
+        }
+        
+        .debug-log.warn {
+            color: #cca700;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Canvas LMS Bulk Editor</h1>
+        
+        <div class="course-selector">
+            <select id="courseSelect" onchange="loadCourseData()">
+                <option value="">-- Select a Course --</option>
+            </select>
+            <div class="course-details hidden" id="courseDetails">
+                <h2 id="courseName"></h2>
+                <p><strong>Course Code:</strong> <span id="courseCode"></span></p>
+                <p><strong>Start Date:</strong> <span id="startDate"></span></p>
+                <p><strong>End Date:</strong> <span id="endDate"></span></p>
+                <p><strong>Created:</strong> <span id="createdAt"></span></p>
+            </div>
+        </div>
+        
+        <div class="tabs-container hidden" id="tabsContainer">
+            <div class="tabs">
+                <button class="tab-button active" onclick="switchTab('students')">Students</button>
+                <button class="tab-button" onclick="switchTab('quizzes')">Quizzes</button>
+                <button class="tab-button" onclick="switchTab('assignments')">Assignments</button>
+                <button class="tab-button" onclick="switchTab('discussions')">Discussions</button>
+                <button class="tab-button" onclick="switchTab('pages')">Pages</button>
+                <button class="tab-button" onclick="switchTab('announcements')">Announcements</button>
+                <button class="tab-button" onclick="switchTab('modules')">Modules</button>
+                <button class="tab-button" onclick="switchTab('accommodations')">Accommodations</button>
+            </div>
+            
+            <!-- Students Tab -->
+            <div class="tab-content active" id="tab-students">
+                <div class="tab-header">
+                    <div class="count-badge" id="studentsCount">0 students</div>
+                    <button class="sync-btn" id="sync-students" onclick="syncChanges('students')" disabled>
+                        <span>💾</span>
+                        Sync to Canvas
+                        <span class="changes-count hidden" id="changesCount-students">0</span>
+                    </button>
+                    <button class="refresh-btn" onclick="refreshTab('students')" id="refresh-students">
+                        <span class="refresh-icon"></span>
+                        Refresh
+                    </button>
+                </div>
+                <div class="tab-loading hidden" id="loading-students">Loading students...</div>
+                <div class="tab-error hidden" id="error-students"></div>
+                <table class="data-table" id="studentsTable">
+                    <thead>
+                        <tr>
+                            <th class="checkbox-header">
+                                <input type="checkbox" class="select-all-checkbox" id="selectAll-students" onchange="toggleSelectAll('students', this.checked)">
+                            </th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>SIS User ID</th>
+                            <th>Enrollment State</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentsTableBody"></tbody>
+                </table>
+            </div>
+
+                <!-- Quizzes Tab -->
+                <div class="tab-content" id="tab-quizzes">
+                    <div class="tab-header">
+                        <div class="count-badge" id="quizzesCount">0 quizzes</div>
+                        <button class="sync-btn" id="sync-quizzes" onclick="syncChanges('quizzes')" disabled>
+                            <span>💾</span>
+                            Sync to Canvas
+                            <span class="changes-count hidden" id="changesCount-quizzes">0</span>
+                        </button>
+                        <button class="refresh-btn" onclick="refreshTab('quizzes')" id="refresh-quizzes">
+                            <span class="refresh-icon"></span>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="tab-loading hidden" id="loading-quizzes">Loading quizzes...</div>
+                    <div class="tab-error hidden" id="error-quizzes"></div>
+                    <table class="data-table" id="quizzesTable">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-header">
+                                    <input type="checkbox" class="select-all-checkbox" id="selectAll-quizzes" onchange="toggleSelectAll('quizzes', this.checked)">
+                                </th>
+                                <th>title</th>
+                                <th>quiz_type</th>
+                                <th>due_at</th>
+                                <th>unlock_at</th>
+                                <th>lock_at</th>
+                                <th>published</th>
+                                <th>question_count</th>
+                            </tr>
+                        </thead>
+                        <tbody id="quizzesTableBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Assignments Tab -->
+                <div class="tab-content" id="tab-assignments">
+                    <div class="tab-header">
+                        <div class="count-badge" id="assignmentsCount">0 assignments</div>
+                        <button class="sync-btn" id="sync-assignments" onclick="syncChanges('assignments')" disabled>
+                            <span>💾</span>
+                            Sync to Canvas
+                            <span class="changes-count hidden" id="changesCount-assignments">0</span>
+                        </button>
+                        <button class="refresh-btn" onclick="refreshTab('assignments')" id="refresh-assignments">
+                            <span class="refresh-icon"></span>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="tab-loading hidden" id="loading-assignments">Loading assignments...</div>
+                    <div class="tab-error hidden" id="error-assignments"></div>
+                    <table class="data-table" id="assignmentsTable">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-header">
+                                    <input type="checkbox" class="select-all-checkbox" id="selectAll-assignments" onchange="toggleSelectAll('assignments', this.checked)">
+                                </th>
+                                <th>name</th>
+                                <th>due_at</th>
+                                <th>unlock_at</th>
+                                <th>lock_at</th>
+                                <th>points_possible</th>
+                                <th>published</th>
+                                <th>submission_types</th>
+                            </tr>
+                        </thead>
+                        <tbody id="assignmentsTableBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Discussions Tab -->
+                <div class="tab-content" id="tab-discussions">
+                    <div class="tab-header">
+                        <div class="count-badge" id="discussionsCount">0 discussions</div>
+                        <button class="sync-btn" id="sync-discussions" onclick="syncChanges('discussions')" disabled>
+                            <span>💾</span>
+                            Sync to Canvas
+                            <span class="changes-count hidden" id="changesCount-discussions">0</span>
+                        </button>
+                        <button class="refresh-btn" onclick="refreshTab('discussions')" id="refresh-discussions">
+                            <span class="refresh-icon"></span>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="tab-loading hidden" id="loading-discussions">Loading discussions...</div>
+                    <div class="tab-error hidden" id="error-discussions"></div>
+                    <table class="data-table" id="discussionsTable">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-header">
+                                    <input type="checkbox" class="select-all-checkbox" id="selectAll-discussions" onchange="toggleSelectAll('discussions', this.checked)">
+                                </th>
+                                <th>title</th>
+                                <th>posted_at</th>
+                                <th>delayed_post_at</th>
+                                <th>lock_at</th>
+                                <th>last_reply_at</th>
+                                <th>published</th>
+                                <th>discussion_type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="discussionsTableBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Pages Tab -->
+                <div class="tab-content" id="tab-pages">
+                    <div class="tab-header">
+                        <div class="count-badge" id="pagesCount">0 pages</div>
+                        <button class="sync-btn" id="sync-pages" onclick="syncChanges('pages')" disabled>
+                            <span>💾</span>
+                            Sync to Canvas
+                            <span class="changes-count hidden" id="changesCount-pages">0</span>
+                        </button>
+                        <button class="refresh-btn" onclick="refreshTab('pages')" id="refresh-pages">
+                            <span class="refresh-icon"></span>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="tab-loading hidden" id="loading-pages">Loading pages...</div>
+                    <div class="tab-error hidden" id="error-pages"></div>
+                    <table class="data-table" id="pagesTable">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-header">
+                                    <input type="checkbox" class="select-all-checkbox" id="selectAll-pages" onchange="toggleSelectAll('pages', this.checked)">
+                                </th>
+                                <th>title</th>
+                                <th>url</th>
+                                <th>published</th>
+                                <th>front_page</th>
+                                <th>updated_at</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pagesTableBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Announcements Tab -->
+                <div class="tab-content" id="tab-announcements">
+                    <div class="tab-header">
+                        <div class="count-badge" id="announcementsCount">0 announcements</div>
+                        <button class="sync-btn" id="sync-announcements" onclick="syncChanges('announcements')" disabled>
+                            <span>💾</span>
+                            Sync to Canvas
+                            <span class="changes-count hidden" id="changesCount-announcements">0</span>
+                        </button>
+                        <button class="refresh-btn" onclick="refreshTab('announcements')" id="refresh-announcements">
+                            <span class="refresh-icon"></span>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="tab-loading hidden" id="loading-announcements">Loading announcements...</div>
+                    <div class="tab-error hidden" id="error-announcements"></div>
+                    <table class="data-table" id="announcementsTable">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-header">
+                                    <input type="checkbox" class="select-all-checkbox" id="selectAll-announcements" onchange="toggleSelectAll('announcements', this.checked)">
+                                </th>
+                                <th>title</th>
+                                <th>posted_at</th>
+                                <th>delayed_post_at</th>
+                                <th>author</th>
+                                <th>message</th>
+                            </tr>
+                        </thead>
+                        <tbody id="announcementsTableBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Modules Tab -->
+                <div class="tab-content" id="tab-modules">
+                    <div class="tab-header">
+                        <div class="count-badge" id="modulesCount">0 modules</div>
+                        <button class="sync-btn" id="sync-modules" onclick="syncChanges('modules')" disabled>
+                            <span>💾</span>
+                            Sync to Canvas
+                            <span class="changes-count hidden" id="changesCount-modules">0</span>
+                        </button>
+                        <button class="refresh-btn" onclick="refreshTab('modules')" id="refresh-modules">
+                            <span class="refresh-icon"></span>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="tab-loading hidden" id="loading-modules">Loading modules...</div>
+                    <div class="tab-error hidden" id="error-modules"></div>
+                    <table class="data-table" id="modulesTable">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-header">
+                                    <input type="checkbox" class="select-all-checkbox" id="selectAll-modules" onchange="toggleSelectAll('modules', this.checked)">
+                                </th>
+                                <th>name</th>
+                                <th>items_count</th>
+                                <th>published</th>
+                                <th>unlock_at</th>
+                                <th>position</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modulesTableBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Accommodations Tab -->
+                <div class="tab-content" id="tab-accommodations">
+                    <div class="tab-header">
+                        <div class="count-badge" id="accommodationsCount">0 accommodations</div>
+                        <button class="sync-btn" id="sync-accommodations" onclick="syncChanges('accommodations')" disabled>
+                            <span>💾</span>
+                            Sync to Canvas
+                            <span class="changes-count hidden" id="changesCount-accommodations">0</span>
+                        </button>
+                        <button class="refresh-btn" onclick="refreshTab('accommodations')" id="refresh-accommodations">
+                            <span class="refresh-icon"></span>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="tab-loading hidden" id="loading-accommodations">Loading accommodations...</div>
+                    <div class="tab-error hidden" id="error-accommodations"></div>
+                    <table class="data-table" id="accommodationsTable">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-header">
+                                    <input type="checkbox" class="select-all-checkbox" id="selectAll-accommodations" onchange="toggleSelectAll('accommodations', this.checked)">
+                                </th>
+                                <th>Type</th>
+                                <th>Assignment/Quiz</th>
+                                <th>Students</th>
+                                <th>Due Date</th>
+                                <th>Unlock Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="accommodationsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Debug Panel -->
+        <div class="debug-panel collapsed" id="debugPanel">
+            <div class="debug-panel-header" onclick="toggleDebugPanel()">
+                <span>Debug Log</span>
+                <span id="debugToggle">▲</span>
+            </div>
+            <div class="debug-panel-content" id="debugContent"></div>
+        </div>
+
+    <script>
+        // Editable fields list (for sync validation)
+        const editableFields = {
+            assignments: ['name', 'due_at', 'lock_at', 'unlock_at', 'points_possible', 'published'],
+            quizzes: ['title', 'due_at', 'lock_at', 'unlock_at', 'time_limit', 'allowed_attempts', 'published', 'shuffle_answers', 'show_correct_answers'],
+            discussions: ['title', 'published', 'pinned', 'posted_at', 'delayed_post_at', 'lock_at', 'require_initial_post'],
+            pages: ['title', 'published', 'front_page'],
+            announcements: ['title', 'posted_at', 'delayed_post_at'],
+            modules: ['name', 'published', 'unlock_at', 'position', 'require_sequential_progress'],
+            students: [],
+            accommodations: []
+        };
+
+        // Centralized date formatting functions
+        function formatDateForDisplay(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function formatDateForInput(dateString) {
+            // Convert Canvas API date (ISO string) to datetime-local format (local time)
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return '';
+            
+            // Format as YYYY-MM-DDTHH:MM in local time
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        function formatDateForAPI(inputValue) {
+            // Convert datetime-local input value to ISO string for Canvas API
+            if (!inputValue) return null;
+            try {
+                const date = new Date(inputValue);
+                if (isNaN(date.getTime())) return null;
+                return date.toISOString();
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function toggleDebugPanel() {
+            const panel = document.getElementById('debugPanel');
+            const toggle = document.getElementById('debugToggle');
+            panel.classList.toggle('collapsed');
+            toggle.textContent = panel.classList.contains('collapsed') ? '▲' : '▼';
+        }
+
+        function debugLog(message, type = 'info') {
+            const content = document.getElementById('debugContent');
+            const time = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `debug-log ${type}`;
+            logEntry.textContent = `[${time}]${type !== 'info' ? ' ' + type.toUpperCase() + ':' : ''} ${message}`;
+            content.appendChild(logEntry);
+            content.scrollTop = content.scrollHeight;
+            console.log(`[${type.toUpperCase()}]`, message);
+        }
+
+        let currentCourseId = null;
+        const loadedTabs = new Set();
+        const selectedItems = {};
+        const changes = {};
+        const originalData = {};
+
+        // Field Definitions - Single Source of Truth
+        const FIELD_DEFINITIONS = {
+            quizzes: [
+                { key: 'title', type: 'text', editable: true },
+                { key: 'quiz_type', type: 'text', editable: false, render: (val) => val || '-' },
+                { key: 'due_at', type: 'datetime', editable: true },
+                { key: 'unlock_at', type: 'datetime', editable: true },
+                { key: 'lock_at', type: 'datetime', editable: true },
+                { key: 'published', type: 'boolean', editable: true },
+                { key: 'question_count', type: 'number', editable: false, render: (val) => val || 0 }
+            ],
+            assignments: [
+                { key: 'name', type: 'text', editable: true },
+                { key: 'due_at', type: 'datetime', editable: true },
+                { key: 'unlock_at', type: 'datetime', editable: true },
+                { key: 'lock_at', type: 'datetime', editable: true },
+                { key: 'points_possible', type: 'number', editable: true },
+                { key: 'published', type: 'boolean', editable: true },
+                { key: 'submission_types', type: 'array', editable: false, render: (val) => (val || []).join(', ') || '-' }
+            ],
+            discussions: [
+                { key: 'title', type: 'text', editable: true },
+                { key: 'posted_at', type: 'datetime', editable: true },
+                { key: 'delayed_post_at', type: 'datetime', editable: true },
+                { key: 'lock_at', type: 'datetime', editable: true },
+                { key: 'last_reply_at', type: 'datetime', editable: false, render: (val) => val ? formatDateForDisplay(val) : '-' },
+                { key: 'published', type: 'boolean', editable: true },
+                { key: 'discussion_type', type: 'text', editable: false, render: (val) => val || '-' }
+            ],
+            announcements: [
+                { key: 'title', type: 'text', editable: true },
+                { key: 'posted_at', type: 'datetime', editable: true },
+                { key: 'delayed_post_at', type: 'datetime', editable: true },
+                { key: 'author', type: 'object', editable: false, render: (val) => val ? (val.display_name || val.name || '-') : '-' },
+                { key: 'message', type: 'text', editable: false, render: (val) => val ? val.replace(/<[^>]*>/g, '').substring(0, 100) + '...' : '-' }
+            ]
+        };
+
+        // Helper function: Initialize table state
+        function initializeTableState(tabName, items, fieldDefs) {
+            const countEl = document.getElementById(`${tabName}Count`);
+            const tbody = document.getElementById(`${tabName}TableBody`);
+            
+            if (!countEl || !tbody) {
+                debugLog(`Missing elements for ${tabName} tab`, 'error');
+                return null;
+            }
+            
+            // Initialize selectedItems
+            if (!selectedItems[tabName]) {
+                selectedItems[tabName] = new Set();
+            }
+            
+            // Update count badge
+            let plural;
+            if (tabName === 'quizzes') {
+                plural = 'quiz' + (items.length !== 1 ? 'zes' : '');
+            } else {
+                const itemName = tabName.slice(0, -1); // Remove 's' from plural
+                plural = itemName + (items.length !== 1 ? 's' : '');
+            }
+            countEl.textContent = `${items.length} ${plural}`;
+            
+            // Clear tbody
+            tbody.innerHTML = '';
+            
+            // Reset select-all checkbox
+            const selectAllCheckbox = document.getElementById(`selectAll-${tabName}`);
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+
+            // Handle empty state
+            if (items.length === 0) {
+                const colspan = fieldDefs.length + 1; // +1 for checkbox column
+                tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state">No ${tabName} found</td></tr>`;
+                return null;
+            }
+
+            return tbody;
+        }
+
+        // Helper function: Create table row
+        function createTableRow(tabName, item, itemId, isChecked, fieldDefs) {
+            const row = document.createElement('tr');
+            
+            // Build row HTML
+            let rowHTML = `
+                <td class="checkbox-cell">
+                    <input type="checkbox" class="row-checkbox" data-tab="${tabName}" data-id="${itemId}" ${isChecked ? 'checked' : ''} onchange="toggleRowSelection('${tabName}', '${itemId}', this.checked)">
+                </td>
+            `;
+            
+            // Add cells for each field
+            fieldDefs.forEach(field => {
+                if (field.editable) {
+                    // Editable field - use data-field attribute
+                    rowHTML += `<td data-item-id="${itemId}" data-field="${field.key}"></td>`;
+                } else {
+                    // Readonly field - render directly
+                    const value = item[field.key];
+                    const renderedValue = field.render ? field.render(value) : (value || '-');
+                    rowHTML += `<td class="readonly-cell">${escapeHtml(renderedValue)}</td>`;
+                }
+            });
+            
+            row.innerHTML = rowHTML;
+            
+            if (isChecked) row.classList.add('selected');
+            
+            return row;
+        }
+
+        // Helper function: Initialize editable cells
+        function initializeEditableCells(row, tabName, itemId, item, fieldDefs) {
+            fieldDefs.forEach(field => {
+                if (field.editable) {
+                    const cell = row.querySelector(`[data-field="${field.key}"]`);
+                    if (cell) {
+                        const value = item[field.key];
+                        makeCellEditable(cell, tabName, itemId, field.key, value, field.type);
+                        displayCellValue(cell, tabName, itemId, field.key, value, field.type);
+                    }
+                }
+            });
+        }
+
+        // Generic display function using FIELD_DEFINITIONS
+        function displayDataTable(tabName, items) {
+            const fieldDefs = FIELD_DEFINITIONS[tabName];
+            if (!fieldDefs) {
+                debugLog(`No field definitions found for ${tabName}`, 'error');
+                return;
+            }
+
+            // Initialize table state (returns tbody if successful, null if empty/error)
+            const tbody = initializeTableState(tabName, items, fieldDefs);
+            if (!tbody) {
+                return; // Empty state or error already handled
+            }
+
+            // Process each item
+            items.forEach((item, index) => {
+                const itemId = item.id || index;
+                const isChecked = selectedItems[tabName].has(itemId);
+                
+                // Create row using helper function
+                const row = createTableRow(tabName, item, itemId, isChecked, fieldDefs);
+                
+                // Store original data
+                if (!originalData[tabName]) originalData[tabName] = {};
+                originalData[tabName][itemId] = item;
+                
+                // Initialize editable cells using helper function
+                initializeEditableCells(row, tabName, itemId, item, fieldDefs);
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        function getCurrentCourseId() {
+            if (currentCourseId) return currentCourseId;
+            if (window.currentCourseId) {
+                debugLog('Recovering currentCourseId from window object', 'warn');
+                currentCourseId = window.currentCourseId;
+                return currentCourseId;
+            }
+            return null;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCourses();
+        });
+
+        async function loadCourses() {
+            try {
+                debugLog('Loading courses...', 'info');
+                const response = await fetch('/canvas/courses');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                const responseData = await response.json();
+                debugLog(`Received response from API`, 'info');
+                
+                // The backend returns a grouped structure: [{ term: "...", courses: [...] }, ...]
+                // Already sorted in reverse chronological order (newest first, with "No Term Assigned" at the bottom)
+                if (!Array.isArray(responseData)) {
+                    debugLog(`ERROR: Expected array but got: ${typeof responseData}`, 'error');
+                    debugLog(`Response data: ${JSON.stringify(responseData)}`, 'error');
+                    return;
+                }
+                
+                const select = document.getElementById('courseSelect');
+                if (!select) {
+                    debugLog('ERROR: courseSelect element not found', 'error');
+                    return;
+                }
+                
+                select.innerHTML = '<option value="">-- Select a Course --</option>';
+                
+                // Use the groups directly from the backend (already sorted in reverse chronological order)
+                let totalCourses = 0;
+                responseData.forEach(group => {
+                    if (group.courses && Array.isArray(group.courses)) {
+                        const optgroup = document.createElement('optgroup');
+                        optgroup.label = group.term || 'No Term Assigned';
+                        group.courses.forEach(course => {
+                            const option = document.createElement('option');
+                            option.value = course.id || '';
+                            const courseName = course.name || 'Unnamed Course';
+                            const courseCode = course.course_code || course.id || '';
+                            option.textContent = `${courseName}${courseCode ? ' (' + courseCode + ')' : ''}`;
+                            optgroup.appendChild(option);
+                            totalCourses++;
+                        });
+                        select.appendChild(optgroup);
+                    }
+                });
+                debugLog(`Loaded ${totalCourses} courses into dropdown`, 'success');
+            } catch (error) {
+                debugLog(`Error loading courses: ${error.message}`, 'error');
+                debugLog(`Error stack: ${error.stack}`, 'error');
+                console.error('loadCourses error:', error);
+            }
+        }
+
+        async function loadCourseData() {
+            const select = document.getElementById('courseSelect');
+            const courseId = select.value;
+            if (!courseId) {
+                document.getElementById('courseDetails').classList.add('hidden');
+                document.getElementById('tabsContainer').classList.add('hidden');
+                currentCourseId = null;
+                return;
+            }
+
+            currentCourseId = parseInt(courseId);
+            window.currentCourseId = currentCourseId;
+            debugLog(`Course selected: ${currentCourseId}`, 'info');
+
+            try {
+                const response = await fetch(`/canvas/courses/${courseId}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const course = await response.json();
+                
+                document.getElementById('courseName').textContent = course.name || 'Untitled Course';
+                document.getElementById('courseCode').textContent = course.course_code || '-';
+                document.getElementById('startDate').textContent = course.start_at ? formatDateForDisplay(course.start_at) : '-';
+                document.getElementById('endDate').textContent = course.end_at ? formatDateForDisplay(course.end_at) : '-';
+                document.getElementById('createdAt').textContent = course.created_at ? formatDateForDisplay(course.created_at) : '-';
+                
+                document.getElementById('courseDetails').classList.remove('hidden');
+                document.getElementById('tabsContainer').classList.remove('hidden');
+                
+                loadedTabs.clear();
+                await loadTabData('students');
+            } catch (error) {
+                debugLog(`Error loading course data: ${error.message}`, 'error');
+            }
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            
+            if (!loadedTabs.has(tabName)) {
+                loadTabData(tabName);
+            }
+        }
+
+        async function loadTabData(tabName) {
+            const courseId = getCurrentCourseId();
+            if (!courseId) {
+                debugLog(`Cannot load ${tabName} - no course selected`, 'error');
+                return;
+            }
+
+            const loadingEl = document.getElementById(`loading-${tabName}`);
+            const errorEl = document.getElementById(`error-${tabName}`);
+            const table = document.querySelector(`#tab-${tabName} table`);
+            
+            if (loadingEl) loadingEl.classList.remove('hidden');
+            if (errorEl) {
+                errorEl.classList.add('hidden');
+                errorEl.textContent = '';
+            }
+            if (table) table.style.display = 'none';
+
+            try {
+                debugLog(`Loading ${tabName} for course ${courseId}...`, 'info');
+                const endpoint = `/canvas/courses/${courseId}/${tabName}`;
+                debugLog(`Fetching from: ${endpoint}`, 'info');
+                
+                const response = await fetch(endpoint);
+                debugLog(`Response status: ${response.status}`, response.ok ? 'success' : 'error');
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to load ${tabName}: ${response.status} ${response.statusText} - ${errorText}`);
+                }
+
+                const data = await response.json();
+                debugLog(`Received ${data.length} ${tabName}`, 'success');
+                
+                if (tabName === 'students') {
+                    displayStudents(data);
+                } else if (FIELD_DEFINITIONS[tabName]) {
+                    // Use generic display function for tabs with FIELD_DEFINITIONS
+                    displayDataTable(tabName, data);
+                } else {
+                    // Use the appropriate display function
+                    const displayFunc = window[`display${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`];
+                    if (displayFunc) {
+                        displayFunc(data);
+                    } else {
+                        debugLog(`No display function found for ${tabName}`, 'error');
+                    }
+                }
+                
+                loadedTabs.add(tabName);
+                if (loadingEl) loadingEl.classList.add('hidden');
+                if (table) table.style.display = '';
+            } catch (error) {
+                debugLog(`ERROR loading ${tabName}: ${error.message}`, 'error');
+                if (errorEl) {
+                    errorEl.textContent = error.message;
+                    errorEl.classList.remove('hidden');
+                }
+                if (loadingEl) loadingEl.classList.add('hidden');
+            }
+        }
+
+        function refreshTab(tabName) {
+            loadedTabs.delete(tabName);
+            loadTabData(tabName);
+        }
+
+        function displayPages(pages) {
+            const countEl = document.getElementById('pagesCount');
+            const tbody = document.getElementById('pagesTableBody');
+            
+            if (!selectedItems['pages']) {
+                selectedItems['pages'] = new Set();
+            }
+            
+            countEl.textContent = `${pages.length} page${pages.length !== 1 ? 's' : ''}`;
+            tbody.innerHTML = '';
+            
+            const selectAllCheckbox = document.getElementById('selectAll-pages');
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+
+            if (pages.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No pages found</td></tr>';
+                return;
+            }
+
+            pages.forEach((page, index) => {
+                const row = document.createElement('tr');
+                const itemId = page.url || index;
+                const isChecked = selectedItems['pages'].has(itemId);
+                row.innerHTML = `
+                    <td class="checkbox-cell">
+                        <input type="checkbox" class="row-checkbox" data-tab="pages" data-id="${itemId}" ${isChecked ? 'checked' : ''} onchange="toggleRowSelection('pages', '${itemId}', this.checked)">
+                    </td>
+                    <td data-item-id="${itemId}" data-field="title"></td>
+                    <td class="readonly-cell">${escapeHtml(page.url || '-')}</td>
+                    <td data-item-id="${itemId}" data-field="published"></td>
+                    <td data-item-id="${itemId}" data-field="front_page"></td>
+                    <td class="readonly-cell">${page.updated_at ? formatDateForDisplay(page.updated_at) : '-'}</td>
+                `;
+                if (isChecked) row.classList.add('selected');
+                
+                if (!originalData['pages']) originalData['pages'] = {};
+                originalData['pages'][itemId] = page;
+                
+                const titleCell = row.querySelector('[data-field="title"]');
+                const publishedCell = row.querySelector('[data-field="published"]');
+                const frontPageCell = row.querySelector('[data-field="front_page"]');
+                
+                makeCellEditable(titleCell, 'pages', itemId, 'title', page.title, 'text');
+                makeCellEditable(publishedCell, 'pages', itemId, 'published', page.published, 'boolean');
+                makeCellEditable(frontPageCell, 'pages', itemId, 'front_page', page.front_page, 'boolean');
+                
+                displayCellValue(titleCell, 'pages', itemId, 'title', page.title, 'text');
+                displayCellValue(publishedCell, 'pages', itemId, 'published', page.published, 'boolean');
+                displayCellValue(frontPageCell, 'pages', itemId, 'front_page', page.front_page, 'boolean');
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        function displayModules(modules) {
+            const countEl = document.getElementById('modulesCount');
+            const tbody = document.getElementById('modulesTableBody');
+            
+            if (!selectedItems['modules']) {
+                selectedItems['modules'] = new Set();
+            }
+            
+            countEl.textContent = `${modules.length} module${modules.length !== 1 ? 's' : ''}`;
+            tbody.innerHTML = '';
+            
+            const selectAllCheckbox = document.getElementById('selectAll-modules');
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+
+            if (modules.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No modules found</td></tr>';
+                return;
+            }
+
+            modules.forEach((module, index) => {
+                const row = document.createElement('tr');
+                const itemId = module.id || index;
+                const isChecked = selectedItems['modules'].has(itemId);
+                row.innerHTML = `
+                    <td class="checkbox-cell">
+                        <input type="checkbox" class="row-checkbox" data-tab="modules" data-id="${itemId}" ${isChecked ? 'checked' : ''} onchange="toggleRowSelection('modules', '${itemId}', this.checked)">
+                    </td>
+                    <td data-item-id="${itemId}" data-field="name"></td>
+                    <td class="readonly-cell">${module.items_count || 0}</td>
+                    <td data-item-id="${itemId}" data-field="published"></td>
+                    <td data-item-id="${itemId}" data-field="unlock_at"></td>
+                    <td data-item-id="${itemId}" data-field="position"></td>
+                `;
+                if (isChecked) row.classList.add('selected');
+                
+                if (!originalData['modules']) originalData['modules'] = {};
+                originalData['modules'][itemId] = module;
+                
+                const nameCell = row.querySelector('[data-field="name"]');
+                const publishedCell = row.querySelector('[data-field="published"]');
+                const unlockCell = row.querySelector('[data-field="unlock_at"]');
+                const positionCell = row.querySelector('[data-field="position"]');
+                
+                makeCellEditable(nameCell, 'modules', itemId, 'name', module.name, 'text');
+                makeCellEditable(publishedCell, 'modules', itemId, 'published', module.published, 'boolean');
+                makeCellEditable(unlockCell, 'modules', itemId, 'unlock_at', module.unlock_at, 'datetime');
+                makeCellEditable(positionCell, 'modules', itemId, 'position', module.position, 'number');
+                
+                displayCellValue(nameCell, 'modules', itemId, 'name', module.name, 'text');
+                displayCellValue(publishedCell, 'modules', itemId, 'published', module.published, 'boolean');
+                displayCellValue(unlockCell, 'modules', itemId, 'unlock_at', module.unlock_at, 'datetime');
+                displayCellValue(positionCell, 'modules', itemId, 'position', module.position, 'number');
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        function displayAccommodations(accommodations) {
+            const countEl = document.getElementById('accommodationsCount');
+            const tbody = document.getElementById('accommodationsTableBody');
+            
+            if (!selectedItems['accommodations']) {
+                selectedItems['accommodations'] = new Set();
+            }
+            
+            countEl.textContent = `${accommodations.length} accommodation${accommodations.length !== 1 ? 's' : ''}`;
+            tbody.innerHTML = '';
+            
+            const selectAllCheckbox = document.getElementById('selectAll-accommodations');
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+
+            if (accommodations.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No accommodations found</td></tr>';
+                return;
+            }
+
+            accommodations.forEach((acc, index) => {
+                const students = acc.student_ids ? acc.student_ids.length : (acc.students ? acc.students.length : 0);
+                const assignmentName = acc.assignment_name || acc.quiz_name || '-';
+                const row = document.createElement('tr');
+                const itemId = acc.id || `${acc.assignment_id || acc.quiz_id}-${index}`;
+                const isChecked = selectedItems['accommodations'].has(itemId);
+                row.innerHTML = `
+                    <td class="checkbox-cell">
+                        <input type="checkbox" class="row-checkbox" data-tab="accommodations" data-id="${itemId}" ${isChecked ? 'checked' : ''} onchange="toggleRowSelection('accommodations', '${itemId}', this.checked)">
+                    </td>
+                    <td>${escapeHtml(acc.type || 'Assignment Override')}</td>
+                    <td>${escapeHtml(assignmentName)}</td>
+                    <td>${students} student${students !== 1 ? 's' : ''}</td>
+                    <td>${acc.due_at ? formatDateForDisplay(acc.due_at) : '-'}</td>
+                    <td>${acc.unlock_at ? formatDateForDisplay(acc.unlock_at) : '-'}</td>
+                `;
+                if (isChecked) row.classList.add('selected');
+                tbody.appendChild(row);
+            });
+        }
+
+        function displayStudents(students) {
+            const countEl = document.getElementById('studentsCount');
+            const tbody = document.getElementById('studentsTableBody');
+            
+            if (!selectedItems['students']) {
+                selectedItems['students'] = new Set();
+            }
+            
+            countEl.textContent = `${students.length} student${students.length !== 1 ? 's' : ''}`;
+            tbody.innerHTML = '';
+            
+            const selectAllCheckbox = document.getElementById('selectAll-students');
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+
+            const table = document.getElementById('studentsTable');
+            if (students.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No students found</td></tr>';
+                if (table) table.style.display = '';
+                return;
+            }
+
+            debugLog(`Rendering ${students.length} student rows...`, 'info');
+            students.forEach((student, index) => {
+                const row = document.createElement('tr');
+                const itemId = student.id || student.enrollment_id || index;
+                const isChecked = selectedItems['students'].has(itemId);
+                row.innerHTML = `
+                    <td class="checkbox-cell">
+                        <input type="checkbox" class="row-checkbox" data-tab="students" data-id="${itemId}" ${isChecked ? 'checked' : ''} onchange="toggleRowSelection('students', '${itemId}', this.checked)">
+                    </td>
+                    <td>${escapeHtml(student.name || '-')}</td>
+                    <td>${escapeHtml(student.email || '-')}</td>
+                    <td>${escapeHtml(student.sis_user_id || '-')}</td>
+                    <td><span class="badge" style="background: ${getStateColor(student.enrollment_state)}; color: white;">${escapeHtml(student.enrollment_state || 'unknown')}</span></td>
+                `;
+                if (isChecked) row.classList.add('selected');
+                tbody.appendChild(row);
+            });
+            
+            if (table) table.style.display = '';
+            debugLog(`Successfully displayed ${students.length} students`, 'success');
+        }
+
+        function getStateColor(state) {
+            const colors = {
+                active: '#28a745',
+                invited: '#ffc107',
+                creation_pending: '#17a2b8',
+                deleted: '#dc3545',
+                rejected: '#dc3545',
+                completed: '#6c757d',
+                inactive: '#6c757d'
+            };
+            return colors[state] || '#6c757d';
+        }
+
+        function toggleSelectAll(tabName, checked) {
+            if (!selectedItems[tabName]) {
+                selectedItems[tabName] = new Set();
+            }
+            
+            const checkboxes = document.querySelectorAll(`#tab-${tabName} .row-checkbox`);
+            checkboxes.forEach(cb => {
+                cb.checked = checked;
+                const itemId = cb.getAttribute('data-id');
+                if (checked) {
+                    selectedItems[tabName].add(itemId);
+                    cb.closest('tr').classList.add('selected');
+                } else {
+                    selectedItems[tabName].delete(itemId);
+                    cb.closest('tr').classList.remove('selected');
+                }
+            });
+        }
+
+        function toggleRowSelection(tabName, itemId, checked) {
+            if (!selectedItems[tabName]) {
+                selectedItems[tabName] = new Set();
+            }
+            
+            if (checked) {
+                selectedItems[tabName].add(itemId);
+            } else {
+                selectedItems[tabName].delete(itemId);
+            }
+            
+            const row = document.querySelector(`[data-item-id="${itemId}"]`)?.closest('tr');
+            if (row) {
+                if (checked) {
+                    row.classList.add('selected');
+                } else {
+                    row.classList.remove('selected');
+                }
+            }
+            
+            const selectAllCheckbox = document.getElementById(`selectAll-${tabName}`);
+            if (selectAllCheckbox) {
+                const allCheckboxes = document.querySelectorAll(`#tab-${tabName} .row-checkbox`);
+                const checkedCount = Array.from(allCheckboxes).filter(cb => cb.checked).length;
+                selectAllCheckbox.checked = checkedCount === allCheckboxes.length && allCheckboxes.length > 0;
+            }
+        }
+
+        function makeCellEditable(cell, tabName, itemId, fieldName, currentValue, fieldType) {
+            if (!cell) return;
+            
+            cell.classList.add('cell-editable');
+            
+            const actualCurrentValue = changes[tabName] && changes[tabName][itemId] && changes[tabName][itemId][fieldName] !== undefined
+                ? changes[tabName][itemId][fieldName]
+                : currentValue;
+            
+            cell.addEventListener('click', function startEditing() {
+                if (cell.querySelector('.cell-input')) return; // Already editing
+                
+                let input;
+                if (fieldType === 'boolean') {
+                    input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.checked = actualCurrentValue === true || actualCurrentValue === 'true' || actualCurrentValue === 1;
+                } else if (fieldType === 'datetime' || fieldName.includes('_at') || fieldName.includes('date')) {
+                    input = document.createElement('input');
+                    input.type = 'datetime-local';
+                    if (actualCurrentValue) {
+                        input.value = formatDateForInput(actualCurrentValue);
+                    } else {
+                        // Default to today at 11:59 PM (local time)
+                        const today = new Date();
+                        const year = today.getFullYear();
+                        const month = String(today.getMonth() + 1).padStart(2, '0');
+                        const day = String(today.getDate()).padStart(2, '0');
+                        input.value = `${year}-${month}-${day}T23:59`;
+                    }
+                    
+                    // Auto-set time to 11:59 PM when date changes
+                    let lastDateValue = input.value ? input.value.split('T')[0] : null;
+                    input.addEventListener('change', function() {
+                        if (input.value) {
+                            const currentDateValue = input.value.split('T')[0];
+                            if (currentDateValue !== lastDateValue) {
+                                input.value = `${currentDateValue}T23:59`;
+                                lastDateValue = currentDateValue;
+                            }
+                        }
+                    });
+                } else if (fieldType === 'number') {
+                    input = document.createElement('input');
+                    input.type = 'number';
+                    input.value = actualCurrentValue || '';
+                } else {
+                    input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = actualCurrentValue || '';
+                }
+                
+                input.className = 'cell-input';
+                cell.innerHTML = '';
+                cell.appendChild(input);
+                input.focus();
+                if (input.type !== 'checkbox') input.select();
+                
+                const finishEditing = (save = true) => {
+                    let newValue;
+                    if (input.type === 'checkbox') {
+                        newValue = input.checked;
+                    } else if (input.type === 'datetime-local') {
+                        newValue = formatDateForAPI(input.value);
+                    } else if (input.type === 'number') {
+                        newValue = input.value ? parseFloat(input.value) : null;
+                    } else {
+                        newValue = input.value.trim() || null;
+                    }
+                    
+                    const originalValue = originalData[tabName] && originalData[tabName][itemId] 
+                        ? originalData[tabName][itemId][fieldName] 
+                        : actualCurrentValue;
+                    
+                    if (save) {
+                        const valueChanged = JSON.stringify(newValue) !== JSON.stringify(originalValue);
+                        if (valueChanged) {
+                            trackChange(tabName, itemId, fieldName, newValue, originalValue);
+                        }
+                        displayCellValue(cell, tabName, itemId, fieldName, newValue, fieldType);
+                    } else {
+                        displayCellValue(cell, tabName, itemId, fieldName, originalValue, fieldType);
+                    }
+                };
+                
+                input.addEventListener('blur', () => finishEditing(true));
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        finishEditing(true);
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        finishEditing(false);
+                    }
+                });
+            });
+        }
+
+        function displayCellValue(cell, tabName, itemId, fieldName, value, fieldType) {
+            if (fieldType === 'boolean') {
+                cell.textContent = value ? '✓' : '✗';
+            } else if (fieldType === 'datetime' || fieldName.includes('_at') || fieldName.includes('date')) {
+                cell.textContent = value ? formatDateForDisplay(value) : '-';
+            } else {
+                cell.textContent = value || '-';
+            }
+        }
+
+        function trackChange(tabName, itemId, fieldName, newValue, oldValue) {
+            if (!changes[tabName]) {
+                changes[tabName] = {};
+            }
+            if (!changes[tabName][itemId]) {
+                changes[tabName][itemId] = {};
+            }
+            
+            changes[tabName][itemId][fieldName] = newValue;
+            
+            debugLog(`Change tracked: ${tabName}[${itemId}].${fieldName} = ${newValue}`, 'info');
+            
+            const row = document.querySelector(`[data-item-id="${itemId}"]`)?.closest('tr');
+            if (row) {
+                row.classList.add('modified');
+            }
+            
+            updateSyncButton(tabName);
+        }
+
+        function updateSyncButton(tabName) {
+            const syncBtn = document.getElementById(`sync-${tabName}`);
+            const changesCount = document.getElementById(`changesCount-${tabName}`);
+            
+            if (!syncBtn) return;
+            
+            const changeCount = Object.keys(changes[tabName] || {}).length;
+            
+            if (changeCount > 0) {
+                syncBtn.disabled = false;
+                syncBtn.classList.add('has-changes');
+                if (changesCount) {
+                    changesCount.textContent = changeCount;
+                    changesCount.classList.remove('hidden');
+                }
+            } else {
+                syncBtn.disabled = true;
+                syncBtn.classList.remove('has-changes');
+                if (changesCount) {
+                    changesCount.classList.add('hidden');
+                }
+            }
+        }
+
+        async function syncChanges(tabName) {
+            debugLog(`=== ATTEMPTING TO SYNC TO CANVAS ===`, 'info');
+            debugLog(`Tab: ${tabName}`, 'info');
+            debugLog(`Course ID: ${currentCourseId}`, 'info');
+            
+            if (!currentCourseId) {
+                debugLog(`ERROR: No course selected for sync`, 'error');
+                alert('No course selected');
+                return;
+            }
+            
+            const tabChanges = changes[tabName];
+            if (!tabChanges || Object.keys(tabChanges).length === 0) {
+                debugLog(`No changes to sync for ${tabName}`, 'warn');
+                alert('No changes to sync');
+                return;
+            }
+            
+            const syncBtn = document.getElementById(`sync-${tabName}`);
+            if (syncBtn) {
+                syncBtn.disabled = true;
+                syncBtn.textContent = 'Syncing...';
+            }
+            
+            const changeCount = Object.keys(tabChanges).length;
+            debugLog(`Syncing ${changeCount} changed item(s) for ${tabName}...`, 'info');
+            debugLog(`Changes to sync: ${JSON.stringify(tabChanges, null, 2)}`, 'info');
+            
+            try {
+                const updatePromises = Object.keys(tabChanges).map(async (itemId) => {
+                    const itemChanges = tabChanges[itemId];
+                    let id = itemId;
+                    
+                    if (tabName === 'pages') {
+                        id = itemId;
+                    } else {
+                        id = parseInt(itemId);
+                    }
+                    
+                    debugLog(`Updating ${tabName} ${id} with changes: ${JSON.stringify(itemChanges)}`, 'info');
+                    
+                    // Special handling for quiz due_at: route to assignment endpoint
+                    // ALL classic quizzes have assignment_id, so due_at must go to assignment endpoint
+                    // This includes when due_at is null (to delete the due date)
+                    if (tabName === 'quizzes' && itemChanges.due_at !== undefined) {
+                        const originalQuiz = originalData['quizzes'] && originalData['quizzes'][itemId];
+                        if (!originalQuiz) {
+                            debugLog(`ERROR: Cannot find original quiz data for quiz ${id}`, 'error');
+                            throw new Error(`Cannot find original quiz data for quiz ${id}`);
+                        }
+                        
+                        const quizAssignmentId = originalQuiz.assignment_id;
+                        if (!quizAssignmentId) {
+                            debugLog(`ERROR: Quiz ${id} does not have assignment_id (this should not happen for classic quizzes)`, 'error');
+                            throw new Error(`Quiz ${id} does not have assignment_id`);
+                        }
+                        
+                        const dueAtChange = itemChanges.due_at;
+                        const quizChangesWithoutDueAt = { ...itemChanges };
+                        delete quizChangesWithoutDueAt.due_at;
+                        
+                        debugLog(`Quiz ${id} has assignment_id ${quizAssignmentId}, routing due_at to assignment endpoint`, 'info');
+                        
+                        let quizData = null;
+                        
+                        // Update quiz with other fields (if any)
+                        if (Object.keys(quizChangesWithoutDueAt).length > 0) {
+                            const endpoint = `/canvas/courses/${currentCourseId}/${tabName}/${id}`;
+                            debugLog(`=== REQUEST (Quiz Update - Other Fields) ===`, 'info');
+                            debugLog(`URL: ${endpoint}`, 'info');
+                            debugLog(`Request body: ${JSON.stringify(quizChangesWithoutDueAt, null, 2)}`, 'info');
+                            
+                            const quizResponse = await fetch(endpoint, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(quizChangesWithoutDueAt),
+                            });
+                            
+                            const quizResponseText = await quizResponse.text();
+                            debugLog(`=== RESPONSE (Quiz Update) ===`, quizResponse.ok ? 'success' : 'error');
+                            debugLog(`Status: ${quizResponse.status}`, quizResponse.ok ? 'success' : 'error');
+                            debugLog(`Body: ${quizResponseText}`, 'info');
+                            
+                            if (!quizResponse.ok) {
+                                throw new Error(`Failed to update quiz ${id}: ${quizResponse.status} - ${quizResponseText}`);
+                            }
+                            
+                            try {
+                                quizData = JSON.parse(quizResponseText);
+                            } catch (e) {
+                                debugLog(`Failed to parse quiz response: ${e.message}`, 'warn');
+                            }
+                        }
+                        
+                        // Update assignment with due_at
+                        const assignmentEndpoint = `/canvas/courses/${currentCourseId}/assignments/${quizAssignmentId}`;
+                        const assignmentBody = { due_at: dueAtChange };
+                        
+                        debugLog(`=== REQUEST (Assignment Due Date) ===`, 'info');
+                        debugLog(`URL: ${assignmentEndpoint}`, 'info');
+                        debugLog(`Request body: ${JSON.stringify(assignmentBody, null, 2)}`, 'info');
+                        
+                        const assignmentResponse = await fetch(assignmentEndpoint, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(assignmentBody),
+                        });
+                        
+                        const assignmentResponseText = await assignmentResponse.text();
+                        debugLog(`=== RESPONSE (Assignment Due Date) ===`, assignmentResponse.ok ? 'success' : 'error');
+                        debugLog(`Status: ${assignmentResponse.status}`, assignmentResponse.ok ? 'success' : 'error');
+                        debugLog(`Body: ${assignmentResponseText}`, 'info');
+                        
+                        if (!assignmentResponse.ok) {
+                            throw new Error(`Failed to update assignment ${quizAssignmentId}: ${assignmentResponse.status} - ${assignmentResponseText}`);
+                        }
+                        
+                        let assignmentData = null;
+                        try {
+                            assignmentData = JSON.parse(assignmentResponseText);
+                        } catch (e) {
+                            debugLog(`Failed to parse assignment response: ${e.message}`, 'warn');
+                        }
+                        
+                        return { id, success: true, data: assignmentData || quizData };
+                    }
+                    
+                    const urlId = tabName === 'pages' ? encodeURIComponent(id) : id;
+                    const endpoint = `/canvas/courses/${currentCourseId}/${tabName}/${urlId}`;
+                    
+                    debugLog(`=== REQUEST ===`, 'info');
+                    debugLog(`URL: ${endpoint}`, 'info');
+                    debugLog(`Method: PUT`, 'info');
+                    debugLog(`Request body: ${JSON.stringify(itemChanges, null, 2)}`, 'info');
+                    
+                    const response = await fetch(endpoint, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(itemChanges),
+                    });
+                    
+                    const responseText = await response.text();
+                    debugLog(`=== RESPONSE ===`, response.ok ? 'success' : 'error');
+                    debugLog(`Status: ${response.status}`, response.ok ? 'success' : 'error');
+                    debugLog(`Body: ${responseText}`, 'info');
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed to update ${tabName} ${id}: ${response.status} - ${responseText}`);
+                    }
+                    
+                    let data = null;
+                    try {
+                        data = JSON.parse(responseText);
+                    } catch (e) {
+                        debugLog(`Failed to parse response: ${e.message}`, 'warn');
+                    }
+                    
+                    debugLog(`Successfully updated ${tabName} ${id}`, 'success');
+                    return { id, success: true, data };
+                });
+                
+                const results = await Promise.allSettled(updatePromises);
+                const processedResults = results.map((result, index) => {
+                    if (result.status === 'fulfilled') {
+                        return result.value;
+                    } else {
+                        const itemId = Object.keys(tabChanges)[index];
+                        const errorMsg = result.reason?.message || 'Unknown error';
+                        debugLog(`Update failed for item ${itemId}: ${errorMsg}`, 'error');
+                        return { id: itemId, success: false, error: errorMsg };
+                    }
+                });
+                
+                const successCount = processedResults.filter(r => r.success).length;
+                const failCount = processedResults.filter(r => !r.success).length;
+                
+                debugLog(`Sync complete: ${successCount} succeeded, ${failCount} failed`, successCount > 0 ? 'success' : 'error');
+                
+                if (failCount > 0) {
+                    const failedItems = processedResults.filter(r => !r.success);
+                    debugLog(`Failed items: ${JSON.stringify(failedItems)}`, 'error');
+                    alert(`Sync completed with ${failCount} error(s). Check debug log for details.`);
+                } else {
+                    alert(`Successfully synced ${successCount} item(s) to Canvas!`);
+                }
+                
+                changes[tabName] = {};
+                updateSyncButton(tabName);
+                
+                document.querySelectorAll(`#tab-${tabName} tr.modified`).forEach(row => {
+                    row.classList.remove('modified');
+                });
+                
+                if (syncBtn) {
+                    syncBtn.textContent = '💾 Sync to Canvas';
+                }
+                
+                // Refresh the tab to show updated data
+                await refreshTab(tabName);
+            } catch (error) {
+                debugLog(`Sync error: ${error.message}`, 'error');
+                alert(`Sync failed: ${error.message}`);
+                if (syncBtn) {
+                    syncBtn.disabled = false;
+                    syncBtn.textContent = '💾 Sync to Canvas';
+                }
+            }
+        }
+    </script>
+</body>
+</html>

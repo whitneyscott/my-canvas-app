@@ -1,0 +1,18 @@
+Backup created: 2025-12-29_10-16-22
+
+This backup includes:
+- All source code (src/)
+- All views (views/)
+- Configuration files (package.json, tsconfig.json, etc.)
+- To Do list
+
+Major features implemented:
+- Visual feedback for data fetching
+- Fixed announcements retrieval
+- Command Center drawer with modals
+- Toggle buttons for state fields
+- Spreadsheet-style filtering and sorting
+- Date range filtering
+- All columns sortable
+
+To restore: Copy files from this directory back to project root.

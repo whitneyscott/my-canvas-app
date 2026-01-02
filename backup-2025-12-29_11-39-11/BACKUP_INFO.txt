@@ -1,0 +1,27 @@
+﻿Backup created: 2025-12-29_11-39-11
+Purpose: Before implementing AccommodationService with Prisma
+
+Files backed up:
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\src
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\test
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\unstable
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\views
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\.env
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\.gitignore
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\.prettierrc
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\browser operation
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\create-backup.ps1
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\eslint.config.mjs
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\nest-cli.json
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\package-lock.json
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\package.json
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\README.md
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\start-dev-safe.bat
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\start-dev-safe.ps1
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\To Do
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\tsconfig.build.json
+  - C:\Users\Scott\OneDrive\Desktop\my-canvas-app\tsconfig.json
+
+To restore:
+1. Copy files from this backup directory back to project root
+2. Restore any deleted files from this backup

@@ -1,0 +1,53 @@
+Backup Created: December 28, 2025 at 20:25:00
+
+This backup contains a stable version after implementing Single Source of Truth (SSOT)
+with helper functions for repeated patterns.
+
+Implementation Status:
+✓ Step 1: FIELD_DEFINITIONS object created
+✓ Step 2: Table headers standardized to Canvas API keys
+✓ Step 3: Generic displayDataTable() function created
+✓ Step 4: Helper functions for repeated patterns created
+  - initializeTableState()
+  - createTableRow()
+  - initializeEditableCells()
+
+Code Improvements:
+- Removed ~298 lines of duplicated code (old individual display functions)
+- Created reusable helper functions
+- Generic display function handles quizzes, assignments, discussions, announcements
+- All table headers now use Canvas API keys directly
+
+Contents:
+- All source files (src/)
+- All view templates (views/)
+- All test files (test/)
+- Configuration files (package.json, tsconfig.json, etc.)
+- Documentation (README.md, To Do, browser operation)
+
+Excluded:
+- node_modules/ (can be restored with 'npm install')
+- dist/ (build output, can be regenerated)
+- Other build artifacts
+
+To restore this backup:
+1. Stop the development server if running
+2. Copy all files from this backup directory back to the project root
+3. Run 'npm install' to restore dependencies
+4. Run 'npm run start:dev' to restart the server
+
+This is a stable version with SSOT implementation complete for the main tabs.
+
+
+
+
+
+
+
+
+
+
+
+
+
+

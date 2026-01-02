@@ -1,0 +1,22 @@
+Backup created: 2025-12-31_13-29-25
+Purpose: CHECKPOINT - Stable state before major changes
+Note: This is a safe checkpoint to return to if issues occur during development
+
+Files backed up:
+  - src
+  - test
+  - views
+  - unstable
+  - package.json
+  - package-lock.json
+  - tsconfig.json
+  - tsconfig.build.json
+  - nest-cli.json
+  - eslint.config.mjs
+  - .gitignore
+  - .prettierrc
+  - .env
+
+To restore:
+1. Copy files from this backup directory back to project root
+2. Restore any deleted files from this backup

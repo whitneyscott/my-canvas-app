@@ -1,0 +1,28 @@
+﻿Backup created: 2026-01-01_15-50-18
+Purpose: Stable version - Accommodation gradebook integration complete, all selection features working
+
+Current state:
+Spreadsheet Selection Features:
+- Shift+Click for range selection: Working
+- Shift+Arrow keys: Working (works even when editing)
+- Ctrl+D with ranges: Working (respects selection boundaries, doesn't overwrite filled cells)
+- Ctrl+Shift+Arrow (all directions): Working (selects to last empty cell before next filled cell)
+- Cell data persists when converting to input: Working
+- Ctrl+A: Select all cells - Working
+- Ctrl+Spacebar / Cmd+Spacebar: Select entire column - Working
+- Shift+Spacebar: Select entire row - Working
+- handleDirectionalFill: Versatile copy function supporting all directions
+- Updated getEndOfContiguousData logic: Stops at last empty cell before filled cell
+- All keyboard shortcuts have Mac equivalents (Cmd instead of Ctrl)
+
+Accommodation Gradebook Integration:
+- Accommodations now stored in Canvas custom gradebook columns (single "Accommodations" column)
+- Accommodation data automatically loaded from gradebook when course loads
+- Uses batch endpoint: GET /api/v1/courses/:course_id/custom_gradebook_columns/:column_id/data
+- Accommodation checkboxes correctly populated from gradebook data
+- Clean logging format: [Request] Student Name: "accommodation" or "No accommodation"
+- Removed all legacy group-based accommodation code
+
+To restore:
+1. Copy files from this backup directory back to project root
+2. Restore any deleted files from this backup
