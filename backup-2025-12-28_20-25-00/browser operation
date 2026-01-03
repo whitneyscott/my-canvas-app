@@ -1,7 +1,0 @@
-1. Ctrl+ to open terminal.
-2. Click the three expandable list upper right corner of the command window. Select command prompt.
-3. Type npm run start:dev
-4. click the menu at the top of the cursor app "View".
-5. Select Browser
-6. Type http://localhost:3000
-

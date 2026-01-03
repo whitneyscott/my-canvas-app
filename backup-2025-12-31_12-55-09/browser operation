@@ -1,9 +1,0 @@
-1. Ctrl+` to open terminal.
-2. Click the three expandable list upper right corner of the command window. Select command prompt.
-3. Type npm run start:dev:safe (A new script to make sure the address is not in use)
-4. Open browser in one of these ways:
-   a. Press Ctrl+Shift+P, type "Browser" and select the browser option
-   b. Or manually open Chrome/Edge/Firefox and navigate to http://localhost:3000
-   c. Or check View menu for "Browser" option (may need Cursor restart if missing)
-
-
