@@ -449,6 +449,87 @@ export class CanvasService {
     return allOverrides;
   }
 
+  // Individual GET methods (for fetching full item data)
+  async getAssignment(courseId: number, assignmentId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const response = await fetch(`${baseUrl}/courses/${courseId}/assignments/${assignmentId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get assignment: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  async getQuiz(courseId: number, quizId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const response = await fetch(`${baseUrl}/courses/${courseId}/quizzes/${quizId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get quiz: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  async getDiscussion(courseId: number, discussionId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const response = await fetch(`${baseUrl}/courses/${courseId}/discussion_topics/${discussionId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get discussion: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  async getPage(courseId: number, pageUrl: string) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    // Retry logic for 404s (Canvas may need a moment to make the resource available)
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        // Wait 500ms before retry
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      const response = await fetch(`${baseUrl}/courses/${courseId}/pages/${encodeURIComponent(pageUrl)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      if (response.status !== 404 || attempt === 2) {
+        // If not 404, or this is the last attempt, throw the error
+        const errorText = await response.text();
+        lastError = new Error(`Failed to get page: ${response.status} ${response.statusText} - ${errorText}`);
+        if (response.status !== 404) {
+          throw lastError;
+        }
+      }
+    }
+    
+    // If we get here, all retries failed with 404
+    throw lastError || new Error(`Failed to get page: Resource not found after retries`);
+  }
+
+  async getAnnouncement(courseId: number, announcementId: number) {
+    // Announcements are discussions, so use the same endpoint
+    return this.getDiscussion(courseId, announcementId);
+  }
+
   // Individual update methods (for inline editing)
   async updateAssignment(courseId: number, assignmentId: number, updates: Record<string, any>) {
     try {
@@ -1325,5 +1406,398 @@ export class CanvasService {
     });
     
     return columns;
+  }
+
+  // Delete methods
+  async deleteAssignment(courseId: number, assignmentId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    const response = await fetch(`${baseUrl}/courses/${courseId}/assignments/${assignmentId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete assignment: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    // DELETE endpoints typically return 200 OK with the deleted object, or 204 No Content
+    if (response.status === 204) {
+      return { success: true };
+    }
+    
+    try {
+      return await response.json();
+    } catch {
+      return { success: true };
+    }
+  }
+
+  async deleteQuiz(courseId: number, quizId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    const response = await fetch(`${baseUrl}/courses/${courseId}/quizzes/${quizId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete quiz: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    if (response.status === 204) {
+      return { success: true };
+    }
+    
+    try {
+      return await response.json();
+    } catch {
+      return { success: true };
+    }
+  }
+
+  async deleteDiscussion(courseId: number, discussionId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    const response = await fetch(`${baseUrl}/courses/${courseId}/discussion_topics/${discussionId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete discussion: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    if (response.status === 204) {
+      return { success: true };
+    }
+    
+    try {
+      return await response.json();
+    } catch {
+      return { success: true };
+    }
+  }
+
+  async deletePage(courseId: number, pageUrl: string) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    const response = await fetch(`${baseUrl}/courses/${courseId}/pages/${encodeURIComponent(pageUrl)}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete page: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    if (response.status === 204) {
+      return { success: true };
+    }
+    
+    try {
+      return await response.json();
+    } catch {
+      return { success: true };
+    }
+  }
+
+  async deleteAnnouncement(courseId: number, announcementId: number) {
+    // Announcements are discussions, so use the same endpoint
+    return this.deleteDiscussion(courseId, announcementId);
+  }
+
+  // Content Export
+  async createContentExport(courseId: number, exportType: string = 'common_cartridge') {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    const response = await fetch(`${baseUrl}/courses/${courseId}/content_exports`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        export_type: exportType,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create content export: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  // Create methods (for duplication)
+  async createAssignment(courseId: number, body: Record<string, any>) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    // Canvas API expects assignment data wrapped in "assignment" object
+    const requestBody = body.assignment ? body : { assignment: body };
+    
+    const response = await fetch(`${baseUrl}/courses/${courseId}/assignments`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create assignment: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  async createQuiz(courseId: number, body: Record<string, any>) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    // Canvas API expects quiz data wrapped in "quiz" object
+    const requestBody = body.quiz ? body : { quiz: body };
+    
+    const response = await fetch(`${baseUrl}/courses/${courseId}/quizzes`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create quiz: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  async createDiscussion(courseId: number, body: Record<string, any>) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    // Canvas API expects discussion data wrapped in "title" and other fields directly
+    const response = await fetch(`${baseUrl}/courses/${courseId}/discussion_topics`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create discussion: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  async createPage(courseId: number, body: Record<string, any>) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    // Canvas API expects page data with "wiki_page" wrapper
+    const requestBody = body.wiki_page ? body : { wiki_page: body };
+    
+    const response = await fetch(`${baseUrl}/courses/${courseId}/pages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create page: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  async createAnnouncement(courseId: number, body: Record<string, any>) {
+    // Announcements are created as discussions with is_announcement flag
+    const announcementBody = {
+      ...body,
+      is_announcement: true,
+    };
+    return this.createDiscussion(courseId, announcementBody);
+  }
+
+  async createQuizExtensions(courseId: number, quizId: number, extensions: Array<{ user_id: number; extra_time?: number; extra_attempts?: number }>) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const url = `${baseUrl}/courses/${courseId}/quizzes/${quizId}/extensions`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ quiz_extensions: extensions }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Canvas API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  async createAssignmentOverride(courseId: number, assignmentId: number, override: { student_ids?: number[]; due_at?: string; unlock_at?: string; lock_at?: string }) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const url = `${baseUrl}/courses/${courseId}/assignments/${assignmentId}/overrides`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ assignment_override: override }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Canvas API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  async getModule(courseId: number, moduleId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    // Retry logic for 404s (Canvas may need a moment to make the resource available)
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        // Wait 500ms before retry
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      const response = await fetch(`${baseUrl}/courses/${courseId}/modules/${moduleId}?include[]=items`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      if (response.status !== 404 || attempt === 2) {
+        // If not 404, or this is the last attempt, throw the error
+        const errorText = await response.text();
+        lastError = new Error(`Failed to get module: ${response.status} ${response.statusText} - ${errorText}`);
+        if (response.status !== 404) {
+          throw lastError;
+        }
+      }
+    }
+    
+    // If we get here, all retries failed with 404
+    throw lastError || new Error(`Failed to get module: Resource not found after retries`);
+  }
+
+  async createModule(courseId: number, body: Record<string, any>) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    // Clean up body - remove null, undefined, and empty strings
+    const cleanedBody: Record<string, any> = {};
+    Object.keys(body).forEach(key => {
+      const value = body[key];
+      if (value !== null && value !== undefined && value !== '') {
+        cleanedBody[key] = value;
+      }
+    });
+    
+    console.log(`Creating module in course ${courseId} with:`, cleanedBody);
+    
+    // Canvas API expects module data wrapped in "module" object
+    const requestBody = body.module ? body : { module: cleanedBody };
+    
+    const response = await fetch(`${baseUrl}/courses/${courseId}/modules`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Module creation failed: ${response.status} ${response.statusText}`, errorText);
+      throw new Error(`Failed to create module: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  async deleteModule(courseId: number, moduleId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    const response = await fetch(`${baseUrl}/courses/${courseId}/modules/${moduleId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete module: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    if (response.status === 204) {
+      return { success: true };
+    }
+    
+    try {
+      return await response.json();
+    } catch {
+      return { success: true };
+    }
+  }
+
+  async createModuleItem(courseId: number, moduleId: number, body: Record<string, any>) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    // Canvas API expects module item data wrapped in "module_item" object
+    const requestBody = body.module_item ? body : { module_item: body };
+    
+    const response = await fetch(`${baseUrl}/courses/${courseId}/modules/${moduleId}/items`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create module item: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
   }
 }

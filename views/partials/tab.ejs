@@ -2,11 +2,6 @@
 <div class="tab-content<%= tab.isActive ? ' active' : '' %>" id="tab-<%= tab.name %>">
     <div class="tab-header">
         <div class="count-badge" id="<%= tab.name %>Count">0 <%= tab.displayName.toLowerCase() %></div>
-        <button class="sync-btn" id="sync-<%= tab.name %>" onclick="syncChanges('<%= tab.name %>')" disabled>
-            <span>💾</span>
-            Sync to Canvas
-            <span class="changes-count hidden" id="changesCount-<%= tab.name %>">0</span>
-        </button>
         <button class="refresh-btn" onclick="refreshTab('<%= tab.name %>')" id="refresh-<%= tab.name %>">
             <span class="refresh-icon"></span>
             Refresh

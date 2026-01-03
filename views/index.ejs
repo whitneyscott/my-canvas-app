@@ -28,6 +28,17 @@
             padding-bottom: 50px; /* Space for collapsed debug panel */
         }
         
+        .main-content-wrapper {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        
+        .main-content {
+            flex: 1;
+            min-width: 0; /* Allows flex item to shrink below content size */
+        }
+        
         h1 {
             margin-bottom: 20px;
             color: #2d3e50;
@@ -867,87 +878,46 @@
             color: #cca700;
         }
         
-        /* Drawer Styles */
-        .drawer-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 2000;
-            display: none;
-            transition: opacity 0.3s ease;
-        }
-        
-        .drawer-overlay.active {
-            display: block;
-        }
-        
-        .drawer {
-            position: fixed;
-            top: 0;
-            right: -400px;
-            width: 400px;
+        /* Sidebar Styles */
+        .sidebar {
+            width: 300px;
             height: 100vh;
             background: white;
-            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
-            z-index: 2001;
-            transition: right 0.3s ease;
+            border-left: 1px solid #ddd;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
+            flex-shrink: 0;
         }
         
-        .drawer.active {
-            right: 0;
+        .sidebar.hidden {
+            display: none;
         }
         
-        .drawer-header {
+        .sidebar-header {
             padding: 20px;
             border-bottom: 1px solid #ddd;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
             background: #f8f9fa;
         }
         
-        .drawer-header h2 {
+        .sidebar-header h2 {
             margin: 0;
             color: #2d3e50;
             font-size: 20px;
         }
         
-        .drawer-close {
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: #666;
-            padding: 0;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .drawer-close:hover {
-            color: #2d3e50;
-        }
-        
-        .drawer-content {
+        .sidebar-content {
             padding: 20px;
             flex: 1;
         }
         
-        .drawer-empty-state {
+        .sidebar-empty-state {
             text-align: center;
             padding: 40px 20px;
             color: #999;
         }
         
-        .drawer-dropdown {
+        .sidebar-dropdown {
             width: 100%;
             padding: 12px;
             border: 1px solid #ddd;
@@ -957,9 +927,51 @@
             cursor: pointer;
         }
         
-        .drawer-dropdown:focus {
+        .sidebar-dropdown:focus {
             outline: none;
             border-color: #2196F3;
+        }
+        
+        .assign-to-info-icon {
+            pointer-events: none;
+            user-select: none;
+        }
+        
+        .sidebar-btn {
+            padding: 10px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            background: white;
+            color: #333;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        
+        .sidebar-btn:hover:not(:disabled) {
+            background: #f5f5f5;
+            border-color: #bbb;
+        }
+        
+        .sidebar-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #f9f9f9;
+        }
+        
+        .sidebar-btn-danger {
+            border-color: #dc3545;
+            color: #dc3545;
+        }
+        
+        .sidebar-btn-danger:hover:not(:disabled) {
+            background: #dc3545;
+            color: white;
         }
         
         /* Modal Styles */
@@ -1117,34 +1129,6 @@
             background: #5a6268;
         }
         
-        .drawer-toggle-btn {
-            position: fixed;
-            bottom: 80px;
-            right: 20px;
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: #2196F3;
-            color: white;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            z-index: 1500;
-            transition: all 0.3s ease;
-            display: none;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .drawer-toggle-btn:hover {
-            background: #1976D2;
-            transform: scale(1.1);
-        }
-        
-        .drawer-toggle-btn.active {
-            background: #dc3545;
-        }
     </style>
 </head>
 <body>
@@ -1180,36 +1164,6 @@
             </button>
         </div>
         
-        <!-- Drawer Toggle Button -->
-        <button class="drawer-toggle-btn" id="drawerToggleBtn" onclick="toggleDrawer()" title="Open Bulk Editor">
-            ✏️
-        </button>
-        
-        <!-- Drawer Overlay -->
-        <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
-        
-        <!-- Drawer -->
-        <div class="drawer" id="drawer">
-            <div class="drawer-header">
-                <h2>Command Center</h2>
-                <button class="drawer-close" onclick="closeDrawer()">×</button>
-            </div>
-            <div class="drawer-content">
-                <div id="drawerEmptyState" class="drawer-empty-state hidden">
-                    Select rows to edit
-                </div>
-                <div id="drawerEditMode" class="hidden">
-                    <label for="editModeDropdown" style="display: block; margin-bottom: 10px; color: #555; font-weight: 500;">Edit Mode:</label>
-                    <select id="editModeDropdown" class="drawer-dropdown" onchange="handleEditModeChange()">
-                        <option value="">-- Select an action --</option>
-                        <option value="dateShift">Date Shift</option>
-                        <option value="publishStatus">Publish Status</option>
-                        <option value="searchReplace">Search & Replace</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-        
         <!-- Date Shift Modal -->
         <div class="modal-overlay" id="dateShiftModal" onclick="if(event.target === this) closeModal('dateShiftModal')">
             <div class="modal" onclick="event.stopPropagation()">
@@ -1218,26 +1172,98 @@
                     <button class="modal-close" onclick="closeModal('dateShiftModal')">×</button>
                 </div>
                 <div class="modal-content">
-                    <div id="dateShiftSummary" class="modal-confirm-summary"></div>
-                    <div class="modal-form-group">
-                        <label for="dateShiftField">Date Field:</label>
-                        <select id="dateShiftField">
-                            <option value="due_at">Due Date</option>
-                            <option value="unlock_at">Unlock Date</option>
-                            <option value="lock_at">Lock Date</option>
-                            <option value="posted_at">Posted Date</option>
-                            <option value="delayed_post_at">Delayed Post Date</option>
-                        </select>
+                    <!-- Section A: Calculator -->
+                    <div class="modal-form-group" style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #ddd;">
+                        <h3 style="margin-bottom: 15px; color: #2d3e50; font-size: 16px;">Calculator</h3>
+                        <div class="modal-form-group">
+                            <label for="oldSemesterStart">Old Semester Start:</label>
+                            <input type="date" id="oldSemesterStart">
+                        </div>
+                        <div class="modal-form-group">
+                            <label for="newSemesterStart">New Semester Start:</label>
+                            <input type="date" id="newSemesterStart">
+                        </div>
+                        <button class="modal-btn modal-btn-secondary" onclick="calculateDateDiff()" style="width: 100%; margin-top: 10px;">Calculate Shift</button>
                     </div>
+                    
+                    <!-- Section B: Shift Value -->
+                    <div class="modal-form-group" style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #ddd;">
+                        <h3 style="margin-bottom: 15px; color: #2d3e50; font-size: 16px;">Shift Value</h3>
+                        <div class="modal-form-group">
+                            <label for="dateShiftDays">Total Days to Shift:</label>
+                            <input type="number" id="dateShiftDays" value="0" step="1">
+                            <small style="color: #666; display: block; margin-top: 5px;">Positive values add days, negative subtracts</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Section C: Date Fields -->
+                    <div class="modal-form-group" style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #ddd;">
+                        <h3 style="margin-bottom: 15px; color: #2d3e50; font-size: 16px;">Date Fields</h3>
+                        <div class="modal-form-group">
+                            <label style="display: block; margin-bottom: 10px; color: #555; font-weight: 500;">Select Date Fields to Shift:</label>
+                            <div id="dateShiftFieldsContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding: 10px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;">
+                                <!-- Checkboxes will be populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Section D: Scope -->
                     <div class="modal-form-group">
-                        <label for="dateShiftDays">Days to Add/Subtract:</label>
-                        <input type="number" id="dateShiftDays" value="0" step="1">
-                        <small style="color: #666; display: block; margin-top: 5px;">Positive values add days, negative subtracts</small>
+                        <h3 style="margin-bottom: 15px; color: #2d3e50; font-size: 16px;">Scope</h3>
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <label style="display: flex; align-items: center; cursor: pointer; padding: 8px; border-radius: 4px; transition: background 0.2s;">
+                                <input type="radio" name="dateShiftScope" value="selected" checked style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;">
+                                <span style="font-size: 14px; color: #333;">Apply to Selected Rows</span>
+                            </label>
+                            <label style="display: flex; align-items: center; cursor: pointer; padding: 8px; border-radius: 4px; transition: background 0.2s;">
+                                <input type="radio" name="dateShiftScope" value="all" style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;">
+                                <span style="font-size: 14px; color: #333;">Apply to All Rows</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button class="modal-btn modal-btn-secondary" onclick="closeModal('dateShiftModal')">Cancel</button>
-                    <button class="modal-btn modal-btn-primary" onclick="applyDateShift()">Apply Date Shift</button>
+                    <button class="modal-btn modal-btn-primary" onclick="applyDateShift()">Apply</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Accommodation Command Center Modal -->
+        <div class="modal-overlay" id="accommodationCommandModal" onclick="if(event.target === this) closeModal('accommodationCommandModal')">
+            <div class="modal" onclick="event.stopPropagation()" style="max-width: 900px;">
+                <div class="modal-header">
+                    <h2>Accommodation Command Center</h2>
+                    <button class="modal-close" onclick="closeModal('accommodationCommandModal')">×</button>
+                </div>
+                <div class="modal-content">
+                    <!-- Accommodation Types Selection -->
+                    <div class="modal-form-group" style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #ddd;">
+                        <h3 style="margin-bottom: 15px; color: #2d3e50; font-size: 16px;">Select Accommodation Types</h3>
+                        <div id="accommodationTypesContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding: 10px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;">
+                            <!-- Checkboxes will be populated dynamically -->
+                        </div>
+                    </div>
+                    
+                    <!-- Plan of Action Preview -->
+                    <div class="modal-form-group" style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #ddd;">
+                        <h3 style="margin-bottom: 15px; color: #2d3e50; font-size: 16px;">Plan of Action</h3>
+                        <div id="accommodationPlanPreview" style="padding: 12px; background: #f0f7ff; border: 1px solid #b3d9ff; border-radius: 4px; font-size: 13px; line-height: 1.6; color: #333; min-height: 60px;">
+                            Select accommodation types to see the plan...
+                        </div>
+                    </div>
+                    
+                    <!-- Progress Log -->
+                    <div class="modal-form-group" style="margin-bottom: 25px; display: none;" id="accommodationProgressContainer">
+                        <h3 style="margin-bottom: 15px; color: #2d3e50; font-size: 16px;">Progress Log</h3>
+                        <div id="accommodationProgressLog" style="padding: 12px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; line-height: 1.5; color: #333; max-height: 300px; overflow-y: auto; font-family: monospace;">
+                            <!-- Progress messages will appear here -->
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-btn modal-btn-secondary" onclick="closeModal('accommodationCommandModal')">Cancel</button>
+                    <button class="modal-btn modal-btn-primary" id="accommodationExecuteBtn" onclick="executeAccommodations()">Execute Accommodations</button>
                 </div>
             </div>
         </div>
@@ -1252,11 +1278,10 @@
                 <div class="modal-content">
                     <div id="searchReplaceSummary" class="modal-confirm-summary"></div>
                     <div class="modal-form-group">
-                        <label for="searchReplaceField">Field to Search:</label>
-                        <select id="searchReplaceField">
-                            <option value="title">Title</option>
-                            <option value="name">Name</option>
-                        </select>
+                        <label style="display: block; margin-bottom: 10px; color: #555; font-weight: 500;">Fields to Search:</label>
+                        <div id="searchReplaceFieldsContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding: 10px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;">
+                            <!-- Checkboxes will be populated dynamically -->
+                        </div>
                     </div>
                     <div class="modal-form-group">
                         <label for="searchReplaceFind">Find:</label>
@@ -1270,6 +1295,75 @@
                 <div class="modal-footer">
                     <button class="modal-btn modal-btn-secondary" onclick="closeModal('searchReplaceModal')">Cancel</button>
                     <button class="modal-btn modal-btn-primary" onclick="applySearchReplace()">Apply Search & Replace</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Duplicate Quantity Modal -->
+        <div class="modal-overlay" id="duplicateQuantityModal" onclick="if(event.target === this) closeModal('duplicateQuantityModal')">
+            <div class="modal" onclick="event.stopPropagation()" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h2>Duplicate Items</h2>
+                    <button class="modal-close" onclick="closeModal('duplicateQuantityModal')">×</button>
+                </div>
+                <div class="modal-content">
+                    <div class="modal-form-group">
+                        <label for="duplicateQuantity">How many copies of each selected item would you like to create?</label>
+                        <input type="number" id="duplicateQuantity" min="1" max="100" value="1" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-btn modal-btn-secondary" onclick="closeModal('duplicateQuantityModal')">Cancel</button>
+                    <button class="modal-btn modal-btn-primary" onclick="proceedWithDuplication()">Create Copies</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Module Three-Way Clone Modal -->
+        <div class="modal-overlay" id="moduleCloneModal" onclick="if(event.target === this) closeModal('moduleCloneModal')">
+            <div class="modal" onclick="event.stopPropagation()" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2>Clone Module: Choose Method</h2>
+                    <button class="modal-close" onclick="closeModal('moduleCloneModal')">×</button>
+                </div>
+                <div class="modal-content">
+                    <div class="modal-form-group">
+                        <p style="margin-bottom: 20px; color: #555;">Select how you want to clone the selected module(s):</p>
+                        <div style="display: flex; flex-direction: column; gap: 15px;">
+                            <label style="display: flex; align-items: flex-start; cursor: pointer; padding: 15px; border: 2px solid #ddd; border-radius: 8px; transition: all 0.2s;" onmouseover="this.style.borderColor='#2196F3'; this.style.backgroundColor='#f0f7ff';" onmouseout="this.style.borderColor='#ddd'; this.style.backgroundColor='transparent';">
+                                <input type="radio" name="cloneType" value="structureOnly" style="margin-right: 12px; margin-top: 3px; width: 18px; height: 18px; cursor: pointer;" checked>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; margin-bottom: 5px; color: #2d3e50;">Structure Only</div>
+                                    <div style="font-size: 13px; color: #666; line-height: 1.5;">Create a new, empty module with an incremented name (e.g., "Week 1" → "Week 2"). No content is copied.</div>
+                                </div>
+                            </label>
+                            <label style="display: flex; align-items: flex-start; cursor: pointer; padding: 15px; border: 2px solid #ddd; border-radius: 8px; transition: all 0.2s;" onmouseover="this.style.borderColor='#2196F3'; this.style.backgroundColor='#f0f7ff';" onmouseout="this.style.borderColor='#ddd'; this.style.backgroundColor='transparent';">
+                                <input type="radio" name="cloneType" value="structureShared" style="margin-right: 12px; margin-top: 3px; width: 18px; height: 18px; cursor: pointer;">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; margin-bottom: 5px; color: #2d3e50;">Structure + Shared Content</div>
+                                    <div style="font-size: 13px; color: #666; line-height: 1.5;">Create a new module and add links to the existing assignments/pages/quizzes. Points to the original source items.</div>
+                                </div>
+                            </label>
+                            <label style="display: flex; align-items: flex-start; cursor: pointer; padding: 15px; border: 2px solid #ddd; border-radius: 8px; transition: all 0.2s;" onmouseover="this.style.borderColor='#2196F3'; this.style.backgroundColor='#f0f7ff';" onmouseout="this.style.borderColor='#ddd'; this.style.backgroundColor='transparent';">
+                                <input type="radio" name="cloneType" value="deepCopy" style="margin-right: 12px; margin-top: 3px; width: 18px; height: 18px; cursor: pointer;">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; margin-bottom: 5px; color: #2d3e50;">Deep Copy (Full Content)</div>
+                                    <div style="font-size: 13px; color: #666; line-height: 1.5;">Create a new module AND brand-new clones of every assignment, quiz, and page inside it, then link those new clones to the new module.</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                    <div id="moduleCloneProgressContainer" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+                        <div style="margin-bottom: 10px; font-weight: 500; color: #2d3e50;">Progress:</div>
+                        <div style="background: #f0f0f0; border-radius: 4px; height: 24px; overflow: hidden; margin-bottom: 10px;">
+                            <div id="moduleCloneProgressBar" style="background: #2196F3; height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: 500;">0%</div>
+                        </div>
+                        <div id="moduleCloneProgressText" style="font-size: 13px; color: #666; font-family: monospace; max-height: 150px; overflow-y: auto; padding: 10px; background: #f9f9f9; border-radius: 4px;"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-btn modal-btn-secondary" onclick="closeModal('moduleCloneModal')">Cancel</button>
+                    <button class="modal-btn modal-btn-primary" id="moduleCloneExecuteBtn" onclick="executeModuleClone()">Clone Module(s)</button>
                 </div>
             </div>
         </div>
@@ -1292,7 +1386,9 @@
             </div>
         </div>
         
-        <div class="tabs-container hidden" id="tabsContainer">
+        <div class="main-content-wrapper">
+            <div class="main-content">
+                <div class="tabs-container hidden" id="tabsContainer">
             <div class="tabs">
                 <button class="tab-button active" onclick="switchTab('students')">Students</button>
                 <button class="tab-button" onclick="switchTab('quizzes')">Quizzes</button>
@@ -1312,7 +1408,7 @@
                     name: 'students', 
                     displayName: 'Students', 
                     isActive: true,
-                    customThead: ['Name', 'Student ID', 'SIS User ID', 'Enrollment State', 'Accommodations']
+                    customThead: ['Last Name', 'First Name', 'Student ID', 'SIS User ID', 'Enrollment State', 'Accommodations']
                 },
                 { 
                     name: 'quizzes', 
@@ -1376,6 +1472,60 @@
                         </thead>
                         <tbody id="test-reportTableBody"></tbody>
                     </table>
+                </div>
+            </div>
+                </div>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="sidebar hidden" id="sidebar">
+                <div class="sidebar-header">
+                    <h2>Command Center</h2>
+                </div>
+                <div class="sidebar-content">
+                    <div id="sidebarEmptyState" class="sidebar-empty-state hidden">
+                        Select rows to edit
+                    </div>
+                    <div id="sidebarEditMode" class="hidden">
+                        <div style="margin-bottom: 20px;">
+                            <label for="editModeDropdown" style="display: block; margin-bottom: 10px; color: #555; font-weight: 500;">Bulk Actions:</label>
+                            <div style="position: relative;">
+                                <select id="editModeDropdown" class="sidebar-dropdown" onchange="handleEditModeChange()">
+                                    <option value="">-- Select an action --</option>
+                                    <option value="accommodations">Apply Accommodations</option>
+                                    <option value="assignTo" id="assignToOption">Assign To</option>
+                                    <option value="dateShift">Date Shift</option>
+                                    <option value="publishStatus">Publish Status</option>
+                                    <option value="searchReplace">Search & Replace</option>
+                                </select>
+                                <span id="assignToInfoIcon" class="assign-to-info-icon" style="display: none; position: absolute; right: 25px; top: 50%; transform: translateY(-50%); color: #6c757d; cursor: help; font-size: 14px;" title="Canvas only supports individual student assignments for graded items (Assignments, Quizzes, and Graded Discussions).">ℹ️</span>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <label for="viewOptionsDropdown" style="display: block; margin-bottom: 10px; color: #555; font-weight: 500;">View Options:</label>
+                            <select id="viewOptionsDropdown" class="sidebar-dropdown" onchange="handleViewOptionChange()">
+                                <option value="">-- Select an option --</option>
+                                <option value="filterRows">Filter Rows</option>
+                                <option value="columnVisibility">Hide/Show Columns</option>
+                            </select>
+                        </div>
+                        <div style="margin-bottom: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
+                            <label style="display: block; margin-bottom: 10px; color: #555; font-weight: 500;">Content Duplication and Deletion:</label>
+                            <button id="duplicateSelectedBtn" class="sidebar-btn" onclick="handleDuplicateSelected()" disabled style="width: 100%; margin-bottom: 10px;">
+                                ➕ Duplicate Selected
+                            </button>
+                            <button id="deleteSelectedBtn" class="sidebar-btn sidebar-btn-danger" onclick="handleDeleteSelected()" disabled style="width: 100%;">
+                                🗑️ Delete Selected
+                            </button>
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
+                        <button class="sync-btn" id="sync-sidebar" onclick="syncCurrentTab()" disabled style="width: 100%;">
+                            <span>💾</span>
+                            Sync to Canvas
+                            <span class="changes-count hidden" id="changesCount-sidebar">0</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2329,7 +2479,8 @@
         // Maps header label to data field key with metadata
         const CUSTOM_HEADER_FIELDS = {
             students: [
-                { label: 'Name', field: 'name', type: 'text', sortable: true, filterable: true },
+                { label: 'Last Name', field: 'last_name', type: 'text', sortable: true, filterable: true },
+                { label: 'First Name', field: 'first_name', type: 'text', sortable: true, filterable: true },
                 { label: 'Accommodations', field: 'accommodations', type: 'multiselect', sortable: false, filterable: false },
                 { label: 'Student ID', field: 'email', type: 'text', sortable: true, filterable: true },
                 { label: 'SIS User ID', field: 'sis_user_id', type: 'text', sortable: true, filterable: true },
@@ -2361,6 +2512,10 @@
         const FIELD_DEFINITIONS = {
             quizzes: [
                 { key: 'title', label: 'Title', type: 'text', editable: true },
+                { key: 'integration_id', label: 'Label', type: 'text', editable: false, render: (val) => {
+                    if (!val) return '';
+                    return `<span class="integration-id-badge" style="display: inline-block; padding: 3px 8px; background: #f0f0f0; color: #555; border-radius: 3px; font-size: 11px; font-weight: 500;">${escapeHtml(val)}</span>`;
+                }},
                 { key: 'id', label: 'ID', type: 'number', editable: false },
                 { key: 'description', label: 'Description', type: 'textarea', editable: true, cssClass: 'description-column' },
                 { key: 'quiz_type', label: 'Quiz Type', type: 'select', editable: true, 
@@ -2408,6 +2563,10 @@
             ],
             assignments: [
                 { key: 'name', label: 'Name', type: 'text', editable: true },
+                { key: 'integration_id', label: 'Label', type: 'text', editable: false, render: (val) => {
+                    if (!val) return '';
+                    return `<span class="integration-id-badge" style="display: inline-block; padding: 3px 8px; background: #f0f0f0; color: #555; border-radius: 3px; font-size: 11px; font-weight: 500;">${escapeHtml(val)}</span>`;
+                }},
                 { key: 'id', label: 'ID', type: 'number', editable: false },
                 { key: 'description', label: 'Description', type: 'textarea', editable: true, cssClass: 'description-column' },
                 { key: 'grading_type', label: 'Grading Type', type: 'select', editable: true,
@@ -2450,6 +2609,10 @@
             ],
             discussions: [
                 { key: 'title', label: 'Title', type: 'text', editable: true },
+                { key: 'integration_id', label: 'Label', type: 'text', editable: false, render: (val) => {
+                    if (!val) return '';
+                    return `<span class="integration-id-badge" style="display: inline-block; padding: 3px 8px; background: #f0f0f0; color: #555; border-radius: 3px; font-size: 11px; font-weight: 500;">${escapeHtml(val)}</span>`;
+                }},
                 { key: 'id', label: 'ID', type: 'number', editable: false },
                 { key: 'message', label: 'Message', type: 'textarea', editable: true, cssClass: 'description-column' },
                 { key: 'discussion_type', label: 'Discussion Type', type: 'select', editable: true,
@@ -3412,9 +3575,16 @@
                 } else {
                     // Readonly field - render directly
                     const value = item[field.key];
-                    const renderedValue = field.render ? field.render(value) : (value || '-');
+                    let cellContent;
+                    if (field.render) {
+                        // Render function returns HTML - don't escape
+                        cellContent = field.render(value);
+                    } else {
+                        // No render function - escape the value
+                        cellContent = escapeHtml(value || '-');
+                    }
                     const readonlyClass = `readonly-cell${field.cssClass ? ' ' + field.cssClass : ''}`;
-                    rowHTML += `<td class="${readonlyClass}">${escapeHtml(renderedValue)}</td>`;
+                    rowHTML += `<td class="${readonlyClass}" data-item-id="${itemId}" data-field="${field.key}">${cellContent}</td>`;
                 }
             });
             
@@ -3817,9 +3987,9 @@
             if (!courseId) {
                 document.getElementById('courseDetails').classList.add('hidden');
                 document.getElementById('tabsContainer').classList.add('hidden');
-                // Hide drawer toggle button when no course selected
-                const drawerToggleBtn = document.getElementById('drawerToggleBtn');
-                if (drawerToggleBtn) drawerToggleBtn.style.display = 'none';
+                // Hide sidebar when no course selected
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar) sidebar.classList.add('hidden');
                 currentCourseId = null;
                 updateTestButton();
                 return;
@@ -3852,9 +4022,9 @@
                 document.getElementById('courseDetails').classList.remove('hidden');
                 document.getElementById('tabsContainer').classList.remove('hidden');
                 
-                // Show drawer toggle button when tabs are visible
-                const drawerToggleBtn = document.getElementById('drawerToggleBtn');
-                if (drawerToggleBtn) drawerToggleBtn.style.display = 'flex';
+                // Show sidebar when tabs are visible
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar) sidebar.classList.remove('hidden');
                 
                 // Fetch assignment groups for the course
                 try {
@@ -3888,6 +4058,8 @@
                 
                 loadedTabs.clear();
                 await loadTabData('students');
+                // Update Assign To button visibility for initial tab
+                updateButtonVisibility('students');
             } catch (error) {
                 debugLog(`Error loading course data: ${error.message}`, 'error');
             } finally {
@@ -3996,6 +4168,12 @@
             event.target.classList.add('active');
             document.getElementById(`tab-${tabName}`).classList.add('active');
             
+            // Update sidebar sync button for the new active tab
+            updateSyncButton(tabName);
+            
+            // Update Assign To button visibility based on active tab
+            updateButtonVisibility(tabName);
+            
             if (tabName !== 'test-report' && !loadedTabs.has(tabName)) {
                 loadTabData(tabName);
             }
@@ -4083,59 +4261,26 @@
             loadTabData(tabName);
         }
 
-        // Drawer Functions
-        function toggleDrawer() {
-            const drawer = document.getElementById('drawer');
-            const overlay = document.getElementById('drawerOverlay');
-            const toggleBtn = document.getElementById('drawerToggleBtn');
-            
-            if (drawer && overlay && toggleBtn) {
-                drawer.classList.toggle('active');
-                overlay.classList.toggle('active');
-                toggleBtn.classList.toggle('active');
-                updateDrawerContent();
-            }
-        }
-
-        function closeDrawer() {
-            const drawer = document.getElementById('drawer');
-            const overlay = document.getElementById('drawerOverlay');
-            const toggleBtn = document.getElementById('drawerToggleBtn');
-            
-            if (drawer && overlay && toggleBtn) {
-                drawer.classList.remove('active');
-                overlay.classList.remove('active');
-                toggleBtn.classList.remove('active');
-            }
-        }
-
-        function openDrawerOnFocus() {
-            // Open drawer without stealing focus
-            const drawer = document.getElementById('drawer');
-            const overlay = document.getElementById('drawerOverlay');
-            const toggleBtn = document.getElementById('drawerToggleBtn');
-            
-            if (drawer && overlay && toggleBtn) {
-                drawer.classList.add('active');
-                overlay.classList.add('active');
-                toggleBtn.classList.add('active');
-                updateDrawerContent();
-            }
-        }
-
-        function updateDrawerContent() {
+        // Sidebar Functions
+        function updateSidebarContent() {
             const selected = getSelectedItems();
-            const emptyState = document.getElementById('drawerEmptyState');
-            const editMode = document.getElementById('drawerEditMode');
+            const emptyState = document.getElementById('sidebarEmptyState');
+            const editMode = document.getElementById('sidebarEditMode');
             const dropdown = document.getElementById('editModeDropdown');
+            const duplicateBtn = document.getElementById('duplicateSelectedBtn');
+            const deleteBtn = document.getElementById('deleteSelectedBtn');
             
             if (selected.length === 0) {
                 if (emptyState) emptyState.classList.remove('hidden');
                 if (editMode) editMode.classList.add('hidden');
                 if (dropdown) dropdown.value = '';
+                if (duplicateBtn) duplicateBtn.disabled = true;
+                if (deleteBtn) deleteBtn.disabled = true;
             } else {
                 if (emptyState) emptyState.classList.add('hidden');
                 if (editMode) editMode.classList.remove('hidden');
+                if (duplicateBtn) duplicateBtn.disabled = false;
+                if (deleteBtn) deleteBtn.disabled = false;
             }
         }
 
@@ -4145,17 +4290,54 @@
             
             const value = dropdown.value;
             
-            // Reset dropdown after a short delay to allow modal to open
+            // Reset dropdown after a short delay to allow modal/function to execute
             setTimeout(() => {
                 dropdown.value = '';
             }, 100);
             
-            if (value === 'dateShift') {
-                openDateShiftModal();
-            } else if (value === 'publishStatus') {
-                openPublishStatusModal();
-            } else if (value === 'searchReplace') {
-                openSearchReplaceModal();
+            switch (value) {
+                case 'accommodations':
+                    openAccommodationsModal();
+                    break;
+                case 'assignTo':
+                    openAssignToModal();
+                    break;
+                case 'dateShift':
+                    openDateShiftModal();
+                    break;
+                case 'publishStatus':
+                    openPublishStatusModal();
+                    break;
+                case 'searchReplace':
+                    openSearchReplaceModal();
+                    break;
+                default:
+                    // No action for empty or unknown values
+                    break;
+            }
+        }
+
+        function handleViewOptionChange() {
+            const dropdown = document.getElementById('viewOptionsDropdown');
+            if (!dropdown) return;
+            
+            const value = dropdown.value;
+            
+            // Reset dropdown after a short delay to allow modal/function to execute
+            setTimeout(() => {
+                dropdown.value = '';
+            }, 100);
+            
+            switch (value) {
+                case 'filterRows':
+                    openFilterRowsModal();
+                    break;
+                case 'columnVisibility':
+                    openColumnVisibilityModal();
+                    break;
+                default:
+                    // No action for empty or unknown values
+                    break;
             }
         }
 
@@ -4179,29 +4361,107 @@
         }
 
         function openDateShiftModal() {
-            const selected = getSelectedItems();
-            if (selected.length === 0) {
-                alert('Please select at least one item.');
+            const tabName = getCurrentTabName();
+            if (!tabName) {
+                alert('Please select a tab first.');
                 return;
             }
             
-            const summary = document.getElementById('dateShiftSummary');
-            if (summary) {
-                const tabName = getCurrentTabName();
-                const itemType = tabName === 'assignments' ? 'Assignments' : 
-                                tabName === 'quizzes' ? 'Quizzes' : 
-                                tabName.charAt(0).toUpperCase() + tabName.slice(1);
-                summary.innerHTML = `<strong>Confirm:</strong> This will affect <strong>${selected.length} ${itemType}</strong>`;
+            // Get date fields from FIELD_DEFINITIONS
+            const fieldDefs = FIELD_DEFINITIONS[tabName];
+            const dateFieldsContainer = document.getElementById('dateShiftFieldsContainer');
+            
+            if (dateFieldsContainer) {
+                // Clear existing checkboxes
+                dateFieldsContainer.innerHTML = '';
+                
+                if (fieldDefs) {
+                    // Filter for date/datetime fields
+                    const dateFields = fieldDefs.filter(field => 
+                        field.type === 'datetime' || field.type === 'date'
+                    );
+                    
+                    if (dateFields.length > 0) {
+                        // Add checkboxes for each date field
+                        dateFields.forEach(field => {
+                            const label = document.createElement('label');
+                            label.style.cssText = 'display: flex; align-items: center; cursor: pointer; padding: 6px 8px; border-radius: 4px; transition: background 0.2s;';
+                            label.onmouseover = function() { this.style.background = '#f0f0f0'; };
+                            label.onmouseout = function() { this.style.background = 'transparent'; };
+                            
+                            const checkbox = document.createElement('input');
+                            checkbox.type = 'checkbox';
+                            checkbox.value = field.key;
+                            checkbox.id = `dateField-${field.key}`;
+                            checkbox.checked = true; // Check all by default
+                            checkbox.style.cssText = 'margin-right: 10px; width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;';
+                            
+                            const span = document.createElement('span');
+                            span.textContent = field.label || field.key;
+                            span.style.cssText = 'font-size: 14px; color: #333;';
+                            
+                            label.appendChild(checkbox);
+                            label.appendChild(span);
+                            dateFieldsContainer.appendChild(label);
+                        });
+                    } else {
+                        // No date fields found
+                        const message = document.createElement('div');
+                        message.textContent = 'No date fields available in this tab';
+                        message.style.cssText = 'padding: 10px; color: #999; font-style: italic; text-align: center;';
+                        dateFieldsContainer.appendChild(message);
+                    }
+                } else {
+                    // No field definitions found
+                    const message = document.createElement('div');
+                    message.textContent = 'No field definitions available';
+                    message.style.cssText = 'padding: 10px; color: #999; font-style: italic; text-align: center;';
+                    dateFieldsContainer.appendChild(message);
+                }
             }
             
             // Reset form
             document.getElementById('dateShiftDays').value = '0';
-            document.getElementById('dateShiftField').value = 'due_at';
+            document.getElementById('oldSemesterStart').value = '';
+            document.getElementById('newSemesterStart').value = '';
+            document.querySelector('input[name="dateShiftScope"][value="selected"]').checked = true;
             
             openModal('dateShiftModal');
         }
 
+        function calculateDateDiff() {
+            const oldDateInput = document.getElementById('oldSemesterStart');
+            const newDateInput = document.getElementById('newSemesterStart');
+            const shiftDaysInput = document.getElementById('dateShiftDays');
+            
+            if (!oldDateInput.value || !newDateInput.value) {
+                alert('Please enter both Old Semester Start and New Semester Start dates.');
+                return;
+            }
+            
+            const oldDate = new Date(oldDateInput.value);
+            const newDate = new Date(newDateInput.value);
+            
+            if (isNaN(oldDate.getTime()) || isNaN(newDate.getTime())) {
+                alert('Please enter valid dates.');
+                return;
+            }
+            
+            // Calculate difference in days
+            const diffTime = newDate.getTime() - oldDate.getTime();
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+            
+            // Update the shift value field
+            shiftDaysInput.value = diffDays;
+        }
+
         function openSearchReplaceModal() {
+            const tabName = getCurrentTabName();
+            if (!tabName) {
+                alert('Please select a tab first.');
+                return;
+            }
+            
             const selected = getSelectedItems();
             if (selected.length === 0) {
                 alert('Please select at least one item.');
@@ -4210,17 +4470,68 @@
             
             const summary = document.getElementById('searchReplaceSummary');
             if (summary) {
-                const tabName = getCurrentTabName();
                 const itemType = tabName === 'assignments' ? 'Assignments' : 
                                 tabName === 'quizzes' ? 'Quizzes' : 
                                 tabName.charAt(0).toUpperCase() + tabName.slice(1);
                 summary.innerHTML = `<strong>Confirm:</strong> This will affect <strong>${selected.length} ${itemType}</strong>`;
             }
             
+            // Get editable text/numeric fields from FIELD_DEFINITIONS
+            const fieldDefs = FIELD_DEFINITIONS[tabName];
+            const fieldsContainer = document.getElementById('searchReplaceFieldsContainer');
+            
+            if (fieldsContainer) {
+                // Clear existing checkboxes
+                fieldsContainer.innerHTML = '';
+                
+                if (fieldDefs) {
+                    // Filter for editable text and numeric fields (exclude boolean, select, etc.)
+                    const eligibleFields = fieldDefs.filter(field => 
+                        field.editable && (field.type === 'text' || field.type === 'number' || field.type === 'textarea')
+                    );
+                    
+                    if (eligibleFields.length > 0) {
+                        // Add checkboxes for each eligible field
+                        eligibleFields.forEach(field => {
+                            const label = document.createElement('label');
+                            label.style.cssText = 'display: flex; align-items: center; cursor: pointer; padding: 6px 8px; border-radius: 4px; transition: background 0.2s;';
+                            label.onmouseover = function() { this.style.background = '#f0f0f0'; };
+                            label.onmouseout = function() { this.style.background = 'transparent'; };
+                            
+                            const checkbox = document.createElement('input');
+                            checkbox.type = 'checkbox';
+                            checkbox.value = field.key;
+                            checkbox.id = `searchReplaceField-${field.key}`;
+                            checkbox.checked = false; // Don't check by default
+                            checkbox.style.cssText = 'margin-right: 10px; width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;';
+                            
+                            const span = document.createElement('span');
+                            span.textContent = field.label || field.key;
+                            span.style.cssText = 'font-size: 14px; color: #333;';
+                            
+                            label.appendChild(checkbox);
+                            label.appendChild(span);
+                            fieldsContainer.appendChild(label);
+                        });
+                    } else {
+                        // No eligible fields found
+                        const message = document.createElement('div');
+                        message.textContent = 'No editable text/numeric fields available in this tab';
+                        message.style.cssText = 'padding: 10px; color: #999; font-style: italic; text-align: center;';
+                        fieldsContainer.appendChild(message);
+                    }
+                } else {
+                    // No field definitions found
+                    const message = document.createElement('div');
+                    message.textContent = 'No field definitions available';
+                    message.style.cssText = 'padding: 10px; color: #999; font-style: italic; text-align: center;';
+                    fieldsContainer.appendChild(message);
+                }
+            }
+            
             // Reset form
             document.getElementById('searchReplaceFind').value = '';
             document.getElementById('searchReplaceWith').value = '';
-            document.getElementById('searchReplaceField').value = 'title';
             
             openModal('searchReplaceModal');
         }
@@ -4272,11 +4583,1740 @@
             openModal('publishStatusModal');
         }
 
+        function openFilterRowsModal() {
+            // Placeholder function for Filter Rows functionality
+            console.log('openFilterRowsModal: Not yet implemented');
+        }
+
+        function openFilterColumnsModal() {
+            // Placeholder function for Filter Columns functionality
+            console.log('openFilterColumnsModal: Not yet implemented');
+        }
+
+        function openColumnVisibilityModal() {
+            // Placeholder function for Hide/Show Columns functionality
+            console.log('openColumnVisibilityModal: Not yet implemented');
+        }
+
+        // Store pending duplication info
+        let pendingDuplication = null;
+        let pendingModuleClone = null;
+
+        // Helper function to generate incremented name/title
+        function generateIncrementedName(originalName, tabName, copyIndex = 1, pendingItems = []) {
+            // Extract base name from original name (e.g., "Assignment 1" -> "Assignment", "Lab" -> "Lab")
+            // Match pattern: text followed by space(s) followed by number at the end
+            const match = originalName.match(/(.+?)\s+(\d+)$/);
+            let baseName;
+            if (match) {
+                baseName = match[1].trim();
+            } else {
+                baseName = originalName.trim();
+            }
+            
+            // Get all existing items of this type to find the highest number
+            // Check both originalData (current state) and pendingItems (items being created in this batch)
+            const existingItems = originalData[tabName] || {};
+            const nameField = getNameFieldName(tabName);
+            let highestNumber = 0;
+            
+            // Check if base name matches any existing items (with or without numbers)
+            const baseNameLower = baseName.toLowerCase();
+            const baseNameEscaped = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const baseNamePattern = new RegExp(`^${baseNameEscaped}\\s+(\\d+)$`, 'i');
+            
+            // Helper function to check an item's name
+            const checkItemName = (item) => {
+                const itemName = (item[nameField] || item.title || item.name || '').trim();
+                if (!itemName) return;
+                
+                const itemNameLower = itemName.toLowerCase();
+                
+                // Check for exact match (base name with no number)
+                if (itemNameLower === baseNameLower) {
+                    highestNumber = Math.max(highestNumber, 0);
+                }
+                // Check for "BaseName Number" format
+                else if (itemNameLower.startsWith(baseNameLower + ' ')) {
+                    const itemMatch = itemName.match(baseNamePattern);
+                    if (itemMatch) {
+                        const itemNum = parseInt(itemMatch[1], 10);
+                        if (!isNaN(itemNum) && itemNum > highestNumber) {
+                            highestNumber = itemNum;
+                        }
+                    }
+                }
+            };
+            
+            // Check existing items in originalData (current state)
+            Object.values(existingItems).forEach(checkItemName);
+            
+            // Check pending items (items being created in this batch)
+            pendingItems.forEach(checkItemName);
+            
+            // Return base name with next available number
+            return `${baseName} ${highestNumber + copyIndex}`;
+        }
+
+        // Helper function to sanitize item data (remove forbidden keys)
+        function sanitizeItemForDuplication(item) {
+            const forbiddenKeys = ['id', 'created_at', 'updated_at', 'html_url', 'url', 'assignment_id', 'quiz_id', 'workflow_state'];
+            const sanitized = { ...item };
+            
+            forbiddenKeys.forEach(key => {
+                delete sanitized[key];
+            });
+            
+            return sanitized;
+        }
+
+        // Helper function to get the name/title field name for a tab
+        function getNameFieldName(tabName) {
+            const nameFieldMap = {
+                'assignments': 'name',
+                'quizzes': 'title',
+                'discussions': 'title',
+                'pages': 'title',
+                'announcements': 'title',
+                'modules': 'name'
+            };
+            return nameFieldMap[tabName] || 'name';
+        }
+
+        // Helper function to get Canvas endpoint for a specific item (for GET/DELETE operations)
+        function getCanvasItemEndpoint(tabName, itemId) {
+            const courseId = getCurrentCourseId();
+            if (!courseId) {
+                throw new Error('No course selected');
+            }
+            
+            // For pages, use URL encoding
+            if (tabName === 'pages') {
+                return `/canvas/courses/${courseId}/pages/${encodeURIComponent(itemId)}`;
+            }
+            
+            const endpointMap = {
+                'assignments': `/canvas/courses/${courseId}/assignments/${itemId}`,
+                'quizzes': `/canvas/courses/${courseId}/quizzes/${itemId}`,
+                'discussions': `/canvas/courses/${courseId}/discussions/${itemId}`,
+                'announcements': `/canvas/courses/${courseId}/announcements/${itemId}`,
+                'modules': `/canvas/courses/${courseId}/modules/${itemId}`
+            };
+            
+            const endpoint = endpointMap[tabName];
+            if (!endpoint) {
+                throw new Error(`Operation not supported for tab: ${tabName}`);
+            }
+            
+            return endpoint;
+        }
+
+        // Helper function to get Canvas POST endpoint
+        function getCanvasCreateEndpoint(tabName) {
+            const courseId = getCurrentCourseId();
+            if (!courseId) {
+                throw new Error('No course selected');
+            }
+            
+            const endpointMap = {
+                'assignments': `/canvas/courses/${courseId}/assignments`,
+                'quizzes': `/canvas/courses/${courseId}/quizzes`,
+                'discussions': `/canvas/courses/${courseId}/discussions`,
+                'pages': `/canvas/courses/${courseId}/pages`,
+                'announcements': `/canvas/courses/${courseId}/announcements`,
+                'modules': `/canvas/courses/${courseId}/modules`
+            };
+            
+            const endpoint = endpointMap[tabName];
+            if (!endpoint) {
+                throw new Error(`Duplicate not supported for tab: ${tabName}`);
+            }
+            
+            return endpoint;
+        }
+
+        // Helper function to add items to the table
+        async function addItemsToTable(tabName, newItems) {
+            const fieldDefs = FIELD_DEFINITIONS[tabName];
+            if (!fieldDefs) {
+                debugLog(`No field definitions found for ${tabName}`, 'error');
+                return;
+            }
+            
+            const tbody = document.querySelector(`#tab-${tabName} tbody`);
+            if (!tbody) {
+                debugLog(`No tbody found for ${tabName}`, 'error');
+                return;
+            }
+            
+            // Add each new item to the table
+            newItems.forEach(item => {
+                const itemId = item.id || item.url; // Pages use URL as ID
+                const isChecked = false; // New items aren't selected by default
+                
+                // Store in originalData
+                if (!originalData[tabName]) originalData[tabName] = {};
+                originalData[tabName][itemId] = item;
+                
+                // Create and add row
+                const row = createTableRow(tabName, item, itemId, isChecked, fieldDefs);
+                initializeEditableCells(row, tabName, itemId, item, fieldDefs);
+                tbody.appendChild(row);
+            });
+            
+            // Re-apply filters and sorting
+            setTimeout(() => {
+                applySortAndFilter(tabName);
+                updateSortIndicators(tabName);
+                updateFilterDropdowns(tabName);
+            }, 0);
+        }
+
+        function handleDuplicateSelected() {
+            const tabName = getCurrentTabName();
+            if (!tabName) {
+                alert('Please select a tab first.');
+                return;
+            }
+
+            const selected = getSelectedItems();
+            if (selected.length === 0) {
+                alert('Please select at least one item.');
+                return;
+            }
+
+            // For modules, show the three-way clone modal instead
+            if (tabName === 'modules') {
+                pendingModuleClone = { tabName, selected };
+                // Reset clone type to structureOnly
+                const structureOnlyRadio = document.querySelector('input[name="cloneType"][value="structureOnly"]');
+                if (structureOnlyRadio) structureOnlyRadio.checked = true;
+                // Hide progress container
+                const progressContainer = document.getElementById('moduleCloneProgressContainer');
+                if (progressContainer) progressContainer.style.display = 'none';
+                openModal('moduleCloneModal');
+                return;
+            }
+
+            // Store pending duplication info
+            pendingDuplication = { tabName, selected };
+            
+            // Reset quantity input
+            document.getElementById('duplicateQuantity').value = '1';
+            
+            // Open modal
+            openModal('duplicateQuantityModal');
+        }
+
+        async function proceedWithDuplication() {
+            if (!pendingDuplication) {
+                closeModal('duplicateQuantityModal');
+                return;
+            }
+            
+            const { tabName, selected } = pendingDuplication;
+            const quantityInput = document.getElementById('duplicateQuantity');
+            const quantity = parseInt(quantityInput.value, 10);
+            
+            if (isNaN(quantity) || quantity < 1) {
+                alert('Please enter a valid number (1 or greater).');
+                return;
+            }
+            
+            closeModal('duplicateQuantityModal');
+            
+            const courseId = getCurrentCourseId();
+            if (!courseId) {
+                alert('No course selected.');
+                pendingDuplication = null;
+                return;
+            }
+            
+            // Disable button during duplication
+            const duplicateBtn = document.getElementById('duplicateSelectedBtn');
+            if (duplicateBtn) {
+                duplicateBtn.disabled = true;
+                duplicateBtn.textContent = 'Creating copies...';
+            }
+            
+            const nameField = getNameFieldName(tabName);
+            const createEndpoint = getCanvasCreateEndpoint(tabName);
+            const createdItems = [];
+            let successCount = 0;
+            let failedItems = [];
+            
+            try {
+                // Nested loop: For each selected item -> For 1 to N copies
+                for (const itemId of selected) {
+                    try {
+                        // 1. Fetch the full object data from Canvas
+                        const getEndpoint = getCanvasItemEndpoint(tabName, itemId);
+                        debugLog(`Fetching full data for ${tabName} ${itemId} from ${getEndpoint}`, 'info');
+                        
+                        const getResponse = await fetch(getEndpoint);
+                        if (!getResponse.ok) {
+                            const errorText = await getResponse.text();
+                            throw new Error(`Failed to fetch item: ${getResponse.status} ${getResponse.statusText} - ${errorText}`);
+                        }
+                        
+                        const fullData = await getResponse.json();
+                        const originalName = fullData[nameField] || fullData.title || fullData.name || 'Untitled';
+                        
+                        // 2. Sanitize: Remove read-only system fields
+                        // Start with common system/read-only fields that Canvas API doesn't accept on create
+                        const systemReadOnlyFields = [
+                            'id', 'uuid', 'created_at', 'updated_at', 'html_url', 'url', 
+                            'locked_for_user', 'position', 'assignment_id', 'quiz_id', 
+                            'workflow_state', 'user_count', 'view_count', 'reply_count',
+                            'pinned', 'posted_at', 'last_reply_at', 'require_initial_post',
+                            'delayed_post_at', 'locked', 'group_category_id', 'is_section_specific',
+                            'due_date_string', 'lock_at_string', 'unlock_at_string', 'lock_info',
+                            'lock_explanation', 'speed_grader_url', 'quiz_extensions_url',
+                            'permissions', 'submission', 'overrides', 'all_dates',
+                            'can_duplicate', 'original_assignment_id', 'original_assignment_name',
+                            'original_quiz_id', 'original_course_id', 'original_course_name',
+                            'course_id', 'context_type', 'context_id',
+                            // LTI identifiers
+                            'lti_context_id', 'global_id', 'secure_params', 'original_lti_resource_link_id'
+                        ];
+                        
+                        // Known safe ID fields that are editable and should be kept
+                        const safeIdFields = new Set([
+                            'assignment_group_id', 'grading_standard_id', 'prerequisite_module_ids'
+                        ]);
+                        
+                        // Get read-only fields from FIELD_DEFINITIONS (editable: false)
+                        const forbiddenKeys = new Set(systemReadOnlyFields);
+                        const fieldDefs = FIELD_DEFINITIONS[tabName];
+                        if (fieldDefs) {
+                            fieldDefs.forEach(field => {
+                                if (field.editable === false) {
+                                    forbiddenKeys.add(field.name);
+                                }
+                            });
+                        }
+                        
+                        // Build sanitized payload - only include fields that are NOT forbidden
+                        // (forbiddenKeys already includes all read-only fields from FIELD_DEFINITIONS)
+                        let sanitizedBase = {};
+                        Object.keys(fullData).forEach(key => {
+                            // Skip if explicitly forbidden
+                            if (forbiddenKeys.has(key)) {
+                                return;
+                            }
+                            
+                            // Strip any keys ending in "_id" that aren't in our safe list
+                            // This catches any remaining ID fields we might have missed
+                            if (key.endsWith('_id') && !safeIdFields.has(key)) {
+                                return;
+                            }
+                            
+                            // Include the field
+                            sanitizedBase[key] = fullData[key];
+                        });
+                        
+                        // 3. Loop through requested number of copies
+                        // Track items created in this batch to ensure unique names
+                        const batchCreatedItems = [];
+                        
+                        for (let copyNum = 1; copyNum <= quantity; copyNum++) {
+                            try {
+                                // Show progress
+                                const progressMsg = `Creating Copy ${copyNum} of ${quantity} for '${originalName}'...`;
+                                debugLog(progressMsg, 'info');
+                                
+                                const payload = { ...sanitizedBase };
+                                
+                                // Handle incrementing names - pass batchCreatedItems to avoid duplicates
+                                const newName = generateIncrementedName(originalName, tabName, copyNum, batchCreatedItems);
+                                
+                                if (payload.title !== undefined) payload.title = newName;
+                                else if (payload.name !== undefined) payload.name = newName;
+                                
+                                // For pages, generate a new URL from the original
+                                if (tabName === 'pages' && fullData.url) {
+                                    const baseUrl = fullData.url.replace(/[^/]+$/, ''); // Get directory part
+                                    const urlSafeTitle = newName.toLowerCase()
+                                        .replace(/[^a-z0-9]+/g, '-')
+                                        .replace(/^-+|-+$/g, '');
+                                    payload.url = baseUrl + urlSafeTitle;
+                                }
+                                
+                                // Prepare request body based on tab type
+                                let requestBody;
+                                if (tabName === 'assignments') {
+                                    requestBody = { assignment: payload };
+                                } else if (tabName === 'quizzes') {
+                                    requestBody = { quiz: payload };
+                                } else if (tabName === 'pages') {
+                                    requestBody = { wiki_page: payload };
+                                } else {
+                                    // discussions and announcements
+                                    requestBody = payload;
+                                    if (tabName === 'announcements') {
+                                        requestBody.is_announcement = true;
+                                    }
+                                }
+                                
+                                // 4. POST the new item back to Canvas
+                                const postResponse = await fetch(createEndpoint, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify(requestBody),
+                                });
+                                
+                                if (!postResponse.ok) {
+                                    const errorText = await postResponse.text();
+                                    throw new Error(`${postResponse.status} ${postResponse.statusText}: ${errorText}`);
+                                }
+                                
+                                const newItem = await postResponse.json();
+                                
+                                // Immediately add to originalData so next iteration sees it
+                                const newItemId = newItem.id || newItem.url;
+                                if (!originalData[tabName]) originalData[tabName] = {};
+                                originalData[tabName][newItemId] = newItem;
+                                
+                                // Add to batch created items for name checking
+                                batchCreatedItems.push(newItem);
+                                
+                                createdItems.push(newItem);
+                                successCount++;
+                                
+                            } catch (error) {
+                                debugLog(`Failed to create copy ${copyNum} of ${itemId}: ${error.message}`, 'error');
+                                failedItems.push({ itemId, copyNum, name: originalName, error: error.message });
+                            }
+                        }
+                        
+                    } catch (error) {
+                        debugLog(`Failed to fetch item ${itemId}: ${error.message}`, 'error');
+                        failedItems.push({ itemId, copyNum: 0, name: 'Unknown', error: `Failed to fetch: ${error.message}` });
+                    }
+                }
+                
+                // Add successfully created items to the table
+                if (createdItems.length > 0) {
+                    await addItemsToTable(tabName, createdItems);
+                }
+                
+                // Show summary
+                let message = `Successfully created ${successCount} copy/copies.`;
+                if (failedItems.length > 0) {
+                    message += `\n\nFailed to create ${failedItems.length} copy/copies:`;
+                    failedItems.forEach(item => {
+                        if (item.copyNum === 0) {
+                            message += `\n- Item ${item.itemId}: ${item.error}`;
+                        } else {
+                            message += `\n- Copy ${item.copyNum} of '${item.name}': ${item.error}`;
+                        }
+                    });
+                }
+                alert(message);
+                
+            } catch (error) {
+                debugLog(`Duplicate operation failed: ${error.message}`, 'error');
+                alert(`Error during duplication: ${error.message}`);
+            } finally {
+                // Re-enable button
+                if (duplicateBtn) {
+                    duplicateBtn.disabled = false;
+                    duplicateBtn.textContent = '➕ Duplicate Selected';
+                }
+                pendingDuplication = null;
+            }
+        }
+
+        // Module Three-Way Clone execution
+        async function executeModuleClone() {
+            if (!pendingModuleClone) {
+                closeModal('moduleCloneModal');
+                return;
+            }
+
+            const { tabName, selected } = pendingModuleClone;
+            const courseId = getCurrentCourseId();
+            if (!courseId) {
+                alert('No course selected.');
+                closeModal('moduleCloneModal');
+                pendingModuleClone = null;
+                return;
+            }
+
+            // Get selected clone type
+            const cloneTypeRadio = document.querySelector('input[name="cloneType"]:checked');
+            if (!cloneTypeRadio) {
+                alert('Please select a clone type.');
+                return;
+            }
+            const cloneType = cloneTypeRadio.value;
+
+            // Show progress container for deep copy
+            const progressContainer = document.getElementById('moduleCloneProgressContainer');
+            const progressBar = document.getElementById('moduleCloneProgressBar');
+            const progressText = document.getElementById('moduleCloneProgressText');
+            const executeBtn = document.getElementById('moduleCloneExecuteBtn');
+
+            if (cloneType === 'deepCopy' && progressContainer) {
+                progressContainer.style.display = 'block';
+            }
+
+            if (executeBtn) {
+                executeBtn.disabled = true;
+                executeBtn.textContent = 'Cloning...';
+            }
+
+            const createdModules = [];
+            let totalItems = 0;
+            let processedItems = 0;
+            let errors = [];
+
+            try {
+                // Count total items for progress (only for deep copy)
+                if (cloneType === 'deepCopy') {
+                    for (const moduleId of selected) {
+                        try {
+                            const moduleResponse = await fetch(`/canvas/courses/${courseId}/modules/${moduleId}`);
+                            if (moduleResponse.ok) {
+                                const moduleData = await moduleResponse.json();
+                                totalItems += (moduleData.items_count || 0);
+                            }
+                        } catch (e) {
+                            // Continue counting
+                        }
+                    }
+                }
+
+                // Process each selected module
+                for (const moduleId of selected) {
+                    try {
+                        // Fetch full module data (with items)
+                        const moduleResponse = await fetch(`/canvas/courses/${courseId}/modules/${moduleId}`);
+                        if (!moduleResponse.ok) {
+                            throw new Error(`Failed to fetch module: ${moduleResponse.status}`);
+                        }
+                        const originalModule = await moduleResponse.json();
+                        const moduleName = originalModule.name || 'Untitled';
+
+                        // Generate incremented name
+                        const newModuleName = generateIncrementedName(moduleName, 'modules', 1);
+
+                        // Sanitize module data (remove read-only fields) - use same pattern as item duplication
+                        const systemReadOnlyFields = [
+                            'id', 'uuid', 'created_at', 'updated_at', 'items_count', 'items',
+                            'html_url', 'workflow_state', 'publish_at', 'course_id', 'context_type', 'context_id',
+                            'lti_context_id', 'global_id', 'secure_params', 'original_lti_resource_link_id',
+                            'items_url'
+                        ];
+                        
+                        // Known safe ID fields that are editable and should be kept
+                        const safeIdFields = new Set(['prerequisite_module_ids']);
+                        
+                        // Get read-only fields from FIELD_DEFINITIONS (editable: false)
+                        const forbiddenKeys = new Set(systemReadOnlyFields);
+                        const fieldDefs = FIELD_DEFINITIONS['modules'];
+                        if (fieldDefs) {
+                            fieldDefs.forEach(field => {
+                                if (field.editable === false) {
+                                    forbiddenKeys.add(field.name);
+                                }
+                            });
+                        }
+                        
+                        // Build sanitized payload - only include fields that are NOT forbidden
+                        const sanitizedModule = {};
+                        Object.keys(originalModule).forEach(key => {
+                            // Skip if explicitly forbidden
+                            if (forbiddenKeys.has(key)) {
+                                return;
+                            }
+                            
+                            // Strip any keys ending in "_id" that aren't in our safe list
+                            if (key.endsWith('_id') && !safeIdFields.has(key)) {
+                                return;
+                            }
+                            
+                            // On creation, Canvas assigns position automatically, so we shouldn't include it
+                            if (key === 'position') {
+                                return;
+                            }
+                            
+                            // Include the field
+                            sanitizedModule[key] = originalModule[key];
+                        });
+                        sanitizedModule.name = newModuleName;
+
+                        let newModule;
+                        const clonedItemIds = []; // For deep copy: store new item IDs
+
+                        if (cloneType === 'structureOnly') {
+                            // Structure Only: Create empty module
+                            const createResponse = await fetch(`/canvas/courses/${courseId}/modules`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(sanitizedModule)
+                            });
+
+                            if (!createResponse.ok) {
+                                const errorText = await createResponse.text();
+                                throw new Error(`Failed to create module: ${createResponse.status} - ${errorText}`);
+                            }
+
+                            newModule = await createResponse.json();
+
+                        } else if (cloneType === 'structureShared') {
+                            // Structure + Shared Content: Create module, then link to original items
+                            const createResponse = await fetch(`/canvas/courses/${courseId}/modules`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(sanitizedModule)
+                            });
+
+                            if (!createResponse.ok) {
+                                const errorText = await createResponse.text();
+                                throw new Error(`Failed to create module: ${createResponse.status} - ${errorText}`);
+                            }
+
+                            newModule = await createResponse.json();
+
+                            // Add module items pointing to original items
+                            if (originalModule.items && originalModule.items.length > 0) {
+                                for (const item of originalModule.items) {
+                                    try {
+                                        console.log(`Adding module item: ${item.title || 'Unknown'} (Type: ${item.type}, Content ID: ${item.content_id})`);
+                                        const itemPayload = {
+                                            module_item: {
+                                                content_id: item.content_id,
+                                                type: item.type,
+                                                position: item.position,
+                                                indent: item.indent || 0
+                                            }
+                                        };
+
+                                        const itemResponse = await fetch(`/canvas/courses/${courseId}/modules/${newModule.id}/items`, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify(itemPayload)
+                                        });
+
+                                        if (!itemResponse.ok) {
+                                            const errorText = await itemResponse.text();
+                                            throw new Error(`Failed to add item: ${itemResponse.status} - ${errorText}`);
+                                        }
+                                    } catch (error) {
+                                        errors.push({ module: moduleName, item: item.title || 'Unknown', error: error.message });
+                                    }
+                                }
+                            }
+
+                        } else if (cloneType === 'deepCopy') {
+                            // Deep Copy: Create module, duplicate all items, then link new items
+                            const createResponse = await fetch(`/canvas/courses/${courseId}/modules`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(sanitizedModule)
+                            });
+
+                            if (!createResponse.ok) {
+                                const errorText = await createResponse.text();
+                                throw new Error(`Failed to create module: ${createResponse.status} - ${errorText}`);
+                            }
+
+                            newModule = await createResponse.json();
+
+                            // Deep copy each item
+                            // Track which items were successfully cloned to maintain correct mapping
+                            const clonedItemsMap = new Map(); // Maps original item index to cloned item data
+                            // Track items created in this batch for unique naming
+                            const batchCreatedItems = [];
+                            
+                            if (originalModule.items && originalModule.items.length > 0) {
+                                // Use for...of loop with async/await instead of forEach
+                                for (let itemIndex = 0; itemIndex < originalModule.items.length; itemIndex++) {
+                                    const item = originalModule.items[itemIndex];
+                                    try {
+                                        processedItems++;
+                                        if (progressBar) {
+                                            const percent = Math.round((processedItems / totalItems) * 100);
+                                            progressBar.style.width = percent + '%';
+                                            progressBar.textContent = percent + '%';
+                                        }
+                                        if (progressText) {
+                                            progressText.textContent = `Cloning item ${processedItems} of ${totalItems}: ${item.title || 'Unknown'}...\n` + (progressText.textContent || '');
+                                        }
+
+                                        // Map Canvas item types to our tab names and Canvas API types
+                                        let itemTabName;
+                                        let canvasType;
+                                        if (item.type === 'Assignment') {
+                                            itemTabName = 'assignments';
+                                            canvasType = 'Assignment';
+                                        } else if (item.type === 'Quiz') {
+                                            itemTabName = 'quizzes';
+                                            canvasType = 'Quiz';
+                                        } else if (item.type === 'Page') {
+                                            itemTabName = 'pages';
+                                            canvasType = 'WikiPage';
+                                        } else if (item.type === 'Discussion') {
+                                            itemTabName = 'discussions';
+                                            canvasType = 'Discussion';
+                                        } else if (item.type === 'File') {
+                                            canvasType = 'Attachment';
+                                            // For files, we can't clone, so link to original (use original name)
+                                            clonedItemsMap.set(itemIndex, { 
+                                                id: item.content_id, 
+                                                type: canvasType, 
+                                                originalItem: item,
+                                                clonedName: item.title || 'Untitled'
+                                            });
+                                            continue;
+                                        } else if (item.type === 'ExternalTool' || item.type === 'ExternalUrl') {
+                                            canvasType = 'ContextExternalTool';
+                                            // For external tools, we can't clone, so link to original (use original name)
+                                            clonedItemsMap.set(itemIndex, { 
+                                                id: item.content_id, 
+                                                type: canvasType, 
+                                                originalItem: item,
+                                                clonedName: item.title || 'Untitled'
+                                            });
+                                            continue;
+                                        } else {
+                                            // For other unsupported types, link to original (use original name)
+                                            clonedItemsMap.set(itemIndex, { 
+                                                id: item.content_id, 
+                                                type: item.type, 
+                                                originalItem: item,
+                                                clonedName: item.title || 'Untitled'
+                                            });
+                                            continue;
+                                        }
+
+                                        // Fetch the full item data
+                                        // For pages, module items may have page_url or url field instead of using content_id
+                                        // Canvas API uses page_url for Page type items, but sometimes it's just url
+                                        let itemIdentifier = item.content_id;
+                                        if (itemTabName === 'pages') {
+                                            if (item.page_url) {
+                                                itemIdentifier = item.page_url;
+                                            } else if (item.url) {
+                                                itemIdentifier = item.url;
+                                            } else {
+                                                // Last resort: try to construct URL from title or use content_id as URL
+                                                // But this is unlikely to work, so throw an error
+                                                throw new Error(`Page item missing page_url/url. Cannot fetch page with content_id: ${item.content_id}. Item: ${JSON.stringify(item)}`);
+                                            }
+                                        }
+                                        const itemGetEndpoint = getCanvasItemEndpoint(itemTabName, itemIdentifier);
+                                        const itemGetResponse = await fetch(itemGetEndpoint);
+                                        if (!itemGetResponse.ok) {
+                                            throw new Error(`Failed to fetch ${itemTabName} ${itemIdentifier}`);
+                                        }
+                                        const originalItem = await itemGetResponse.json();
+
+                                        // Sanitize item data (reuse logic from proceedWithDuplication)
+                                        const systemReadOnlyFields = [
+                                            'id', 'uuid', 'created_at', 'updated_at', 'html_url', 'url',
+                                            'locked_for_user', 'position', 'assignment_id', 'quiz_id',
+                                            'workflow_state', 'user_count', 'view_count', 'reply_count',
+                                            'pinned', 'posted_at', 'last_reply_at', 'require_initial_post',
+                                            'delayed_post_at', 'locked', 'group_category_id', 'is_section_specific',
+                                            'due_date_string', 'lock_at_string', 'unlock_at_string', 'lock_info',
+                                            'lock_explanation', 'speed_grader_url', 'quiz_extensions_url',
+                                            'permissions', 'submission', 'overrides', 'all_dates',
+                                            'can_duplicate', 'original_assignment_id', 'original_assignment_name',
+                                            'original_quiz_id', 'original_course_id', 'original_course_name',
+                                            'course_id', 'context_type', 'context_id',
+                                            'lti_context_id', 'global_id', 'secure_params', 'original_lti_resource_link_id'
+                                        ];
+
+                                        const safeIdFields = new Set(['assignment_group_id', 'grading_standard_id', 'prerequisite_module_ids']);
+                                        const forbiddenKeys = new Set(systemReadOnlyFields);
+                                        const fieldDefs = FIELD_DEFINITIONS[itemTabName];
+                                        if (fieldDefs) {
+                                            fieldDefs.forEach(field => {
+                                                if (field.editable === false) {
+                                                    forbiddenKeys.add(field.name);
+                                                }
+                                            });
+                                        }
+
+                                        let sanitizedItem = {};
+                                        const nameField = getNameFieldName(itemTabName);
+                                        const originalName = originalItem[nameField] || originalItem.title || originalItem.name || 'Untitled';
+                                        // Pass batchCreatedItems to ensure unique names during deep copy
+                                        const newItemName = generateIncrementedName(originalName, itemTabName, 1, batchCreatedItems);
+
+                                        Object.keys(originalItem).forEach(key => {
+                                            if (forbiddenKeys.has(key)) return;
+                                            if (key.endsWith('_id') && !safeIdFields.has(key)) return;
+                                            sanitizedItem[key] = originalItem[key];
+                                        });
+
+                                        // Update name
+                                        if (sanitizedItem.title !== undefined) sanitizedItem.title = newItemName;
+                                        else if (sanitizedItem.name !== undefined) sanitizedItem.name = newItemName;
+
+                                        // Handle pages URL
+                                        if (itemTabName === 'pages' && originalItem.url) {
+                                            const baseUrl = originalItem.url.replace(/[^/]+$/, '');
+                                            const urlSafeTitle = newItemName.toLowerCase()
+                                                .replace(/[^a-z0-9]+/g, '-')
+                                                .replace(/^-+|-+$/g, '');
+                                            sanitizedItem.url = baseUrl + urlSafeTitle;
+                                        }
+
+                                        // Prepare request body
+                                        let requestBody;
+                                        const createEndpoint = getCanvasCreateEndpoint(itemTabName);
+                                        if (itemTabName === 'assignments') {
+                                            requestBody = { assignment: sanitizedItem };
+                                        } else if (itemTabName === 'quizzes') {
+                                            requestBody = { quiz: sanitizedItem };
+                                        } else if (itemTabName === 'pages') {
+                                            requestBody = { wiki_page: sanitizedItem };
+                                        } else {
+                                            requestBody = sanitizedItem;
+                                        }
+
+                                        // Create the duplicate item
+                                        const itemCreateResponse = await fetch(createEndpoint, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify(requestBody)
+                                        });
+
+                                        if (!itemCreateResponse.ok) {
+                                            const errorText = await itemCreateResponse.text();
+                                            throw new Error(`Failed to create ${itemTabName}: ${itemCreateResponse.status} - ${errorText}`);
+                                        }
+
+                                        const newItem = await itemCreateResponse.json();
+                                        // For pages, use URL (slug) property - Canvas Pages use URL slugs, not numeric IDs
+                                        // The url property is the page slug that must be used for module_item[page_url]
+                                        const itemId = itemTabName === 'pages' ? (newItem.url || newItem.page_url) : (newItem.id);
+                                        if (!itemId) {
+                                            throw new Error(`Failed to get URL for cloned page. Response: ${JSON.stringify(newItem)}`);
+                                        }
+                                        
+                                        // Immediately add to originalData so next iteration sees it for unique naming
+                                        if (!originalData[itemTabName]) originalData[itemTabName] = {};
+                                        originalData[itemTabName][itemId] = newItem;
+                                        
+                                        // Add to batch created items for name checking
+                                        batchCreatedItems.push(newItem);
+                                        
+                                        // Get the new item's name/title (the cloned name, not the original)
+                                        // nameField is already declared above, so reuse it
+                                        const clonedItemName = newItem[nameField] || newItem.title || newItem.name || newItemName;
+                                        
+                                        console.log(`Cloned ${itemTabName} "${originalName}" -> "${clonedItemName}" (New URL/ID: ${itemId}). Now adding to Module ${newModule.id}...`);
+                                        // Store cloned item with its original index for correct mapping, including the new name
+                                        clonedItemsMap.set(itemIndex, { 
+                                            id: itemId, 
+                                            type: canvasType, 
+                                            originalItem: item,
+                                            clonedName: clonedItemName
+                                        });
+                                        
+                                        // Add brief delay to allow Canvas to finish processing the clone
+                                        await new Promise(resolve => setTimeout(resolve, 500));
+
+                                    } catch (error) {
+                                        errors.push({ module: moduleName, item: item.title || 'Unknown', error: error.message });
+                                        processedItems--;
+                                        // Don't add to clonedItemsMap if cloning failed
+                                    }
+                                }
+
+                                // Add module items pointing to the new duplicated items
+                                // Use the map to ensure we only add successfully cloned items in the correct order
+                                for (let itemIndex = 0; itemIndex < originalModule.items.length; itemIndex++) {
+                                    const originalItem = originalModule.items[itemIndex];
+                                    const clonedItemData = clonedItemsMap.get(itemIndex);
+                                    
+                                    // Skip if this item wasn't successfully cloned
+                                    if (!clonedItemData) {
+                                        console.log(`Skipping item ${itemIndex} (${originalItem.title || 'Unknown'}) - cloning failed`);
+                                        continue;
+                                    }
+                                    
+                                    const clonedItem = clonedItemData;
+                                    
+                                    try {
+                                        // Use the cloned item's name, not the original item's name
+                                        const itemTitle = clonedItem.clonedName || originalItem.title || 'Untitled';
+                                        console.log(`Adding cloned item to module: "${itemTitle}" (Type: ${clonedItem.type}, ID: ${clonedItem.id})`);
+                                        const itemPayload = {
+                                            module_item: {
+                                                type: clonedItem.type,
+                                                title: itemTitle,
+                                                position: originalItem.position,
+                                                indent: originalItem.indent || 0
+                                            }
+                                        };
+                                        
+                                        // For pages (WikiPage), use page_url instead of content_id
+                                        if (clonedItem.type === 'WikiPage') {
+                                            itemPayload.module_item.page_url = clonedItem.id;
+                                        } else {
+                                            itemPayload.module_item.content_id = clonedItem.id;
+                                        }
+
+                                        const itemResponse = await fetch(`/canvas/courses/${courseId}/modules/${newModule.id}/items`, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify(itemPayload)
+                                        });
+
+                                        if (!itemResponse.ok) {
+                                            const errorText = await itemResponse.text();
+                                            throw new Error(`Failed to add item: ${itemResponse.status} - ${errorText}`);
+                                        }
+                                    } catch (error) {
+                                        errors.push({ module: moduleName, item: originalItem.title || 'Module Item', error: error.message });
+                                    }
+                                }
+                            }
+                        }
+
+                        createdModules.push(newModule);
+
+                    } catch (error) {
+                        errors.push({ module: 'Unknown', item: 'Module', error: error.message });
+                    }
+                }
+
+                // Add created modules to table
+                if (createdModules.length > 0) {
+                    await addItemsToTable('modules', createdModules);
+                }
+
+                // Show summary
+                let message = `Successfully cloned ${createdModules.length} module(s) using "${cloneType === 'structureOnly' ? 'Structure Only' : cloneType === 'structureShared' ? 'Structure + Shared Content' : 'Deep Copy'}" method.`;
+                if (errors.length > 0) {
+                    message += `\n\nErrors encountered: ${errors.length}`;
+                    errors.slice(0, 5).forEach(err => {
+                        message += `\n- ${err.module}: ${err.item} - ${err.error}`;
+                    });
+                    if (errors.length > 5) {
+                        message += `\n... and ${errors.length - 5} more errors`;
+                    }
+                }
+                alert(message);
+
+                closeModal('moduleCloneModal');
+                pendingModuleClone = null;
+
+            } catch (error) {
+                debugLog(`Module clone failed: ${error.message}`, 'error');
+                alert(`Error during module cloning: ${error.message}`);
+            } finally {
+                if (executeBtn) {
+                    executeBtn.disabled = false;
+                    executeBtn.textContent = 'Clone Module(s)';
+                }
+                if (progressContainer) {
+                    progressContainer.style.display = 'none';
+                }
+            }
+        }
+
+
+        // Backup function - creates a course export
+        async function runCanvasBackup() {
+            const courseId = getCurrentCourseId();
+            if (!courseId) {
+                throw new Error('No course selected');
+            }
+
+            try {
+                const response = await fetch(`/canvas/courses/${courseId}/content_exports`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        export_type: 'common_cartridge',
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to create backup: ${response.status} ${response.statusText} - ${errorText}`);
+                }
+
+                const result = await response.json();
+                debugLog(`Course export backup initiated successfully: ${JSON.stringify(result)}`, 'info');
+                return true;
+            } catch (error) {
+                debugLog(`Failed to create backup: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        async function handleDeleteSelected() {
+            const tabName = getCurrentTabName();
+            if (!tabName) {
+                alert('Please select a tab first.');
+                return;
+            }
+
+            const courseId = getCurrentCourseId();
+            if (!courseId) {
+                alert('No course selected.');
+                return;
+            }
+
+            const selected = getSelectedItems();
+            if (selected.length === 0) {
+                alert('Please select at least one item.');
+                return;
+            }
+
+            const itemType = tabName === 'assignments' ? 'Assignments' : 
+                            tabName === 'quizzes' ? 'Quizzes' : 
+                            tabName.charAt(0).toUpperCase() + tabName.slice(1);
+
+            // Ask about backup first
+            const wantBackup = confirm(`Do you want to generate a Course Export (Backup) before deleting these ${selected.length} items?`);
+            let backupInitiated = false;
+
+            if (wantBackup) {
+                try {
+                    // Disable button during backup
+                    const deleteBtn = document.getElementById('deleteSelectedBtn');
+                    if (deleteBtn) {
+                        deleteBtn.disabled = true;
+                        deleteBtn.textContent = 'Creating backup...';
+                    }
+
+                    await runCanvasBackup();
+                    backupInitiated = true;
+                    
+                    if (deleteBtn) {
+                        deleteBtn.textContent = '🗑️ Delete Selected';
+                    }
+                } catch (error) {
+                    // Show error but allow user to proceed with deletion if they want
+                    const proceedAnyway = confirm(`Backup failed: ${error.message}\n\nDo you want to proceed with deletion anyway?`);
+                    if (!proceedAnyway) {
+                        const deleteBtn = document.getElementById('deleteSelectedBtn');
+                        if (deleteBtn) deleteBtn.disabled = false;
+                        return;
+                    }
+                }
+            }
+
+            // Final confirmation
+            const confirmed = confirm(`Are you sure you want to permanently delete ${selected.length} items from Canvas?`);
+            if (!confirmed) {
+                const deleteBtn = document.getElementById('deleteSelectedBtn');
+                if (deleteBtn) deleteBtn.disabled = false;
+                return;
+            }
+
+            // Disable button during deletion
+            const deleteBtn = document.getElementById('deleteSelectedBtn');
+            if (deleteBtn) {
+                deleteBtn.disabled = true;
+                deleteBtn.textContent = 'Deleting...';
+            }
+
+            let successCount = 0;
+            let failedItems = [];
+
+            // Delete items one by one
+            for (const itemId of selected) {
+                try {
+                    const endpoint = getCanvasItemEndpoint(tabName, itemId);
+                    debugLog(`Deleting ${tabName} ${itemId} via ${endpoint}`, 'info');
+
+                    const response = await fetch(endpoint, {
+                        method: 'DELETE',
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`${response.status} ${response.statusText}: ${errorText}`);
+                    }
+
+                    // Successfully deleted - remove from UI
+                    // Find a cell with this item-id and get its parent row
+                    const cell = document.querySelector(`#tab-${tabName} [data-item-id="${itemId}"]`);
+                    if (cell) {
+                        const row = cell.closest('tr');
+                        if (row) {
+                            row.remove();
+                        }
+                    }
+
+                    // Remove from selectedItems
+                    if (selectedItems[tabName]) {
+                        selectedItems[tabName].delete(itemId);
+                    }
+
+                    // Remove from originalData
+                    if (originalData[tabName] && originalData[tabName][itemId]) {
+                        delete originalData[tabName][itemId];
+                    }
+
+                    // Remove from changes if present
+                    if (changes[tabName] && changes[tabName][itemId]) {
+                        delete changes[tabName][itemId];
+                    }
+
+                    successCount++;
+                } catch (error) {
+                    debugLog(`Failed to delete ${tabName} ${itemId}: ${error.message}`, 'error');
+                    failedItems.push({ id: itemId, error: error.message });
+                    // Keep the row in the table so user knows it failed
+                }
+            }
+
+            // Re-enable button
+            if (deleteBtn) {
+                deleteBtn.disabled = false;
+                deleteBtn.textContent = '🗑️ Delete Selected';
+            }
+
+            // Update sidebar content (to handle empty selection case)
+            updateSidebarContent();
+
+            // Show summary
+            const backupStatus = backupInitiated ? 'Yes' : 'No';
+            let message = `Successfully deleted ${successCount} item(s) (Backup initiated: ${backupStatus}).`;
+            if (failedItems.length > 0) {
+                message += `\n\nFailed to delete ${failedItems.length} item(s):`;
+                failedItems.forEach(item => {
+                    message += `\n- Item ${item.id}: ${item.error}`;
+                });
+            }
+            alert(message);
+        }
+
+        // Update Assign To button visibility based on active tab
+        function updateButtonVisibility(tabName) {
+            const assignToOption = document.getElementById('assignToOption');
+            const assignToInfoIcon = document.getElementById('assignToInfoIcon');
+            const dropdown = document.getElementById('editModeDropdown');
+            
+            if (!assignToOption || !assignToInfoIcon || !dropdown) return;
+            
+            // Tabs that support Assign To: assignments, quizzes, discussions
+            const supportedTabs = ['assignments', 'quizzes', 'discussions'];
+            const isSupported = supportedTabs.includes(tabName);
+            
+            if (isSupported) {
+                // Enable the option
+                assignToOption.disabled = false;
+                assignToOption.title = '';
+                assignToInfoIcon.style.display = 'none';
+                
+                // If the dropdown currently has assignTo selected and we're switching to an unsupported tab,
+                // clear the selection (this is handled by the fact that we disable it, but let's be explicit)
+                if (dropdown.value === 'assignTo') {
+                    dropdown.value = '';
+                }
+            } else {
+                // Disable the option
+                assignToOption.disabled = true;
+                assignToOption.title = 'Canvas only supports individual student assignments for graded items (Assignments, Quizzes, and Graded Discussions).';
+                
+                // Show info icon
+                assignToInfoIcon.style.display = 'block';
+                
+                // Clear the selection if it was set to assignTo
+                if (dropdown.value === 'assignTo') {
+                    dropdown.value = '';
+                }
+            }
+            
+            // Clear any pending Assign To selections in the table
+            // This would clear any UI state related to Assign To if it exists
+            clearAssignToSelections(tabName);
+        }
+        
+        // Clear any pending Assign To selections when switching tabs
+        function clearAssignToSelections(tabName) {
+            // This function can be expanded to clear any UI state related to Assign To
+            // For now, we'll just ensure the dropdown is cleared if assignTo was selected
+            const dropdown = document.getElementById('editModeDropdown');
+            if (dropdown && dropdown.value === 'assignTo') {
+                dropdown.value = '';
+            }
+        }
+
+        function openAssignToModal() {
+            // Placeholder function for Assign To functionality
+            console.log('openAssignToModal: Not yet implemented');
+        }
+
+        // Helper functions for modal operations (if not already defined)
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.add('active');
+            }
+        }
+        
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.remove('active');
+            }
+        }
+        
+        async function openAccommodationsModal() {
+            const tabName = getCurrentTabName();
+            if (!tabName) {
+                alert('Please select a tab first.');
+                return;
+            }
+            
+            // Only allow for assignments, quizzes, and discussions
+            if (tabName !== 'assignments' && tabName !== 'quizzes' && tabName !== 'discussions') {
+                alert('Accommodation Command Center is only available for Assignments, Quizzes, and Discussions.');
+                return;
+            }
+            
+            const selected = getSelectedItems();
+            if (selected.length === 0) {
+                alert('Please select at least one item.');
+                return;
+            }
+            
+            const courseId = getCurrentCourseId();
+            if (!courseId) {
+                alert('No course selected.');
+                return;
+            }
+            
+            // For Quizzes: Check if they have time_limit > 0 (auto-apply extensions)
+            if (tabName === 'quizzes') {
+                let hasTimeLimit = false;
+                let processedCount = 0;
+                
+                // Check if any selected quiz has time_limit > 0
+                for (const quizId of selected) {
+                    try {
+                        const quizResponse = await fetch(`/canvas/courses/${courseId}/quizzes/${quizId}`);
+                        if (quizResponse.ok) {
+                            const quiz = await quizResponse.json();
+                            if (quiz.time_limit && quiz.time_limit > 0) {
+                                hasTimeLimit = true;
+                                break;
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`Error checking quiz ${quizId}:`, error);
+                    }
+                }
+                
+                if (hasTimeLimit) {
+                    // Auto-apply extensions (skip modal)
+                    processedCount = await autoApplyQuizExtensions(courseId, selected);
+                    const remainingCount = selected.length - processedCount;
+                    
+                    if (remainingCount > 0) {
+                        // Some quizzes don't have time_limit, show modal for those
+                        console.log(`Automatically extended ${processedCount} quiz/quizzes. Opening clone settings for ${remainingCount} quiz/quizzes without time limits.`);
+                        // For now, show modal for all selected items (user can manually handle)
+                        // TODO: Filter to only quizzes without time_limit
+                        showCloneModal(tabName, selected);
+                    } else {
+                        console.log(`Automatically extended ${processedCount} quiz/quizzes.`);
+                        await refreshTab(tabName);
+                    }
+                    return;
+                }
+            }
+            
+            // For Assignments, Discussions, or Quizzes without time_limit: Show modal for cloning
+            showCloneModal(tabName, selected);
+        }
+        
+        function showCloneModal(tabName, selected) {
+            // Scrape unique accommodation types from Students tab
+            const uniqueAccommodations = scrapeUniqueAccommodations();
+            
+            // Populate accommodation types checkboxes
+            populateAccommodationTypes(uniqueAccommodations);
+            
+            // Update plan preview
+            updateAccommodationPlanPreview(tabName, selected, uniqueAccommodations);
+            
+            // Reset progress log
+            const progressContainer = document.getElementById('accommodationProgressContainer');
+            const progressLog = document.getElementById('accommodationProgressLog');
+            if (progressContainer) progressContainer.style.display = 'none';
+            if (progressLog) progressLog.innerHTML = '';
+            
+            openModal('accommodationCommandModal');
+        }
+        
+        async function autoApplyQuizExtensions(courseId, selectedQuizIds) {
+            let successCount = 0;
+            const errors = [];
+            const successfulQuizzes = [];
+            
+            addProgressLog('Auto-applying quiz extensions...', 'info');
+            
+            for (const quizId of selectedQuizIds) {
+                try {
+                    // Fetch quiz data
+                    const quizResponse = await fetch(`/canvas/courses/${courseId}/quizzes/${quizId}`);
+                    if (!quizResponse.ok) {
+                        throw new Error(`Failed to fetch quiz: ${quizResponse.status}`);
+                    }
+                    const quiz = await quizResponse.json();
+                    
+                    // Skip quizzes without time_limit
+                    if (!quiz.time_limit || quiz.time_limit <= 0) {
+                        continue;
+                    }
+                    
+                    // Prepare extensions based on all student accommodations
+                    const extensions = [];
+                    
+                    // Get all students with accommodations from Students tab
+                    Object.keys(studentAccommodations).forEach(studentIdStr => {
+                        const studentId = parseInt(studentIdStr);
+                        const accType = studentAccommodations[studentIdStr];
+                        
+                        if (!accType) return;
+                        
+                        const extension = { user_id: studentId };
+                        
+                        // Check for time multiplier
+                        const multiplier = extractTimeMultiplier(accType);
+                        if (multiplier) {
+                            const extraTime = Math.round(quiz.time_limit * (multiplier - 1));
+                            extension.extra_time = extraTime;
+                        }
+                        
+                        // Check for additional attempt
+                        const isExtraAttempt = accType.toLowerCase().includes('attempt') || accType.toLowerCase().includes('extra');
+                        if (isExtraAttempt) {
+                            extension.extra_attempts = (extension.extra_attempts || 0) + 1;
+                        }
+                        
+                        if (extension.extra_time || extension.extra_attempts) {
+                            extensions.push(extension);
+                        }
+                    });
+                    
+                    if (extensions.length > 0) {
+                        addProgressLog(`POST /canvas/courses/${courseId}/quizzes/${quizId}/extensions (${extensions.length} extension(s))`, 'info');
+                        const extResponse = await fetch(`/canvas/courses/${courseId}/quizzes/${quizId}/extensions`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ quiz_extensions: extensions })
+                        });
+                        
+                        if (!extResponse.ok) {
+                            const errorText = await extResponse.text();
+                            throw new Error(`Failed to create extensions: ${extResponse.status} - ${errorText}`);
+                        }
+                        
+                        addProgressLog(`✓ Auto-applied extensions for quiz "${quiz.title}"`, 'success');
+                        successfulQuizzes.push(quiz.title);
+                        successCount++;
+                    }
+                } catch (error) {
+                    addProgressLog(`✗ Error auto-applying extensions for quiz ${quizId}: ${error.message}`, 'error');
+                    errors.push({ quizId, error: error.message });
+                }
+            }
+            
+            // Show notification if quizzes were successfully updated
+            if (successfulQuizzes.length > 0) {
+                const quizList = successfulQuizzes.length <= 3 
+                    ? successfulQuizzes.join(', ')
+                    : `${successfulQuizzes.slice(0, 3).join(', ')} and ${successfulQuizzes.length - 3} more`;
+                alert(`✓ Accommodations have been automatically updated for:\n\n${quizList}`);
+            }
+            
+            return successCount;
+        }
+        
+        function scrapeUniqueAccommodations() {
+            const uniqueAccommodations = new Set();
+            
+            // Get accommodation data from studentAccommodations object
+            Object.values(studentAccommodations).forEach(accType => {
+                if (accType && accType.trim()) {
+                    uniqueAccommodations.add(accType.trim());
+                }
+            });
+            
+            // Also check the students table for accommodations
+            const rows = document.querySelectorAll('#studentsTableBody tr');
+            rows.forEach(row => {
+                const checkboxes = row.querySelectorAll('.accommodation-checkbox:checked');
+                checkboxes.forEach(cb => {
+                    const accType = cb.value.trim();
+                    if (accType) {
+                        uniqueAccommodations.add(accType);
+                    }
+                });
+            });
+            
+            return Array.from(uniqueAccommodations).sort();
+        }
+        
+        function populateAccommodationTypes(accommodationTypes) {
+            const container = document.getElementById('accommodationTypesContainer');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            if (accommodationTypes.length === 0) {
+                const message = document.createElement('div');
+                message.textContent = 'No accommodation types found in the Students tab.';
+                message.style.cssText = 'padding: 10px; color: #999; font-style: italic; text-align: center;';
+                container.appendChild(message);
+                return;
+            }
+            
+            accommodationTypes.forEach(accType => {
+                const label = document.createElement('label');
+                label.style.cssText = 'display: flex; align-items: center; cursor: pointer; padding: 8px; border-radius: 4px; transition: background 0.2s;';
+                label.onmouseover = function() { this.style.background = '#f0f0f0'; };
+                label.onmouseout = function() { this.style.background = 'transparent'; };
+                label.onchange = function() { updateAccommodationPlanPreview(getCurrentTabName(), getSelectedItems(), accommodationTypes); };
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = accType;
+                checkbox.id = `accType-${accType.replace(/\s+/g, '-')}`;
+                checkbox.style.cssText = 'margin-right: 10px; width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;';
+                checkbox.onchange = function() { updateAccommodationPlanPreview(getCurrentTabName(), getSelectedItems(), accommodationTypes); };
+                
+                const span = document.createElement('span');
+                span.textContent = accType;
+                span.style.cssText = 'font-size: 14px; color: #333;';
+                
+                label.appendChild(checkbox);
+                label.appendChild(span);
+                container.appendChild(label);
+            });
+        }
+        
+        function getSelectedAccommodationTypes() {
+            const checkboxes = document.querySelectorAll('#accommodationTypesContainer input[type="checkbox"]:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+        
+        function updateAccommodationPlanPreview(tabName, selectedItems, allAccommodations) {
+            const preview = document.getElementById('accommodationPlanPreview');
+            if (!preview) return;
+            
+            const selectedAccTypes = getSelectedAccommodationTypes();
+            
+            if (selectedAccTypes.length === 0) {
+                preview.textContent = 'Select accommodation types to see the plan...';
+                return;
+            }
+            
+            let planText = '';
+            
+            if (tabName === 'quizzes') {
+                // For quizzes: time multipliers and extra attempts
+                const timeMultipliers = selectedAccTypes.filter(acc => acc.includes('x') || acc.includes('Time'));
+                const extraAttempts = selectedAccTypes.filter(acc => acc.toLowerCase().includes('attempt') || acc.toLowerCase().includes('extra'));
+                
+                if (timeMultipliers.length > 0) {
+                    planText += `Applying time multipliers (${timeMultipliers.join(', ')}) to ${selectedItems.length} quiz/quizzes via extensions endpoint.\n`;
+                }
+                if (extraAttempts.length > 0) {
+                    planText += `Adding 1 extra attempt for ${extraAttempts.length} accommodation type(s) to ${selectedItems.length} quiz/quizzes.\n`;
+                }
+            } else if (tabName === 'assignments') {
+                // For assignments: clone & tag
+                planText += `Creating ${selectedAccTypes.length} twin(s) for each of ${selectedItems.length} selected assignment(s).\n`;
+                planText += `Accommodation types: ${selectedAccTypes.join(', ')}\n`;
+                planText += `Each twin will be tagged with integration_id (acc_[type]) and title append ([type]).\n`;
+                planText += `Twins will be assigned only to students with matching accommodations.\n`;
+                planText += `Original assignments will be set to only_visible_to_overrides (excluding accommodated students).\n`;
+            }
+            
+            preview.textContent = planText || 'No plan available.';
+        }
+        
+        function addProgressLog(message, type = 'info') {
+            const progressLog = document.getElementById('accommodationProgressLog');
+            const progressContainer = document.getElementById('accommodationProgressContainer');
+            if (!progressLog) return;
+            
+            if (progressContainer) progressContainer.style.display = 'block';
+            
+            const logEntry = document.createElement('div');
+            logEntry.style.cssText = `margin: 4px 0; padding: 4px 8px; border-radius: 3px; font-family: monospace; font-size: 12px;`;
+            
+            if (type === 'error') {
+                logEntry.style.background = '#ffe6e6';
+                logEntry.style.color = '#cc0000';
+            } else if (type === 'success') {
+                logEntry.style.background = '#e6ffe6';
+                logEntry.style.color = '#006600';
+            } else {
+                logEntry.style.background = '#f0f0f0';
+                logEntry.style.color = '#333';
+            }
+            
+            const timestamp = new Date().toLocaleTimeString();
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            progressLog.appendChild(logEntry);
+            progressLog.scrollTop = progressLog.scrollHeight;
+        }
+        
+        function getStudentsByAccommodationType(accType) {
+            const studentIds = [];
+            Object.keys(studentAccommodations).forEach(studentId => {
+                if (studentAccommodations[studentId] === accType) {
+                    studentIds.push(parseInt(studentId));
+                }
+            });
+            return studentIds;
+        }
+        
+        function extractTimeMultiplier(accType) {
+            // Extract multiplier from strings like "1.5x", "Time 2.0x", "2x"
+            const match = accType.match(/(\d+\.?\d*)x/i);
+            if (match) {
+                return parseFloat(match[1]);
+            }
+            return null;
+        }
+        
+        async function getAllCourseStudentIds(courseId) {
+            try {
+                const response = await fetch(`/canvas/courses/${courseId}/students`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch students: ${response.status}`);
+                }
+                const students = await response.json();
+                return students.map(s => s.id || s.user_id).filter(id => id);
+            } catch (error) {
+                console.error('Error fetching course students:', error);
+                return [];
+            }
+        }
+        
+        async function executeAccommodations() {
+            const tabName = getCurrentTabName();
+            // This function is now only for modal-based cloning (assignments, discussions, quizzes without time_limit)
+            if (!tabName || (tabName !== 'assignments' && tabName !== 'discussions' && tabName !== 'quizzes')) {
+                alert('This feature is only available for Assignments, Discussions, and Quizzes.');
+                return;
+            }
+            
+            const selectedItems = getSelectedItems();
+            if (selectedItems.length === 0) {
+                alert('Please select at least one item.');
+                return;
+            }
+            
+            const selectedAccTypes = getSelectedAccommodationTypes();
+            if (selectedAccTypes.length === 0) {
+                alert('Please select at least one accommodation type.');
+                return;
+            }
+            
+            const courseId = getCurrentCourseId();
+            if (!courseId) {
+                alert('No course selected.');
+                return;
+            }
+            
+            // Disable execute button
+            const executeBtn = document.getElementById('accommodationExecuteBtn');
+            if (executeBtn) {
+                executeBtn.disabled = true;
+                executeBtn.textContent = 'Processing...';
+            }
+            
+            // Show progress container
+            const progressContainer = document.getElementById('accommodationProgressContainer');
+            if (progressContainer) progressContainer.style.display = 'block';
+            
+            addProgressLog('Starting accommodation cloning...', 'info');
+            
+            // Get all students in the course for cleanup logic
+            const allStudentIds = await getAllCourseStudentIds(courseId);
+            
+            let totalSuccess = 0;
+            let totalErrors = 0;
+            const errors = [];
+            
+            try {
+                // Get all accommodated student IDs (for cleanup)
+                const allAccommodatedStudentIds = new Set();
+                selectedAccTypes.forEach(accType => {
+                    const studentIds = getStudentsByAccommodationType(accType);
+                    studentIds.forEach(id => allAccommodatedStudentIds.add(id));
+                });
+                
+                // Get non-accommodated student IDs (for standard version override)
+                const nonAccommodatedStudentIds = allStudentIds.filter(id => !allAccommodatedStudentIds.has(id));
+                
+                if (tabName === 'assignments' || tabName === 'discussions') {
+                    // Assignment workflow: Clone & tag
+                    addProgressLog(`Processing ${selectedItems.length} assignment(s)...`, 'info');
+                    
+                    for (const assignmentId of selectedItems) {
+                        try {
+                            addProgressLog(`GET /canvas/courses/${courseId}/assignments/${assignmentId}`, 'info');
+                            const assignmentResponse = await fetch(`/canvas/courses/${courseId}/assignments/${assignmentId}`);
+                            if (!assignmentResponse.ok) {
+                                throw new Error(`Failed to fetch assignment: ${assignmentResponse.status}`);
+                            }
+                                            const originalAssignment = await assignmentResponse.json();
+                            const assignmentName = originalAssignment.name || 'Untitled';
+                            
+                            // Standard Version Cleanup: Set original assignment to only_visible_to_overrides and mark as standard
+                            addProgressLog(`PUT /canvas/courses/${courseId}/assignments/${assignmentId} (setting only_visible_to_overrides)`, 'info');
+                            const updateResponse = await fetch(`/canvas/courses/${courseId}/assignments/${assignmentId}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    assignment: {
+                                        only_visible_to_overrides: true,
+                                        integration_id: 'standard'
+                                    }
+                                })
+                            });
+                            
+                            if (!updateResponse.ok) {
+                                const errorText = await updateResponse.text();
+                                throw new Error(`Failed to update assignment: ${updateResponse.status} - ${errorText}`);
+                            }
+                            
+                            // Create twin for each accommodation type
+                            for (const accType of selectedAccTypes) {
+                                try {
+                                    const studentIds = getStudentsByAccommodationType(accType);
+                                    if (studentIds.length === 0) {
+                                        addProgressLog(`  No students found for accommodation type: ${accType}`, 'info');
+                                        continue;
+                                    }
+                                    
+                                    // Sanitize assignment data for duplication
+                                    const systemReadOnlyFields = [
+                                        'id', 'uuid', 'created_at', 'updated_at', 'html_url', 'url',
+                                        'locked_for_user', 'position', 'assignment_id', 'quiz_id',
+                                        'workflow_state', 'user_count', 'view_count', 'reply_count',
+                                        'pinned', 'posted_at', 'last_reply_at', 'has_submitted_submissions',
+                                        'lti_context_id', 'global_id', 'secure_params', 'original_lti_resource_link_id'
+                                    ];
+                                    
+                                    const sanitizedAssignment = {};
+                                    const safeIdFields = ['assignment_group_id', 'grading_standard_id'];
+                                    Object.keys(originalAssignment).forEach(key => {
+                                        if (systemReadOnlyFields.includes(key)) {
+                                            return; // Skip system read-only fields
+                                        }
+                                        if (key.endsWith('_id') && !safeIdFields.includes(key)) {
+                                            return; // Skip ID fields except safe ones
+                                        }
+                                        sanitizedAssignment[key] = originalAssignment[key];
+                                    });
+                                    
+                                    // Update title and integration_id
+                                    const accTypeClean = accType.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+                                    const newTitle = originalAssignment.name.replace(/\[\s*[^\]]*\s*\]\s*$/, '') + ` [${accType}]`;
+                                    sanitizedAssignment.name = newTitle;
+                                    sanitizedAssignment.integration_id = `acc_${accTypeClean}`;
+                                    sanitizedAssignment.only_visible_to_overrides = true;
+                                    
+                                    addProgressLog(`POST /canvas/courses/${courseId}/assignments (creating twin for ${accType})`, 'info');
+                                    const createResponse = await fetch(`/canvas/courses/${courseId}/assignments`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ assignment: sanitizedAssignment })
+                                    });
+                                    
+                                    if (!createResponse.ok) {
+                                        const errorText = await createResponse.text();
+                                        throw new Error(`Failed to create twin: ${createResponse.status} - ${errorText}`);
+                                    }
+                                    
+                                    const newAssignment = await createResponse.json();
+                                    
+                                    // Create assignment override for students with this accommodation
+                                    addProgressLog(`POST /canvas/courses/${courseId}/assignments/${newAssignment.id}/overrides`, 'info');
+                                    const overrideResponse = await fetch(`/canvas/courses/${courseId}/assignments/${newAssignment.id}/overrides`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            assignment_override: {
+                                                student_ids: studentIds
+                                            }
+                                        })
+                                    });
+                                    
+                                    if (!overrideResponse.ok) {
+                                        const errorText = await overrideResponse.text();
+                                        throw new Error(`Failed to create override: ${overrideResponse.status} - ${errorText}`);
+                                    }
+                                    
+                                    addProgressLog(`✓ Created twin "${newTitle}" for ${accType} (${studentIds.length} student(s))`, 'success');
+                                    totalSuccess++;
+                                } catch (error) {
+                                    addProgressLog(`✗ Error creating twin for ${accType}: ${error.message}`, 'error');
+                                    errors.push({ itemId: assignmentId, accType, error: error.message });
+                                    totalErrors++;
+                                }
+                            }
+                        } catch (error) {
+                            addProgressLog(`✗ Error processing assignment ${assignmentId}: ${error.message}`, 'error');
+                            errors.push({ itemId: assignmentId, error: error.message });
+                            totalErrors++;
+                        }
+                    }
+                }
+                
+                // Summary
+                addProgressLog('', 'info');
+                addProgressLog(`=== Processing Complete ===`, 'info');
+                addProgressLog(`Success: ${totalSuccess}`, 'success');
+                if (totalErrors > 0) {
+                    addProgressLog(`Errors: ${totalErrors}`, 'error');
+                    errors.forEach(err => {
+                        addProgressLog(`  - Item ${err.itemId}${err.accType ? ` (${err.accType})` : ''}: ${err.error}`, 'error');
+                    });
+                }
+                
+                // Refresh the tab to show new items
+                await refreshTab(tabName);
+                
+            } catch (error) {
+                addProgressLog(`Fatal error: ${error.message}`, 'error');
+                alert(`Accommodation processing failed: ${error.message}`);
+            } finally {
+                if (executeBtn) {
+                    executeBtn.disabled = false;
+                    executeBtn.textContent = 'Execute Accommodations';
+                }
+            }
+        }
+
         function getCurrentTabName() {
             const activeTab = document.querySelector('.tab-content.active');
             if (!activeTab) return null;
             const tabId = activeTab.id;
             return tabId.replace('tab-', '');
+        }
+
+        function syncCurrentTab() {
+            const tabName = getCurrentTabName();
+            if (!tabName) {
+                alert('Please select a tab first.');
+                return;
+            }
+            syncChanges(tabName);
         }
 
         function getSelectedItems() {
@@ -4295,14 +6335,19 @@
                 return;
             }
 
+            // Get scope (all vs selected)
+            const scopeRadio = document.querySelector('input[name="dateShiftScope"]:checked');
+            const scope = scopeRadio ? scopeRadio.value : 'selected';
+            
+            // Get selected items
             const selected = getSelectedItems();
-            if (selected.length === 0) {
-                alert('Please select at least one item.');
+            if (scope === 'selected' && selected.length === 0) {
+                alert('Please select at least one item, or choose "Apply to All Rows".');
                 closeModal('dateShiftModal');
                 return;
             }
 
-            const field = document.getElementById('dateShiftField').value;
+            // Get shift value
             const days = parseInt(document.getElementById('dateShiftDays').value);
             
             if (isNaN(days)) {
@@ -4315,47 +6360,101 @@
                 return;
             }
 
+            // Get selected date fields from checkboxes
+            const dateFieldsContainer = document.getElementById('dateShiftFieldsContainer');
+            if (!dateFieldsContainer) {
+                alert('Date fields container not found.');
+                closeModal('dateShiftModal');
+                return;
+            }
+            
+            const checkedBoxes = dateFieldsContainer.querySelectorAll('input[type="checkbox"]:checked');
+            const dateFields = Array.from(checkedBoxes).map(checkbox => checkbox.value).filter(value => value);
+            
+            if (dateFields.length === 0) {
+                alert('Please select at least one date field to shift.');
+                closeModal('dateShiftModal');
+                return;
+            }
+            
+            // Get field definitions for display purposes
+            const fieldDefs = FIELD_DEFINITIONS[tabName];
+            if (!fieldDefs) {
+                alert('No field definitions found for this tab.');
+                closeModal('dateShiftModal');
+                return;
+            }
+
+            // Determine target items
+            let targetItems = [];
+            if (scope === 'all') {
+                // Get all item IDs from originalData
+                targetItems = Object.keys(originalData[tabName] || {});
+            } else {
+                targetItems = selected;
+            }
+
+            if (targetItems.length === 0) {
+                alert('No items found to apply date shift to.');
+                closeModal('dateShiftModal');
+                return;
+            }
+
             const millisecondsPerDay = 24 * 60 * 60 * 1000;
             const offsetMs = days * millisecondsPerDay;
 
             let modifiedCount = 0;
-            selected.forEach(itemId => {
+            let totalFieldChanges = 0;
+
+            targetItems.forEach(itemId => {
                 const original = originalData[tabName]?.[itemId];
                 if (!original) return;
 
-                const currentValue = original[field];
-                if (!currentValue) {
-                    debugLog(`Skipping ${itemId}: no ${field} to offset`, 'warn');
-                    return;
+                let itemModified = false;
+
+                // Apply shift to all date fields
+                dateFields.forEach(field => {
+                    const currentValue = original[field];
+                    if (!currentValue) {
+                        debugLog(`Skipping ${itemId}: no ${field} to offset`, 'warn');
+                        return;
+                    }
+
+                    const currentDate = new Date(currentValue);
+                    if (isNaN(currentDate.getTime())) {
+                        debugLog(`Skipping ${itemId}: invalid date ${currentValue} for field ${field}`, 'warn');
+                        return;
+                    }
+
+                    const newDate = new Date(currentDate.getTime() + offsetMs);
+                    const newValue = newDate.toISOString();
+
+                    // Update the change tracking
+                    if (!changes[tabName]) changes[tabName] = {};
+                    if (!changes[tabName][itemId]) changes[tabName][itemId] = {};
+                    changes[tabName][itemId][field] = newValue;
+
+                    // Update the cell display
+                    const cell = document.querySelector(`#tab-${tabName} [data-item-id="${itemId}"][data-field="${field}"]`);
+                    if (cell) {
+                        const fieldDef = fieldDefs.find(f => f.key === field);
+                        const fieldType = fieldDef ? fieldDef.type : 'datetime';
+                        displayCellValue(cell, tabName, itemId, field, newValue, fieldType, fieldDef);
+                        const row = cell.closest('tr');
+                        if (row) row.classList.add('modified');
+                    }
+
+                    itemModified = true;
+                    totalFieldChanges++;
+                });
+
+                if (itemModified) {
+                    modifiedCount++;
                 }
-
-                const currentDate = new Date(currentValue);
-                if (isNaN(currentDate.getTime())) {
-                    debugLog(`Skipping ${itemId}: invalid date ${currentValue}`, 'warn');
-                    return;
-                }
-
-                const newDate = new Date(currentDate.getTime() + offsetMs);
-                const newValue = newDate.toISOString();
-
-                // Update the change tracking
-                if (!changes[tabName]) changes[tabName] = {};
-                if (!changes[tabName][itemId]) changes[tabName][itemId] = {};
-                changes[tabName][itemId][field] = newValue;
-
-                // Update the cell display
-                const cell = document.querySelector(`#tab-${tabName} [data-item-id="${itemId}"][data-field="${field}"]`);
-                if (cell) {
-                    displayCellValue(cell, tabName, itemId, field, newValue, 'datetime');
-                    const row = cell.closest('tr');
-                    if (row) row.classList.add('modified');
-                }
-
-                modifiedCount++;
             });
 
             updateSyncButton(tabName);
-            alert(`Date shift applied to ${modifiedCount} item(s). Click "Sync to Canvas" to save changes.`);
+            alert(`Date shift applied to ${modifiedCount} item(s) with ${totalFieldChanges} total field change(s). Click "Sync to Canvas" to save changes.`);
             closeModal('dateShiftModal');
         }
 
@@ -4374,7 +6473,23 @@
                 return;
             }
 
-            const field = document.getElementById('searchReplaceField').value;
+            // Get selected fields from checkboxes
+            const fieldsContainer = document.getElementById('searchReplaceFieldsContainer');
+            if (!fieldsContainer) {
+                alert('Fields container not found.');
+                closeModal('searchReplaceModal');
+                return;
+            }
+            
+            const checkedBoxes = fieldsContainer.querySelectorAll('input[type="checkbox"]:checked');
+            const selectedFields = Array.from(checkedBoxes).map(checkbox => checkbox.value).filter(value => value);
+            
+            if (selectedFields.length === 0) {
+                alert('Please select at least one field to search.');
+                closeModal('searchReplaceModal');
+                return;
+            }
+
             const searchText = document.getElementById('searchReplaceFind').value.trim();
             const replaceText = document.getElementById('searchReplaceWith').value;
 
@@ -4383,41 +6498,81 @@
                 return;
             }
 
+            // Get field definitions for type checking
+            const fieldDefs = FIELD_DEFINITIONS[tabName];
+            if (!fieldDefs) {
+                alert('No field definitions found for this tab.');
+                closeModal('searchReplaceModal');
+                return;
+            }
+
             let modifiedCount = 0;
+            let totalFieldChanges = 0;
+
             selected.forEach(itemId => {
                 const original = originalData[tabName]?.[itemId];
                 if (!original) return;
 
-                const currentValue = original[field];
-                if (!currentValue || typeof currentValue !== 'string') {
-                    debugLog(`Skipping ${itemId}: no ${field} or not a string`, 'warn');
-                    return;
+                let itemModified = false;
+
+                // Apply search/replace to each selected field
+                selectedFields.forEach(field => {
+                    const fieldDef = fieldDefs.find(f => f.key === field);
+                    if (!fieldDef) return;
+
+                    let currentValue = original[field];
+                    if (currentValue === null || currentValue === undefined) {
+                        return; // Skip null/undefined values
+                    }
+
+                    // Convert to string for searching (handles both text and numbers)
+                    const currentValueStr = String(currentValue);
+                    
+                    if (!currentValueStr.includes(searchText)) {
+                        return; // No match, skip
+                    }
+
+                    // Perform replace
+                    const newValueStr = currentValueStr.replace(
+                        new RegExp(searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), 
+                        replaceText
+                    );
+
+                    // Convert back to appropriate type
+                    let newValue;
+                    if (fieldDef.type === 'number') {
+                        // For numeric fields, try to parse as number
+                        const parsed = parseFloat(newValueStr);
+                        newValue = isNaN(parsed) ? newValueStr : parsed;
+                    } else {
+                        // For text/textarea fields, keep as string
+                        newValue = newValueStr;
+                    }
+
+                    // Update the change tracking
+                    if (!changes[tabName]) changes[tabName] = {};
+                    if (!changes[tabName][itemId]) changes[tabName][itemId] = {};
+                    changes[tabName][itemId][field] = newValue;
+
+                    // Update the cell display
+                    const cell = document.querySelector(`#tab-${tabName} [data-item-id="${itemId}"][data-field="${field}"]`);
+                    if (cell) {
+                        displayCellValue(cell, tabName, itemId, field, newValue, fieldDef.type, fieldDef);
+                        const row = cell.closest('tr');
+                        if (row) row.classList.add('modified');
+                    }
+
+                    itemModified = true;
+                    totalFieldChanges++;
+                });
+
+                if (itemModified) {
+                    modifiedCount++;
                 }
-
-                if (!currentValue.includes(searchText)) {
-                    return; // No match, skip
-                }
-
-                const newValue = currentValue.replace(new RegExp(searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), replaceText);
-
-                // Update the change tracking
-                if (!changes[tabName]) changes[tabName] = {};
-                if (!changes[tabName][itemId]) changes[tabName][itemId] = {};
-                changes[tabName][itemId][field] = newValue;
-
-                // Update the cell display
-                const cell = document.querySelector(`#tab-${tabName} [data-item-id="${itemId}"][data-field="${field}"]`);
-                if (cell) {
-                    displayCellValue(cell, tabName, itemId, field, newValue, 'text');
-                    const row = cell.closest('tr');
-                    if (row) row.classList.add('modified');
-                }
-
-                modifiedCount++;
             });
 
             updateSyncButton(tabName);
-            alert(`Search and replace applied to ${modifiedCount} item(s). Click "Sync to Canvas" to save changes.`);
+            alert(`Search and replace applied to ${modifiedCount} item(s) with ${totalFieldChanges} total field change(s). Click "Sync to Canvas" to save changes.`);
             closeModal('searchReplaceModal');
         }
 
@@ -4780,11 +6935,14 @@
                 let accommodationCell = row.querySelector('td.accommodation-cell');
                 if (!accommodationCell) {
                     const cells = row.querySelectorAll('td');
-                    const nameCellIndex = Array.from(cells).findIndex(cell => cell.getAttribute('data-item-id') === studentId);
-                    if (nameCellIndex >= 0 && nameCellIndex < cells.length - 1) {
+                    // Find the first_name cell (second cell with data-item-id after last_name)
+                    const firstNameCellIndex = Array.from(cells).findIndex(cell => 
+                        cell.getAttribute('data-item-id') === studentId && cell.getAttribute('data-field') === 'first_name'
+                    );
+                    if (firstNameCellIndex >= 0 && firstNameCellIndex < cells.length - 1) {
                         accommodationCell = document.createElement('td');
                         accommodationCell.className = 'accommodation-cell';
-                        row.insertBefore(accommodationCell, cells[nameCellIndex + 1]);
+                        row.insertBefore(accommodationCell, cells[firstNameCellIndex + 1]);
                     } else {
                         return;
                     }
@@ -4937,7 +7095,7 @@
 
             const table = document.getElementById('studentsTable');
             if (students.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No students found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No students found</td></tr>';
                 if (table) table.style.display = '';
                 return;
             }
@@ -4951,6 +7109,21 @@
                 
                 if (!originalData['students']) originalData['students'] = {};
                 originalData['students'][itemId] = student;
+                
+                // Split name into last name and first name
+                let lastName = '-';
+                let firstName = '-';
+                if (student.name) {
+                    const nameParts = student.name.trim().split(/\s+/);
+                    if (nameParts.length === 1) {
+                        // Only one name part, use it as last name
+                        lastName = nameParts[0];
+                    } else if (nameParts.length >= 2) {
+                        // Last part is last name, all others are first name
+                        lastName = nameParts[nameParts.length - 1];
+                        firstName = nameParts.slice(0, -1).join(' ');
+                    }
+                }
                 
                 const selectedAccommodation = studentAccommodations[itemId] || null;
                 
@@ -4980,7 +7153,8 @@
                     <td class="checkbox-cell">
                         <input type="checkbox" class="row-checkbox" data-tab="students" data-id="${itemId}" ${isChecked ? 'checked' : ''} onchange="toggleRowSelection('students', '${itemId}', this.checked)">
                     </td>
-                    <td data-item-id="${itemId}">${escapeHtml(student.name || '-')}</td>
+                    <td data-item-id="${itemId}" data-field="last_name">${escapeHtml(lastName)}</td>
+                    <td data-item-id="${itemId}" data-field="first_name">${escapeHtml(firstName)}</td>
                     <td class="accommodation-cell">
                         ${accommodationCheckboxes}
                     </td>
@@ -5037,8 +7211,8 @@
                 }
             });
             
-            // Update drawer content when selections change
-            updateDrawerContent();
+            // Update sidebar content when selections change
+            updateSidebarContent();
         }
 
         function toggleRowSelection(tabName, itemId, checked) {
@@ -5068,8 +7242,8 @@
                 selectAllCheckbox.checked = checkedCount === allCheckboxes.length && allCheckboxes.length > 0;
             }
             
-            // Update drawer content when selections change
-            updateDrawerContent();
+            // Update sidebar content when selections change
+            updateSidebarContent();
         }
 
         function makeCellEditable(cell, tabName, itemId, fieldName, currentValue, fieldType, fieldDef = null) {
@@ -5531,25 +7705,50 @@
         }
 
         function updateSyncButton(tabName) {
+            // Update the tab-specific sync button (if it exists - for backwards compatibility)
             const syncBtn = document.getElementById(`sync-${tabName}`);
             const changesCount = document.getElementById(`changesCount-${tabName}`);
             
-            if (!syncBtn) return;
-            
-            const changeCount = Object.keys(changes[tabName] || {}).length;
-            
-            if (changeCount > 0) {
-                syncBtn.disabled = false;
-                syncBtn.classList.add('has-changes');
-                if (changesCount) {
-                    changesCount.textContent = changeCount;
-                    changesCount.classList.remove('hidden');
+            if (syncBtn) {
+                const changeCount = Object.keys(changes[tabName] || {}).length;
+                
+                if (changeCount > 0) {
+                    syncBtn.disabled = false;
+                    syncBtn.classList.add('has-changes');
+                    if (changesCount) {
+                        changesCount.textContent = changeCount;
+                        changesCount.classList.remove('hidden');
+                    }
+                } else {
+                    syncBtn.disabled = true;
+                    syncBtn.classList.remove('has-changes');
+                    if (changesCount) {
+                        changesCount.classList.add('hidden');
+                    }
                 }
-            } else {
-                syncBtn.disabled = true;
-                syncBtn.classList.remove('has-changes');
-                if (changesCount) {
-                    changesCount.classList.add('hidden');
+            }
+            
+            // Update the sidebar sync button
+            const sidebarSyncBtn = document.getElementById('sync-sidebar');
+            const sidebarChangesCount = document.getElementById('changesCount-sidebar');
+            const currentTab = getCurrentTabName();
+            
+            if (sidebarSyncBtn && currentTab === tabName) {
+                const changeCount = Object.keys(changes[tabName] || {}).length;
+                
+                if (changeCount > 0) {
+                    sidebarSyncBtn.disabled = false;
+                    sidebarSyncBtn.classList.add('has-changes');
+                    if (sidebarChangesCount) {
+                        sidebarChangesCount.textContent = changeCount;
+                        sidebarChangesCount.classList.remove('hidden');
+                    }
+                } else {
+                    sidebarSyncBtn.disabled = true;
+                    sidebarSyncBtn.classList.remove('has-changes');
+                    if (sidebarChangesCount) {
+                        sidebarChangesCount.classList.add('hidden');
+                    }
                 }
             }
         }

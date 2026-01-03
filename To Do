@@ -24,8 +24,10 @@
       4. Standards compliance
    6. Rubrics
    7. Outcomes alignment
-5. Automatically make the "Student" sheet active when loading a course.
-6. Add Ctrl+Z for undo?
+5. Automatically load the data for whatever sheet is open when a course is selected
+6. Add Ctrl+Z for undo? 
+7. Module duplication: Options to just make a copy or to duplicate specific items or all items in the module.
+
 
    Since you are building a tool designed to integrate with Canvas, your distribution strategy needs to balance **security** (protecting those API keys), **accessibility** (how teachers open the app), and **maintenance** (how you push updates).
 

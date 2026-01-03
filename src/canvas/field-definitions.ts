@@ -208,7 +208,8 @@ export const FIELD_DEFINITIONS: Record<string, FieldDefinition[]> = {
   
   students: [
     { name: 'id', label: 'ID', type: 'number', editable: false },
-    { name: 'name', label: 'Name', type: 'text', editable: false },
+    { name: 'last_name', label: 'Last Name', type: 'text', editable: false },
+    { name: 'first_name', label: 'First Name', type: 'text', editable: false },
     { name: 'email', label: 'Email', type: 'text', editable: false },
     { name: 'sis_user_id', label: 'SIS User ID', type: 'text', editable: false },
     { name: 'enrollment_state', label: 'Enrollment State', type: 'text', editable: false },

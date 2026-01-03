@@ -115,6 +115,55 @@ export class CanvasController {
     return this.canvasService.getBulkUserTags(id);
   }
 
+  // Individual GET endpoints (for fetching full item data)
+  @Get('courses/:courseId/assignments/:id')
+  async getAssignment(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id', ParseIntPipe) id: number
+  ) {
+    return this.canvasService.getAssignment(courseId, id);
+  }
+
+  @Get('courses/:courseId/quizzes/:id')
+  async getQuiz(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id', ParseIntPipe) id: number
+  ) {
+    return this.canvasService.getQuiz(courseId, id);
+  }
+
+  @Get('courses/:courseId/discussions/:id')
+  async getDiscussion(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id', ParseIntPipe) id: number
+  ) {
+    return this.canvasService.getDiscussion(courseId, id);
+  }
+
+  @Get('courses/:courseId/pages/:id')
+  async getPage(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id') id: string
+  ) {
+    return this.canvasService.getPage(courseId, id);
+  }
+
+  @Get('courses/:courseId/announcements/:id')
+  async getAnnouncement(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id', ParseIntPipe) id: number
+  ) {
+    return this.canvasService.getAnnouncement(courseId, id);
+  }
+
+  @Get('courses/:courseId/modules/:id')
+  async getModule(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id', ParseIntPipe) id: number
+  ) {
+    return this.canvasService.getModule(courseId, id);
+  }
+
   // Individual update endpoints (for inline editing)
   @Put('courses/:courseId/assignments/:id')
   async updateAssignment(
@@ -256,5 +305,139 @@ export class CanvasController {
     @Body() body: { itemIds: number[]; updates: Record<string, any> }
   ) {
     return this.canvasService.bulkUpdateModules(courseId, body.itemIds, body.updates);
+  }
+
+  // Delete endpoints
+  @Delete('courses/:courseId/assignments/:id')
+  async deleteAssignment(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id', ParseIntPipe) id: number
+  ) {
+    return this.canvasService.deleteAssignment(courseId, id);
+  }
+
+  @Delete('courses/:courseId/quizzes/:id')
+  async deleteQuiz(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id', ParseIntPipe) id: number
+  ) {
+    return this.canvasService.deleteQuiz(courseId, id);
+  }
+
+  @Delete('courses/:courseId/discussions/:id')
+  async deleteDiscussion(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id', ParseIntPipe) id: number
+  ) {
+    return this.canvasService.deleteDiscussion(courseId, id);
+  }
+
+  @Delete('courses/:courseId/pages/:id')
+  async deletePage(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id') id: string
+  ) {
+    return this.canvasService.deletePage(courseId, id);
+  }
+
+  @Delete('courses/:courseId/modules/:id')
+  async deleteModule(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id', ParseIntPipe) id: number
+  ) {
+    return this.canvasService.deleteModule(courseId, id);
+  }
+
+  @Delete('courses/:courseId/announcements/:id')
+  async deleteAnnouncement(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id', ParseIntPipe) id: number
+  ) {
+    return this.canvasService.deleteAnnouncement(courseId, id);
+  }
+
+  // Content Export endpoint
+  @Post('courses/:courseId/content_exports')
+  async createContentExport(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Body() body: { export_type?: string }
+  ) {
+    return this.canvasService.createContentExport(courseId, body.export_type || 'common_cartridge');
+  }
+
+  // Create endpoints (for duplication)
+  @Post('courses/:courseId/assignments')
+  async createAssignment(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Body() body: Record<string, any>
+  ) {
+    return this.canvasService.createAssignment(courseId, body);
+  }
+
+  @Post('courses/:courseId/quizzes')
+  async createQuiz(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Body() body: Record<string, any>
+  ) {
+    return this.canvasService.createQuiz(courseId, body);
+  }
+
+  @Post('courses/:courseId/discussions')
+  async createDiscussion(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Body() body: Record<string, any>
+  ) {
+    return this.canvasService.createDiscussion(courseId, body);
+  }
+
+  @Post('courses/:courseId/pages')
+  async createPage(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Body() body: Record<string, any>
+  ) {
+    return this.canvasService.createPage(courseId, body);
+  }
+
+  @Post('courses/:courseId/announcements')
+  async createAnnouncement(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Body() body: Record<string, any>
+  ) {
+    return this.canvasService.createAnnouncement(courseId, body);
+  }
+
+  @Post('courses/:courseId/modules')
+  async createModule(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Body() body: Record<string, any>
+  ) {
+    return this.canvasService.createModule(courseId, body);
+  }
+
+  @Post('courses/:courseId/quizzes/:quizId/extensions')
+  async createQuizExtensions(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('quizId', ParseIntPipe) quizId: number,
+    @Body() body: { quiz_extensions: Array<{ user_id: number; extra_time?: number; extra_attempts?: number }> }
+  ) {
+    return this.canvasService.createQuizExtensions(courseId, quizId, body.quiz_extensions);
+  }
+
+  @Post('courses/:courseId/assignments/:assignmentId/overrides')
+  async createAssignmentOverride(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('assignmentId', ParseIntPipe) assignmentId: number,
+    @Body() body: { assignment_override: { student_ids?: number[]; due_at?: string; unlock_at?: string; lock_at?: string } }
+  ) {
+    return this.canvasService.createAssignmentOverride(courseId, assignmentId, body.assignment_override);
+  }
+
+  @Post('courses/:courseId/modules/:moduleId/items')
+  async createModuleItem(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('moduleId', ParseIntPipe) moduleId: number,
+    @Body() body: Record<string, any>
+  ) {
+    return this.canvasService.createModuleItem(courseId, moduleId, body);
   }
 }
