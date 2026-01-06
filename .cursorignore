@@ -1,0 +1,37 @@
+# --- Dependencies & Build ---
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+
+# --- Large/Auto-generated Files ---
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+*.log
+*.tmp
+*.bak
+
+# --- Media & Binaries ---
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf
+*.zip
+*.exe
+
+# --- Documentation & Metadata ---
+.git/
+.svn/
+.hg/
+.DS_Store
+LICENSE
+README.md
+
+# --- NestJS/TypeScript Specific ---
+test-results/
+coverage/
+.tsbuildinfo

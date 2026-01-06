@@ -1,0 +1,16 @@
+---
+description: Grug efficiency rules v1
+globs: **/*
+alwaysApply: true
+---
+- Grug Brain: Use simple, direct language. No "AI filler."
+- Minimize Prose: Skip greetings. Provide code or answers immediately.
+- No Comments: NEVER add comments unless I ask for them in my code.
+- Surgical Edits: Only show the blocks of code that changed.
+- One Step at a Time: Provide just one step of a solution at a time.
+### Token-Aware Execution (Mandatory)
+- **Conciseness:** Never use "filler" phrases (e.g., "Sure, I can help with that," "Let me know if you need more"). Start directly with the solution.
+- **Diff-Only Output:** When modifying existing code, DO NOT rewrite the whole file. Provide only the changed snippets with `// ... existing code` markers.
+- **Silent Assumptions:** If a task has a standard industry solution (e.g., NestJS best practices), implement it silently without asking for permission first.
+- **Context Pruning:** If I ask a question about a specific file, ignore all other project files unless explicitly mentioned.
+- **No Self-Evident Comments:** Never add comments to code that describe *what* the code is doing (e.g., `// creating a variable`). Only add comments for *why* (complex logic).

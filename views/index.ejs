@@ -4,1132 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Canvas LMS Bulk Editor</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f5f5f5;
-            padding: 20px;
-            color: #333;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            padding: 20px;
-            padding-bottom: 50px; /* Space for collapsed debug panel */
-        }
-        
-        .main-content-wrapper {
-            display: flex;
-            gap: 20px;
-            align-items: flex-start;
-        }
-        
-        .main-content {
-            flex: 1;
-            min-width: 0; /* Allows flex item to shrink below content size */
-        }
-        
-        h1 {
-            margin-bottom: 20px;
-            color: #2d3e50;
-        }
-        
-        .course-selector {
-            margin-bottom: 30px;
-            padding: 20px;
-            background: #f9f9f9;
-            border-radius: 6px;
-        }
-        
-        .course-selector select {
-            width: 100%;
-            padding: 10px;
-            font-size: 16px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            margin-bottom: 10px;
-        }
-        
-        .course-selector select:disabled {
-            background: #f5f5f5;
-            cursor: wait;
-            opacity: 0.7;
-        }
-        
-        .course-loading {
-            display: inline-block;
-            margin-left: 10px;
-            color: #2196F3;
-        }
-        
-        .course-loading.hidden {
-            display: none;
-        }
-        
-        .course-details-loading {
-            padding: 10px;
-            text-align: center;
-            color: #666;
-            font-style: italic;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-        
-        .course-details-loading.hidden {
-            display: none;
-        }
-        
-        .course-details {
-            margin-top: 20px;
-            padding: 15px;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        
-        .course-details h2 {
-            margin-bottom: 10px;
-            color: #2d3e50;
-        }
-        
-        .course-details p {
-            margin: 5px 0;
-        }
-        
-        .tabs {
-            display: flex;
-            border-bottom: 2px solid #ddd;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-        
-        .tab-button {
-            padding: 12px 24px;
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            color: #666;
-            border-bottom: 3px solid transparent;
-            transition: all 0.2s;
-        }
-        
-        .tab-button:hover {
-            background: #f5f5f5;
-            color: #2d3e50;
-        }
-        
-        .tab-button.active {
-            color: #2d3e50;
-            border-bottom-color: #2d3e50;
-            font-weight: 600;
-        }
-        
-        .tab-content {
-            display: none;
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-        
-        /* Table container for sticky headers */
-        .table-container {
-            width: 100%;
-            overflow-y: auto;
-            overflow-x: auto;
-            max-height: calc(100vh - 300px);
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        
-        .tab-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            gap: 10px;
-        }
-        
-        .count-badge {
-            padding: 6px 12px;
-            background: #e8f4f8;
-            color: #2d3e50;
-            border-radius: 4px;
-            font-weight: 600;
-        }
-        
-        .sync-btn, .refresh-btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.2s;
-        }
-        
-        .sync-btn {
-            background: #28a745;
-            color: white;
-        }
-        
-        .sync-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        
-        .sync-btn.has-changes {
-            background: #ffc107;
-            color: #333;
-        }
-        
-        .sync-btn.has-changes:disabled {
-            background: #ccc;
-        }
-        
-        .refresh-btn {
-            background: #6c757d;
-            color: white;
-        }
-        
-        .refresh-btn:hover {
-            background: #5a6268;
-        }
-        
-        .btn-test-active, .btn-test-disabled {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.2s;
-        }
-        
-        .btn-test-active {
-            background: #2196F3;
-            color: white;
-        }
-        
-        .btn-test-active:hover {
-            background: #1976D2;
-        }
-        
-        .btn-test-disabled {
-            background: #ccc;
-            color: #666;
-            cursor: not-allowed;
-        }
-        
-        .changes-count {
-            background: rgba(255, 255, 255, 0.3);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 12px;
-        }
-        
-        .changes-count.hidden {
-            display: none;
-        }
-        
-        .data-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            background: white;
-            table-layout: auto;
-        }
-        
-        .data-table thead {
-            background: #f8f9fa;
-        }
-        
-        .data-table th {
-            padding: 12px;
-            text-align: left;
-            font-weight: 600;
-            color: #2d3e50;
-            border-right: 1px solid #ddd !important;
-            border-bottom: 2px solid #ddd !important;
-            position: sticky !important;
-            top: 0 !important;
-            background: #f8f9fa !important;
-            z-index: 30; /* Header (High Priority) */
-        }
-        
-        .data-table th:last-child {
-            border-right: none !important;
-        }
-        
-        /* Corner (Highest Priority) - First two th cells (Selection and Name columns) */
-        .data-table thead th:nth-child(1),
-        .data-table thead th:nth-child(2) {
-            z-index: 40 !important;
-        }
-        
-        .data-table th.description-column,
-        .data-table td.description-column {
-            width: 200px;
-            max-width: 200px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        
-        .header-filter {
-            margin-top: 6px;
-            width: 100%;
-            padding: 4px 8px;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-            font-size: 12px;
-            font-weight: normal;
-        }
-        
-        .header-filter:focus {
-            outline: none;
-            border-color: #2196F3;
-        }
-        
-        .header-label {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 4px;
-            cursor: pointer;
-            user-select: none;
-        }
-        
-        .header-label:hover {
-            color: #2196F3;
-        }
-        
-        .header-label-text {
-            flex: 1;
-        }
-        
-        .header-controls {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            margin-left: 8px;
-        }
-        
-        .column-collapsed {
-            width: 20px !important;
-            min-width: 20px !important;
-            max-width: 20px !important;
-            overflow: hidden;
-            white-space: nowrap;
-            padding-left: 3px !important;
-            padding-right: 3px !important;
-        }
-        
-        .data-table th.column-collapsed,
-        .data-table td.column-collapsed-cell {
-            width: 20px !important;
-            min-width: 20px !important;
-            max-width: 20px !important;
-        }
-
-        .column-collapsed .header-label-text,
-        .column-collapsed .header-controls,
-        .column-collapsed .filter-menu {
-            display: none !important;
-        }
-
-        .column-collapsed-cell {
-            visibility: hidden;
-        }
-        
-        .sort-indicator {
-            font-size: 10px;
-            color: #999;
-            min-width: 12px;
-        }
-        
-        .sort-indicator.active {
-            color: #2196F3;
-        }
-        
-        .sort-indicator.asc::before {
-            content: '▲';
-        }
-        
-        .sort-indicator.desc::before {
-            content: '▼';
-        }
-        
-        .filter-icon {
-            font-size: 12px;
-            color: #999;
-            cursor: pointer;
-            padding: 2px 4px;
-            border-radius: 2px;
-        }
-        
-        .filter-icon:hover {
-            background: #f0f0f0;
-            color: #2196F3;
-        }
-        
-        .filter-icon.active {
-            color: #2196F3;
-            background: #e3f2fd;
-        }
-        
-        .filter-active {
-            background: #e3f2fd;
-        }
-        
-        .filter-menu {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            z-index: 100;
-            padding: 10px;
-            margin-top: 4px;
-            display: none;
-        }
-        
-        .filter-menu.active {
-            display: block;
-        }
-        
-        .filter-menu-section {
-            margin-bottom: 10px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .filter-menu-section:last-child {
-            border-bottom: none;
-            margin-bottom: 0;
-        }
-        
-        .filter-menu-section h4 {
-            margin: 0 0 8px 0;
-            font-size: 12px;
-            font-weight: 600;
-            color: #555;
-        }
-        
-        .filter-menu-btn {
-            width: 100%;
-            padding: 6px;
-            margin-bottom: 4px;
-            border: 1px solid #ddd;
-            background: white;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 12px;
-            text-align: left;
-        }
-        
-        .filter-menu-btn:hover {
-            background: #f5f5f5;
-        }
-        
-        .filter-menu-input {
-            width: 100%;
-            padding: 4px;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-            font-size: 12px;
-            margin-bottom: 4px;
-        }
-        
-        .date-filter-row {
-            display: flex;
-            gap: 4px;
-            align-items: center;
-        }
-        
-        .date-filter-row input {
-            flex: 1;
-        }
-        
-        /* Preview Tooltip Styles */
-        .preview-cell {
-            position: relative;
-            cursor: help;
-            overflow: visible !important;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-            white-space: normal;
-            line-height: 1.4;
-        }
-        
-        .data-table td {
-            overflow: visible;
-        }
-        
-        .accommodation-cell {
-            padding: 8px;
-            vertical-align: top;
-            min-width: 200px;
-        }
-        
-        .accommodation-checkboxes {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        
-        .accommodation-checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            user-select: none;
-        }
-        
-        .accommodation-checkbox-label:hover {
-            background-color: #f5f5f5;
-            border-radius: 3px;
-            padding: 2px 4px;
-            margin: -2px -4px;
-        }
-        
-        .accommodation-checkbox {
-            cursor: pointer;
-            margin: 0;
-        }
-        
-        .accommodation-checkbox-label span {
-            color: #333;
-        }
-        
-        .preview-tooltip {
-            position: fixed;
-            width: 500px;
-            max-width: 90vw;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            padding: 12px;
-            z-index: 10000;
-            display: none;
-            max-height: 400px;
-            overflow-y: auto;
-            font-size: 13px;
-            line-height: 1.6;
-            color: #333;
-            word-wrap: break-word;
-            pointer-events: none;
-        }
-        
-        /* Adjust tooltip position if near screen edges */
-        .preview-cell:hover .preview-tooltip {
-            display: block;
-        }
-        
-        /* Ensure tooltip stays on screen */
-        @media (max-width: 768px) {
-            .preview-tooltip {
-                width: 300px;
-                max-height: 250px;
-            }
-        }
-        
-        .preview-tooltip-title {
-            font-weight: 600;
-            margin-bottom: 8px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #eee;
-            color: #2d3e50;
-        }
-        
-        .preview-tooltip-content {
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-        
-        .preview-tooltip-empty {
-            color: #999;
-            font-style: italic;
-        }
-        
-        .data-table td {
-            padding: 10px 12px;
-            border-bottom: 1px solid #eee !important;
-            border-right: 1px solid #eee !important;
-            border-top: 0;
-            z-index: 1; /* Body (Base Priority) */
-        }
-        
-        .data-table tbody tr:first-child td {
-            border-top: 0;
-        }
-        
-        .data-table td:last-child {
-            border-right: none !important;
-        }
-        
-        .data-table tbody tr:hover {
-            background: #f8f9fa;
-        }
-        
-        .data-table tbody tr.selected {
-            background: #e3f2fd;
-        }
-        
-        .data-table tbody tr.modified {
-            background: #fff3cd;
-        }
-        
-        /* Sticky Column 1: Selection (Checkbox) - Corner (Highest Priority) */
-        .checkbox-header {
-            width: 40px;
-            position: sticky;
-            top: 0;
-            left: 0;
-            background: #f8f9fa !important;
-            z-index: 40 !important; /* Corner (Highest Priority) */
-            border-right: 1px solid #ddd !important;
-            border-bottom: 2px solid #ddd !important;
-            border-left: none !important;
-            box-shadow: 2px 0 0 0 #f8f9fa; /* Opaque barrier to prevent ghost text */
-        }
-        
-        .checkbox-cell {
-            text-align: center;
-            width: 40px;
-            position: sticky;
-            left: 0;
-            background: white !important;
-            z-index: 20; /* Sticky Columns (Medium Priority) */
-            border-right: 1px solid #ddd !important;
-            border-bottom: 1px solid #eee !important;
-            border-left: none !important;
-            box-shadow: 2px 0 0 0 white; /* Opaque barrier to prevent ghost text */
-        }
-        
-        /* Sticky Column 2: Title/Name - Corner (Highest Priority) for header */
-        .data-table thead th:nth-child(2) {
-            position: sticky;
-            left: 40px;
-            background: #f8f9fa !important;
-            z-index: 40 !important; /* Corner (Highest Priority) */
-            border-right: 1px solid #ddd !important;
-            border-bottom: 2px solid #ddd !important;
-            border-left: none !important;
-            box-shadow: 5px 0 5px -2px rgba(0, 0, 0, 0.1), -1px 0 0 0 #f8f9fa; /* Visual cut-off line + opaque left barrier */
-        }
-        
-        /* Sticky Column 2: Title/Name - Sticky Columns (Medium Priority) for body */
-        .data-table tbody td:nth-child(2) {
-            position: sticky;
-            left: 40px;
-            background: white !important;
-            z-index: 20; /* Sticky Columns (Medium Priority) */
-            border-right: 1px solid #ddd !important;
-            border-bottom: 1px solid #eee !important;
-            border-left: none !important;
-            box-shadow: 5px 0 5px -2px rgba(0, 0, 0, 0.1), -1px 0 0 0 white; /* Visual cut-off line + opaque left barrier */
-        }
-        
-        
-        .readonly-cell {
-            color: #666;
-            font-style: italic;
-        }
-        
-        /* Toggle Button Styles */
-        .toggle-btn {
-            padding: 6px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            min-width: 80px;
-            text-align: center;
-        }
-        
-        .toggle-btn.active {
-            background: #28a745;
-            color: white;
-            border-color: #28a745;
-        }
-        
-        .toggle-btn.inactive {
-            background: #dc3545;
-            color: white;
-            border-color: #dc3545;
-        }
-        
-        .toggle-btn.pending {
-            background: #ffc107;
-            color: #333;
-            border-color: #ffc107;
-        }
-        
-        .toggle-btn.other {
-            background: #6c757d;
-            color: white;
-            border-color: #6c757d;
-        }
-        
-        .toggle-btn:hover {
-            opacity: 0.9;
-            transform: scale(1.05);
-        }
-        
-        .toggle-btn:active {
-            transform: scale(0.95);
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #999;
-        }
-        
-        .tab-loading, .tab-error {
-            padding: 20px;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        
-        .tab-loading {
-            color: #666;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            font-weight: 500;
-        }
-        
-        .spinner {
-            display: inline-block;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #2196F3;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-            vertical-align: middle;
-            flex-shrink: 0;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .refresh-btn:disabled,
-        .sync-btn:disabled,
-        .tab-button:disabled {
-            opacity: 0.6;
-            cursor: wait;
-            pointer-events: none;
-        }
-        
-        .tab-error {
-            color: #dc3545;
-            background: #f8d7da;
-            border: 1px solid #f5c6cb;
-            border-radius: 4px;
-        }
-        
-        .tab-loading.hidden, .tab-error.hidden {
-            display: none;
-        }
-        
-        .text-success {
-            color: #28a745;
-            font-weight: 600;
-        }
-        
-        .text-error {
-            color: #dc3545;
-            font-weight: 600;
-        }
-        
-        .cell-editable {
-            cursor: pointer;
-            position: relative;
-        }
-        
-        .cell-editable:hover {
-            background: #e3f2fd;
-        }
-        
-        .cell-input {
-            width: 100%;
-            padding: 4px 8px;
-            border: 2px solid #2196F3;
-            border-radius: 3px;
-            font-size: inherit;
-            font-family: inherit;
-        }
-        
-        .active-cell {
-            outline: 2px solid #2196F3 !important;
-            outline-offset: -2px;
-            background-color: #e3f2fd !important;
-        }
-        
-        /* Range selection styles */
-        .cell-selected {
-            background-color: #bbdefb !important;
-            outline: 1px solid #2196F3 !important;
-            outline-offset: -1px;
-        }
-        
-        .active-cell.cell-selected {
-            background-color: #90caf9 !important;
-            outline: 2px solid #1976D2 !important;
-        }
-        
-        .debug-panel {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: #1e1e1e;
-            color: #d4d4d4;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            max-height: 200px;
-            overflow-y: auto;
-            border-top: 2px solid #333;
-            z-index: 1000;
-        }
-        
-        .debug-panel.collapsed {
-            max-height: 30px;
-            overflow: hidden;
-        }
-        
-        /* Add padding to main content so it doesn't get hidden behind debug panel when expanded */
-        .container {
-            padding-bottom: 50px;
-        }
-        
-        .debug-panel:not(.collapsed) ~ .container,
-        .debug-panel:not(.collapsed) ~ * .container {
-            padding-bottom: 220px;
-        }
-        
-        .debug-panel-header {
-            background: #252526;
-            padding: 8px 15px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #333;
-        }
-        
-        .debug-panel-header:hover {
-            background: #2d2d30;
-        }
-        
-        .debug-panel-content {
-            padding: 10px 15px;
-        }
-        
-        .debug-log {
-            margin: 2px 0;
-            padding: 2px 0;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        
-        .debug-log.info {
-            color: #d4d4d4;
-        }
-        
-        .debug-log.success {
-            color: #89d185;
-        }
-        
-        .debug-log.error {
-            color: #f48771;
-        }
-        
-        .debug-log.warn {
-            color: #cca700;
-        }
-        
-        /* Sidebar Styles */
-        .sidebar {
-            width: 300px;
-            height: 100vh;
-            background: white;
-            border-left: 1px solid #ddd;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            flex-shrink: 0;
-        }
-        
-        .sidebar.hidden {
-            display: none;
-        }
-        
-        .sidebar-header {
-            padding: 20px;
-            border-bottom: 1px solid #ddd;
-            background: #f8f9fa;
-        }
-        
-        .sidebar-header h2 {
-            margin: 0;
-            color: #2d3e50;
-            font-size: 20px;
-        }
-        
-        .sidebar-content {
-            padding: 20px;
-            flex: 1;
-        }
-        
-        .sidebar-empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #999;
-        }
-        
-        .sidebar-dropdown {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-            background: white;
-            cursor: pointer;
-        }
-        
-        .sidebar-dropdown:focus {
-            outline: none;
-            border-color: #2196F3;
-        }
-        
-        .assign-to-info-icon {
-            pointer-events: none;
-            user-select: none;
-        }
-        
-        .sidebar-btn {
-            padding: 10px 16px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            background: white;
-            color: #333;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-        }
-        
-        .sidebar-btn:hover:not(:disabled) {
-            background: #f5f5f5;
-            border-color: #bbb;
-        }
-        
-        .sidebar-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            background: #f9f9f9;
-        }
-        
-        .sidebar-btn-danger {
-            border-color: #dc3545;
-            color: #dc3545;
-        }
-        
-        .sidebar-btn-danger:hover:not(:disabled) {
-            background: #dc3545;
-            color: white;
-        }
-        
-        /* Modal Styles */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 3000;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            transition: opacity 0.3s ease;
-        }
-        
-        .modal-overlay.active {
-            display: flex;
-        }
-        
-        .modal {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-            max-width: 500px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-            z-index: 3001;
-            animation: modalSlideIn 0.3s ease;
-        }
-        
-        @keyframes modalSlideIn {
-            from {
-                transform: translateY(-20px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-        
-        .modal-header {
-            padding: 20px;
-            border-bottom: 1px solid #ddd;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #f8f9fa;
-        }
-        
-        .modal-header h2 {
-            margin: 0;
-            color: #2d3e50;
-            font-size: 20px;
-        }
-        
-        .modal-close {
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: #666;
-            padding: 0;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .modal-close:hover {
-            color: #2d3e50;
-        }
-        
-        .modal-content {
-            padding: 20px;
-        }
-        
-        .modal-form-group {
-            margin-bottom: 15px;
-        }
-        
-        .modal-form-group label {
-            display: block;
-            margin-bottom: 5px;
-            color: #555;
-            font-size: 14px;
-            font-weight: 500;
-        }
-        
-        .modal-form-group input,
-        .modal-form-group select {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        
-        .modal-form-group input:focus,
-        .modal-form-group select:focus {
-            outline: none;
-            border-color: #2196F3;
-        }
-        
-        .modal-confirm-summary {
-            padding: 15px;
-            background: #e3f2fd;
-            border-left: 3px solid #2196F3;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }
-        
-        .modal-confirm-summary strong {
-            color: #2d3e50;
-        }
-        
-        .modal-footer {
-            padding: 20px;
-            border-top: 1px solid #ddd;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-        
-        .modal-btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .modal-btn-primary {
-            background: #2196F3;
-            color: white;
-        }
-        
-        .modal-btn-primary:hover {
-            background: #1976D2;
-        }
-        
-        .modal-btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
-        
-        .modal-btn-secondary:hover {
-            background: #5a6268;
-        }
-        
-    </style>
+    <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
     <div class="container">
@@ -1268,6 +143,62 @@
             </div>
         </div>
         
+        <!-- Assignment Group Modal -->
+        <div class="modal-overlay" id="assignmentGroupModal" onclick="if(event.target === this) closeModal('assignmentGroupModal')">
+            <div class="modal" onclick="event.stopPropagation()" style="max-width: 900px;">
+                <div class="modal-header">
+                    <h2>Assignment Group Manager</h2>
+                    <button class="modal-close" onclick="closeModal('assignmentGroupModal')">&times;</button>
+                </div>
+                <div class="modal-content">
+                    <div style="margin-bottom: 15px;">
+                        <button class="sidebar-btn" onclick="addNewGroupRow()" style="width: 100%;">
+                            + Create New Group
+                        </button>
+                    </div>
+                    <div id="modalGroupTableContainer" style="margin-bottom: 20px;">
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <button id="mergeGroupsBtn" class="sidebar-btn" onclick="handleMergeGroups()" disabled style="width: 100%;">
+                            Merge Selected
+                        </button>
+                    </div>
+                    <div style="padding-top: 15px; border-top: 1px solid #ddd; font-weight: bold;">
+                        <span>Total Weight: </span>
+                        <span id="totalWeightDisplay">0.00%</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-btn modal-btn-secondary" onclick="closeModal('assignmentGroupModal')">Cancel</button>
+                    <button class="modal-btn modal-btn-primary" onclick="saveAssignmentGroups()">Save</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Module Delete Options Modal -->
+        <div class="modal-overlay" id="moduleDeleteOptionsModal" onclick="if(event.target === this) closeModal('moduleDeleteOptionsModal')">
+            <div class="modal" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h2>Delete Module(s)</h2>
+                    <button class="modal-close" onclick="closeModal('moduleDeleteOptionsModal')">&times;</button>
+                </div>
+                <div class="modal-content">
+                    <p id="moduleDeleteMessage" style="margin-bottom: 20px;"></p>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <button id="deleteModuleOnlyBtn" class="modal-btn modal-btn-secondary" style="width: 100%;">
+                            Delete Module Only
+                        </button>
+                        <button id="deleteModuleAndItemsBtn" class="modal-btn modal-btn-primary" style="width: 100%; background: var(--danger);">
+                            Delete Module and All Items
+                        </button>
+                        <button class="modal-btn modal-btn-secondary" onclick="closeModal('moduleDeleteOptionsModal')" style="width: 100%;">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Search and Replace Modal -->
         <div class="modal-overlay" id="searchReplaceModal" onclick="if(event.target === this) closeModal('searchReplaceModal')">
             <div class="modal" onclick="event.stopPropagation()">
@@ -1277,12 +208,6 @@
                 </div>
                 <div class="modal-content">
                     <div id="searchReplaceSummary" class="modal-confirm-summary"></div>
-                    <div class="modal-form-group">
-                        <label style="display: block; margin-bottom: 10px; color: #555; font-weight: 500;">Fields to Search:</label>
-                        <div id="searchReplaceFieldsContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding: 10px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;">
-                            <!-- Checkboxes will be populated dynamically -->
-                        </div>
-                    </div>
                     <div class="modal-form-group">
                         <label for="searchReplaceFind">Find:</label>
                         <input type="text" id="searchReplaceFind" placeholder="Text to find">
@@ -1368,6 +293,49 @@
             </div>
         </div>
         
+        <!-- File Operations Modal -->
+        <div class="modal-overlay" id="fileOperationsModal" onclick="if(event.target === this) closeModal('fileOperationsModal')">
+            <div class="modal" onclick="event.stopPropagation()" style="max-width: 700px;">
+                <div class="modal-header">
+                    <h2>File Operations</h2>
+                    <button class="modal-close" onclick="closeModal('fileOperationsModal')">×</button>
+                </div>
+                <div class="modal-content">
+                    <div class="modal-form-group" style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #ddd;">
+                        <h3 style="margin-bottom: 15px; color: #2d3e50; font-size: 16px;">Selected Files</h3>
+                        <div id="fileOperationsFileList" style="max-height: 200px; overflow-y: auto; padding: 10px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;">
+                        </div>
+                    </div>
+                    
+                    <div class="modal-form-group" style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #ddd;">
+                        <h3 style="margin-bottom: 15px; color: #2d3e50; font-size: 16px;">Actions</h3>
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <button class="modal-btn modal-btn-primary" onclick="executeFileDownload()" style="width: 100%;">Download Selected</button>
+                            <button class="modal-btn modal-btn-secondary" onclick="showFileRenameOptions()" style="width: 100%;">Rename Selected</button>
+                            <button class="modal-btn" onclick="executeFileDelete()" style="width: 100%; background: #dc3545; color: white;">Delete Selected</button>
+                        </div>
+                    </div>
+                    
+                    <div id="fileRenameOptions" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+                        <div class="modal-form-group">
+                            <label for="fileRenamePattern">Rename Pattern:</label>
+                            <input type="text" id="fileRenamePattern" placeholder="Enter new name (for single file) or pattern" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                            <small style="color: #666; display: block; margin-top: 5px;">For single file: enter new name. For multiple files: use {name} for original name, {ext} for extension.</small>
+                        </div>
+                        <button class="modal-btn modal-btn-primary" onclick="executeFileRename()" style="width: 100%; margin-top: 10px;">Apply Rename</button>
+                    </div>
+                    
+                    <div id="fileOperationsProgressContainer" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+                        <div style="margin-bottom: 10px; font-weight: 500; color: #2d3e50;">Progress:</div>
+                        <div id="fileOperationsProgressText" style="font-size: 13px; color: #666; font-family: monospace; max-height: 150px; overflow-y: auto; padding: 10px; background: #f9f9f9; border-radius: 4px;"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-btn modal-btn-secondary" onclick="closeModal('fileOperationsModal')">Close</button>
+                </div>
+            </div>
+        </div>
+        
         <!-- Publish Status Modal -->
         <div class="modal-overlay" id="publishStatusModal" onclick="if(event.target === this) closeModal('publishStatusModal')">
             <div class="modal" onclick="event.stopPropagation()">
@@ -1397,6 +365,7 @@
                 <button class="tab-button" onclick="switchTab('pages')">Pages</button>
                 <button class="tab-button" onclick="switchTab('announcements')">Announcements</button>
                 <button class="tab-button" onclick="switchTab('modules')">Modules</button>
+                <button class="tab-button" onclick="switchTab('files')">Files</button>
                 <button class="tab-button" onclick="switchTab('accommodations')">Accommodations</button>
                 <button class="tab-button" onclick="switchTab('test-report')">Editing Test Report</button>
             </div>
@@ -1441,6 +410,12 @@
                     displayName: 'Modules', 
                     isActive: false,
                     customThead: ['name', 'items_count', 'published', 'unlock_at', 'position']
+                },
+                { 
+                    name: 'files', 
+                    displayName: 'Files', 
+                    isActive: false,
+                    customThead: ['Name', 'Location', 'Type', 'Size', 'Modified', 'Used By']
                 },
                 { 
                     name: 'accommodations', 
@@ -2503,8 +1478,17 @@
                 { label: 'published', field: 'published', type: 'boolean', sortable: true, filterable: true },
                 { label: 'require_sequential_progress', field: 'require_sequential_progress', type: 'boolean', sortable: true, filterable: true },
                 { label: 'prerequisite_module_ids', field: 'prerequisite_module_ids', type: 'text', sortable: false, filterable: false },
-                { label: 'items_count', field: 'items_count', type: 'number', sortable: true, filterable: false },
+                { label: 'items_count', field: 'items_count', type: 'number', sortable: true, filterable: true },
                 { label: 'unlock_at', field: 'unlock_at', type: 'datetime', sortable: true, filterable: true }
+            ],
+            files: [
+                { label: 'Name', field: 'display_name', type: 'text', sortable: true, filterable: true },
+                { label: 'Location', field: 'folder_path', type: 'text', sortable: true, filterable: true },
+                { label: 'Type', field: 'content_type', type: 'text', sortable: true, filterable: true },
+                { label: 'Items', field: 'item_count', type: 'number', sortable: true, filterable: true },
+                { label: 'Size', field: 'size', type: 'number', sortable: true, filterable: true },
+                { label: 'Modified', field: 'modified_at', type: 'datetime', sortable: true, filterable: true },
+                { label: 'Used By', field: 'usage', type: 'text', sortable: false, filterable: true }
             ]
         };
 
@@ -2526,7 +1510,7 @@
                         { value: 'survey', label: 'Ungraded Survey' }
                     ]
                 },
-                { key: 'assignment_group_id', label: 'Assignment Group', type: 'select', editable: true, dynamicOptions: true },
+                { key: 'assignment_group_id', label: 'Assignment Group', type: 'select', editable: true, dynamicOptions: true, dataSource: 'assignmentGroups', customOptions: [{ value: '__CREATE_NEW__', label: '+ Create New Group...', position: 'top', style: 'font-weight: bold; font-style: italic;' }] },
                 { key: 'points_possible', label: 'Points', type: 'number', editable: true },
                 { key: 'question_count', label: 'Question Count', type: 'number', editable: false, render: (val) => val || 0 },
                 { key: 'time_limit', label: 'Time Limit (minutes)', type: 'number', editable: true },
@@ -2591,7 +1575,7 @@
                         { value: 'media_recording', label: 'Media Recording' }
                     ]
                 },
-                { key: 'assignment_group_id', label: 'Assignment Group', type: 'select', editable: true, dynamicOptions: true },
+                { key: 'assignment_group_id', label: 'Assignment Group', type: 'select', editable: true, dynamicOptions: true, dataSource: 'assignmentGroups', customOptions: [{ value: '__CREATE_NEW__', label: '+ Create New Group...', position: 'top', style: 'font-weight: bold; font-style: italic;' }] },
                 { key: 'allowed_attempts', label: 'Allowed Attempts', type: 'number', editable: true, description: '-1 = Unlimited attempts' },
                 { key: 'anonymous_grading', label: 'Anonymous Grading', type: 'boolean', editable: true },
                 { key: 'graded_submissions_exist', label: 'Graded Submissions Exist', type: 'boolean', editable: false },
@@ -2644,7 +1628,7 @@
                     ]
                 },
                 { key: 'points_possible', label: 'Points', type: 'number', editable: true },
-                { key: 'assignment_group_id', label: 'Assignment Group', type: 'select', editable: true, dynamicOptions: true },
+                { key: 'assignment_group_id', label: 'Assignment Group', type: 'select', editable: true, dynamicOptions: true, dataSource: 'assignmentGroups', customOptions: [{ value: '__CREATE_NEW__', label: '+ Create New Group...', position: 'top', style: 'font-weight: bold; font-style: italic;' }] },
                 { key: 'allowed_attempts', label: 'Allowed Attempts', type: 'number', editable: true, description: '-1 = Unlimited attempts' },
                 { key: 'omit_from_final_grade', label: 'Omit From Final Grade', type: 'boolean', editable: true },
                 { key: 'only_visible_to_overrides', label: 'Only Visible to Overrides', type: 'boolean', editable: true },
@@ -2660,6 +1644,10 @@
                 { key: 'lock_at', label: 'Lock Date', type: 'datetime', editable: true },
                 { key: 'unlock_at', label: 'Unlock Date', type: 'datetime', editable: true },
                 { key: 'due_at', label: 'Due Date', type: 'datetime', editable: true }
+            ],
+            assignment_groups: [
+                { key: 'name', label: 'Group Name', type: 'text', editable: true },
+                { key: 'group_weight', label: 'Weight (%)', type: 'number', editable: true }
             ],
             announcements: [
                 { key: 'title', label: 'Title', type: 'text', editable: true },
@@ -2746,61 +1734,49 @@
             // Filter section
             const filterSection = document.createElement('div');
             filterSection.className = 'filter-menu-section';
-            filterSection.innerHTML = '<h4>Filter</h4>';
             
-            if (field.type === 'datetime' || (fieldKey && ((fieldKey.endsWith('_at') && !fieldKey.includes('attempts')) || fieldKey.includes('date')))) {
-                // Date filter
-                const dateFilterHtml = `
-                    <div class="date-filter-row">
-                        <input type="date" class="filter-menu-input" id="date-filter-from-${tabName}-${fieldKey}" placeholder="From">
-                        <input type="date" class="filter-menu-input" id="date-filter-to-${tabName}-${fieldKey}" placeholder="To">
-                    </div>
-                    <button class="filter-menu-btn" onclick="applyDateFilter('${tabName}', '${fieldKey}')">Apply</button>
-                    <button class="filter-menu-btn" onclick="clearDateFilter('${tabName}', '${fieldKey}')">Clear</button>
-                `;
-                filterSection.innerHTML += dateFilterHtml;
-            } else if (fieldKey === 'title' || fieldKey === 'name' || fieldKey === 'email' || fieldKey === 'sis_user_id' || fieldKey === 'url') {
-                // Text filter
-                const textFilterHtml = `
-                    <input type="text" class="filter-menu-input" id="text-filter-${tabName}-${fieldKey}" placeholder="Contains...">
-                    <button class="filter-menu-btn" onclick="applyTextFilter('${tabName}', '${fieldKey}')">Apply</button>
-                    <button class="filter-menu-btn" onclick="clearTextFilter('${tabName}', '${fieldKey}')">Clear</button>
-                `;
-                filterSection.innerHTML += textFilterHtml;
-            } else if (fieldKey === 'quiz_type' || fieldKey === 'discussion_type' || fieldKey === 'submission_types' || fieldKey === 'enrollment_state' || fieldKey === 'published' || fieldKey === 'front_page') {
-                // Dropdown filter
-                const select = document.createElement('select');
-                select.className = 'filter-menu-input';
-                select.id = `select-filter-${tabName}-${fieldKey}`;
-                
-                const optionAll = document.createElement('option');
-                optionAll.value = '';
-                optionAll.textContent = 'All';
-                select.appendChild(optionAll);
-                
-                // Options will be populated when data loads
-                filterSection.appendChild(select);
-                
-                const applyBtn = document.createElement('button');
-                applyBtn.className = 'filter-menu-btn';
-                applyBtn.textContent = 'Apply';
-                applyBtn.onclick = () => {
-                    applySelectFilter(tabName, fieldKey);
+            const filterButton = document.createElement('button');
+            filterButton.className = 'filter-menu-btn';
+            filterButton.style.cursor = 'pointer';
+            filterButton.textContent = 'Filter';
+            filterButton.onclick = () => {
+                openAdvancedFilterModal(tabName, fieldKey);
                     closeFilterMenu(tabName, fieldKey);
                 };
-                filterSection.appendChild(applyBtn);
-                
-                const clearBtn = document.createElement('button');
-                clearBtn.className = 'filter-menu-btn';
-                clearBtn.textContent = 'Clear';
-                clearBtn.onclick = () => {
-                    clearSelectFilter(tabName, fieldKey);
-                    closeFilterMenu(tabName, fieldKey);
-                };
-                filterSection.appendChild(clearBtn);
-            }
+            filterSection.appendChild(filterButton);
             
             menu.appendChild(filterSection);
+            
+            const clearFiltersSection = document.createElement('div');
+            clearFiltersSection.className = 'filter-menu-section';
+            
+            const clearFiltersBtn = document.createElement('button');
+            clearFiltersBtn.className = 'filter-menu-btn';
+            clearFiltersBtn.style.cursor = 'pointer';
+            clearFiltersBtn.textContent = 'Clear Column Filters';
+            clearFiltersBtn.onclick = () => {
+                const menuElement = document.getElementById(`filter-menu-${tabName}-${fieldKey}`);
+                if (menuElement) {
+                    const th = menuElement.closest('th');
+                    if (th) {
+                        const table = th.closest('table');
+                        if (table) {
+                            const thead = table.querySelector('thead');
+                            if (thead) {
+                                const headers = Array.from(thead.querySelectorAll('th'));
+                                const columnIndex = headers.indexOf(th);
+                                if (columnIndex !== -1) {
+                                    clearColumnFilters(columnIndex);
+                                }
+                            }
+                        }
+                    }
+                }
+                    closeFilterMenu(tabName, fieldKey);
+                };
+            clearFiltersSection.appendChild(clearFiltersBtn);
+            
+            menu.appendChild(clearFiltersSection);
             
             return menu;
         }
@@ -2823,7 +1799,40 @@
             });
             
             // Toggle this menu
+            const isOpening = !menu.classList.contains('active');
             menu.classList.toggle('active');
+            
+            // Position the menu if opening
+            if (isOpening && menu.classList.contains('active')) {
+                const iconRect = icon.getBoundingClientRect();
+                const menuWidth = 200; // min-width from CSS
+                
+                // Position below the icon, aligned to left edge
+                let left = iconRect.left;
+                let top = iconRect.bottom + 4;
+                
+                // Adjust if menu would go off right edge of screen
+                if (left + menuWidth > window.innerWidth - 10) {
+                    left = window.innerWidth - menuWidth - 10;
+                }
+                
+                // Adjust if menu would go off left edge of screen
+                if (left < 10) {
+                    left = 10;
+                }
+                
+                // Adjust if menu would go off bottom of screen
+                if (top + menu.offsetHeight > window.innerHeight - 10) {
+                    // Position above the icon instead
+                    top = iconRect.top - menu.offsetHeight - 4;
+                    if (top < 10) {
+                        top = 10;
+                    }
+                }
+                
+                menu.style.left = left + 'px';
+                menu.style.top = top + 'px';
+            }
             
             // Update icon state
             if (menu.classList.contains('active')) {
@@ -3192,6 +2201,39 @@
             updateFilterHeaderStyling(tabName);
         }
         
+        function clearColumnFilters(columnIndex) {
+            const activeMenu = document.querySelector('.filter-menu.active');
+            if (!activeMenu) return;
+            
+            const menuId = activeMenu.id;
+            const match = menuId.match(/filter-menu-([^-]+)-(.+)/);
+            if (!match) return;
+            
+            const tabName = match[1];
+            const fieldKey = match[2];
+            
+            if (filters[tabName] && filters[tabName][fieldKey]) {
+                delete filters[tabName][fieldKey];
+                if (Object.keys(filters[tabName]).length === 0) {
+                    delete filters[tabName];
+                }
+            }
+            
+            const table = document.getElementById(`${tabName}Table`);
+            if (table) {
+                const tbody = table.querySelector('tbody');
+                if (tbody) {
+                    const rows = tbody.querySelectorAll('tr');
+                    rows.forEach(row => {
+                        row.style.display = '';
+                    });
+                }
+            }
+            
+            applySortAndFilter(tabName);
+            updateFilterHeaderStyling(tabName);
+        }
+        
         // Helper function: Apply filters to table rows
         function applyFilters(tabName) {
             if (!filters[tabName]) return;
@@ -3260,6 +2302,65 @@
                                     shouldShow = false;
                                 }
                             }
+                        } else if (filter.operator === 'contains') {
+                            // Contains - case insensitive
+                            const cellText = String(cellValue || '').toLowerCase();
+                            const filterValue = String(filter.value || '').toLowerCase();
+                            if (!cellText.includes(filterValue)) {
+                                shouldShow = false;
+                            }
+                        } else if (filter.operator === 'not_contains') {
+                            // Does not contain - case insensitive
+                            const cellText = String(cellValue || '').toLowerCase();
+                            const filterValue = String(filter.value || '').toLowerCase();
+                            if (cellText.includes(filterValue)) {
+                                shouldShow = false;
+                            }
+                        } else if (filter.operator === 'equals') {
+                            // Equals - exact match
+                            if (String(cellValue) !== String(filter.value)) {
+                                shouldShow = false;
+                            }
+                        } else if (filter.operator === 'begins_with') {
+                            // Begins with - case insensitive
+                            const cellText = String(cellValue || '').toLowerCase();
+                            const filterValue = String(filter.value || '').toLowerCase();
+                            if (!cellText.startsWith(filterValue)) {
+                                shouldShow = false;
+                            }
+                        } else if (filter.operator === 'ends_with') {
+                            // Ends with - case insensitive
+                            const cellText = String(cellValue || '').toLowerCase();
+                            const filterValue = String(filter.value || '').toLowerCase();
+                            if (!cellText.endsWith(filterValue)) {
+                                shouldShow = false;
+                            }
+                        } else if (filter.operator === 'greater_than') {
+                            // Greater than - numeric comparison
+                            const cellNum = parseFloat(cellValue);
+                            const filterNum = parseFloat(filter.value);
+                            if (isNaN(cellNum) || isNaN(filterNum) || cellNum <= filterNum) {
+                                shouldShow = false;
+                            }
+                        } else if (filter.operator === 'less_than') {
+                            // Less than - numeric comparison
+                            const cellNum = parseFloat(cellValue);
+                            const filterNum = parseFloat(filter.value);
+                            if (isNaN(cellNum) || isNaN(filterNum) || cellNum >= filterNum) {
+                                shouldShow = false;
+                            }
+                        } else if (filter.operator === 'is_empty') {
+                            // Is empty - check if empty string, null, or undefined
+                            const isEmpty = cellValue === null || cellValue === undefined || String(cellValue).trim() === '';
+                            if (!isEmpty) {
+                                shouldShow = false;
+                            }
+                        } else if (filter.operator === 'is_not_empty') {
+                            // Is not empty - check if has content
+                            const isEmpty = cellValue === null || cellValue === undefined || String(cellValue).trim() === '';
+                            if (isEmpty) {
+                                shouldShow = false;
+                            }
                         }
                     });
                 }
@@ -3280,7 +2381,15 @@
         
         // Helper function: Update filter header styling to show active filters
         function updateFilterHeaderStyling(tabName) {
-            if (!filters[tabName]) return;
+            if (!filters[tabName]) {
+                // No filters for this tab, remove all filter-active classes
+                const table = document.getElementById(`${tabName}Table`);
+                if (table) {
+                    const headers = table.querySelectorAll('th');
+                    headers.forEach(th => th.classList.remove('filter-active'));
+                }
+                return;
+            }
             
             const table = document.getElementById(`${tabName}Table`);
             if (!table) return;
@@ -3290,15 +2399,38 @@
                 // Skip checkbox header (index 0)
                 if (index === 0) return;
                 
-                const fieldDefs = FIELD_DEFINITIONS[tabName];
-                if (!fieldDefs || index - 1 >= fieldDefs.length) return;
+                // Try FIELD_DEFINITIONS first
+                let fieldDefs = FIELD_DEFINITIONS[tabName];
+                let fieldKey = null;
                 
+                if (fieldDefs && index - 1 < fieldDefs.length && index - 1 >= 0) {
                 const field = fieldDefs[index - 1];
-                const filterValue = filters[tabName][field.key];
+                    if (field && field.key) {
+                        fieldKey = field.key;
+                    }
+                }
                 
+                // If not found in FIELD_DEFINITIONS, try CUSTOM_HEADER_FIELDS
+                if (!fieldKey) {
+                    fieldDefs = CUSTOM_HEADER_FIELDS[tabName];
+                    if (fieldDefs && index - 1 < fieldDefs.length && index - 1 >= 0) {
+                        const field = fieldDefs[index - 1];
+                        if (field && field.field) {
+                            fieldKey = field.field;
+                        }
+                    }
+                }
+                
+                // If we have a field key, check if filter exists
+                if (fieldKey) {
+                    const filterValue = filters[tabName][fieldKey];
                 if (filterValue) {
                     th.classList.add('filter-active');
                 } else {
+                        th.classList.remove('filter-active');
+                    }
+                } else {
+                    // No field key found, ensure filter-active is removed
                     th.classList.remove('filter-active');
                 }
             });
@@ -3378,7 +2510,6 @@
                 // 2. Filter icon
                 const filterIcon = document.createElement('span');
                 filterIcon.className = 'filter-icon';
-                filterIcon.textContent = '🔽';
                 filterIcon.setAttribute('data-field', field.key);
                 filterIcon.title = 'Filter';
                 filterIcon.onclick = (e) => {
@@ -3474,7 +2605,6 @@
                     if (field.filterable) {
                         const filterIcon = document.createElement('span');
                         filterIcon.className = 'filter-icon';
-                        filterIcon.textContent = '🔽';
                         filterIcon.setAttribute('data-field', field.field);
                         filterIcon.title = 'Filter';
                         filterIcon.onclick = (e) => {
@@ -3912,7 +3042,458 @@
             return null;
         }
 
+        function initializeAdvancedFilterModal() {
+            const modal = document.createElement('div');
+            modal.id = 'advancedFilterModal';
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal">
+                    <div class="modal-header">
+                        <h2 id="modalTitle">Filter Column</h2>
+                        <button class="modal-close" onclick="closeAdvancedFilterModal()">&times;</button>
+                    </div>
+                    <div class="modal-content">
+                        <div id="filterCriteriaContainer"></div>
+                        <button type="button" class="add-criteria-btn" onclick="addFilterRow()">
+                            + Add Condition
+                        </button>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="modal-btn modal-btn-secondary" onclick="clearAdvancedFilters()">Clear All</button>
+                        <button class="modal-btn modal-btn-primary" onclick="saveAdvancedFilters()">Apply Filter</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function openAdvancedFilterModal(tabName, fieldKey) {
+            const modal = document.getElementById('advancedFilterModal');
+            if (!modal) return;
+            
+            modal.dataset.tabName = tabName;
+            modal.dataset.fieldKey = fieldKey;
+            
+            const modalTitle = document.getElementById('modalTitle');
+            if (modalTitle) {
+                const fieldDefs = FIELD_DEFINITIONS[tabName];
+                const field = fieldDefs ? fieldDefs.find(f => f.key === fieldKey) : null;
+                const fieldLabel = field ? field.label : fieldKey;
+                modalTitle.textContent = `Filter: ${fieldLabel}`;
+            }
+            
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeAdvancedFilterModal() {
+            const modal = document.getElementById('advancedFilterModal');
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        function saveAdvancedFilters() {
+            const modal = document.getElementById('advancedFilterModal');
+            if (!modal) return;
+            
+            const tabName = modal.dataset.tabName;
+            const fieldKey = modal.dataset.fieldKey;
+            
+            if (!tabName || !fieldKey) {
+                alert('Error: Missing filter context');
+                return;
+            }
+            
+            const container = document.getElementById('filterCriteriaContainer');
+            if (!container) return;
+            
+            const filterRows = container.querySelectorAll('.filter-row');
+            const activeFilters = [];
+            
+            filterRows.forEach(row => {
+                const operatorSelect = row.querySelector('.filter-operator');
+                const valueInput = row.querySelector('.filter-value');
+                
+                if (!operatorSelect) return;
+                
+                const operator = operatorSelect.value;
+                const value = valueInput && !valueInput.disabled ? valueInput.value.trim() : '';
+                
+                if (operator && (value || operator === 'is_empty' || operator === 'is_not_empty')) {
+                    activeFilters.push({
+                        operator: operator,
+                        value: value
+                    });
+                }
+            });
+            
+            if (activeFilters.length === 0) {
+                closeAdvancedFilterModal();
+                return;
+            }
+            
+            const table = document.getElementById(`${tabName}Table`);
+            if (!table) {
+                alert('Error: Table not found');
+                return;
+            }
+            
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+            
+            const rows = tbody.querySelectorAll('tr');
+            let visibleCount = 0;
+            
+            rows.forEach(row => {
+                let shouldShow = true;
+                const itemId = row.querySelector('[data-item-id]')?.getAttribute('data-item-id');
+                
+                if (!itemId) {
+                    row.style.display = 'none';
+                    return;
+                }
+                
+                const item = originalData[tabName]?.[itemId];
+                if (!item) {
+                    row.style.display = 'none';
+                    return;
+                }
+                
+                const cellValue = item[fieldKey];
+                
+                activeFilters.forEach(filter => {
+                    if (!shouldShow) return;
+                    
+                    if (filter.operator === 'contains') {
+                        const cellText = String(cellValue || '').toLowerCase();
+                        const filterValue = String(filter.value || '').toLowerCase();
+                        if (!cellText.includes(filterValue)) {
+                            shouldShow = false;
+                        }
+                    } else if (filter.operator === 'not_contains') {
+                        const cellText = String(cellValue || '').toLowerCase();
+                        const filterValue = String(filter.value || '').toLowerCase();
+                        if (cellText.includes(filterValue)) {
+                            shouldShow = false;
+                        }
+                    } else if (filter.operator === 'equals') {
+                        if (String(cellValue) !== String(filter.value)) {
+                            shouldShow = false;
+                        }
+                    } else if (filter.operator === 'begins_with') {
+                        const cellText = String(cellValue || '').toLowerCase();
+                        const filterValue = String(filter.value || '').toLowerCase();
+                        if (!cellText.startsWith(filterValue)) {
+                            shouldShow = false;
+                        }
+                    } else if (filter.operator === 'ends_with') {
+                        const cellText = String(cellValue || '').toLowerCase();
+                        const filterValue = String(filter.value || '').toLowerCase();
+                        if (!cellText.endsWith(filterValue)) {
+                            shouldShow = false;
+                        }
+                    } else if (filter.operator === 'greater_than') {
+                        const cellNum = parseFloat(cellValue);
+                        const filterNum = parseFloat(filter.value);
+                        if (isNaN(cellNum) || isNaN(filterNum) || cellNum <= filterNum) {
+                            shouldShow = false;
+                        }
+                    } else if (filter.operator === 'less_than') {
+                        const cellNum = parseFloat(cellValue);
+                        const filterNum = parseFloat(filter.value);
+                        if (isNaN(cellNum) || isNaN(filterNum) || cellNum >= filterNum) {
+                            shouldShow = false;
+                        }
+                    } else if (filter.operator === 'is_empty') {
+                        const isEmpty = cellValue === null || cellValue === undefined || String(cellValue).trim() === '';
+                        if (!isEmpty) {
+                            shouldShow = false;
+                        }
+                    } else if (filter.operator === 'is_not_empty') {
+                        const isEmpty = cellValue === null || cellValue === undefined || String(cellValue).trim() === '';
+                        if (isEmpty) {
+                            shouldShow = false;
+                        }
+                    }
+                });
+                
+                if (shouldShow) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            if (activeFilters.length > 0) {
+                if (!filters[tabName]) filters[tabName] = {};
+                filters[tabName][fieldKey] = {
+                    type: 'advanced',
+                    operator: activeFilters[0].operator,
+                    value: activeFilters[0].value,
+                    filters: activeFilters
+                };
+            } else {
+                if (filters[tabName] && filters[tabName][fieldKey]) {
+                    delete filters[tabName][fieldKey];
+                    if (Object.keys(filters[tabName]).length === 0) {
+                        delete filters[tabName];
+                    }
+                }
+            }
+            
+            updateFilterHeaderStyling(tabName);
+            closeAdvancedFilterModal();
+            debugLog(`Advanced filter applied: ${visibleCount} of ${rows.length} rows visible`, 'info');
+        }
+
+        function clearAdvancedFilters() {
+            const modal = document.getElementById('advancedFilterModal');
+            if (!modal) return;
+            
+            const tabName = modal.dataset.tabName;
+            const fieldKey = modal.dataset.fieldKey;
+            
+            const container = document.getElementById('filterCriteriaContainer');
+            if (container) {
+                container.innerHTML = '';
+            }
+            
+            if (tabName && fieldKey) {
+                if (filters[tabName] && filters[tabName][fieldKey]) {
+                    delete filters[tabName][fieldKey];
+                    if (Object.keys(filters[tabName]).length === 0) {
+                        delete filters[tabName];
+                    }
+                }
+                
+                const table = document.getElementById(`${tabName}Table`);
+                if (table) {
+                    const tbody = table.querySelector('tbody');
+                    if (tbody) {
+                        const rows = tbody.querySelectorAll('tr');
+                        rows.forEach(row => {
+                            row.style.display = '';
+                        });
+                    }
+                }
+                
+                updateFilterHeaderStyling(tabName);
+            }
+            
+            addFilterRow();
+        }
+
+        function addFilterRow() {
+            const container = document.getElementById('filterCriteriaContainer');
+            if (!container) return;
+
+            const row = document.createElement('div');
+            row.className = 'filter-row';
+
+            const operatorSelect = document.createElement('select');
+            operatorSelect.className = 'filter-operator';
+            operatorSelect.innerHTML = `
+                <option value="contains">Contains</option>
+                <option value="not_contains">Does Not Contain</option>
+                <option value="equals">Equals</option>
+                <option value="begins_with">Begins With</option>
+                <option value="ends_with">Ends With</option>
+                <option value="greater_than">Greater Than</option>
+                <option value="less_than">Less Than</option>
+                <option value="is_empty">Is Empty</option>
+                <option value="is_not_empty">Is Not Empty</option>
+            `;
+            row.appendChild(operatorSelect);
+
+            const valueInput = document.createElement('input');
+            valueInput.type = 'text';
+            valueInput.className = 'filter-value';
+            valueInput.placeholder = 'Value';
+            row.appendChild(valueInput);
+
+            const removeBtn = document.createElement('span');
+            removeBtn.className = 'remove-row-btn';
+            removeBtn.textContent = '×';
+            removeBtn.onclick = () => {
+                row.remove();
+                applyAdvancedFiltersFromModal();
+            };
+            row.appendChild(removeBtn);
+
+            function toggleValueInput() {
+                const operator = operatorSelect.value;
+                if (operator === 'is_empty' || operator === 'is_not_empty') {
+                    valueInput.style.display = 'none';
+                    valueInput.disabled = true;
+                } else {
+                    valueInput.style.display = '';
+                    valueInput.disabled = false;
+                }
+            }
+
+            operatorSelect.addEventListener('change', toggleValueInput);
+            toggleValueInput();
+
+            container.appendChild(row);
+        }
+
+        function applyAdvancedFiltersFromModal() {
+            const modal = document.getElementById('advancedFilterModal');
+            if (!modal) return;
+            
+            const tabName = modal.dataset.tabName;
+            const fieldKey = modal.dataset.fieldKey;
+            
+            if (!tabName || !fieldKey) return;
+            
+            const container = document.getElementById('filterCriteriaContainer');
+            if (!container) return;
+            
+            const filterRows = container.querySelectorAll('.filter-row');
+            const activeFilters = [];
+            
+            filterRows.forEach(row => {
+                const operatorSelect = row.querySelector('.filter-operator');
+                const valueInput = row.querySelector('.filter-value');
+                
+                if (!operatorSelect) return;
+                
+                const operator = operatorSelect.value;
+                const value = valueInput && !valueInput.disabled ? valueInput.value.trim() : '';
+                
+                if (operator && (value || operator === 'is_empty' || operator === 'is_not_empty')) {
+                    activeFilters.push({
+                        operator: operator,
+                        value: value
+                    });
+                }
+            });
+            
+            const table = document.getElementById(`${tabName}Table`);
+            if (!table) return;
+            
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+            
+            const rows = tbody.querySelectorAll('tr');
+            let visibleCount = 0;
+            
+            rows.forEach(row => {
+                let shouldShow = true;
+                const itemId = row.querySelector('[data-item-id]')?.getAttribute('data-item-id');
+                
+                if (!itemId) {
+                    row.style.display = 'none';
+                    return;
+                }
+                
+                const item = originalData[tabName]?.[itemId];
+                if (!item) {
+                    row.style.display = 'none';
+                    return;
+                }
+                
+                const cellValue = item[fieldKey];
+                
+                const containsFilters = activeFilters.filter(f => f.operator === 'contains');
+                const otherFilters = activeFilters.filter(f => f.operator !== 'contains');
+                
+                let matchesContains = containsFilters.length === 0;
+                
+                if (containsFilters.length > 0) {
+                    const cellText = String(cellValue || '').toLowerCase();
+                    matchesContains = containsFilters.some(filter => {
+                        const filterValue = String(filter.value || '').toLowerCase();
+                        return cellText.includes(filterValue);
+                    });
+                }
+                
+                let matchesOther = true;
+                otherFilters.forEach(filter => {
+                    if (!matchesOther) return;
+                    
+                    if (filter.operator === 'not_contains') {
+                        const cellText = String(cellValue || '').toLowerCase();
+                        const filterValue = String(filter.value || '').toLowerCase();
+                        if (cellText.includes(filterValue)) {
+                            matchesOther = false;
+                        }
+                    } else if (filter.operator === 'equals') {
+                        if (String(cellValue) !== String(filter.value)) {
+                            matchesOther = false;
+                        }
+                    } else if (filter.operator === 'begins_with') {
+                        const cellText = String(cellValue || '').toLowerCase();
+                        const filterValue = String(filter.value || '').toLowerCase();
+                        if (!cellText.startsWith(filterValue)) {
+                            matchesOther = false;
+                        }
+                    } else if (filter.operator === 'ends_with') {
+                        const cellText = String(cellValue || '').toLowerCase();
+                        const filterValue = String(filter.value || '').toLowerCase();
+                        if (!cellText.endsWith(filterValue)) {
+                            matchesOther = false;
+                        }
+                    } else if (filter.operator === 'greater_than') {
+                        const cellNum = parseFloat(cellValue);
+                        const filterNum = parseFloat(filter.value);
+                        if (isNaN(cellNum) || isNaN(filterNum) || cellNum <= filterNum) {
+                            matchesOther = false;
+                        }
+                    } else if (filter.operator === 'less_than') {
+                        const cellNum = parseFloat(cellValue);
+                        const filterNum = parseFloat(filter.value);
+                        if (isNaN(cellNum) || isNaN(filterNum) || cellNum >= filterNum) {
+                            matchesOther = false;
+                        }
+                    } else if (filter.operator === 'is_empty') {
+                        const isEmpty = cellValue === null || cellValue === undefined || String(cellValue).trim() === '';
+                        if (!isEmpty) {
+                            matchesOther = false;
+                        }
+                    } else if (filter.operator === 'is_not_empty') {
+                        const isEmpty = cellValue === null || cellValue === undefined || String(cellValue).trim() === '';
+                        if (isEmpty) {
+                            matchesOther = false;
+                        }
+                    }
+                });
+                
+                shouldShow = matchesContains && matchesOther;
+                
+                if (shouldShow) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            if (activeFilters.length > 0) {
+                if (!filters[tabName]) filters[tabName] = {};
+                filters[tabName][fieldKey] = {
+                    type: 'advanced',
+                    operator: activeFilters[0].operator,
+                    value: activeFilters[0].value,
+                    filters: activeFilters
+                };
+            } else {
+                if (filters[tabName] && filters[tabName][fieldKey]) {
+                    delete filters[tabName][fieldKey];
+                    if (Object.keys(filters[tabName]).length === 0) {
+                        delete filters[tabName];
+                    }
+                }
+            }
+            
+            updateFilterHeaderStyling(tabName);
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
+            initializeAdvancedFilterModal();
             loadCourses();
             updateTestButton();
         });
@@ -4222,6 +3803,8 @@
                     displayStudents(data);
                     console.log('[loadTabData] Students displayed, now loading accommodations for course:', courseId);
                     await loadAccommodations(courseId);
+                } else if (tabName === 'files') {
+                    displayFiles(data);
                 } else if (FIELD_DEFINITIONS[tabName]) {
                     // Use generic display function for tabs with FIELD_DEFINITIONS
                     displayDataTable(tabName, data);
@@ -4473,60 +4056,7 @@
                 const itemType = tabName === 'assignments' ? 'Assignments' : 
                                 tabName === 'quizzes' ? 'Quizzes' : 
                                 tabName.charAt(0).toUpperCase() + tabName.slice(1);
-                summary.innerHTML = `<strong>Confirm:</strong> This will affect <strong>${selected.length} ${itemType}</strong>`;
-            }
-            
-            // Get editable text/numeric fields from FIELD_DEFINITIONS
-            const fieldDefs = FIELD_DEFINITIONS[tabName];
-            const fieldsContainer = document.getElementById('searchReplaceFieldsContainer');
-            
-            if (fieldsContainer) {
-                // Clear existing checkboxes
-                fieldsContainer.innerHTML = '';
-                
-                if (fieldDefs) {
-                    // Filter for editable text and numeric fields (exclude boolean, select, etc.)
-                    const eligibleFields = fieldDefs.filter(field => 
-                        field.editable && (field.type === 'text' || field.type === 'number' || field.type === 'textarea')
-                    );
-                    
-                    if (eligibleFields.length > 0) {
-                        // Add checkboxes for each eligible field
-                        eligibleFields.forEach(field => {
-                            const label = document.createElement('label');
-                            label.style.cssText = 'display: flex; align-items: center; cursor: pointer; padding: 6px 8px; border-radius: 4px; transition: background 0.2s;';
-                            label.onmouseover = function() { this.style.background = '#f0f0f0'; };
-                            label.onmouseout = function() { this.style.background = 'transparent'; };
-                            
-                            const checkbox = document.createElement('input');
-                            checkbox.type = 'checkbox';
-                            checkbox.value = field.key;
-                            checkbox.id = `searchReplaceField-${field.key}`;
-                            checkbox.checked = false; // Don't check by default
-                            checkbox.style.cssText = 'margin-right: 10px; width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;';
-                            
-                            const span = document.createElement('span');
-                            span.textContent = field.label || field.key;
-                            span.style.cssText = 'font-size: 14px; color: #333;';
-                            
-                            label.appendChild(checkbox);
-                            label.appendChild(span);
-                            fieldsContainer.appendChild(label);
-                        });
-                    } else {
-                        // No eligible fields found
-                        const message = document.createElement('div');
-                        message.textContent = 'No editable text/numeric fields available in this tab';
-                        message.style.cssText = 'padding: 10px; color: #999; font-style: italic; text-align: center;';
-                        fieldsContainer.appendChild(message);
-                    }
-                } else {
-                    // No field definitions found
-                    const message = document.createElement('div');
-                    message.textContent = 'No field definitions available';
-                    message.style.cssText = 'padding: 10px; color: #999; font-style: italic; text-align: center;';
-                    fieldsContainer.appendChild(message);
-                }
+                summary.innerHTML = `<strong>Confirm:</strong> This will search and replace in all editable text/numeric fields for <strong>${selected.length} ${itemType}</strong>`;
             }
             
             // Reset form
@@ -5609,7 +5139,22 @@
                 }
             }
 
-            // Final confirmation
+            let deleteOption = null;
+            
+            if (tabName === 'files') {
+                openFileOperationsModal();
+                return;
+            }
+            
+            if (tabName === 'modules') {
+                showModuleDeleteOptions(selected, async (option) => {
+                    deleteOption = option;
+                    await proceedWithModuleDeletion(selected, deleteOption, backupInitiated, tabName, courseId);
+                });
+                return;
+            }
+
+            // Final confirmation for non-module items
             const confirmed = confirm(`Are you sure you want to permanently delete ${selected.length} items from Canvas?`);
             if (!confirmed) {
                 const deleteBtn = document.getElementById('deleteSelectedBtn');
@@ -5694,6 +5239,203 @@
                 });
             }
             alert(message);
+        }
+
+        function showModuleDeleteOptions(moduleIds, callback) {
+            const modal = document.getElementById('moduleDeleteOptionsModal');
+            const messageEl = document.getElementById('moduleDeleteMessage');
+            const deleteModuleOnlyBtn = document.getElementById('deleteModuleOnlyBtn');
+            const deleteModuleAndItemsBtn = document.getElementById('deleteModuleAndItemsBtn');
+            
+            if (!modal || !messageEl || !deleteModuleOnlyBtn || !deleteModuleAndItemsBtn) {
+                alert('Modal elements not found');
+                return;
+            }
+            
+            const count = moduleIds.length;
+            const plural = count !== 1 ? 's' : '';
+            messageEl.textContent = `You are about to delete ${count} module${plural}. Choose an option:`;
+            
+            const cleanup = () => {
+                deleteModuleOnlyBtn.onclick = null;
+                deleteModuleAndItemsBtn.onclick = null;
+                closeModal('moduleDeleteOptionsModal');
+            };
+            
+            deleteModuleOnlyBtn.onclick = () => {
+                cleanup();
+                callback('module-only');
+            };
+            
+            deleteModuleAndItemsBtn.onclick = () => {
+                cleanup();
+                callback('module-and-items');
+            };
+            
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        async function proceedWithModuleDeletion(selected, deleteOption, backupInitiated, tabName, courseId) {
+            const deleteBtn = document.getElementById('deleteSelectedBtn');
+            if (deleteBtn) {
+                deleteBtn.disabled = true;
+                deleteBtn.textContent = 'Deleting...';
+            }
+
+            let successCount = 0;
+            let failedItems = [];
+            let deletedItemsCount = 0;
+            let failedItemDetails = [];
+
+            for (const moduleId of selected) {
+                let moduleItemErrors = [];
+                let allItemsSucceeded = true;
+                
+                try {
+                    if (deleteOption === 'module-and-items') {
+                        try {
+                            const itemsResponse = await fetch(`/canvas/courses/${courseId}/modules/${moduleId}/items`);
+                            if (!itemsResponse.ok) {
+                                throw new Error(`Failed to fetch module items: ${itemsResponse.status}`);
+                            }
+                            
+                            const moduleItems = await itemsResponse.json();
+                            
+                            for (const item of moduleItems) {
+                                if (item.type === 'ExternalTool' || item.type === 'ExternalUrl' || item.type === 'SubHeader' || item.type === 'ContextExternalTool') {
+                                    debugLog(`Skipping unsupported module item type: ${item.type}`, 'warn');
+                                    continue;
+                                }
+                                
+                                try {
+                                    const deleteItemResponse = await fetch(`/canvas/courses/${courseId}/modules/${moduleId}/items/${item.id}`, {
+                                        method: 'DELETE',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        },
+                                        body: JSON.stringify({
+                                            type: item.type,
+                                            content_id: item.type === 'Page' ? (item.content_id || item.page_url || item.url || item.id) : (item.content_id || item.id)
+                                        })
+                                    });
+                                    
+                                    if (!deleteItemResponse.ok) {
+                                        const errorText = await deleteItemResponse.text();
+                                        throw new Error(`${deleteItemResponse.status} ${deleteItemResponse.statusText}: ${errorText}`);
+                                    }
+                                    
+                                    deletedItemsCount++;
+                                } catch (error) {
+                                    allItemsSucceeded = false;
+                                    const itemInfo = {
+                                        type: item.type,
+                                        content_id: item.type === 'Page' ? (item.content_id || item.page_url || item.url || item.id) : (item.content_id || item.id),
+                                        title: item.title || 'Unknown',
+                                        error: error.message
+                                    };
+                                    moduleItemErrors.push(itemInfo);
+                                    failedItemDetails.push({
+                                        moduleId: moduleId,
+                                        item: itemInfo
+                                    });
+                                    debugLog(`Failed to delete module item ${item.id} (${item.type}): ${error.message}`, 'error');
+                                }
+                            }
+                            
+                            if (!allItemsSucceeded) {
+                                failedItems.push({
+                                    id: moduleId,
+                                    error: `Failed to delete ${moduleItemErrors.length} item(s) in module`,
+                                    itemErrors: moduleItemErrors
+                                });
+                                continue;
+                            }
+                        } catch (error) {
+                            allItemsSucceeded = false;
+                            failedItems.push({
+                                id: moduleId,
+                                error: `Failed to fetch items: ${error.message}`,
+                                itemErrors: []
+                            });
+                            debugLog(`Failed to fetch items for module ${moduleId}: ${error.message}`, 'error');
+                            continue;
+                        }
+                    }
+                    
+                    const endpoint = getCanvasItemEndpoint(tabName, moduleId);
+                    debugLog(`Deleting ${tabName} ${moduleId} via ${endpoint}`, 'info');
+
+                    const response = await fetch(endpoint, {
+                        method: 'DELETE',
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`${response.status} ${response.statusText}: ${errorText}`);
+                    }
+
+                    const cell = document.querySelector(`#tab-${tabName} [data-item-id="${moduleId}"]`);
+                    if (cell) {
+                        const row = cell.closest('tr');
+                        if (row) {
+                            row.remove();
+                        }
+                    }
+
+                    if (selectedItems[tabName]) {
+                        selectedItems[tabName].delete(moduleId);
+                    }
+
+                    if (originalData[tabName] && originalData[tabName][moduleId]) {
+                        delete originalData[tabName][moduleId];
+                    }
+
+                    if (changes[tabName] && changes[tabName][moduleId]) {
+                        delete changes[tabName][moduleId];
+                    }
+
+                    successCount++;
+                } catch (error) {
+                    debugLog(`Failed to delete ${tabName} ${moduleId}: ${error.message}`, 'error');
+                    failedItems.push({ id: moduleId, error: error.message, itemErrors: [] });
+                }
+            }
+
+            if (deleteBtn) {
+                deleteBtn.disabled = false;
+                deleteBtn.textContent = '🗑️ Delete Selected';
+            }
+
+            updateSidebarContent();
+
+            const backupStatus = backupInitiated ? 'Yes' : 'No';
+            let message = '';
+            
+            if (successCount > 0) {
+                message = `Successfully deleted ${successCount} module(s) (Backup initiated: ${backupStatus}).`;
+                if (deleteOption === 'module-and-items') {
+                    message += `\n\nDeleted ${deletedItemsCount} item(s) from module(s).`;
+                }
+            } else {
+                message = `No modules were deleted (Backup initiated: ${backupStatus}).`;
+            }
+            
+            if (failedItems.length > 0) {
+                message += `\n\nFailed to delete ${failedItems.length} module(s):`;
+                failedItems.forEach(module => {
+                    message += `\n\nModule ${module.id}: ${module.error}`;
+                    if (module.itemErrors && module.itemErrors.length > 0) {
+                        message += `\n  Failed items:`;
+                        module.itemErrors.forEach(item => {
+                            message += `\n    - ${item.type} "${item.title}" (ID: ${item.content_id}): ${item.error}`;
+                        });
+                    }
+                });
+            }
+            
+            alert(message);
+            document.body.style.overflow = '';
         }
 
         // Update Assign To button visibility based on active tab
@@ -6105,6 +5847,103 @@
             }
         }
         
+        async function cleanSlateAssignmentOverrides(
+            courseId,
+            assignmentId,
+            accommodatedStudentIds,
+            allStudentIds
+        ) {
+            try {
+                addProgressLog(`Starting override reconciliation for assignment ${assignmentId}`, 'info');
+
+                const assignmentRes = await fetch(
+                    `/canvas/courses/${courseId}/assignments/${assignmentId}`,
+                    { headers: { Accept: 'application/json' } }
+                );
+                if (!assignmentRes.ok) throw new Error(`Assignment fetch failed`);
+                const assignment = await assignmentRes.json();
+
+                const preservedDates = {
+                    due_at: assignment.due_at || null,
+                    unlock_at: assignment.unlock_at || null,
+                    lock_at: assignment.lock_at || null
+                };
+
+                await fetch(
+                    `/canvas/courses/${courseId}/assignments/${assignmentId}`,
+                    {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                        body: JSON.stringify({
+                            assignment: { only_visible_to_overrides: true }
+                        })
+                    }
+                );
+
+                const overridesRes = await fetch(
+                    `/canvas/courses/${courseId}/assignments/${assignmentId}/overrides`,
+                    { headers: { Accept: 'application/json' } }
+                );
+                const overrides = await overridesRes.json();
+
+                for (const o of overrides) {
+                    await fetch(
+                        `/canvas/courses/${courseId}/assignments/${assignmentId}/overrides/${o.id}`,
+                        {
+                            method: 'DELETE',
+                            headers: { Accept: 'application/json' }
+                        }
+                    );
+                }
+
+                await fetch(
+                    `/canvas/courses/${courseId}/assignments/${assignmentId}`,
+                    {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                        body: JSON.stringify({
+                            assignment: {
+                                due_at: null,
+                                unlock_at: null,
+                                lock_at: null
+                            }
+                        })
+                    }
+                );
+
+                const standardStudentIds = allStudentIds
+                    .map(id => parseInt(id))
+                    .filter(id => !accommodatedStudentIds.has(id));
+
+                if (standardStudentIds.length === 0) return;
+
+                await new Promise(r => setTimeout(r, 500));
+
+                await fetch(
+                    `/canvas/courses/${courseId}/assignments/${assignmentId}/overrides`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                        body: JSON.stringify({
+                            assignment_override: {
+                                title: 'Standard Students',
+                                student_ids: standardStudentIds,
+                                due_at: preservedDates.due_at,
+                                unlock_at: preservedDates.unlock_at,
+                                lock_at: preservedDates.lock_at
+                            }
+                        })
+                    }
+                );
+
+                addProgressLog(`Overrides reconciled successfully`, 'success');
+
+            } catch (e) {
+                addProgressLog(`Override reconciliation failed: ${e.message}`, 'error');
+                throw e;
+            }
+        }
+        
         async function executeAccommodations() {
             const tabName = getCurrentTabName();
             // This function is now only for modal-based cloning (assignments, discussions, quizzes without time_limit)
@@ -6169,18 +6008,22 @@
                     for (const assignmentId of selectedItems) {
                         try {
                             addProgressLog(`GET /canvas/courses/${courseId}/assignments/${assignmentId}`, 'info');
-                            const assignmentResponse = await fetch(`/canvas/courses/${courseId}/assignments/${assignmentId}`);
+                            const assignmentResponse = await fetch(`/canvas/courses/${courseId}/assignments/${assignmentId}`, {
+                                headers: { 'Accept': 'application/json' }
+                            });
                             if (!assignmentResponse.ok) {
                                 throw new Error(`Failed to fetch assignment: ${assignmentResponse.status}`);
                             }
-                                            const originalAssignment = await assignmentResponse.json();
+                            const originalAssignment = await assignmentResponse.json();
                             const assignmentName = originalAssignment.name || 'Untitled';
                             
-                            // Standard Version Cleanup: Set original assignment to only_visible_to_overrides and mark as standard
                             addProgressLog(`PUT /canvas/courses/${courseId}/assignments/${assignmentId} (setting only_visible_to_overrides)`, 'info');
                             const updateResponse = await fetch(`/canvas/courses/${courseId}/assignments/${assignmentId}`, {
                                 method: 'PUT',
-                                headers: { 'Content-Type': 'application/json' },
+                                headers: { 
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json'
+                                },
                                 body: JSON.stringify({
                                     assignment: {
                                         only_visible_to_overrides: true,
@@ -6261,6 +6104,15 @@
                                         const errorText = await overrideResponse.text();
                                         throw new Error(`Failed to create override: ${overrideResponse.status} - ${errorText}`);
                                     }
+                                    
+                                    // Clean Slate: Reset original assignment overrides after clone is created
+                                    // This ensures the original assignment only has standard students (Group B)
+                                    await cleanSlateAssignmentOverrides(
+                                        courseId,
+                                        assignmentId,
+                                        allAccommodatedStudentIds,
+                                        allStudentIds
+                                    );
                                     
                                     addProgressLog(`✓ Created twin "${newTitle}" for ${accType} (${studentIds.length} student(s))`, 'success');
                                     totalSuccess++;
@@ -6473,23 +6325,6 @@
                 return;
             }
 
-            // Get selected fields from checkboxes
-            const fieldsContainer = document.getElementById('searchReplaceFieldsContainer');
-            if (!fieldsContainer) {
-                alert('Fields container not found.');
-                closeModal('searchReplaceModal');
-                return;
-            }
-            
-            const checkedBoxes = fieldsContainer.querySelectorAll('input[type="checkbox"]:checked');
-            const selectedFields = Array.from(checkedBoxes).map(checkbox => checkbox.value).filter(value => value);
-            
-            if (selectedFields.length === 0) {
-                alert('Please select at least one field to search.');
-                closeModal('searchReplaceModal');
-                return;
-            }
-
             const searchText = document.getElementById('searchReplaceFind').value.trim();
             const replaceText = document.getElementById('searchReplaceWith').value;
 
@@ -6498,10 +6333,38 @@
                 return;
             }
 
-            // Get field definitions for type checking
-            const fieldDefs = FIELD_DEFINITIONS[tabName];
+            // Get field definitions for type checking - check both FIELD_DEFINITIONS and CUSTOM_HEADER_FIELDS
+            let fieldDefs = FIELD_DEFINITIONS[tabName];
+            let isCustomHeader = false;
+            
+            if (!fieldDefs) {
+                fieldDefs = CUSTOM_HEADER_FIELDS[tabName];
+                isCustomHeader = true;
+            }
+            
             if (!fieldDefs) {
                 alert('No field definitions found for this tab.');
+                closeModal('searchReplaceModal');
+                return;
+            }
+
+            // Get all editable text/numeric fields
+            // For FIELD_DEFINITIONS: check field.editable and use field.key
+            // For CUSTOM_HEADER_FIELDS: include text/number fields (modules: name, position are editable)
+            const eligibleFields = fieldDefs.filter(field => {
+                if (isCustomHeader) {
+                    const fieldKey = field.field;
+                    if (!fieldKey) return false;
+                    // For modules, name and position are editable text/number fields
+                    // Exclude boolean, datetime, and other non-text/number types
+                    return (field.type === 'text' || field.type === 'number' || field.type === 'textarea');
+                } else {
+                    return field.editable && (field.type === 'text' || field.type === 'number' || field.type === 'textarea');
+                }
+            });
+
+            if (eligibleFields.length === 0) {
+                alert('No editable text/numeric fields available in this tab.');
                 closeModal('searchReplaceModal');
                 return;
             }
@@ -6515,12 +6378,12 @@
 
                 let itemModified = false;
 
-                // Apply search/replace to each selected field
-                selectedFields.forEach(field => {
-                    const fieldDef = fieldDefs.find(f => f.key === field);
-                    if (!fieldDef) return;
+                // Apply search/replace to all eligible fields
+                eligibleFields.forEach(fieldDef => {
+                    const fieldKey = isCustomHeader ? fieldDef.field : fieldDef.key;
+                    if (!fieldKey) return;
 
-                    let currentValue = original[field];
+                    let currentValue = original[fieldKey];
                     if (currentValue === null || currentValue === undefined) {
                         return; // Skip null/undefined values
                     }
@@ -6552,12 +6415,12 @@
                     // Update the change tracking
                     if (!changes[tabName]) changes[tabName] = {};
                     if (!changes[tabName][itemId]) changes[tabName][itemId] = {};
-                    changes[tabName][itemId][field] = newValue;
+                    changes[tabName][itemId][fieldKey] = newValue;
 
                     // Update the cell display
-                    const cell = document.querySelector(`#tab-${tabName} [data-item-id="${itemId}"][data-field="${field}"]`);
+                    const cell = document.querySelector(`#tab-${tabName} [data-item-id="${itemId}"][data-field="${fieldKey}"]`);
                     if (cell) {
-                        displayCellValue(cell, tabName, itemId, field, newValue, fieldDef.type, fieldDef);
+                        displayCellValue(cell, tabName, itemId, fieldKey, newValue, fieldDef.type, fieldDef);
                         const row = cell.closest('tr');
                         if (row) row.classList.add('modified');
                     }
@@ -6880,6 +6743,304 @@
             });
         }
 
+        function displayFiles(files) {
+            generateCustomHeaders('files');
+            
+            const countEl = document.getElementById('filesCount');
+            const tbody = document.getElementById('filesTableBody');
+            
+            if (!selectedItems['files']) {
+                selectedItems['files'] = new Set();
+            }
+            
+            countEl.textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`;
+            tbody.innerHTML = '';
+            
+            const selectAllCheckbox = document.getElementById('selectAll-files');
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+
+            if (files.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No files found</td></tr>';
+                return;
+            }
+
+            if (!originalData['files']) originalData['files'] = {};
+
+            files.forEach((file, index) => {
+                const row = document.createElement('tr');
+                const itemId = String(file.id || index);
+                const isChecked = selectedItems['files'].has(itemId);
+                
+                originalData['files'][itemId] = file;
+                
+                const fileType = file.content_type || (file.is_folder || file.folder ? 'folder' : 'file');
+                const isFolder = file.is_folder || file.folder || fileType === 'folder';
+                
+                const usedBy = file.usage || [];
+                const usedByText = usedBy.length > 0 
+                    ? usedBy.map(u => `${u.type}: ${u.title}`).join(', ')
+                    : 'Not used';
+                
+                row.innerHTML = `
+                    <td class="checkbox-cell">
+                        <input type="checkbox" class="row-checkbox" data-tab="files" data-id="${itemId}" ${isChecked ? 'checked' : ''} onchange="toggleRowSelection('files', '${itemId}', this.checked)">
+                    </td>
+                    <td data-item-id="${itemId}" data-field="display_name"></td>
+                    <td data-item-id="${itemId}" data-field="folder_path"></td>
+                    <td data-item-id="${itemId}" data-field="content_type"></td>
+                    <td data-item-id="${itemId}" data-field="item_count"></td>
+                    <td data-item-id="${itemId}" data-field="size"></td>
+                    <td data-item-id="${itemId}" data-field="modified_at"></td>
+                    <td class="readonly-cell" data-item-id="${itemId}">${escapeHtml(usedByText)}</td>
+                `;
+                
+                if (isChecked) row.classList.add('selected');
+                
+                const nameCell = row.querySelector('[data-field="display_name"]');
+                const locationCell = row.querySelector('[data-field="folder_path"]');
+                const typeCell = row.querySelector('[data-field="content_type"]');
+                const itemCountCell = row.querySelector('[data-field="item_count"]');
+                const sizeCell = row.querySelector('[data-field="size"]');
+                const modifiedCell = row.querySelector('[data-field="modified_at"]');
+                
+                displayCellValue(nameCell, 'files', itemId, 'display_name', file.display_name || file.filename || '-', 'text');
+                displayCellValue(locationCell, 'files', itemId, 'folder_path', file.folder_path || 'Root', 'text');
+                
+                const typeText = isFolder ? 'Folder' : (fileType.split('/').pop() || 'file');
+                displayCellValue(typeCell, 'files', itemId, 'content_type', typeText, 'text');
+                
+                if (isFolder) {
+                    const itemCount = file.item_count !== undefined ? file.item_count : 0;
+                    displayCellValue(itemCountCell, 'files', itemId, 'item_count', itemCount, 'number');
+                    displayCellValue(sizeCell, 'files', itemId, 'size', null, 'number');
+                } else {
+                    displayCellValue(itemCountCell, 'files', itemId, 'item_count', null, 'number');
+                    let sizeValue = null;
+                    if (file.size !== undefined && file.size !== null) {
+                        sizeValue = file.size;
+                    }
+                    displayCellValue(sizeCell, 'files', itemId, 'size', sizeValue, 'number');
+                }
+                
+                const modifiedDate = file.modified_at || file.updated_at || null;
+                displayCellValue(modifiedCell, 'files', itemId, 'modified_at', modifiedDate, 'datetime');
+                
+                tbody.appendChild(row);
+            });
+            
+            applySortAndFilter('files');
+            
+            const filesTable = document.getElementById('filesTable');
+            if (filesTable) {
+                initializeTableKeyboard(filesTable);
+            }
+        }
+
+        let pendingFileOperations = null;
+
+        function openFileOperationsModal() {
+            const selected = getSelectedItems();
+            if (selected.length === 0) {
+                alert('Please select at least one file.');
+                return;
+            }
+
+            pendingFileOperations = { tabName: 'files', selected };
+            
+            const fileList = document.getElementById('fileOperationsFileList');
+            if (fileList) {
+                const files = selected.map(id => {
+                    const file = originalData['files']?.[id];
+                    return file ? (file.display_name || file.filename || `File ${id}`) : `File ${id}`;
+                });
+                fileList.innerHTML = files.map(f => `<div style="padding: 5px 0;">${escapeHtml(f)}</div>`).join('');
+            }
+
+            const renameOptions = document.getElementById('fileRenameOptions');
+            if (renameOptions) renameOptions.style.display = 'none';
+            
+            const progressContainer = document.getElementById('fileOperationsProgressContainer');
+            if (progressContainer) {
+                progressContainer.style.display = 'none';
+                const progressText = document.getElementById('fileOperationsProgressText');
+                if (progressText) progressText.innerHTML = '';
+            }
+
+            openModal('fileOperationsModal');
+        }
+
+        function showFileRenameOptions() {
+            const renameOptions = document.getElementById('fileRenameOptions');
+            if (renameOptions) {
+                renameOptions.style.display = renameOptions.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        async function executeFileDownload() {
+            if (!pendingFileOperations) {
+                closeModal('fileOperationsModal');
+                return;
+            }
+
+            const { selected } = pendingFileOperations;
+            const courseId = getCurrentCourseId();
+            if (!courseId) {
+                alert('No course selected.');
+                return;
+            }
+
+            const progressContainer = document.getElementById('fileOperationsProgressContainer');
+            const progressText = document.getElementById('fileOperationsProgressText');
+            if (progressContainer) progressContainer.style.display = 'block';
+            if (progressText) progressText.innerHTML = 'Downloading files...<br>';
+
+            for (const fileId of selected) {
+                try {
+                    const file = originalData['files']?.[fileId];
+                    if (!file) continue;
+                    
+                    const downloadUrl = file.url || file.download_url;
+                    if (downloadUrl) {
+                        window.open(downloadUrl, '_blank');
+                        if (progressText) progressText.innerHTML += `✓ Opened download for: ${escapeHtml(file.display_name || file.filename || fileId)}<br>`;
+                    } else {
+                        if (progressText) progressText.innerHTML += `✗ No download URL for: ${escapeHtml(file.display_name || file.filename || fileId)}<br>`;
+                    }
+                } catch (error) {
+                    if (progressText) progressText.innerHTML += `✗ Error downloading file ${fileId}: ${error.message}<br>`;
+                }
+            }
+        }
+
+        async function executeFileRename() {
+            if (!pendingFileOperations) {
+                closeModal('fileOperationsModal');
+                return;
+            }
+
+            const { selected } = pendingFileOperations;
+            const courseId = getCurrentCourseId();
+            if (!courseId) {
+                alert('No course selected.');
+                return;
+            }
+
+            const renamePattern = document.getElementById('fileRenamePattern')?.value?.trim();
+            if (!renamePattern) {
+                alert('Please enter a rename pattern.');
+                return;
+            }
+
+            const progressContainer = document.getElementById('fileOperationsProgressContainer');
+            const progressText = document.getElementById('fileOperationsProgressText');
+            if (progressContainer) progressContainer.style.display = 'block';
+            if (progressText) progressText.innerHTML = 'Renaming files...<br>';
+
+            for (const fileId of selected) {
+                try {
+                    const file = originalData['files']?.[fileId];
+                    if (!file) continue;
+
+                    let newName = renamePattern;
+                    if (selected.length > 1) {
+                        const fileName = file.display_name || file.filename || '';
+                        const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
+                        const ext = fileName.match(/\.[^/.]+$/)?.[0] || '';
+                        newName = renamePattern.replace(/{name}/g, nameWithoutExt).replace(/{ext}/g, ext);
+                    }
+
+                    const response = await fetch(`/canvas/courses/${courseId}/files/${fileId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: newName })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    if (progressText) progressText.innerHTML += `✓ Renamed: ${escapeHtml(file.display_name || fileId)} → ${escapeHtml(newName)}<br>`;
+                } catch (error) {
+                    if (progressText) progressText.innerHTML += `✗ Error renaming file ${fileId}: ${error.message}<br>`;
+                }
+            }
+
+            setTimeout(() => {
+                closeModal('fileOperationsModal');
+                refreshTab('files');
+            }, 2000);
+        }
+
+        async function executeFileDelete() {
+            if (!pendingFileOperations) {
+                closeModal('fileOperationsModal');
+                return;
+            }
+
+            const { selected } = pendingFileOperations;
+            const courseId = getCurrentCourseId();
+            if (!courseId) {
+                alert('No course selected.');
+                return;
+            }
+
+            const fileItems = selected.map(id => {
+                const file = originalData['files']?.[id];
+                return {
+                    id: parseInt(id),
+                    isFolder: file?.is_folder || file?.folder || false,
+                    name: file?.display_name || file?.filename || id
+                };
+            });
+            
+            const folderCount = fileItems.filter(f => f.isFolder).length;
+            const fileCount = fileItems.length - folderCount;
+            let confirmMessage = `Are you sure you want to delete ${fileItems.length} item(s)?`;
+            if (folderCount > 0 && fileCount > 0) {
+                confirmMessage += `\n- ${folderCount} folder(s)\n- ${fileCount} file(s)`;
+            } else if (folderCount > 0) {
+                confirmMessage += `\n- ${folderCount} folder(s)`;
+            } else {
+                confirmMessage += `\n- ${fileCount} file(s)`;
+            }
+            confirmMessage += '\n\nThis action cannot be undone.';
+            
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+
+            const progressContainer = document.getElementById('fileOperationsProgressContainer');
+            const progressText = document.getElementById('fileOperationsProgressText');
+            if (progressContainer) progressContainer.style.display = 'block';
+            if (progressText) progressText.innerHTML = 'Deleting items...<br>';
+
+            try {
+                const response = await fetch(`/canvas/courses/${courseId}/files/bulk`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        fileIds: fileItems.map(f => f.id),
+                        isFolders: fileItems.map(f => f.isFolder)
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                if (progressText) progressText.innerHTML += `✓ Successfully deleted ${fileItems.length} item(s)<br>`;
+                
+                setTimeout(() => {
+                    closeModal('fileOperationsModal');
+                    refreshTab('files');
+                }, 1500);
+            } catch (error) {
+                if (progressText) progressText.innerHTML += `✗ Error deleting files: ${error.message}<br>`;
+                alert(`Error deleting files: ${error.message}`);
+            }
+        }
+
         let accommodationColumns = null;
         let accommodationOptions = ['Time 1.25x', 'Time 1.5x', 'Time 2.0x', 'Extra Attempt', 'Quiet Room'];
         let studentAccommodations = {};
@@ -7200,14 +7361,25 @@
             
             const checkboxes = document.querySelectorAll(`#tab-${tabName} .row-checkbox`);
             checkboxes.forEach(cb => {
-                cb.checked = checked;
-                const itemId = cb.getAttribute('data-id');
+                const row = cb.closest('tr');
+                if (!row) return;
+                
+                const isVisible = row.style.display !== 'none' && window.getComputedStyle(row).display !== 'none';
+                
                 if (checked) {
-                    selectedItems[tabName].add(itemId);
-                    cb.closest('tr').classList.add('selected');
+                    if (isVisible) {
+                        cb.checked = true;
+                        const itemId = cb.getAttribute('data-id');
+                        selectedItems[tabName].add(itemId);
+                        row.classList.add('selected');
+                    } else {
+                        cb.checked = false;
+                    }
                 } else {
+                    cb.checked = false;
+                    const itemId = cb.getAttribute('data-id');
                     selectedItems[tabName].delete(itemId);
-                    cb.closest('tr').classList.remove('selected');
+                    row.classList.remove('selected');
                 }
             });
             
@@ -7275,18 +7447,15 @@
                     input = document.createElement('select');
                     input.className = 'cell-select';
                     
-                    // Handle prerequisite_module_ids as multi-select
                     if (fieldName === 'prerequisite_module_ids' && tabName === 'modules') {
                         input.multiple = true;
-                        input.size = Math.min(courseModules.length + 1, 8); // Show up to 8 options at once
+                        input.size = Math.min(courseModules.length + 1, 8);
                         input.style.minHeight = '120px';
-                        // Add all modules except the current one
                         courseModules.forEach(module => {
                             if (module.id !== itemId) {
                                 const optionEl = document.createElement('option');
                                 optionEl.value = module.id;
                                 optionEl.textContent = module.name;
-                                // Check if this module ID is in the current prerequisites array
                                 const currentPrereqs = Array.isArray(actualCurrentValue) ? actualCurrentValue : 
                                     (actualCurrentValue ? [actualCurrentValue] : []);
                                 if (currentPrereqs.includes(module.id) || currentPrereqs.includes(String(module.id))) {
@@ -7296,42 +7465,68 @@
                             }
                         });
                     } else {
-                        // Add empty option for single select
-                        const emptyOption = document.createElement('option');
-                        emptyOption.value = '';
-                        emptyOption.textContent = '-- Select --';
-                        input.appendChild(emptyOption);
-                    }
-                    
-                    // Handle dynamic options for assignment_group_id
-                    if (fieldName === 'assignment_group_id' && fieldDef && fieldDef.dynamicOptions) {
-                        // Add assignment groups
-                        assignmentGroups.forEach(group => {
-                            const optionEl = document.createElement('option');
-                            optionEl.value = group.id;
-                            optionEl.textContent = group.name;
-                            if (group.id === actualCurrentValue || String(group.id) === String(actualCurrentValue)) {
-                                optionEl.selected = true;
+                        if (fieldDef && fieldDef.dynamicOptions) {
+                            let dataArray = null;
+                            if (fieldDef.dataSource === 'assignmentGroups') {
+                                dataArray = assignmentGroups;
+                            } else if (fieldDef.dataSource === 'courseModules') {
+                                dataArray = courseModules;
                             }
-                            input.appendChild(optionEl);
-                        });
-                        // Add "Create New Group" option
-                        const createOption = document.createElement('option');
-                        createOption.value = '__CREATE_NEW__';
-                        createOption.textContent = '+ Create New Group...';
-                        createOption.style.fontStyle = 'italic';
-                        input.appendChild(createOption);
-                    } else if (fieldDef && fieldDef.options) {
-                        // Add options from field definition
-                        fieldDef.options.forEach(option => {
-                            const optionEl = document.createElement('option');
-                            optionEl.value = option.value;
-                            optionEl.textContent = option.label;
-                            if (option.value === actualCurrentValue || String(option.value) === String(actualCurrentValue)) {
-                                optionEl.selected = true;
+                            
+                            if (fieldDef.customOptions) {
+                                const topOptions = fieldDef.customOptions.filter(opt => opt.position === 'top');
+                                topOptions.forEach(customOpt => {
+                                    const optionEl = document.createElement('option');
+                                    optionEl.value = customOpt.value;
+                                    optionEl.textContent = customOpt.label;
+                                    if (customOpt.style) {
+                                        optionEl.style.cssText = customOpt.style;
+                                    }
+                                    input.appendChild(optionEl);
+                                });
                             }
-                            input.appendChild(optionEl);
-                        });
+                            
+                            const emptyOption = document.createElement('option');
+                            emptyOption.value = '';
+                            emptyOption.textContent = '-- Select --';
+                            input.appendChild(emptyOption);
+                            
+                            if (dataArray) {
+                                const sortedData = [...dataArray].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                                sortedData.forEach(item => {
+                                    const optionEl = document.createElement('option');
+                                    optionEl.value = item.id;
+                                    optionEl.textContent = item.name;
+                                    if (item.id === actualCurrentValue || String(item.id) === String(actualCurrentValue)) {
+                                        optionEl.selected = true;
+                                    }
+                                    input.appendChild(optionEl);
+                                });
+                            }
+                            
+                            if (fieldDef.customOptions) {
+                                const bottomOptions = fieldDef.customOptions.filter(opt => opt.position === 'bottom');
+                                bottomOptions.forEach(customOpt => {
+                                    const optionEl = document.createElement('option');
+                                    optionEl.value = customOpt.value;
+                                    optionEl.textContent = customOpt.label;
+                                    if (customOpt.style) {
+                                        optionEl.style.cssText = customOpt.style;
+                                    }
+                                    input.appendChild(optionEl);
+                                });
+                            }
+                        } else if (fieldDef && fieldDef.options) {
+                            fieldDef.options.forEach(option => {
+                                const optionEl = document.createElement('option');
+                                optionEl.value = option.value;
+                                optionEl.textContent = option.label;
+                                if (option.value === actualCurrentValue || String(option.value) === String(actualCurrentValue)) {
+                                    optionEl.selected = true;
+                                }
+                                input.appendChild(optionEl);
+                            });
+                        }
                     }
                 } else if (fieldType === 'datetime' || (fieldName.endsWith('_at') && !fieldName.includes('attempts')) || fieldName.includes('date')) {
                     input = document.createElement('input');
@@ -7386,52 +7581,19 @@
                     if (input.type === 'checkbox') {
                         newValue = input.checked;
                     } else if (input.tagName === 'SELECT') {
-                        // Handle multi-select for prerequisite_module_ids
                         if (fieldName === 'prerequisite_module_ids' && input.multiple) {
                             const selectedOptions = Array.from(input.selectedOptions);
                             newValue = selectedOptions.map(opt => parseInt(opt.value));
-                        } else if (fieldName === 'assignment_group_id' && input.value === '__CREATE_NEW__') {
-                            const groupName = prompt('Enter name for new assignment group:');
-                            if (!groupName || !groupName.trim()) {
-                                finishEditing(false); // Cancel
-                                return;
-                            }
-                            try {
-                                const courseId = getCurrentCourseId();
-                                const createResponse = await fetch(`/canvas/courses/${courseId}/assignment_groups`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ name: groupName.trim() })
-                                });
-                                if (!createResponse.ok) {
-                                    throw new Error(`Failed to create group: ${createResponse.status}`);
+                        } else if (fieldDef && fieldDef.customOptions) {
+                            const matchingCustomOption = fieldDef.customOptions.find(opt => opt.value === input.value);
+                            if (matchingCustomOption) {
+                                if (typeof openAssignmentGroupModal === 'function') {
+                                    openAssignmentGroupModal(itemId, tabName);
                                 }
-                                const newGroup = await createResponse.json();
-                                assignmentGroups.push(newGroup);
-                                newValue = newGroup.id;
-                                // Update the select to show the new group
-                                input.innerHTML = '';
-                                const emptyOpt = document.createElement('option');
-                                emptyOpt.value = '';
-                                emptyOpt.textContent = '-- Select --';
-                                input.appendChild(emptyOpt);
-                                assignmentGroups.forEach(group => {
-                                    const opt = document.createElement('option');
-                                    opt.value = group.id;
-                                    opt.textContent = group.name;
-                                    if (group.id === newGroup.id) opt.selected = true;
-                                    input.appendChild(opt);
-                                });
-                                const createOpt = document.createElement('option');
-                                createOpt.value = '__CREATE_NEW__';
-                                createOpt.textContent = '+ Create New Group...';
-                                createOpt.style.fontStyle = 'italic';
-                                input.appendChild(createOpt);
-                            } catch (error) {
-                                alert(`Error creating assignment group: ${error.message}`);
-                                finishEditing(false); // Cancel
+                                finishEditing(false);
                                 return;
                             }
+                            newValue = input.value || null;
                         } else {
                             newValue = input.value || null;
                         }
@@ -7458,7 +7620,12 @@
                     }
                 };
                 
-                input.addEventListener('blur', () => finishEditing(true));
+                input.addEventListener('blur', () => {
+                    if (input.tagName === 'SELECT' && input.value === '__CREATE_NEW__') {
+                        return;
+                    }
+                    finishEditing(true);
+                });
                 input.addEventListener('keydown', async (e) => {
                     if (e.key === 'Enter') {
                         e.preventDefault();
@@ -7471,14 +7638,568 @@
                 // For select, also finish on change (but handle async for assignment_group_id)
                 if (input.tagName === 'SELECT') {
                     input.addEventListener('change', async () => {
-                        if (fieldName === 'assignment_group_id' && input.value === '__CREATE_NEW__') {
-                            // Don't auto-finish for create new, let finishEditing handle it
+                        if (input.value === '__CREATE_NEW__') {
+                            openAssignmentGroupModal(itemId, tabName);
                             return;
+                        }
+                        if (fieldDef && fieldDef.customOptions) {
+                            const matchingCustomOption = fieldDef.customOptions.find(opt => opt.value === input.value);
+                            if (matchingCustomOption) {
+                                return;
+                            }
                         }
                         await finishEditing(true);
                     });
                 }
             });
+        }
+
+        let pendingAssignmentGroupCreation = null;
+
+        function openAssignmentGroupModal(itemId, tabName) {
+            pendingAssignmentGroupCreation = { itemId, tabName };
+            const modal = document.getElementById('assignmentGroupModal');
+            
+            if (modal) {
+                renderModalTable();
+                updateMergeButtonState();
+                updateTotalWeightDisplay();
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function renderModalTable() {
+            const container = document.getElementById('modalGroupTableContainer');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            const table = document.createElement('table');
+            table.className = 'data-table';
+            table.id = 'modalAssignmentGroupsTable';
+            
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            
+            const checkboxHeader = document.createElement('th');
+            checkboxHeader.className = 'checkbox-header';
+            checkboxHeader.innerHTML = `<input type="checkbox" class="select-all-checkbox" id="selectAll-modalGroups" onchange="toggleSelectAll('modalGroups', this.checked)">`;
+            headerRow.appendChild(checkboxHeader);
+            
+            const fieldDefs = FIELD_DEFINITIONS['assignment_groups'];
+            if (fieldDefs) {
+                fieldDefs.forEach(field => {
+                    const th = document.createElement('th');
+                    th.textContent = field.label;
+                    headerRow.appendChild(th);
+                });
+            }
+            
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            const tbody = document.createElement('tbody');
+            tbody.id = 'modalAssignmentGroupsTableBody';
+            
+            if (!selectedItems['modalGroups']) {
+                selectedItems['modalGroups'] = new Set();
+            }
+            
+            assignmentGroups.forEach(group => {
+                const itemId = group.id;
+                const isChecked = selectedItems['modalGroups'].has(itemId);
+                const row = document.createElement('tr');
+                
+                let rowHTML = `
+                    <td class="checkbox-cell">
+                        <input type="checkbox" class="row-checkbox" data-tab="modalGroups" data-id="${itemId}" ${isChecked ? 'checked' : ''} onchange="toggleRowSelection('modalGroups', '${itemId}', this.checked); updateMergeButtonState();">
+                    </td>
+                `;
+                
+                fieldDefs.forEach(field => {
+                    if (field.editable) {
+                        rowHTML += `<td data-item-id="${itemId}" data-field="${field.key}"></td>`;
+                    } else {
+                        const value = group[field.key];
+                        rowHTML += `<td class="readonly-cell" data-item-id="${itemId}" data-field="${field.key}">${escapeHtml(value || '-')}</td>`;
+                    }
+                });
+                
+                row.innerHTML = rowHTML;
+                
+                if (isChecked) row.classList.add('selected');
+                
+                if (!originalData['modalGroups']) originalData['modalGroups'] = {};
+                originalData['modalGroups'][itemId] = group;
+                
+                fieldDefs.forEach(field => {
+                    if (field.editable) {
+                        const cell = row.querySelector(`[data-field="${field.key}"]`);
+                        if (cell) {
+                            const value = group[field.key];
+                            makeCellEditable(cell, 'modalGroups', itemId, field.key, value, field.type, field);
+                            displayCellValue(cell, 'modalGroups', itemId, field.key, value, field.type, field);
+                        }
+                    }
+                });
+                
+                tbody.appendChild(row);
+            });
+            
+            table.appendChild(tbody);
+            container.appendChild(table);
+            
+            const weightCells = tbody.querySelectorAll('[data-field="group_weight"]');
+            weightCells.forEach(cell => {
+                const input = cell.querySelector('input');
+                if (input) {
+                    input.addEventListener('input', updateTotalWeightDisplay);
+                    input.addEventListener('change', updateTotalWeightDisplay);
+                }
+            });
+        }
+
+        function updateMergeButtonState() {
+            const mergeBtn = document.getElementById('mergeGroupsBtn');
+            if (!mergeBtn) return;
+            
+            const selected = selectedItems['modalGroups'] ? Array.from(selectedItems['modalGroups']) : [];
+            mergeBtn.disabled = selected.length < 2;
+        }
+
+        function addNewGroupRow() {
+            const tbody = document.getElementById('modalAssignmentGroupsTableBody');
+            if (!tbody) {
+                renderModalTable();
+                return;
+            }
+            
+            const tempId = 'new-' + Date.now();
+            const newGroup = {
+                id: tempId,
+                name: '',
+                group_weight: 0
+            };
+            
+            assignmentGroups.push(newGroup);
+            
+            if (!originalData['modalGroups']) originalData['modalGroups'] = {};
+            originalData['modalGroups'][tempId] = newGroup;
+            
+            const fieldDefs = FIELD_DEFINITIONS['assignment_groups'];
+            const row = document.createElement('tr');
+            
+            let rowHTML = `
+                <td class="checkbox-cell">
+                    <input type="checkbox" class="row-checkbox" data-tab="modalGroups" data-id="${tempId}" onchange="toggleRowSelection('modalGroups', '${tempId}', this.checked); updateMergeButtonState();">
+                </td>
+            `;
+            
+            fieldDefs.forEach(field => {
+                if (field.editable) {
+                    rowHTML += `<td data-item-id="${tempId}" data-field="${field.key}"></td>`;
+                }
+            });
+            
+            row.innerHTML = rowHTML;
+            tbody.appendChild(row);
+            
+            fieldDefs.forEach(field => {
+                if (field.editable) {
+                    const cell = row.querySelector(`[data-field="${field.key}"]`);
+                    if (cell) {
+                        const value = newGroup[field.key];
+                        makeCellEditable(cell, 'modalGroups', tempId, field.key, value, field.type, field);
+                        displayCellValue(cell, 'modalGroups', tempId, field.key, value, field.type, field);
+                    }
+                }
+            });
+            
+            const weightCell = row.querySelector('[data-field="group_weight"]');
+            if (weightCell) {
+                const input = weightCell.querySelector('input');
+                if (input) {
+                    input.addEventListener('input', updateTotalWeightDisplay);
+                    input.addEventListener('change', updateTotalWeightDisplay);
+                }
+            }
+            
+            const nameCell = row.querySelector('[data-field="name"]');
+            if (nameCell) {
+                const input = nameCell.querySelector('input');
+                if (input) {
+                    input.focus();
+                }
+            }
+        }
+
+        function updateTotalWeightDisplay() {
+            const totalWeightDisplay = document.getElementById('totalWeightDisplay');
+            if (!totalWeightDisplay) return;
+            
+            let totalWeight = 0;
+            const tbody = document.getElementById('modalAssignmentGroupsTableBody');
+            
+            if (tbody) {
+                const rows = tbody.querySelectorAll('tr');
+                rows.forEach(row => {
+                    const itemId = row.querySelector('[data-item-id]')?.getAttribute('data-item-id');
+                    if (itemId) {
+                        const weightCell = row.querySelector('[data-field="group_weight"]');
+                        if (weightCell) {
+                            const input = weightCell.querySelector('input');
+                            if (input && input.value !== '') {
+                                const editedWeight = parseFloat(input.value) || 0;
+                                totalWeight += editedWeight;
+                            } else {
+                                const originalGroup = assignmentGroups.find(g => g.id == itemId);
+                                if (originalGroup) {
+                                    totalWeight += (originalGroup.group_weight || 0);
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                assignmentGroups.forEach(group => {
+                    const weight = group.group_weight || 0;
+                    totalWeight += weight;
+                });
+            }
+            
+            totalWeightDisplay.textContent = `${totalWeight.toFixed(2)}%`;
+        }
+
+        async function handleMergeGroups() {
+            const selected = selectedItems['modalGroups'] ? Array.from(selectedItems['modalGroups']) : [];
+            if (selected.length < 2) {
+                alert('Please select at least 2 groups to merge');
+                return;
+            }
+            
+            const selectedIds = selected.map(id => String(id));
+            const selectedGroups = assignmentGroups.filter(g => selectedIds.includes(String(g.id)));
+            
+            if (selectedGroups.length === 0) {
+                alert('No matching groups found. Please ensure groups are selected.');
+                return;
+            }
+            
+            const groupNames = selectedGroups.map(g => g.name);
+            
+            const select = document.createElement('select');
+            select.style.width = '100%';
+            select.style.padding = '8px';
+            select.style.marginTop = '10px';
+            select.style.marginBottom = '10px';
+            
+            selectedGroups.forEach(group => {
+                const option = document.createElement('option');
+                option.value = group.id;
+                option.textContent = group.name;
+                select.appendChild(option);
+            });
+            
+            const modal = document.createElement('div');
+            modal.style.position = 'fixed';
+            modal.style.top = '50%';
+            modal.style.left = '50%';
+            modal.style.transform = 'translate(-50%, -50%)';
+            modal.style.background = 'white';
+            modal.style.padding = '20px';
+            modal.style.border = '1px solid #ddd';
+            modal.style.borderRadius = '4px';
+            modal.style.zIndex = '10000';
+            modal.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+            
+            modal.innerHTML = `
+                <h3 style="margin-top: 0;">Choose the group to keep:</h3>
+                <div id="mergeGroupSelect"></div>
+                <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end;">
+                    <button id="mergeCancelBtn" style="padding: 8px 16px; background: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">Cancel</button>
+                    <button id="mergeConfirmBtn" style="padding: 8px 16px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer;">Merge</button>
+                </div>
+            `;
+            
+            const selectContainer = modal.querySelector('#mergeGroupSelect');
+            selectContainer.appendChild(select);
+            
+            document.body.appendChild(modal);
+            
+            return new Promise((resolve) => {
+                modal.querySelector('#mergeCancelBtn').onclick = () => {
+                    document.body.removeChild(modal);
+                    resolve(false);
+                };
+                
+                modal.querySelector('#mergeConfirmBtn').onclick = async () => {
+                    const targetGroupId = parseInt(select.value);
+                    const losingGroupIds = selected.filter(id => String(id) !== String(targetGroupId));
+                    
+                    document.body.removeChild(modal);
+                    
+                    try {
+                        const courseId = getCurrentCourseId();
+                        if (!courseId) {
+                            alert('No course selected');
+                            resolve(false);
+                            return;
+                        }
+                        
+                        for (const tabName of ['assignments', 'quizzes', 'discussions']) {
+                            if (!originalData[tabName]) continue;
+                            
+                            for (const itemId in originalData[tabName]) {
+                                const item = originalData[tabName][itemId];
+                                if (losingGroupIds.includes(item.assignment_group_id)) {
+                                    try {
+                                        const endpoint = `/canvas/courses/${courseId}/${tabName}/${itemId}`;
+                                        await fetch(endpoint, {
+                                            method: 'PUT',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ assignment_group_id: targetGroupId })
+                                        });
+                                    } catch (error) {
+                                        console.error(`Failed to update ${tabName} ${itemId}:`, error);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        for (const losingId of losingGroupIds) {
+                            try {
+                                await fetch(`/canvas/courses/${courseId}/assignment_groups/${losingId}`, {
+                                    method: 'DELETE'
+                                });
+                            } catch (error) {
+                                console.error(`Failed to delete group ${losingId}:`, error);
+                            }
+                        }
+                        
+                        const response = await fetch(`/canvas/courses/${courseId}/assignment_groups`);
+                        if (response.ok) {
+                            assignmentGroups = await response.json();
+                            renderModalTable();
+                            updateMergeButtonState();
+                            updateTotalWeightDisplay();
+                            
+                            for (const tabName of ['assignments', 'quizzes', 'discussions']) {
+                                if (originalData[tabName]) {
+                                    const tabButton = document.querySelector(`[onclick*="loadTabData('${tabName}')"]`);
+                                    if (tabButton) {
+                                        loadTabData(tabName);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        resolve(true);
+                    } catch (error) {
+                        alert(`Error merging groups: ${error.message}`);
+                        resolve(false);
+                    }
+                };
+            });
+        }
+
+        async function saveAssignmentGroups() {
+            const tbody = document.getElementById('modalAssignmentGroupsTableBody');
+            if (!tbody) return;
+            
+            const courseId = getCurrentCourseId();
+            if (!courseId) {
+                alert('No course selected');
+                return;
+            }
+            
+            const rows = tbody.querySelectorAll('tr');
+            const updates = [];
+            const creates = [];
+            
+            rows.forEach(row => {
+                const itemId = row.querySelector('[data-item-id]')?.getAttribute('data-item-id');
+                if (!itemId) return;
+                
+                const nameCell = row.querySelector('[data-field="name"]');
+                const weightCell = row.querySelector('[data-field="group_weight"]');
+                
+                const nameInput = nameCell?.querySelector('input');
+                const weightInput = weightCell?.querySelector('input');
+                
+                const newName = nameInput ? nameInput.value.trim() : '';
+                const newWeight = weightInput ? parseFloat(weightInput.value) || 0 : 0;
+                
+                if (String(itemId).startsWith('new-')) {
+                    if (newName) {
+                        creates.push({
+                            name: newName,
+                            group_weight: newWeight
+                        });
+                    }
+                } else {
+                    const originalGroup = assignmentGroups.find(g => g.id == itemId);
+                    if (!originalGroup) return;
+                    
+                    if (newName !== originalGroup.name || newWeight !== (originalGroup.group_weight || 0)) {
+                        updates.push({
+                            id: itemId,
+                            name: newName,
+                            group_weight: newWeight
+                        });
+                    }
+                }
+            });
+            
+            if (updates.length === 0 && creates.length === 0) {
+                closeModal('assignmentGroupModal');
+                return;
+            }
+            
+            try {
+                for (const create of creates) {
+                    const response = await fetch(`/canvas/courses/${courseId}/assignment_groups`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: create.name,
+                            group_weight: create.group_weight
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed to create group: ${response.status}`);
+                    }
+                    
+                    const newGroup = await response.json();
+                    assignmentGroups.push(newGroup);
+                    
+                    if (pendingAssignmentGroupCreation) {
+                        const { itemId, tabName } = pendingAssignmentGroupCreation;
+                        const fieldName = 'assignment_group_id';
+                        
+                        if (!changes[tabName]) changes[tabName] = {};
+                        if (!changes[tabName][itemId]) changes[tabName][itemId] = {};
+                        changes[tabName][itemId][fieldName] = newGroup.id;
+                        
+                        const table = document.getElementById(`${tabName}Table`);
+                        if (table) {
+                            const cell = table.querySelector(`[data-item-id="${itemId}"][data-field="${fieldName}"]`);
+                            if (cell) {
+                                const fieldDefs = FIELD_DEFINITIONS[tabName];
+                                const fieldDef = fieldDefs ? fieldDefs.find(f => f.key === fieldName) : null;
+                                displayCellValue(cell, tabName, itemId, fieldName, newGroup.id, 'select', fieldDef);
+                            }
+                        }
+                        
+                        pendingAssignmentGroupCreation = null;
+                    }
+                }
+                
+                for (const update of updates) {
+                    const response = await fetch(`/canvas/courses/${courseId}/assignment_groups/${update.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: update.name,
+                            group_weight: update.group_weight
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed to update group ${update.id}: ${response.status}`);
+                    }
+                    
+                    const updatedGroup = await response.json();
+                    const index = assignmentGroups.findIndex(g => g.id === update.id);
+                    if (index !== -1) {
+                        assignmentGroups[index] = updatedGroup;
+                    }
+                }
+                
+                const refreshResponse = await fetch(`/canvas/courses/${courseId}/assignment_groups`);
+                if (refreshResponse.ok) {
+                    assignmentGroups = await refreshResponse.json();
+                }
+                
+                renderModalTable();
+                updateMergeButtonState();
+                updateTotalWeightDisplay();
+                
+                closeModal('assignmentGroupModal');
+            } catch (error) {
+                alert(`Error saving assignment groups: ${error.message}`);
+            }
+        }
+
+        async function saveAssignmentGroup() {
+            if (!pendingAssignmentGroupCreation) return;
+            
+            const nameInput = document.getElementById('assignmentGroupName');
+            const weightInput = document.getElementById('assignmentGroupWeight');
+            const modal = document.getElementById('assignmentGroupModal');
+            
+            if (!nameInput || !nameInput.value.trim()) {
+                alert('Please enter a group name');
+                return;
+            }
+            
+            const groupName = nameInput.value.trim();
+            const groupWeight = parseFloat(weightInput.value) || 0;
+            const courseId = getCurrentCourseId();
+            
+            if (!courseId) {
+                alert('No course selected');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/canvas/courses/${courseId}/assignment_groups`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: groupName,
+                        group_weight: groupWeight
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to create assignment group: ${response.status} - ${errorText}`);
+                }
+                
+                const newGroup = await response.json();
+                assignmentGroups.push(newGroup);
+                
+                const { itemId, tabName } = pendingAssignmentGroupCreation;
+                const fieldName = 'assignment_group_id';
+                
+                if (!changes[tabName]) changes[tabName] = {};
+                if (!changes[tabName][itemId]) changes[tabName][itemId] = {};
+                changes[tabName][itemId][fieldName] = newGroup.id;
+                
+                const table = document.getElementById(`${tabName}Table`);
+                if (table) {
+                    const cell = table.querySelector(`[data-item-id="${itemId}"][data-field="${fieldName}"]`);
+                    if (cell) {
+                        const fieldDefs = FIELD_DEFINITIONS[tabName];
+                        const fieldDef = fieldDefs ? fieldDefs.find(f => f.key === fieldName) : null;
+                        displayCellValue(cell, tabName, itemId, fieldName, newGroup.id, 'select', fieldDef);
+                    }
+                }
+                
+                if (modal) {
+                    modal.classList.remove('active');
+                    document.body.style.overflow = '';
+                }
+                
+                pendingAssignmentGroupCreation = null;
+                
+                if (nameInput) nameInput.value = '';
+                if (weightInput) weightInput.value = '';
+            } catch (error) {
+                alert(`Error creating assignment group: ${error.message}`);
+            }
         }
 
         function displayCellValue(cell, tabName, itemId, fieldName, value, fieldType, fieldDef = null) {

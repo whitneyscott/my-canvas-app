@@ -320,10 +320,15 @@ export class CanvasService {
     }
   }
 
-  async createAssignmentGroup(courseId: number, name: string) {
+  async createAssignmentGroup(courseId: number, name: string, groupWeight?: number) {
     try {
       const { token, baseUrl } = await this.getAuthHeaders();
       const url = `${baseUrl}/courses/${courseId}/assignment_groups`;
+      
+      const body: any = { name: name };
+      if (groupWeight !== undefined) {
+        body.group_weight = groupWeight;
+      }
       
       const response = await fetch(url, {
         method: 'POST',
@@ -331,9 +336,7 @@ export class CanvasService {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          name: name,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -346,6 +349,67 @@ export class CanvasService {
       return result;
     } catch (error: any) {
       console.error(`[Service] Error creating assignment group:`, error);
+      throw error;
+    }
+  }
+
+  async updateAssignmentGroup(courseId: number, groupId: number, updates: { name?: string; group_weight?: number }) {
+    try {
+      const { token, baseUrl } = await this.getAuthHeaders();
+      const url = `${baseUrl}/courses/${courseId}/assignment_groups/${groupId}`;
+      
+      const body: any = {};
+      if (updates.name !== undefined) {
+        body.name = updates.name;
+      }
+      if (updates.group_weight !== undefined) {
+        body.group_weight = updates.group_weight;
+      }
+      
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Canvas API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log(`[Service] Updated assignment group ${groupId}`);
+      return result;
+    } catch (error: any) {
+      console.error(`[Service] Error updating assignment group:`, error);
+      throw error;
+    }
+  }
+
+  async deleteAssignmentGroup(courseId: number, groupId: number) {
+    try {
+      const { token, baseUrl } = await this.getAuthHeaders();
+      const url = `${baseUrl}/courses/${courseId}/assignment_groups/${groupId}`;
+      
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Canvas API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      console.log(`[Service] Deleted assignment group ${groupId}`);
+      return { success: true };
+    } catch (error: any) {
+      console.error(`[Service] Error deleting assignment group:`, error);
       throw error;
     }
   }
@@ -403,6 +467,185 @@ export class CanvasService {
     const { token, baseUrl } = await this.getAuthHeaders();
     const url = `${baseUrl}/courses/${courseId}/modules?per_page=100&include[]=items`;
     return await this.fetchPaginatedData(url, token);
+  }
+
+  async getCourseFiles(courseId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const url = `${baseUrl}/courses/${courseId}/files?per_page=100`;
+    const files = await this.fetchPaginatedData(url, token);
+    
+    const foldersUrl = `${baseUrl}/courses/${courseId}/folders?per_page=100`;
+    const folders = await this.fetchPaginatedData(foldersUrl, token);
+    const folderMap = new Map<number, string>();
+    
+    folders.forEach((folder: any) => {
+      if (folder.id && folder.full_name) {
+        folderMap.set(folder.id, folder.full_name);
+      }
+    });
+    
+    const filesWithUsage = await Promise.all(
+      files.map(async (file) => {
+        const usage = await this.getFileUsage(courseId, file.id);
+        const folderPath = file.folder_id ? (folderMap.get(file.folder_id) || 'Unknown') : 'Root';
+        return { ...file, usage, folder_path: folderPath, is_folder: false };
+      })
+    );
+    
+    const foldersWithCounts = await Promise.all(
+      folders.map(async (folder: any) => {
+        let fileCount = folder.files_count || 0;
+        let folderCount = 0;
+        
+        try {
+          const subfoldersUrl = `${baseUrl}/folders/${folder.id}/folders?per_page=100`;
+          const subfolders = await this.fetchPaginatedData(subfoldersUrl, token);
+          folderCount = subfolders.length;
+        } catch (error) {
+          console.error(`[Service] Error fetching subfolders for folder ${folder.id}:`, error);
+        }
+        
+        const itemCount = fileCount + folderCount;
+        const folderPath = folder.parent_folder_id ? (folderMap.get(folder.parent_folder_id) || 'Unknown') : 'Root';
+        
+        return {
+          id: folder.id,
+          display_name: folder.name,
+          filename: folder.name,
+          folder: true,
+          is_folder: true,
+          content_type: 'folder',
+          size: null,
+          modified_at: folder.updated_at || folder.created_at,
+          folder_path: folderPath,
+          folder_id: folder.parent_folder_id,
+          usage: [],
+          item_count: itemCount,
+          file_count: fileCount,
+          folder_count: folderCount
+        };
+      })
+    );
+    
+    return [...filesWithUsage, ...foldersWithCounts];
+  }
+
+  private async getFileUsage(courseId: number, fileId: number): Promise<Array<{ type: string; id: number; title: string }>> {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const usage: Array<{ type: string; id: number; title: string }> = [];
+    
+    try {
+      const fileUrl = `${baseUrl}/files/${fileId}`;
+      const fileResponse = await fetch(fileUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!fileResponse.ok) return usage;
+      
+      const fileData = await fileResponse.json();
+      const fileUrlPattern = fileData.url ? new RegExp(fileData.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi') : null;
+      const fileIdPattern = new RegExp(`/files/${fileId}`, 'gi');
+      
+      const [assignments, quizzes, pages, discussions] = await Promise.all([
+        this.fetchPaginatedData(`${baseUrl}/courses/${courseId}/assignments?per_page=100`, token).catch(() => []),
+        this.fetchPaginatedData(`${baseUrl}/courses/${courseId}/quizzes?per_page=100`, token).catch(() => []),
+        this.fetchPaginatedData(`${baseUrl}/courses/${courseId}/pages?per_page=100`, token).catch(() => []),
+        this.fetchPaginatedData(`${baseUrl}/courses/${courseId}/discussions?per_page=100`, token).catch(() => []),
+      ]);
+      
+      assignments.forEach((assignment: any) => {
+        const content = (assignment.description || assignment.instructions || '').toLowerCase();
+        const matchesUrl = fileUrlPattern ? fileUrlPattern.test(content) : false;
+        if (matchesUrl || fileIdPattern.test(content)) {
+          usage.push({ type: 'Assignment', id: assignment.id, title: assignment.name || assignment.title || 'Untitled' });
+        }
+      });
+      
+      quizzes.forEach((quiz: any) => {
+        const content = (quiz.description || '').toLowerCase();
+        const matchesUrl = fileUrlPattern ? fileUrlPattern.test(content) : false;
+        if (matchesUrl || fileIdPattern.test(content)) {
+          usage.push({ type: 'Quiz', id: quiz.id, title: quiz.title || 'Untitled' });
+        }
+      });
+      
+      pages.forEach((page: any) => {
+        const content = (page.body || '').toLowerCase();
+        const matchesUrl = fileUrlPattern ? fileUrlPattern.test(content) : false;
+        if (matchesUrl || fileIdPattern.test(content)) {
+          usage.push({ type: 'Page', id: page.page_id, title: page.title || page.url || 'Untitled' });
+        }
+      });
+      
+      discussions.forEach((discussion: any) => {
+        const content = (discussion.message || '').toLowerCase();
+        const matchesUrl = fileUrlPattern ? fileUrlPattern.test(content) : false;
+        if (matchesUrl || fileIdPattern.test(content)) {
+          usage.push({ type: 'Discussion', id: discussion.id, title: discussion.title || 'Untitled' });
+        }
+      });
+    } catch (error) {
+      console.error(`[Service] Error checking file usage for file ${fileId}:`, error);
+    }
+    
+    return usage;
+  }
+
+  async bulkDeleteFiles(courseId: number, fileIds: number[], isFolders: boolean[] = []) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const results: Array<{ fileId: number; success: boolean; error?: string }> = [];
+
+    for (let i = 0; i < fileIds.length; i++) {
+      const fileId = fileIds[i];
+      const isFolder = isFolders[i] || false;
+      
+      try {
+        const url = isFolder ? `${baseUrl}/folders/${fileId}` : `${baseUrl}/files/${fileId}`;
+        const response = await fetch(url, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to delete ${isFolder ? 'folder' : 'file'} ${fileId}: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+
+        results.push({ fileId, success: true });
+      } catch (error: any) {
+        console.error(`[Service] Error deleting ${isFolder ? 'folder' : 'file'} ${fileId}:`, error);
+        results.push({ fileId, success: false, error: error.message });
+      }
+    }
+
+    return results;
+  }
+
+  async renameFile(courseId: number, fileId: number, newName: string) {
+    try {
+      const { token, baseUrl } = await this.getAuthHeaders();
+      const url = `${baseUrl}/files/${fileId}`;
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Canvas API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log(`[Service] Renamed file ${fileId} to ${newName}`);
+      return result;
+    } catch (error: any) {
+      console.error(`[Service] Error renaming file ${fileId}:`, error);
+      throw error;
+    }
   }
 
   async getCourseAccommodations(courseId: number) {
@@ -977,13 +1220,15 @@ export class CanvasService {
     
     console.log(`Updating module ${moduleId} with:`, cleanedUpdates);
     
+    const requestBody = { module: cleanedUpdates };
+    
     const response = await fetch(`${baseUrl}/courses/${courseId}/modules/${moduleId}`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(cleanedUpdates),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -1663,6 +1908,44 @@ export class CanvasService {
     return await response.json();
   }
 
+  async getAssignmentOverrides(courseId: number, assignmentId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const url = `${baseUrl}/courses/${courseId}/assignments/${assignmentId}/overrides`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Canvas API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  async deleteAssignmentOverride(courseId: number, assignmentId: number, overrideId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const url = `${baseUrl}/courses/${courseId}/assignments/${assignmentId}/overrides/${overrideId}`;
+    
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Canvas API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
   async createAssignmentOverride(courseId: number, assignmentId: number, override: { student_ids?: number[]; due_at?: string; unlock_at?: string; lock_at?: string }) {
     const { token, baseUrl } = await this.getAuthHeaders();
     const url = `${baseUrl}/courses/${courseId}/assignments/${assignmentId}/overrides`;
@@ -1799,5 +2082,67 @@ export class CanvasService {
     }
 
     return await response.json();
+  }
+
+  async getModuleItems(courseId: number, moduleId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const url = `${baseUrl}/courses/${courseId}/modules/${moduleId}/items?per_page=100`;
+    
+    try {
+      const items = await this.fetchPaginatedData(url, token);
+      console.log(`[Service] Retrieved ${items.length} items for module ${moduleId} in course ${courseId}`);
+      return items;
+    } catch (error: any) {
+      console.error(`[Service] Error in getModuleItems for module ${moduleId} in course ${courseId}:`, error);
+      throw error;
+    }
+  }
+
+  async deleteModuleItem(courseId: number, item: { type: string; content_id: number | string; title?: string }) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    
+    try {
+      let deleteUrl: string;
+      
+      if (item.type === 'Assignment') {
+        deleteUrl = `${baseUrl}/courses/${courseId}/assignments/${item.content_id}`;
+      } else if (item.type === 'Quiz') {
+        deleteUrl = `${baseUrl}/courses/${courseId}/quizzes/${item.content_id}`;
+      } else if (item.type === 'Page') {
+        deleteUrl = `${baseUrl}/courses/${courseId}/pages/${encodeURIComponent(item.content_id as string)}`;
+      } else if (item.type === 'Discussion') {
+        deleteUrl = `${baseUrl}/courses/${courseId}/discussion_topics/${item.content_id}`;
+      } else if (item.type === 'File' || item.type === 'Attachment') {
+        deleteUrl = `${baseUrl}/courses/${courseId}/files/${item.content_id}`;
+      } else {
+        throw new Error(`Unsupported module item type: ${item.type}`);
+      }
+      
+      const response = await fetch(deleteUrl, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to delete ${item.type} ${item.content_id}: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      if (response.status === 204) {
+        return { success: true, type: item.type, content_id: item.content_id };
+      }
+      
+      try {
+        const result = await response.json();
+        return { success: true, type: item.type, content_id: item.content_id, result };
+      } catch {
+        return { success: true, type: item.type, content_id: item.content_id };
+      }
+    } catch (error: any) {
+      console.error(`[Service] Error deleting module item ${item.type} ${item.content_id}:`, error);
+      throw error;
+    }
   }
 }

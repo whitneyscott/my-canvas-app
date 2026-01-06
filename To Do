@@ -1,32 +1,40 @@
+1. Accommodations System Updates
+   1. Make it smarter: If no students have accommodations, prompt user to set student accommodations up first.
+   3. Add prompt - check if the assignment uses LPI tools. If it does ask if should add "UPDATE SOURCE MATERIALS" to the title
+   4. Assignments: Detect if students have specific accommodations and fill in checkboxes for those and add (_ students have this accommodation setting beside each option) - exclude "extra attempt" and add "this is typically applied only to quizzes". Quizzes - automatically check all applicable boxes.
+   5. If we cannot fix the "Everyone else" issue within one hour, switch to adding a prompt "The developer has been unable to automate this step.Please manually delete the 'Everyone else' Assign to setting. Click "Open Assignment" button (insert the assignment link here) and click the "Assign to" button. Delete the extra setting. IF WE GO THIS ROUTE DO NOT ALLOW MULTIPLE ASSIGNMENTS TO PROCEED UNTIL THE USER COMPLETES IT. After clicking the button, create another one with "NEXT" It will check for "everyone else" in the assignment. If it was correctly removed, proceed to next assignment. 
+   
 2. Implement spreadsheet style interaction 
    4. Arrow selection logic - postpone. Not worth fixing now. When I find users really want it, migrate to using AG grid.
-   5. Paste to multiple cells - Handle paste events, detect selected cells, apply pasted value to all selected cells, support both single value and tab-separated multi-cell paste.
 
 3. Create persistent sidebar with bulk operations:
-   1. Sidebar contains current editing options and multiselect list of column headers.
-   2. "Apply Edits" button for bulk operations on selected columns.
+   1. "Apply Edits" button for bulk operations on selected columns.
    3. Bulk column visibility controls (show/hide multiple columns at once).
    4. Column selection for bulk editing operations. Maybe.
-   5. Add a Delete option to remove items from Canvas
-   6. Add a Duplicate option to add items to Canvas
-   7. A field to type text to add to one or more cells
-   8. Hide and show cells (Nested, Select all, and select groups:Dates, Editables, Read-Only or select individually)
+   7. A field to type text to add to one or more cells with "Insert" button
+3.5. Delete module - add option to also delete all items within the module - the reverse of "Deep clone". This is "Deep clean"
 
 4. Add tabs
    1. Assignment Groups
    2. Module Items
-   3. Files?
-   4. Course management - change names of multiple courses, add icons, change settings to be the same (home page, Start Here module, etc.)
-   5. Course audit
+   3. Files
+   4. Course management
+   5. Rubrics 
+   6. Outcomes
+   
+5. Automatically load the data for whatever sheet is open when a course is selected
+6. Add Ctrl+Z for undo?
+8. Assignment, quizzes, others - add a settings link. Click it and open up an editor for the specific one. I'm not really sure what I mean here...
+9. Remove classic quizzes from Assignments tab?????
+
+## V2 features
+1. Course audit
       1. Check all images for alt tags and suggest them using AI where missing
       2. Find broken links and suggest substitutes
       3. Fix all other issues automatically from the page auditor checks.
       4. Standards compliance
-   6. Rubrics
-   7. Outcomes alignment
-5. Automatically load the data for whatever sheet is open when a course is selected
-6. Add Ctrl+Z for undo? 
-7. Module duplication: Options to just make a copy or to duplicate specific items or all items in the module.
+      5. Outcomes alignment
+   
 
 
    Since you are building a tool designed to integrate with Canvas, your distribution strategy needs to balance **security** (protecting those API keys), **accessibility** (how teachers open the app), and **maintenance** (how you push updates).

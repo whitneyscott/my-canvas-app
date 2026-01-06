@@ -55,9 +55,26 @@ export class CanvasController {
   @Post('courses/:id/assignment_groups')
   async createAssignmentGroup(
     @Param('id', ParseIntPipe) courseId: number,
-    @Body() body: { name: string }
+    @Body() body: { name: string; group_weight?: number }
   ) {
-    return this.canvasService.createAssignmentGroup(courseId, body.name);
+    return this.canvasService.createAssignmentGroup(courseId, body.name, body.group_weight);
+  }
+
+  @Put('courses/:courseId/assignment_groups/:id')
+  async updateAssignmentGroup(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updates: { name?: string; group_weight?: number }
+  ) {
+    return this.canvasService.updateAssignmentGroup(courseId, id, updates);
+  }
+
+  @Delete('courses/:courseId/assignment_groups/:id')
+  async deleteAssignmentGroup(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id', ParseIntPipe) id: number
+  ) {
+    return this.canvasService.deleteAssignmentGroup(courseId, id);
   }
 
   @Get('courses/:id/discussions')
@@ -78,6 +95,11 @@ export class CanvasController {
   @Get('courses/:id/modules')
   async getCourseModules(@Param('id', ParseIntPipe) id: number) {
     return this.canvasService.getCourseModules(id);
+  }
+
+  @Get('courses/:id/files')
+  async getCourseFiles(@Param('id', ParseIntPipe) id: number) {
+    return this.canvasService.getCourseFiles(id);
   }
 
   @Get('courses/:id/accommodations')
@@ -423,6 +445,23 @@ export class CanvasController {
     return this.canvasService.createQuizExtensions(courseId, quizId, body.quiz_extensions);
   }
 
+  @Get('courses/:courseId/assignments/:assignmentId/overrides')
+  async getAssignmentOverrides(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('assignmentId', ParseIntPipe) assignmentId: number
+  ) {
+    return this.canvasService.getAssignmentOverrides(courseId, assignmentId);
+  }
+
+  @Delete('courses/:courseId/assignments/:assignmentId/overrides/:overrideId')
+  async deleteAssignmentOverride(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('assignmentId', ParseIntPipe) assignmentId: number,
+    @Param('overrideId', ParseIntPipe) overrideId: number
+  ) {
+    return this.canvasService.deleteAssignmentOverride(courseId, assignmentId, overrideId);
+  }
+
   @Post('courses/:courseId/assignments/:assignmentId/overrides')
   async createAssignmentOverride(
     @Param('courseId', ParseIntPipe) courseId: number,
@@ -439,5 +478,43 @@ export class CanvasController {
     @Body() body: Record<string, any>
   ) {
     return this.canvasService.createModuleItem(courseId, moduleId, body);
+  }
+
+  @Get('courses/:courseId/modules/:moduleId/items')
+  async getModuleItems(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('moduleId', ParseIntPipe) moduleId: number
+  ) {
+    return this.canvasService.getModuleItems(courseId, moduleId);
+  }
+
+  @Delete('courses/:courseId/modules/:moduleId/items/:itemId')
+  async deleteModuleItem(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('moduleId', ParseIntPipe) moduleId: number,
+    @Param('itemId') itemId: string,
+    @Body() body: { type: string; content_id: number | string }
+  ) {
+    return this.canvasService.deleteModuleItem(courseId, {
+      type: body.type,
+      content_id: body.content_id,
+    });
+  }
+
+  @Delete('courses/:id/files/bulk')
+  async bulkDeleteFiles(
+    @Param('id', ParseIntPipe) courseId: number,
+    @Body() body: { fileIds: number[]; isFolders?: boolean[] }
+  ) {
+    return this.canvasService.bulkDeleteFiles(courseId, body.fileIds, body.isFolders || []);
+  }
+
+  @Put('courses/:id/files/:fileId')
+  async renameFile(
+    @Param('id', ParseIntPipe) courseId: number,
+    @Param('fileId', ParseIntPipe) fileId: number,
+    @Body() body: { name: string }
+  ) {
+    return this.canvasService.renameFile(courseId, fileId, body.name);
   }
 }
