@@ -7,7 +7,11 @@ import { AutomatedTestModule } from './automated-test/automated-test.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }), // Add this line
+    ConfigModule.forRoot({ 
+      isGlobal: true,
+      envFilePath: '.env',
+      expandVariables: true
+    }),
     AutomatedTestModule,
   ],
   controllers: [AppController, CanvasController],

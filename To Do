@@ -1,31 +1,35 @@
+
 1. Accommodations System Updates
-   1. Make it smarter: If no students have accommodations, prompt user to set student accommodations up first.
-   3. Add prompt - check if the assignment uses LPI tools. If it does ask if should add "UPDATE SOURCE MATERIALS" to the title
-   4. Assignments: Detect if students have specific accommodations and fill in checkboxes for those and add (_ students have this accommodation setting beside each option) - exclude "extra attempt" and add "this is typically applied only to quizzes". Quizzes - automatically check all applicable boxes.
-   5. If we cannot fix the "Everyone else" issue within one hour, switch to adding a prompt "The developer has been unable to automate this step.Please manually delete the 'Everyone else' Assign to setting. Click "Open Assignment" button (insert the assignment link here) and click the "Assign to" button. Delete the extra setting. IF WE GO THIS ROUTE DO NOT ALLOW MULTIPLE ASSIGNMENTS TO PROCEED UNTIL THE USER COMPLETES IT. After clicking the button, create another one with "NEXT" It will check for "everyone else" in the assignment. If it was correctly removed, proceed to next assignment. 
-   
-2. Implement spreadsheet style interaction 
-   4. Arrow selection logic - postpone. Not worth fixing now. When I find users really want it, migrate to using AG grid.
+   1. Add prompt - check if the assignment uses LPI tools. If it does ask if should add "UPDATE SOURCE MATERIALS" to the title
+   2. If we cannot fix the "Everyone else" issue within one hour, switch to adding a prompt "The developer has been unable to automate this step.Please manually delete the 'Everyone else' Assign to setting. Click "Open Assignment" button (insert the assignment link here) and click the "Assign to" button. Delete the extra setting. IF WE GO THIS ROUTE DO NOT ALLOW MULTIPLE ASSIGNMENTS TO PROCEED UNTIL THE USER COMPLETES IT. After clicking the button, create another one with "NEXT" It will check for "everyone else" in the assignment. If it was correctly removed, proceed to next assignment.
+   3. To make comply with FERPA
+      a. Same list of students, but just ids
+      b. Just add a custom gradebook column
+2. Change Assignment Groups in Quizzes, Discussions, Assignments to show name of group
+3. Make tabs look more like tabs
+4. Restore bulk editors
+   a. Search and replace
+   b. Publish
+   c. Insert and Paste
+   d. Merge
+   e. Delete
+   f. clone
+   g. Assign to
+      1. everyone
+      2. no one
+      3. Student ids
+   h. Show/Hide columns
+   i. Date shift
 
-3. Create persistent sidebar with bulk operations:
-   1. "Apply Edits" button for bulk operations on selected columns.
-   3. Bulk column visibility controls (show/hide multiple columns at once).
-   4. Column selection for bulk editing operations. Maybe.
-   7. A field to type text to add to one or more cells with "Insert" button
-3.5. Delete module - add option to also delete all items within the module - the reverse of "Deep clone". This is "Deep clean"
 
-4. Add tabs
-   1. Assignment Groups
-   2. Module Items
-   3. Files
+5. Add tabs
+   1. Module Items
    4. Course management
    5. Rubrics 
    6. Outcomes
    
-5. Automatically load the data for whatever sheet is open when a course is selected
-6. Add Ctrl+Z for undo?
-8. Assignment, quizzes, others - add a settings link. Click it and open up an editor for the specific one. I'm not really sure what I mean here...
-9. Remove classic quizzes from Assignments tab?????
+6. Assignment, quizzes, others - add a settings link. Click it and open up an editor for the specific one. I'm not really sure what I mean here...
+7. Remove classic quizzes from Assignments tab?????
 
 ## V2 features
 1. Course audit
@@ -34,6 +38,17 @@
       3. Fix all other issues automatically from the page auditor checks.
       4. Standards compliance
       5. Outcomes alignment
+2. Increase power of the duplicate/unused file finder
+   1. Add more endpoints to check
+      1. Quizzes
+      2. Assignments
+      3. Discussions
+   2. Add data storage to preserve files to keep even thought they are empty - store it in Canvas in a specific file
+3. App settings
+   1. Themes
+   2. API key
+   3. Base URL
+   4. Other?
    
 
 

@@ -12,6 +12,8 @@ $itemsToBackup = Get-ChildItem -Path . -Force | Where-Object {
     $_.Name -notlike "node_modules" -and
     $_.Name -notlike "dist" -and
     $_.Name -notlike "backup-*" -and
+    $_.Name -notlike "FULL-BACKUP-*" -and
+    $_.Name -notlike "Backups" -and
     $_.Name -ne ".git"
 }
 
