@@ -17,41 +17,57 @@ body, html {
     width: 100vw;
 }
 
-/* Sidebar Styling */
+/* Sidebar Styling - Adjusted for Folder Tabs */
 .sidebar {
-    width: 220px;
+    width: 240px;
     background-color: #2c3e50;
     display: flex;
     flex-direction: column;
-    padding: 15px 10px;
+    padding: 15px 0 15px 10px;
     box-shadow: 2px 0 5px rgba(0,0,0,0.1);
     z-index: 10;
 }
 
+.sidebar-header {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #95a5a6;
+    margin: 15px 0 8px 5px;
+    font-weight: bold;
+}
+
+/* Spreadsheet/Folder Style Tabs */
 .tab-btn {
     padding: 12px 15px;
-    margin-bottom: 8px;
+    margin-bottom: 2px;
     cursor: pointer;
-    background: transparent;
-    color: #bdc3c7;
-    border: 1px solid #34495e;
-    border-radius: 6px;
+    background: #1e2b37;
+    color: #95a5a6;
+    border: 1px solid #1a252f;
+    border-right: none;
+    border-radius: 8px 0 0 8px;
     text-align: left;
     font-size: 14px;
     font-weight: 500;
     transition: all 0.2s ease;
+    position: relative;
 }
 
 .tab-btn:hover {
     background-color: #34495e;
     color: white;
+    padding-left: 20px;
 }
 
 .tab-btn.active {
-    background-color: #3498db;
-    border-color: #3498db;
-    color: white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    background-color: #ffffff;
+    border-color: #d1d5db;
+    color: #2c3e50;
+    font-weight: 700;
+    width: calc(100% + 1px);
+    z-index: 11;
+    box-shadow: -2px 2px 4px rgba(0,0,0,0.1);
 }
 
 /* Main Content Area */
@@ -61,6 +77,8 @@ body, html {
     flex-direction: column;
     background-color: #ffffff;
     overflow: hidden;
+    border-left: 1px solid #d1d5db;
+    position: relative;
 }
 
 /* Toolbar Styling */
@@ -101,7 +119,37 @@ body, html {
     background-color: #2ecc71;
 }
 
-/* AG Grid Customization (Quartz Theme) */
+.secondary-btn {
+    padding: 8px 16px;
+    background-color: #95a5a6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.secondary-btn:hover {
+    background-color: #7f8c8d;
+}
+
+.refresh-btn {
+    padding: 8px 16px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.refresh-btn:hover {
+    background-color: #2980b9;
+}
+
+/* AG Grid Customization */
 #myGrid {
     flex: 1;
     width: 100%;
@@ -120,7 +168,7 @@ body, html {
     --ag-font-size: 14px;
 }
 
-/* Button Toggles in Grid Cells */
+/* Cell Elements */
 .btn-toggle {
     padding: 4px 12px;
     border-radius: 4px;
@@ -156,4 +204,258 @@ body, html {
     color: #95a5a6;
     font-size: 11px;
     text-transform: uppercase;
+}
+
+/* Bulk Actions / Native Details Styling */
+details.tool-group {
+    margin: 0 10px 5px 0;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+summary {
+    padding: 10px 15px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #ecf0f1;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    outline: none;
+}
+
+summary::-webkit-details-marker {
+    display: none;
+}
+
+summary:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+summary::after {
+    content: '▾';
+    color: #95a5a6;
+}
+
+details[open] summary::after {
+    content: '▴';
+}
+
+.group-content {
+    display: flex;
+    flex-direction: column;
+    padding: 5px;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.group-content button {
+    background: transparent;
+    border: none;
+    color: #bdc3c7;
+    text-align: left;
+    padding: 8px 15px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.group-content button:hover {
+    color: #3498db;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.sync-master-btn {
+    margin: 20px 10px 0 0;
+    background-color: #e67e22;
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.sync-master-btn:hover {
+    background-color: #d35400;
+}
+
+/* Bottom Tab Bar Container */
+.bottom-tab-bar {
+    display: flex;
+    background: #f1f4f6;
+    border-top: 1px solid #d1d5db;
+    padding-left: 20px;
+    height: 35px;
+    align-items: flex-end;
+}
+
+/* Individual Sheet Tab */
+.sheet-tab {
+    padding: 4px 20px;
+    background: #e2e8f0;
+    border: 1px solid #cbd5e1;
+    border-bottom: none;
+    margin-right: -1px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #475569;
+    border-radius: 0;
+    transition: background 0.2s;
+}
+
+.sheet-tab:hover {
+    background: #cbd5e1;
+}
+
+.sheet-tab.active {
+    background: #ffffff;
+    color: #2563eb;
+    font-weight: 600;
+    height: 36px;
+    margin-top: -1px;
+    position: relative;
+    z-index: 5;
+    border-top: 3px solid #2563eb;
+}
+
+/* Specific styling for PII module at bottom */
+.sheet-tab.pii-module {
+    border-left: 2px solid #e67e22;
+}
+
+/* Modal Core Logic */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    display: none; /* Controlled by .active class */
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal-content-wrapper {
+    background: white;
+    width: 450px;
+    max-width: 90%;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    display: none; /* Controlled by .active class */
+}
+
+.modal-content-wrapper.active {
+    display: block;
+}
+
+/* Header & Close Button */
+.modal-header {
+    position: relative;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    text-align: left;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: #2c3e50;
+}
+
+.close-x {
+    position: absolute;
+    top: -5px;
+    right: 0;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #95a5a6;
+    cursor: pointer;
+}
+
+/* Global Body Alignment */
+.modal-body {
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-body label {
+    display: block;
+    text-align: left;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+/* Radio and Checkbox Group Alignment */
+.radio-group, .checkbox-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 15px;
+    background: #f9f9f9;
+    padding: 12px;
+    border-radius: 4px;
+}
+
+/* Fix for label/input appearing on different rows */
+.radio-group div, 
+.checkbox-group div {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    gap: 10px;
+}
+
+/* Prevent inputs from stretching in horizontal layouts */
+.radio-group input[type="radio"],
+.checkbox-group input[type="checkbox"] {
+    width: auto !important;
+    margin: 0 !important;
+    flex-shrink: 0;
+}
+
+/* Override global block labels for inline options */
+.radio-group label, 
+.checkbox-group label {
+    display: inline;
+    margin: 0;
+    font-weight: 400;
+    cursor: pointer;
+    text-align: left;
+}
+
+/* Modal Footer */
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+/* Standard Inputs */
+.modal-body input[type="text"],
+.modal-body input[type="number"],
+.modal-body select,
+.modal-body textarea {
+    width: 100%;
+    text-align: left;
+    box-sizing: border-box;
+    padding: 8px;
+    border: 1px solid #babfc7;
+    border-radius: 4px;
+    margin-bottom: 12px;
 }

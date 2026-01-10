@@ -200,8 +200,7 @@ export class CanvasService {
     // Extract and format student data
     return allStudents.map((enrollment) => ({
       id: enrollment.user?.id || enrollment.user_id,
-      name: enrollment.user?.name || enrollment.user?.display_name || 'Unknown',
-      email: enrollment.user?.email || enrollment.user?.login_id || null,
+      email: enrollment.user?.email || null,
       sis_user_id: enrollment.user?.sis_user_id || null,
       enrollment_id: enrollment.id,
       enrollment_type: enrollment.type,
