@@ -1,55 +1,39 @@
 
+0. Add the merging functionality
+   1. Assignment groups
+   2. Modules
 1. Accommodations System Updates
+   Option 1:
    1. Add prompt - check if the assignment uses LPI tools. If it does ask if should add "UPDATE SOURCE MATERIALS" to the title
-   2. If we cannot fix the "Everyone else" issue within one hour, switch to adding a prompt "The developer has been unable to automate this step.Please manually delete the 'Everyone else' Assign to setting. Click "Open Assignment" button (insert the assignment link here) and click the "Assign to" button. Delete the extra setting. IF WE GO THIS ROUTE DO NOT ALLOW MULTIPLE ASSIGNMENTS TO PROCEED UNTIL THE USER COMPLETES IT. After clicking the button, create another one with "NEXT" It will check for "everyone else" in the assignment. If it was correctly removed, proceed to next assignment.
-   3. To make comply with FERPA
-      a. Same list of students, but just ids
-      b. Just add a custom gradebook column
-2. Change Assignment Groups in Quizzes, Discussions, Assignments to show name of group
-3. Make tabs look more like tabs
-4. Restore bulk editors
-   Group 1: Visibility Controls
-5. Hide/show toggles for columns
+   2. Use a start of semester quiz for students to self-select the accommodations.
+   3. Add a rubric - teacher completes it, checking DSSO approved or not approved
+   Option 2:
+   1. Bulk editor - create an assignment with the name that corresponds to each type of accommodation.
+   2. Teacher assigns students to each group based on DSSO accommodations
+   3. Bulk editor uses assigned to data to apply the accommodatons to assignments and quizzes
+2. check assignment groups in discussions and quizzes too... add visual indicator such as a dropdown icon
+4. Restore bulk editors: Access Exceptions left, add Assignment groups
 
-Publish/Unpublish: The binary master switch for content visibility.
-
-Group 2: Editor Appearance
-
-Show/Hide Columns: Managing grid "real estate" and column visibility.
-
-Group 3: Text Editing
-
-Search and Replace: Mass-updating titles, names, and labels.
-
-Insert and Paste: Handles "Tagging" (prepending/appending strings) and structural text movement.
-
-Group 4: Content Management
-
-Clone: Duplicating items within the course.
-
-Delete: Safety-latched bulk removal of content.
-
-Merge: Consolidating similar items into one.
-
-Group 5: Assessment & Value Settings
-
-Points/Weighting (New): Bulk scale adjustment (multiply/divide) of points_possible.
-
-Assign to: Toggling "Everyone" vs. Student IDs (using your modular PII approach).
-
-Date Shift: Bulk offsetting due/lock dates for the new semester.
-
-Accommodations: Managing custom gradebook columns and extra time settings.
-
-
-5. Add tabs
+6. leverage the tab refresh function, but make it universal an apply it with a controller so that the tabs refresh whenever the data is updated either fetched or confirmed updated within Canvas
+7. Add tabs
    1. Module Items
    4. Course management
    5. Rubrics 
    6. Outcomes
    
-6. Assignment, quizzes, others - add a settings link. Click it and open up an editor for the specific one. I'm not really sure what I mean here...
-7. Remove classic quizzes from Assignments tab?????
+7. Assignment, quizzes, others - add a settings link. Click it and open up an editor for the specific one. I'm not really sure what I mean here...
+8. Remove classic quizzes from Assignments tab?????
+9. Use this to create a course persistence thingy - can recreate all items from the data. The only possible exception being grades due to PII unless we also do those with SIS ID...
+10. Consolidate code: populate functions, others in the ChatGPT discussion
+
+Group 1: Access exceptions
+Group 2: Content Management
+Group 3: Date Management
+Group 4: Editor Appearance
+Group 5: Text Editing
+Group 6: Publish/Unpublish
+Group 7: Assignment Groups.... For bulk, but also have individual dropdowns. Remember to add "Create new"
+
 
 ## V2 features
 1. Course audit

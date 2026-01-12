@@ -1,152 +1,196 @@
+let assignmentGroupsCache = {};
+
 const FIELD_DEFINITIONS = {
-    announcements: [
-        { key: 'title', label: 'title', editable: true, type: 'text' },
-        { key: 'message', label: 'message', editable: false, type: 'html' },
-        { key: 'delayed_post_at', label: 'delayed_post_at', editable: true, type: 'date' },
-        { key: 'lock_at', label: 'lock_at', editable: true, type: 'date' },
-        { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
-    ],
-    assignments: [
-        { key: 'name', label: 'name', editable: true, type: 'text' },
-        { key: 'description', label: 'description', editable: false, type: 'html' },
-        { key: 'assignment_group_id', label: 'assignment_group_id', editable: true, type: 'number' },
-        { key: 'points_possible', label: 'points_possible', editable: true, type: 'number' },
-        { key: 'due_at', label: 'due_at', editable: true, type: 'date' },
-        { key: 'unlock_at', label: 'unlock_at', editable: true, type: 'date' },
-        { key: 'lock_at', label: 'lock_at', editable: true, type: 'date' },
-        { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
-    ],
-    discussions: [
-        { key: 'title', label: 'title', editable: true, type: 'text' },
-        { key: 'message', label: 'message', editable: false, type: 'html' },
-        { key: 'allow_rating', label: 'allow_rating', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
-        { key: 'delayed_post_at', label: 'delayed_post_at', editable: true, type: 'date' },
-        { key: 'lock_at', label: 'lock_at', editable: true, type: 'date' },
-        { key: 'unlock_at', label: 'unlock_at', editable: true, type: 'date' },
-        { key: 'due_at', label: 'due_at', editable: true, type: 'date' },
-        { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
-    ],
-    files: [
-        { key: 'display_name', label: 'display_name', editable: true, type: 'text' },
-        { key: 'locked', label: 'locked', editable: false, type: 'boolean', activeLabel: 'Locked', inactiveLabel: 'Visible' }
-    ],
-    modules: [
-        { key: 'name', label: 'name', editable: true, type: 'text' },
-        { key: 'position', label: 'position', editable: true, type: 'number' },
-        { key: 'unlock_at', label: 'unlock_at', editable: true, type: 'date' },
-        { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
-    ],
-    pages: [
-        { key: 'title', label: 'title', editable: true, type: 'text' },
-        { key: 'body', label: 'body', editable: false, type: 'html' },
-        { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
-    ],
-    quizzes: [
-        { key: 'title', label: 'title', editable: true, type: 'text' },
-        { key: 'description', label: 'description', editable: false, type: 'html' },
-        { key: 'assignment_group_id', label: 'assignment_group_id', editable: true, type: 'number' },
-        { key: 'time_limit', label: 'time_limit', editable: true, type: 'number' },
-        { key: 'allowed_attempts', label: 'allowed_attempts', editable: true, type: 'number' },
-        { key: 'due_at', label: 'due_at', editable: true, type: 'date' },
-        { key: 'unlock_at', label: 'unlock_at', editable: true, type: 'date' },
-        { key: 'lock_at', label: 'lock_at', editable: true, type: 'date' },
-        { key: 'show_correct_answers_at', label: 'show_correct_answers_at', editable: true, type: 'date' },
-        { key: 'hide_correct_answers_at', label: 'hide_correct_answers_at', editable: true, type: 'date' },
-        { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
-    ],
-    students: [
-        { key: 'sis_user_id', label: 'sis_user_id', editable: false, type: 'text' },
-        { key: 'accommodations', label: 'Accommodations', editable: false, type: 'accommodations' }
-    ]
-};
-
-let gridApi;
-let currentTab = 'assignments';
-let originalData = {};
-let changes = {};
-let selectedCourseId = null;
-
-const gridOptions = {
-    rowSelection: {
-        mode: 'multiRow',
-        selectAll: 'filtered',
-        headerCheckbox: true,
-        checkboxes: true,
-        enableClickSelection: false
+    assignments: {
+        displayName: 'Assignments',
+        endpoint: 'assignments',
+        fields: [
+            { key: 'name', label: 'name', editable: true, type: 'text' },
+            { key: 'description', label: 'description', editable: false, type: 'html' },
+            { key: 'assignment_group_id', label: 'assignment_group_id', editable: true, type: 'assignment_group_dropdown' },
+            { key: 'points_possible', label: 'points_possible', editable: true, type: 'number' },
+            { key: 'due_at', label: 'due_at', editable: true, type: 'date' },
+            { key: 'unlock_at', label: 'unlock_at', editable: true, type: 'date' },
+            { key: 'lock_at', label: 'lock_at', editable: true, type: 'date' },
+            { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
+        ]
     },
-    defaultColDef: {
-        flex: 1,
-        filter: 'agTextColumnFilter',
-        floatingFilter: true,
-        sortable: true,
-        resizable: true,
-        editable: true,
-        unSortIcon: true
+    discussion_topics: {
+        displayName: 'Discussions',
+        endpoint: 'discussion_topics',
+        fields: [
+            { key: 'title', label: 'title', editable: true, type: 'text' },
+            { key: 'message', label: 'message', editable: false, type: 'html' },
+            { key: 'allow_rating', label: 'allow_rating', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
+            { key: 'delayed_post_at', label: 'delayed_post_at', editable: true, type: 'date' },
+            { key: 'lock_at', label: 'lock_at', editable: true, type: 'date' },
+            { key: 'unlock_at', label: 'unlock_at', editable: true, type: 'date' },
+            { key: 'due_at', label: 'due_at', editable: true, type: 'date' },
+            { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
+        ]
     },
-    getRowStyle: params => {
-        if (params.data && params.data._edit_status === 'modified') {
-            return { 
-                backgroundColor: '#fff9c4', 
-                fontWeight: 'bold',
-                color: '#d35400'
-            };
-        }
-        return null;
+    files: {
+        displayName: 'Files',
+        endpoint: 'files',
+        fields: [
+            { key: 'display_name', label: 'display_name', editable: true, type: 'text' },
+            { key: 'locked', label: 'locked', editable: false, type: 'boolean', activeLabel: 'Locked', inactiveLabel: 'Visible' }
+        ]
     },
-    onCellValueChanged: (params) => {
-        if (params.colDef.field !== '_edit_status') {
-            params.node.setDataValue('_edit_status', 'modified');
-            const id = params.data.id || params.data.url;
-            trackChange(currentTab, id, params.colDef.field, params.newValue);
-            params.api.redrawRows({ rowNodes: [params.node] });
-        }
+    folders: {
+        displayName: 'Folders',
+        endpoint: 'folders',
+        fields: [
+            { key: 'name', label: 'name', editable: true, type: 'text' },
+            { key: 'parent_folder_id', label: 'parent_folder_id', editable: true, type: 'number' },
+            { key: 'lock_at', label: 'lock_at', editable: true, type: 'date' },
+            { key: 'unlock_at', label: 'unlock_at', editable: true, type: 'date' },
+            { key: 'locked', label: 'locked', editable: false, type: 'boolean', activeLabel: 'Locked', inactiveLabel: 'Visible' }
+        ]
+    },
+    modules: {
+        displayName: 'Modules',
+        endpoint: 'modules',
+        fields: [
+            { key: 'name', label: 'name', editable: true, type: 'text' },
+            { key: 'position', label: 'position', editable: true, type: 'number' },
+            { key: 'unlock_at', label: 'unlock_at', editable: true, type: 'date' },
+            { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
+        ]
+    },
+    pages: {
+        displayName: 'Pages',
+        endpoint: 'pages',
+        fields: [
+            { key: 'title', label: 'title', editable: true, type: 'text' },
+            { key: 'body', label: 'body', editable: false, type: 'html' },
+            { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
+        ]
+    },
+    quizzes: {
+        displayName: 'Quizzes',
+        endpoint: 'quizzes',
+        fields: [
+            { key: 'title', label: 'title', editable: true, type: 'text' },
+            { key: 'description', label: 'description', editable: false, type: 'html' },
+            { key: 'assignment_group_id', label: 'assignment_group_id', editable: true, type: 'assignment_group_dropdown' },
+            { key: 'time_limit', label: 'time_limit', editable: true, type: 'number' },
+            { key: 'allowed_attempts', label: 'allowed_attempts', editable: true, type: 'number' },
+            { key: 'due_at', label: 'due_at', editable: true, type: 'date' },
+            { key: 'unlock_at', label: 'unlock_at', editable: true, type: 'date' },
+            { key: 'lock_at', label: 'lock_at', editable: true, type: 'date' },
+            { key: 'show_correct_answers_at', label: 'show_correct_answers_at', editable: true, type: 'date' },
+            { key: 'hide_correct_answers_at', label: 'hide_correct_answers_at', editable: true, type: 'date' },
+            { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
+        ]
+    },
+    students: {
+        displayName: 'Students',
+        endpoint: 'students',
+        fields: [
+            { key: 'sis_user_id', label: 'sis_user_id', editable: false, type: 'text' },
+            { key: 'accommodations', label: 'Accommodations', editable: false, type: 'accommodations' }
+        ]
     }
 };
+window.FIELD_DEFINITIONS = FIELD_DEFINITIONS;
 
-document.addEventListener('DOMContentLoaded', async () => {
-    const gridDiv = document.querySelector('#myGrid');
-    gridApi = agGrid.createGrid(gridDiv, gridOptions);
-    
-    await loadCourses();
-    
-    const urlParams = new URLSearchParams(window.location.search);
-    const courseId = urlParams.get('course_id');
-    if (courseId) {
-        const select = document.getElementById('courseSelect');
-        if (select) {
-            select.value = courseId;
-            selectedCourseId = courseId;
-            switchTab('assignments');
-        }
-    }
-});
+let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, selectedCourseId = null;
 
-function switchTab(tabName) {
-    currentTab = tabName;
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.innerText.toLowerCase().includes(tabName));
-    });
+class CustomHeader {
+    init(params) {
+        this.params = params;
+        this.eGui = document.createElement('div');
+        this.eGui.style.cssText = 'display: flex; align-items: center; justify-content: space-between; width: 100%;';
+        
+        this.eGui.innerHTML = `
+            <span class="header-label" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${params.displayName}</span>
+            <span class="header-hide-btn" style="cursor: pointer; padding: 0 4px; font-size: 14px; font-weight: bold; color: #888; margin-left: 4px;">&times;</span>
+        `;
 
-    if (gridApi) {
-        gridApi.setFilterModel(null);
-        gridApi.setGridOption('columnDefs', generateColumnDefs(tabName));
-        gridApi.setGridOption('rowData', originalData[tabName] || []);
-        setTimeout(() => {
-            gridApi.sizeColumnsToFit();
-            if (tabName === 'students') {
-                gridApi.resetRowHeights();
-            }
-        }, 100);
+        this.btnHide = this.eGui.querySelector('.header-hide-btn');
+        this.btnHide.onclick = (e) => {
+            e.stopPropagation();
+            const colId = this.params.column.getColId();
+            this.params.api.setColumnsVisible([colId], false);
+        };
     }
 
-    if (!originalData[tabName]) {
-        loadTabData(tabName);
+    getGui() {
+        return this.eGui;
     }
 }
 
+const gridOptions = {
+    rowSelection: { 
+        mode: 'multiRow', 
+        selectAll: 'filtered', 
+        headerCheckbox: true, 
+        checkboxes: true, 
+        enableClickSelection: false 
+    },
+    defaultColDef: { 
+        flex: 1, 
+        filter: 'agTextColumnFilter', 
+        floatingFilter: true, 
+        sortable: true, 
+        resizable: true, 
+        editable: true, 
+        unSortIcon: true,
+        singleClickEdit: true,
+        headerComponent: CustomHeader
+    },
+    getRowStyle: p => p.data?._edit_status === 'modified' ? { backgroundColor: '#fff9c4', fontWeight: 'bold', color: '#d35400' } : null,
+    onCellValueChanged: p => {
+        if (p.colDef.field !== '_edit_status') {
+            p.node.setDataValue('_edit_status', 'modified');
+            trackChange(currentTab, p.data.id || p.data.url, p.colDef.field, p.newValue);
+            p.api.redrawRows({ rowNodes: [p.node] });
+        }
+    },
+    onGridReady: p => window.gridApi = p.api
+};
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const tc = document.querySelector('.tab-container');
+    if (tc) {
+        tc.innerHTML = '';
+        Object.keys(FIELD_DEFINITIONS).forEach(k => {
+            const c = FIELD_DEFINITIONS[k], btn = document.createElement('button');
+            btn.className = 'tab-btn'; btn.textContent = c.displayName; btn.onclick = () => switchTab(k);
+            tc.appendChild(btn);
+        });
+    }
+    gridApi = agGrid.createGrid(document.querySelector('#myGrid'), gridOptions);
+    await loadCourses();
+    const u = new URLSearchParams(window.location.search), cId = u.get('course_id');
+    if (cId) {
+        const s = document.getElementById('courseSelect');
+        if (s) { s.value = cId; selectedCourseId = cId; switchTab('assignments'); }
+    }
+});
+
+function switchTab(n) {
+    currentTab = n;
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        const c = Object.values(FIELD_DEFINITIONS).find(x => x.displayName === b.textContent);
+        const k = Object.keys(FIELD_DEFINITIONS).find(y => FIELD_DEFINITIONS[y] === c);
+        b.classList.toggle('active', k === n);
+    });
+    if (gridApi) {
+        gridApi.setFilterModel(null);
+        gridApi.setGridOption('columnDefs', generateColumnDefs(n));
+        gridApi.setGridOption('rowData', originalData[n] || []);
+        setTimeout(() => { gridApi.sizeColumnsToFit(); if (n === 'students') gridApi.resetRowHeights(); }, 100);
+    }
+    if (!originalData[n]) loadTabData(n);
+}
+
 function generateColumnDefs(tabName) {
-    const defs = FIELD_DEFINITIONS[tabName];
-    if (!defs) return [];
+    const tabConfig = FIELD_DEFINITIONS[tabName];
+    if (!tabConfig) return [];
+
+    const defs = tabConfig.fields;
 
     const statusCol = {
         headerName: 'edit_status',
@@ -167,7 +211,31 @@ function generateColumnDefs(tabName) {
             field: field.key,
             editable: field.editable !== false
         };
-        if (field.type === 'date') {
+        
+        if (field.type === 'assignment_group_dropdown') {
+            const groups = assignmentGroupsCache[selectedCourseId] || {};
+            
+            colDef.valueFormatter = params => {
+                if (!params.value) return '';
+                const name = groups[params.value];
+                return name || `Unknown Group (${params.value})`;
+            };
+            
+            colDef.cellEditor = 'agSelectCellEditor';
+            colDef.cellEditorParams = {
+                values: Object.keys(groups).map(id => parseInt(id)),
+                formatValue: (value) => {
+                    return groups[value] || `ID: ${value}`;
+                },
+                valueListGap: 0,
+                valueListMaxHeight: 220
+            };
+            
+            colDef.valueParser = params => {
+                return parseInt(params.newValue);
+            };
+        }
+        else if (field.type === 'date') {
             colDef.cellEditor = 'agDateCellEditor';
             colDef.cellEditorParams = {
                 format: 'yyyy-MM-ddTHH:mm:ss',
@@ -237,1027 +305,936 @@ function generateColumnDefs(tabName) {
     return [statusCol, ...mapping];
 }
 
+async function refreshCurrentTab() {
+    if (!selectedCourseId) { alert('Select course first.'); return; }
+    delete originalData[currentTab];
+    if (changes[currentTab]) changes[currentTab] = {};
+    try {
+        if (gridApi) gridApi.setGridOption('loading', true);
+        const tc = FIELD_DEFINITIONS[currentTab], r = await fetch(`/canvas/courses/${selectedCourseId}/${tc.endpoint}`), d = await r.json();
+        const ds = d.map(x => ({ ...x, _edit_status: 'synced' }));
+        originalData[currentTab] = ds;
+        if (gridApi) {
+            gridApi.setGridOption('rowData', ds); gridApi.setGridOption('loading', false); gridApi.redrawRows();
+            if (currentTab === 'students') setTimeout(() => gridApi.resetRowHeights(), 100);
+        }
+    } catch (e) {
+        console.error(`Error refreshing:`, e); alert('Refresh failed.');
+        if (gridApi) gridApi.setGridOption('loading', false);
+    }
+}
+
+document.addEventListener('change', e => {
+    if (e.target.name === 'ipPosition') {
+        const mc = document.getElementById('markerInputContainer');
+        if (mc) mc.style.display = (e.target.value === 'beforeMarker' || e.target.value === 'afterMarker') ? 'block' : 'none';
+    }
+});
+
 async function loadCourses() {
     try {
-        const response = await fetch('/canvas/courses');
-        const courseGroups = await response.json();
-        const select = document.getElementById('courseSelect');
-        if (!select) return;
-        select.innerHTML = '<option value="">Select a course...</option>';
+        const s = document.getElementById('courseSelect');
+        if (!s) return;
         
-        courseGroups.forEach(group => {
-            const optgroup = document.createElement('optgroup');
-            optgroup.label = group.term;
-            group.courses.forEach(course => {
-                const option = document.createElement('option');
-                option.value = course.id;
-                option.textContent = `${course.name} (${course.course_code})`;
-                optgroup.appendChild(option);
+        s.innerHTML = '<option value="">Loading courses...</option>';
+        
+        const r = await fetch('/canvas/courses');
+        if (!r.ok) {
+            console.error('Failed to load courses:', r.status, r.statusText);
+            s.innerHTML = '<option value="">Error loading courses</option>';
+            return;
+        }
+        
+        const g = await r.json();
+        if (!Array.isArray(g)) {
+            console.error('Expected array of course groups, got:', g);
+            s.innerHTML = '<option value="">Error loading courses</option>';
+            return;
+        }
+        
+        s.innerHTML = '<option value="">Select a course...</option>';
+        
+        if (g.length === 0) {
+            s.innerHTML = '<option value="">No courses available</option>';
+            return;
+        }
+        
+        g.forEach(x => {
+            if (!x.term || !Array.isArray(x.courses)) return;
+            const og = document.createElement('optgroup');
+            og.label = x.term;
+            x.courses.forEach(c => {
+                if (!c.id) return;
+                const o = document.createElement('option');
+                o.value = c.id;
+                o.textContent = `${c.name || c.course_code || 'Untitled'} (${c.course_code || 'No Code'})`;
+                og.appendChild(o);
             });
-            select.appendChild(optgroup);
+            if (og.children.length > 0) {
+                s.appendChild(og);
+            }
         });
-    } catch (err) {
-        console.error('Error loading courses:', err);
+    } catch (e) {
+        console.error('Error loading courses:', e);
+        const s = document.getElementById('courseSelect');
+        if (s) s.innerHTML = '<option value="">Error loading courses</option>';
     }
 }
 
 function onCourseSelected() {
-    const select = document.getElementById('courseSelect');
-    const courseId = select.value;
-    if (!courseId) {
-        selectedCourseId = null;
-        if (gridApi) gridApi.setGridOption('rowData', []);
-        return;
-    }
-    selectedCourseId = courseId;
-    const url = new URL(window.location);
-    url.searchParams.set('course_id', courseId);
-    window.history.pushState({}, '', url);
-    originalData = {};
-    switchTab(currentTab);
+    const s = document.getElementById('courseSelect'), cId = s.value;
+    if (!cId) { selectedCourseId = null; if (gridApi) gridApi.setGridOption('rowData', []); return; }
+    selectedCourseId = cId;
+    const u = new URL(window.location);
+    u.searchParams.set('course_id', cId); window.history.pushState({}, '', u);
+    originalData = {}; switchTab(currentTab);
 }
 
-async function loadTabData(tabName) {
+async function loadTabData(n) {
     try {
-        const courseId = selectedCourseId;
-        if (!courseId) return;
-
-        if (currentTab === tabName && gridApi) {
-            gridApi.setGridOption('loading', true);
-        }
-
-        const response = await fetch(`/canvas/courses/${courseId}/${tabName}`);
-        const data = await response.json();
+        if (!selectedCourseId) return;
+        const tc = FIELD_DEFINITIONS[n];
+        if (!tc) { console.error(`No config for: ${n}`); return; }
         
-        const dataWithStatus = data.map(row => ({
-            ...row,
-            _edit_status: 'synced'
-        }));
+        if (currentTab === n && gridApi) gridApi.setGridOption('loading', true);
         
-        originalData[tabName] = dataWithStatus;
-        if (currentTab === tabName && gridApi) {
-            gridApi.setGridOption('rowData', dataWithStatus);
-            gridApi.setGridOption('loading', false);
-            if (tabName === 'students') {
-                setTimeout(() => {
-                    gridApi.resetRowHeights();
-                }, 100);
+        if (n === 'assignments' || n === 'quizzes') {
+            try {
+                const agUrl = `/canvas/courses/${selectedCourseId}/assignment_groups`;
+                console.log('[Assignment Groups] Fetching from:', agUrl);
+                
+                const agResponse = await fetch(agUrl);
+                console.log('[Assignment Groups] Response status:', agResponse.status, agResponse.statusText);
+                
+                if (!agResponse.ok) {
+                    console.error('[Assignment Groups] Failed to fetch:', agResponse.status);
+                    assignmentGroupsCache[selectedCourseId] = {};
+                } else {
+                    const agData = await agResponse.json();
+                    console.log('[Assignment Groups] Raw response:', agData);
+                    
+                    assignmentGroupsCache[selectedCourseId] = {};
+                    agData.forEach((group, index) => {
+                        console.log(`[Assignment Groups] Group ${index}:`, { id: group.id, name: group.name });
+                        assignmentGroupsCache[selectedCourseId][group.id] = group.name;
+                    });
+                    
+                    console.log('[Assignment Groups] Cache built:', assignmentGroupsCache[selectedCourseId]);
+                }
+            } catch (agError) {
+                console.error('[Assignment Groups] Error:', agError);
+                assignmentGroupsCache[selectedCourseId] = {};
             }
         }
-    } catch (err) {
-        console.error(`Error loading ${tabName}:`, err);
-        if (currentTab === tabName && gridApi) {
-            gridApi.setGridOption('loading', false);
-        }
-    }
-}
-
-async function refreshCurrentTab() {
-    if (!selectedCourseId) {
-        alert('Please select a course first.');
-        return;
-    }
-    
-    delete originalData[currentTab];
-    if (changes[currentTab]) {
-        changes[currentTab] = {};
-    }
-    
-    try {
-        if (gridApi) {
-            gridApi.setGridOption('loading', true);
+        
+        const r = await fetch(`/canvas/courses/${selectedCourseId}/${tc.endpoint}`);
+        
+        if (!r.ok) {
+            console.error(`Failed to load ${n}: ${r.status} ${r.statusText}`);
+            if (currentTab === n && gridApi) gridApi.setGridOption('loading', false);
+            return;
         }
         
-        const response = await fetch(`/canvas/courses/${selectedCourseId}/${currentTab}`);
-        const data = await response.json();
+        const d = await r.json();
         
-        const dataWithStatus = data.map(row => ({
-            ...row,
-            _edit_status: 'synced'
-        }));
+        if (!Array.isArray(d)) {
+            console.error(`Expected array for ${n}, got:`, d);
+            if (currentTab === n && gridApi) gridApi.setGridOption('loading', false);
+            return;
+        }
         
-        originalData[currentTab] = dataWithStatus;
+        if (n === 'assignments') {
+            console.log('[Assignments] Sample assignment_group_id values:');
+            d.slice(0, 5).forEach((assignment, index) => {
+                console.log(`  Assignment ${index}: "${assignment.name}" has group_id:`, assignment.assignment_group_id);
+            });
+        }
         
-        if (gridApi) {
-            gridApi.setGridOption('rowData', dataWithStatus);
+        const ds = d.map(x => ({ ...x, _edit_status: 'synced' }));
+        originalData[n] = ds;
+        
+        if (currentTab === n && gridApi) {
+            if (n === 'assignments' || n === 'quizzes') {
+                gridApi.setGridOption('columnDefs', generateColumnDefs(n));
+            }
+            
+            gridApi.setGridOption('rowData', ds);
             gridApi.setGridOption('loading', false);
-            gridApi.redrawRows();
-            if (currentTab === 'students') {
-                setTimeout(() => {
-                    gridApi.resetRowHeights();
-                }, 100);
+            
+            if (n === 'students') setTimeout(() => gridApi.resetRowHeights(), 100);
+            
+            if (n === 'assignments' || n === 'quizzes') {
+                gridApi.refreshCells({ force: true });
             }
         }
-    } catch (err) {
-        console.error(`Error refreshing ${currentTab}:`, err);
-        alert('Failed to refresh data. Please try again.');
-        if (gridApi) {
-            gridApi.setGridOption('loading', false);
-        }
+    } catch (e) {
+        console.error(`Error loading ${n}:`, e);
+        if (currentTab === n && gridApi) gridApi.setGridOption('loading', false);
     }
 }
 
-function trackChange(tab, id, field, value) {
-    if (!changes[tab]) changes[tab] = {};
-    if (!changes[tab][id]) changes[tab][id] = {};
-    changes[tab][id][field] = value;
+function trackChange(t, i, f, v) {
+    if (!changes[t]) changes[t] = {};
+    if (!changes[t][i]) changes[t][i] = {};
+    changes[t][i][f] = v;
 }
 
 async function syncChanges() {
-    if (!selectedCourseId) return alert('Please select a course first.');
-    const tabChanges = changes[currentTab];
-    if (!tabChanges || Object.keys(tabChanges).length === 0) return alert('No pending changes.');
-
-    for (const itemId in tabChanges) {
-        const updates = tabChanges[itemId];
-        const url = `/canvas/courses/${selectedCourseId}/${currentTab}/${itemId}`;
+    if (!selectedCourseId) return alert('Select course first.');
+    const tc = changes[currentTab];
+    if (!tc || !Object.keys(tc).length) return alert('No changes.');
+    const cfg = FIELD_DEFINITIONS[currentTab];
+    if (!cfg) return alert('Invalid tab.');
+    const ep = cfg.endpoint;
+    for (const iId in tc) {
+        const u = tc[iId], url = `/canvas/courses/${selectedCourseId}/${ep}/${iId}`;
         try {
-            const response = await fetch(url, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updates)
-            });
-
-            if (response.ok) {
-                const rowNodesToUpdate = [];
-                gridApi.forEachNode(node => {
-                    const nodeId = node.data.id || node.data.url;
-                    if (String(nodeId) === String(itemId)) {
-                        node.setDataValue('_edit_status', 'synced');
-                        rowNodesToUpdate.push(node);
-                        
+            const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(u) });
+            if (r.ok) {
+                const rn = [];
+                gridApi.forEachNode(n => {
+                    const nId = n.data.id || n.data.url;
+                    if (String(nId) === String(iId)) {
+                        n.setDataValue('_edit_status', 'synced'); rn.push(n);
                         if (originalData[currentTab]) {
-                            const originalRow = originalData[currentTab].find(r => {
-                                const rowId = r.id || r.url;
-                                return String(rowId) === String(itemId);
-                            });
-                            if (originalRow) {
-                                Object.keys(updates).forEach(field => {
-                                    originalRow[field] = updates[field];
-                                });
-                            }
+                            const or = originalData[currentTab].find(x => String(x.id || x.url) === String(iId));
+                            if (or) Object.keys(u).forEach(f => or[f] = u[f]);
                         }
                     }
                 });
-                
-                if (rowNodesToUpdate.length > 0) {
-                    gridApi.redrawRows({ rowNodes: rowNodesToUpdate });
-                }
-                delete changes[currentTab][itemId];
+                if (rn.length) gridApi.redrawRows({ rowNodes: rn });
+                delete changes[currentTab][iId];
             }
-        } catch (err) {
-            console.error(err);
-        }
+        } catch (e) { console.error(e); }
     }
     alert('Sync completed.');
 }
 
-function openModal(modalId) {
-    const overlay = document.getElementById('modalOverlay');
-    const targetModal = document.getElementById(modalId);
-    
-    if (!targetModal || !overlay) return;
-
-    document.querySelectorAll('.modal-content-wrapper').forEach(m => {
-        m.classList.remove('active');
-    });
-
-    if (modalId === 'searchReplaceModal') {
-        populateColumnDropdown('srColumnTarget');
-    } else if (modalId === 'insertPasteModal') {
-        populateColumnDropdown('ipColumnTarget');
-    } else if (modalId === 'bulkEditModal') {
-        populateColumnDropdown('beColumnTarget');
-    } else if (modalId === 'mergeModal') {
-        populateMergeSelect();
-    } else if (modalId === 'columnVisibilityModal') {
-        renderColumnPicker();
-    } else if (modalId === 'dateShiftModal') {
-        populateDateColumnSelector();
-    } else if (modalId === 'pointsModal') {
-        populateNumericColumnDropdown('pointsColumnTarget');
-    } else if (modalId === 'cloneModal') {
-        // Log the global variable to verify it matches
-        console.log('--- Clone Modal Debug ---');
-        console.log('Global currentTab value:', currentTab);
-
-        const methodSelect = document.getElementById('cloneMethod');
-        const isModuleTab = (currentTab === 'modules');
-        
-        console.log('Is Module Tab?', isModuleTab);
-
-        if (methodSelect) {
-            Array.from(methodSelect.options).forEach(opt => {
-                const isItemOption = (opt.value === 'item');
-                if (isModuleTab) {
-                    opt.hidden = isItemOption;
-                    opt.disabled = isItemOption;
-                } else {
-                    opt.hidden = !isItemOption;
-                    opt.disabled = !isItemOption;
+async function handleDeleteClick() {
+    const sel = getSelectedItems();
+    console.log('[DEBUG] Delete:', currentTab, sel.length);
+    if (!sel.length) { alert("Select at least one item."); return; }
+    if (currentTab === 'modules') {
+        console.log('=== FETCHING MODULE ITEMS ===');
+        for (const m of sel) {
+            try {
+                console.log(`[Frontend] Fetching items for module ${m.id} (${m.name}) from course ${selectedCourseId}`);
+                const r = await fetch(`/canvas/modules/${selectedCourseId}/${m.id}/items`);
+                console.log(`[Frontend] Response status: ${r.status} ${r.statusText}`);
+                
+                if (!r.ok) {
+                    const errorText = await r.text();
+                    console.error(`[Frontend] Failed to fetch items: ${r.status} ${r.statusText}`, errorText);
+                    m.items = [];
+                    continue;
                 }
-            });
-
-            methodSelect.value = isModuleTab ? 'structural' : 'item';
-            console.log('Select Value Set To:', methodSelect.value);
+                
+                const its = await r.json();
+                console.log(`[Frontend] Raw response:`, JSON.stringify(its).substring(0, 500));
+                console.log(`[Frontend] Is array:`, Array.isArray(its), `Length:`, Array.isArray(its) ? its.length : 'N/A');
+                
+                if (!Array.isArray(its)) {
+                    console.error(`[Frontend] Expected array, got:`, typeof its, its);
+                    m.items = [];
+                    continue;
+                }
+                m.items = its;
+                console.log(`[Frontend] MODULE: ${m.name} (${m.id}) - ${its.length} items`);
+                if (its.length > 0) {
+                    its.forEach((it, i) => console.log(`[${i + 1}] ${it.title} | ${it.type} | ${it.type === 'Page' ? it.page_url : it.content_id}`));
+                } else {
+                    console.log(' ✗ No items found in module.');
+                }
+            } catch (e) {
+                console.error(`Error fetching items for module ${m.id}:`, e);
+                m.items = [];
+            }
         }
-    }
-
-    overlay.classList.add('active');
-    targetModal.classList.add('active');
+        
+        const infoDiv = document.getElementById('moduleItemsList');
+        if (infoDiv) {
+            infoDiv.innerHTML = '';
+            sel.forEach(m => {
+                const itemCount = Array.isArray(m.items) ? m.items.length : 0;
+                const div = document.createElement('div');
+                div.style.marginBottom = '8px';
+                div.style.padding = '6px';
+                div.style.background = itemCount > 0 ? '#e8f5e9' : '#fff3cd';
+                div.style.borderLeft = '3px solid ' + (itemCount > 0 ? '#4caf50' : '#ffc107');
+                div.innerHTML = `<strong>${m.name || 'Unnamed Module'}</strong>: <span style="font-weight: bold; color: ${itemCount > 0 ? '#2e7d32' : '#856404'}">${itemCount} item${itemCount !== 1 ? 's' : ''}</span>`;
+                infoDiv.appendChild(div);
+            });
+        }
+        
+        openModal('deepPurgeModal');
+        document.getElementById('deepPurgeConfirmInput').value = '';
+        document.getElementById('purgeMethod').value = 'standard';
+    } else { openModal('deleteModal'); document.getElementById('deleteConfirmInput').value = ''; }
 }
 
-function closeActiveModal() {
-    const overlay = document.getElementById('modalOverlay');
-    if (overlay) overlay.classList.remove('active');
-    document.querySelectorAll('.modal-content-wrapper').forEach(m => {
-        m.classList.remove('active');
-    });
-}
+function handleOverlayClick(e) { if (e.target.id === 'modalOverlay') closeActiveModal(); }
 
-function handleOverlayClick(event) {
-    if (event.target.id === 'modalOverlay') {
-        closeActiveModal();
-    }
-}
+function populateColumnSelector() {
+    const container = document.getElementById('columnListContainer');
+    if (!container || !gridApi) return;
 
-function populateColumnDropdown(selectId) {
-    const select = document.getElementById(selectId);
-    if (!select || !gridApi) return;
-    
-    select.innerHTML = '';
+    container.innerHTML = '';
     const colDefs = gridApi.getColumnDefs();
     
-    colDefs.forEach(col => {
-        if (col.headerName && col.field && col.field !== '_edit_status' && col.field !== 'id') {
-            const opt = document.createElement('option');
-            opt.value = col.field;
-            opt.innerText = col.headerName;
-            select.appendChild(opt);
-        }
+    const selectAllRow = document.createElement('div');
+    selectAllRow.className = 'checkbox-group';
+    selectAllRow.style.cssText = 'flex-direction:row;justify-content:space-between;padding:8px 12px;margin-bottom:10px;border-bottom:2px solid #eee';
+    
+    const selectAllLabel = document.createElement('label');
+    selectAllLabel.textContent = 'Select All / None';
+    selectAllLabel.style.fontWeight = 'bold';
+    
+    const selectAllCb = document.createElement('input');
+    selectAllCb.type = 'checkbox';
+    selectAllCb.checked = colDefs.every(cd => {
+        const col = gridApi.getColumn(cd.colId || cd.field);
+        return col ? col.isVisible() : true;
+    });
+    
+    selectAllCb.onchange = (e) => {
+        container.querySelectorAll('.col-toggle-input').forEach(cb => cb.checked = e.target.checked);
+    };
+
+    selectAllRow.append(selectAllLabel, selectAllCb);
+    container.appendChild(selectAllRow);
+
+    colDefs.forEach((cd) => {
+        const id = cd.colId || cd.field;
+        
+        if (id === '_edit_status' || id === 'id') return;
+
+        const row = document.createElement('div');
+        row.className = 'checkbox-group';
+        row.style.cssText = 'flex-direction:row;justify-content:space-between;padding:8px 12px;margin-bottom:5px';
+
+        const label = document.createElement('label');
+        label.textContent = cd.headerName || id;
+        label.style.fontWeight = '500';
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'col-toggle-input';
+        cb.value = id;
+
+        const liveCol = gridApi.getColumn(id);
+        cb.checked = liveCol ? liveCol.isVisible() : true;
+        
+        row.append(label, cb);
+        container.appendChild(row);
     });
 }
 
-function populateMergeSelect() {
-    const select = document.getElementById('mergeTargetSelect');
-    if (!select || !gridApi) return;
-
-    select.innerHTML = '';
-    const selectedRows = gridApi.getSelectedRows();
-    
-    if (selectedRows.length < 2) {
-        const opt = document.createElement('option');
-        opt.innerText = "Select at least 2 rows...";
-        select.appendChild(opt);
+function populateColumnDropdown(sId) {
+    const s = document.getElementById(sId);
+    if (!s || !gridApi) {
+        console.error('Dropdown population failed: Element or GridApi missing');
         return;
     }
 
-    selectedRows.forEach(row => {
-        const opt = document.createElement('option');
-        opt.value = row.id || row.url;
-        opt.innerText = row.name || row.title || row.display_name || opt.value;
-        select.appendChild(opt);
+    s.innerHTML = '';
+    
+    gridApi.getColumnDefs().forEach(c => {
+        const id = c.colId || c.field;
+        if (c.headerName && id && id !== '_edit_status' && id !== 'id') {
+            const o = document.createElement('option');
+            o.value = id; 
+            o.innerText = c.headerName;
+            s.appendChild(o);
+        }
+    });
+
+    console.log('--- Dropdown Content ---');
+    console.log('Select Element:', s);
+    console.log('HTML content:', s.innerHTML);
+    Array.from(s.options).forEach(opt => {
+        console.log(`Option: [${opt.innerText}] Value: [${opt.value}]`);
     });
 }
 
-function closeActiveModal() {
-    const overlay = document.getElementById('modalOverlay');
-    if (overlay) overlay.classList.remove('active');
-    document.querySelectorAll('.modal-content-wrapper').forEach(m => m.classList.remove('active'));
+function populateMergeSelector() {
+    const s = document.getElementById('mergeTargetSelect');
+    if (!s || !gridApi) return;
+    s.innerHTML = '';
+    const sr = gridApi.getSelectedRows();
+    if (sr.length < 2) { s.innerHTML = '<option>Select 2+ rows...</option>'; return; }
+    sr.forEach(r => {
+        const o = document.createElement('option');
+        o.value = r.id || r.url; o.innerText = r.name || r.title || r.display_name || o.value;
+        s.appendChild(o);
+    });
+}
+function populateDateColumnSelector() {
+    const c = document.getElementById('dateColumnSelector');
+    if (!c) { console.error('dateColumnSelector not found'); return; }
+    c.innerHTML = '';
+    const tc = FIELD_DEFINITIONS[currentTab];
+    if (!tc) { c.innerHTML = '<div style="text-align:center;padding:10px;color:#666">Select valid tab</div>'; return; }
+    let mc = 0;
+    tc.fields.forEach(d => {
+        if (d.type === 'date' && d.editable === true) {
+            mc++;
+            const r = document.createElement('div'), l = document.createElement('label'), cb = document.createElement('input');
+            r.className = 'checkbox-group'; r.style.cssText = 'flex-direction:row;justify-content:space-between;padding:8px 12px;margin-bottom:5px';
+            l.textContent = d.label || d.key; l.style.fontWeight = '500';
+            cb.type = 'checkbox'; cb.className = 'date-col-checkbox'; cb.value = d.key; cb.checked = true;
+            r.append(l, cb); c.appendChild(r);
+        }
+    });
+    if (!mc) c.innerHTML = '<div style="text-align:center;padding:10px;color:#666">No date fields</div>';
 }
 
-function handleOverlayClick(event) {
-    if (event.target.id === 'modalOverlay') {
-        closeActiveModal();
-    }
-}
 
-function populateColumnDropdown(selectId) {
-    const select = document.getElementById(selectId);
-    if (!select || !gridApi) return;
-    select.innerHTML = '';
-    const colDefs = gridApi.getColumnDefs();
-    if (!colDefs) return;
-    colDefs.forEach(col => {
-        if (col.headerName && col.field && col.field !== '_edit_status') {
-            const opt = document.createElement('option');
-            opt.value = col.field;
-            opt.innerText = col.headerName;
-            select.appendChild(opt);
+function populateNumericColumnSelector(sId) {
+    const s = document.getElementById(sId);
+    if (!s) return;
+    s.innerHTML = '';
+    const tc = FIELD_DEFINITIONS[currentTab];
+    if (!tc) return;
+    tc.fields.forEach(d => {
+        if (d.type === 'number' || (d.key && d.key.toLowerCase().includes('points'))) {
+            const o = document.createElement('option');
+            o.value = d.key; o.textContent = d.label || d.key;
+            s.appendChild(o);
         }
     });
 }
 
-function executeBulkEdit() {
-    const targetCol = document.getElementById('beColumnTarget').value;
-    const newValue = document.getElementById('beValueInput').value;
-    if (!gridApi) return;
-    const selectedNodes = gridApi.getSelectedNodes();
-    let nodesToUpdate = selectedNodes;
-    if (nodesToUpdate.length === 0) {
-        nodesToUpdate = [];
-        gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node));
+function openModal(mId) {
+    const ov = document.getElementById('modalOverlay'), tm = document.getElementById(mId);
+    if (!tm || !ov) return;
+    document.querySelectorAll('.modal-content-wrapper').forEach(m => m.classList.remove('active'));
+    if (mId === 'searchReplaceModal') populateColumnSelector('srColumnTarget');
+    else if (mId === 'insertPasteModal') populateColumnSelector('ipColumnTarget');
+    else if (mId === 'bulkEditModal') populateColumnSelector('beColumnTarget');
+    else if (mId === 'mergeModal') populateMergeSelector();
+    else if (mId === 'columnVisibilityModal') populateColumnSelector();
+    else if (mId === 'dateShiftModal') populateDateColumnSelector();
+    else if (mId === 'pointsModal') populateNumericColumnSelector('pointsColumnTarget');
+    else if (mId === 'deleteModal') {
+        const inp = document.getElementById('deleteConfirmInput');
+        if (inp) { inp.value = ''; inp.dataset.mode = (currentTab === 'modules') ? 'deep' : 'individual'; }
+    } else if (mId === 'cloneModal') {
+        const ms = document.getElementById('cloneMethod'), isMod = (currentTab === 'modules');
+        if (ms) {
+            Array.from(ms.options).forEach(o => {
+                const isIt = (o.value === 'item');
+                o.hidden = isMod ? isIt : !isIt; o.disabled = isMod ? isIt : !isIt;
+            });
+            ms.value = isMod ? 'structural' : 'item';
+        }
     }
-    nodesToUpdate.forEach(node => {
-        node.setDataValue(targetCol, newValue);
-    });
+    ov.classList.add('active'); tm.classList.add('active');
+}
+function closeActiveModal() {
+    const ov = document.getElementById('modalOverlay');
+    if (ov) ov.classList.remove('active');
+    document.querySelectorAll('.modal-content-wrapper').forEach(m => m.classList.remove('active'));
+}
+
+function executeBulkEdit() {
+    const tc = document.getElementById('beColumnTarget').value, nv = document.getElementById('beValueInput').value;
+    if (!gridApi) return;
+    let n = gridApi.getSelectedRows();
+    if (!n.length) { n = []; gridApi.forEachNodeAfterFilter(x => n.push(x.data)); }
+    n.forEach(x => { gridApi.forEachNode(gn => { if (gn.data === x) gn.setDataValue(tc, nv); }); });
     closeActiveModal();
 }
 
 function executeSearchReplace() {
-    const targetCol = document.getElementById('srColumnTarget').value;
-    const searchText = document.getElementById('srSearchInput').value;
-    const replaceText = document.getElementById('srReplaceInput').value;
-    const useRegex = document.getElementById('srUseRegex').checked;
-
-    if (!searchText || !gridApi) return;
-    const selectedNodes = gridApi.getSelectedNodes();
-    
-    let nodesToUpdate = selectedNodes;
-    if (nodesToUpdate.length === 0) {
-        nodesToUpdate = [];
-        gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node));
-    }
-
-    nodesToUpdate.forEach(node => {
-        const currentValue = node.data[targetCol];
-        if (currentValue && typeof currentValue === 'string') {
-            let newValue;
-            if (useRegex) {
-                try {
-                    newValue = currentValue.replace(new RegExp(searchText, 'g'), replaceText);
-                } catch (e) { return; }
-            } else {
-                newValue = currentValue.split(searchText).join(replaceText);
-            }
-            if (newValue !== currentValue) node.setDataValue(targetCol, newValue);
+    const tc = document.getElementById('srColumnTarget').value, st = document.getElementById('srSearchInput').value;
+    const rt = document.getElementById('srReplaceInput').value, ur = document.getElementById('srUseRegex').checked;
+    if (!st || !gridApi) return;
+    let n = gridApi.getSelectedRows();
+    if (!n.length) { n = []; gridApi.forEachNodeAfterFilter(x => n.push(x.data)); }
+    n.forEach(x => {
+        const cv = x[tc];
+        if (cv && typeof cv === 'string') {
+            let nv;
+            if (ur) { try { nv = cv.replace(new RegExp(st, 'g'), rt); } catch { return; } }
+            else nv = cv.split(st).join(rt);
+            if (nv !== cv) { gridApi.forEachNode(gn => { if (gn.data === x) gn.setDataValue(tc, nv); }); }
         }
     });
     closeActiveModal();
 }
 
 function executeInsertPaste() {
-    const targetCol = document.getElementById('ipColumnTarget').value;
-    const textToInsert = document.getElementById('ipTextInput').value;
-    const position = document.querySelector('input[name="ipPosition"]:checked')?.value;
-    const marker = document.getElementById('ipMarkerInput').value;
-
+    const tc = document.getElementById('ipColumnTarget').value, ti = document.getElementById('ipTextInput').value;
+    const pos = document.querySelector('input[name="ipPosition"]:checked')?.value, mk = document.getElementById('ipMarkerInput').value;
     if (!gridApi) return;
-    const selectedNodes = gridApi.getSelectedNodes();
-    
-    let nodesToUpdate = selectedNodes;
-    if (nodesToUpdate.length === 0) {
-        nodesToUpdate = [];
-        gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node));
-    }
-
-    nodesToUpdate.forEach(node => {
-        const currentValue = node.data[targetCol] || "";
-        let newValue = currentValue;
-        if (position === 'start') newValue = textToInsert + currentValue;
-        else if (position === 'end') newValue = currentValue + textToInsert;
-        else if (marker && currentValue.includes(marker)) {
-            const parts = currentValue.split(marker);
-            newValue = position === 'beforeMarker' ? 
-                (parts[0] + textToInsert + marker + parts.slice(1).join(marker)) : 
-                (parts[0] + marker + textToInsert + parts.slice(1).join(marker));
+    let n = gridApi.getSelectedRows();
+    if (!n.length) { n = []; gridApi.forEachNodeAfterFilter(x => n.push(x.data)); }
+    n.forEach(x => {
+        const cv = x[tc] || "";
+        let nv = cv;
+        if (pos === 'start') nv = ti + cv;
+        else if (pos === 'end') nv = cv + ti;
+        else if (mk && cv.includes(mk)) {
+            const p = cv.split(mk);
+            nv = pos === 'beforeMarker' ? (p[0] + ti + mk + p.slice(1).join(mk)) : (p[0] + mk + ti + p.slice(1).join(mk));
         }
-        if (newValue !== currentValue) node.setDataValue(targetCol, newValue);
+        if (nv !== cv) { gridApi.forEachNode(gn => { if (gn.data === x) gn.setDataValue(tc, nv); }); }
     });
     closeActiveModal();
 }
 
 function executePublishStatus() {
     if (!gridApi) return;
-    
-    const selectedStatus = document.querySelector('input[name="pubStatus"]:checked')?.value;
-    if (!selectedStatus) return;
-    
-    const publishValue = selectedStatus === 'true';
-    
-    const selectedNodes = gridApi.getSelectedNodes();
-    let nodesToUpdate = selectedNodes;
-    if (nodesToUpdate.length === 0) {
-        nodesToUpdate = [];
-        gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node));
-    }
-    
-    if (nodesToUpdate.length === 0) {
-        alert('No rows selected or visible. Please select rows or adjust filters.');
-        return;
-    }
-    
-    nodesToUpdate.forEach(node => {
-        node.setDataValue('published', publishValue);
-    });
-    
+    const ss = document.querySelector('input[name="pubStatus"]:checked')?.value;
+    if (!ss) return;
+    const pv = ss === 'true';
+    let n = gridApi.getSelectedRows();
+    if (!n.length) { n = []; gridApi.forEachNodeAfterFilter(x => n.push(x.data)); }
+    if (!n.length) { alert('No rows.'); return; }
+    n.forEach(x => { gridApi.forEachNode(gn => { if (gn.data === x) gn.setDataValue('published', pv); }); });
     closeActiveModal();
 }
-
-function exportData() {
-    if (!gridApi) return;
-    gridApi.exportDataAsCsv({
-        fileName: `canvas_${currentTab}_export.csv`
-    });
-}
-
-document.addEventListener('change', function(e) {
-    if (e.target.name === 'ipPosition') {
-        const markerContainer = document.getElementById('markerInputContainer');
-        if (markerContainer) {
-            const isMarkerMode = e.target.value === 'beforeMarker' || e.target.value === 'afterMarker';
-            markerContainer.style.display = isMarkerMode ? 'block' : 'none';
-        }
-    }
-});
-
-function renderColumnPicker() {
-    const container = document.getElementById('columnListContainer');
-    if (!container || !gridApi) return;
-
-    container.innerHTML = ''; 
-    
-    const columns = gridApi.getColumns();
-    if (!columns || columns.length === 0) return;
-
-    const selectAllRow = document.createElement('div');
-    selectAllRow.className = 'checkbox-group';
-    selectAllRow.style.flexDirection = 'row';
-    selectAllRow.style.justifyContent = 'space-between';
-    selectAllRow.style.padding = '8px 12px';
-    selectAllRow.style.marginBottom = '10px';
-    selectAllRow.style.borderBottom = '2px solid #eee';
-
-    const selectAllLabel = document.createElement('label');
-    selectAllLabel.textContent = 'Select All / None';
-    selectAllLabel.style.fontWeight = 'bold';
-
-    const selectAllCheckbox = document.createElement('input');
-    selectAllCheckbox.type = 'checkbox';
-    selectAllCheckbox.checked = columns.every(col => col.isVisible());
-
-    selectAllCheckbox.onchange = (e) => {
-        const isChecked = e.target.checked;
-        columns.forEach(col => {
-            col.setVisible(isChecked);
-        });
-        
-        container.querySelectorAll('.col-toggle-input').forEach(cb => {
-            cb.checked = isChecked;
-        });
-    };
-
-    selectAllRow.appendChild(selectAllLabel);
-    selectAllRow.appendChild(selectAllCheckbox);
-    container.appendChild(selectAllRow);
-
-    columns.forEach(col => {
-        const colDef = col.getColDef();
-        const colId = col.getColId();
-        
-        if (!colDef.headerName) return; 
-
-        const row = document.createElement('div');
-        row.className = 'checkbox-group';
-        row.style.flexDirection = 'row';
-        row.style.justifyContent = 'space-between';
-        row.style.padding = '8px 12px';
-        row.style.marginBottom = '5px';
-
-        const label = document.createElement('label');
-        label.textContent = colDef.headerName;
-        label.style.fontWeight = '500';
-
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = 'col-toggle-input';
-        checkbox.checked = col.isVisible();
-        
-        checkbox.onclick = (e) => {
-            const isVisible = e.target.checked;
-            col.setVisible(isVisible);
-            
-            const allChecked = Array.from(container.querySelectorAll('.col-toggle-input'))
-                                    .every(input => input.checked);
-            selectAllCheckbox.checked = allChecked;
-        };
-
-        row.appendChild(label);
-        row.appendChild(checkbox);
-        container.appendChild(row);
-    });
-}
-
-function toggleAllDateCheckboxes() {
-    const checkboxes = document.querySelectorAll('.date-col-checkbox');
-    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-    checkboxes.forEach(cb => cb.checked = !allChecked);
-}
-
-function calculateDateOffset() {
-    const oldVal = document.getElementById('calcOldDate').value;
-    const newVal = document.getElementById('calcNewDate').value;
-    if (!oldVal || !newVal) return;
-
-    const diff = Math.round((new Date(newVal) - new Date(oldVal)) / (1000 * 60 * 60 * 24));
-    document.getElementById('dateOffsetDays').value = diff;
-}
-
-function populateDateColumnSelector() {
-    const container = document.getElementById('dateColumnSelector');
-    if (!container) {
-        console.error("Date Shift Error: 'dateColumnSelector' element not found in DOM.");
-        return;
-    }
-    if (!FIELD_DEFINITIONS) {
-        console.error("Date Shift Error: FIELD_DEFINITIONS is undefined.");
-        return;
-    }
-
-    container.innerHTML = '';
-
-    if (!currentTab || !FIELD_DEFINITIONS[currentTab]) {
-        console.warn(`Date Shift Warning: No definitions found for tab '${currentTab}'`);
-        container.innerHTML = '<div style="text-align:center; padding:10px; color:#666;">Select a valid tab to see date options</div>';
-        return;
-    }
-
-    const currentDefs = FIELD_DEFINITIONS[currentTab];
-    console.log(`Processing ${currentDefs.length} fields for ${currentTab}...`);
-
-    let matchCount = 0;
-    currentDefs.forEach(def => {
-        const isDateCol = def.type === 'date' && def.editable === true;
-
-        console.log(`Checking field: '${def.key}' | type: ${def.type} | editable: ${def.editable} | isDate: ${isDateCol}`);
-
-        if (isDateCol) {
-            matchCount++;
-            const row = document.createElement('div');
-            row.className = 'checkbox-group';
-            row.style.flexDirection = 'row';
-            row.style.justifyContent = 'space-between';
-            row.style.padding = '8px 12px';
-            row.style.marginBottom = '5px';
-
-            const label = document.createElement('label');
-            label.textContent = def.label || def.key;
-            label.style.fontWeight = '500';
-
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.className = 'date-col-checkbox';
-            checkbox.value = def.key;
-            checkbox.checked = true;
-
-            row.appendChild(label);
-            row.appendChild(checkbox);
-            container.appendChild(row);
-        }
-    });
-
-    console.log(`Total date-related fields found: ${matchCount}`);
-
-    if (matchCount === 0) {
-        container.innerHTML = '<div style="text-align:center; padding:10px; color:#666;">No date fields in this category</div>';
-    }
-}
-
 function executeDateShift() {
     if (!gridApi) return;
-
-    const offsetDays = parseInt(document.getElementById('dateOffsetDays').value) || 0;
-    const timeOverride = document.getElementById('timeOverride').value;
-    const manualFixedDate = document.getElementById('manualFixedDate').value;
-    
-    const selectedDateColumns = Array.from(document.querySelectorAll('.date-col-checkbox:checked'))
-        .map(cb => cb.value);
-    
-    if (selectedDateColumns.length === 0) {
-        alert('Please select at least one date column to update.');
-        return;
-    }
-
-    const selectedNodes = gridApi.getSelectedNodes();
-    let nodesToUpdate = selectedNodes;
-    if (nodesToUpdate.length === 0) {
-        nodesToUpdate = [];
-        gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node));
-    }
-
-    if (nodesToUpdate.length === 0) {
-        alert('No rows selected or visible. Please select rows or adjust filters.');
-        return;
-    }
-
-    nodesToUpdate.forEach(node => {
-        selectedDateColumns.forEach(dateField => {
-            const currentValue = node.data[dateField];
-            
-            let newDateValue = null;
-            
-            if (manualFixedDate) {
-                const fixedDate = new Date(manualFixedDate);
-                if (timeOverride) {
-                    const [hours, minutes] = timeOverride.split(':');
-                    fixedDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    const od = parseInt(document.getElementById('dateOffsetDays').value) || 0;
+    const to = document.getElementById('timeOverride').value, mfd = document.getElementById('manualFixedDate').value;
+    const sdc = Array.from(document.querySelectorAll('.date-col-checkbox:checked')).map(x => x.value);
+    if (!sdc.length) { alert('Select date columns.'); return; }
+    let n = gridApi.getSelectedRows();
+    if (!n.length) { n = []; gridApi.forEachNodeAfterFilter(x => n.push(x.data)); }
+    if (!n.length) { alert('No rows.'); return; }
+    n.forEach(x => {
+        sdc.forEach(df => {
+            const cv = x[df];
+            let ndv = null;
+            if (mfd) {
+                const fd = new Date(mfd);
+                if (to) { const [h, m] = to.split(':'); fd.setHours(parseInt(h), parseInt(m), 0, 0); }
+                ndv = fd.toISOString();
+            } else if (cv) {
+                const cd = new Date(cv);
+                if (!isNaN(cd.getTime())) {
+                    const nd = new Date(cd);
+                    nd.setDate(nd.getDate() + od);
+                    if (to) { const [h, m] = to.split(':'); nd.setHours(parseInt(h), parseInt(m), 0, 0); }
+                    ndv = nd.toISOString();
                 }
-                newDateValue = fixedDate.toISOString();
-            } else if (currentValue) {
-                const currentDate = new Date(currentValue);
-                if (!isNaN(currentDate.getTime())) {
-                    const newDate = new Date(currentDate);
-                    newDate.setDate(newDate.getDate() + offsetDays);
-                    
-                    if (timeOverride) {
-                        const [hours, minutes] = timeOverride.split(':');
-                        newDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-                    }
-                    
-                    newDateValue = newDate.toISOString();
-                }
-            } else if (offsetDays !== 0) {
-                const baseDate = new Date();
-                baseDate.setDate(baseDate.getDate() + offsetDays);
-                
-                if (timeOverride) {
-                    const [hours, minutes] = timeOverride.split(':');
-                    baseDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-                }
-                
-                newDateValue = baseDate.toISOString();
+            } else if (od !== 0) {
+                const bd = new Date();
+                bd.setDate(bd.getDate() + od);
+                if (to) { const [h, m] = to.split(':'); bd.setHours(parseInt(h), parseInt(m), 0, 0); }
+                ndv = bd.toISOString();
             }
-            
-            if (newDateValue !== null) {
-                node.setDataValue(dateField, newDateValue);
-            }
+            if (ndv !== null) { gridApi.forEachNode(gn => { if (gn.data === x) gn.setDataValue(df, ndv); }); }
         });
     });
-
     closeActiveModal();
-}
-function populateNumericColumnDropdown(selectId) {
-    const select = document.getElementById(selectId);
-    if (!select) return;
-    select.innerHTML = '';
-
-    const currentTab = document.querySelector('.tab-btn.active')?.dataset.tab;
-    const defs = FIELD_DEFINITIONS[currentTab];
-    if (!defs) return;
-
-    defs.forEach(def => {
-        if (def.type === 'number' || (def.key && def.key.toLowerCase().includes('points'))) {
-            const opt = document.createElement('option');
-            opt.value = def.key;
-            opt.textContent = def.label || def.key;
-            select.appendChild(opt);
-        }
-    });
 }
 
 function executePointsUpdate() {
-    const field = document.getElementById('pointsColumnTarget').value;
-    const op = document.getElementById('pointsOp').value;
-    const val = parseFloat(document.getElementById('pointsValue').value);
-    
-    const selectedRows = gridApi.getSelectedRows();
-
-    if (selectedRows.length === 0) {
-        alert("Please select rows to update.");
-        return;
-    }
-    
-    if (isNaN(val)) {
-        alert("Please enter a valid numeric value.");
-        return;
-    }
-
-    selectedRows.forEach(row => {
-        const currentVal = parseFloat(row[field]) || 0;
-        let finalVal;
-
-        if (op === 'set') {
-            finalVal = val;
-        } else if (op === 'scale') {
-            finalVal = currentVal * val;
-        } else if (op === 'add') {
-            finalVal = currentVal + val;
-        }
-
-        row[field] = Number(finalVal.toFixed(2));
-        row.isUpdated = true;
+    const f = document.getElementById('pointsColumnTarget').value, op = document.getElementById('pointsOp').value;
+    const v = parseFloat(document.getElementById('pointsValue').value), sr = gridApi.getSelectedRows();
+    if (!sr.length) { alert("Select rows."); return; }
+    if (isNaN(v)) { alert("Enter valid number."); return; }
+    sr.forEach(r => {
+        const cv = parseFloat(r[f]) || 0;
+        let fv = op === 'set' ? v : op === 'scale' ? cv * v : cv + v;
+        gridApi.forEachNode(gn => { if (gn.data === r) gn.setDataValue(f, Number(fv.toFixed(2))); });
     });
-
-    gridApi.applyTransaction({ update: selectedRows });
     closeActiveModal();
 }
-
-function getUniqueName(originalName, existingNames, prefix = '', suffix = '') {
-    let baseName = originalName || "Untitled";
-    let targetName = baseName;
-    let numberMatch = targetName.match(/(.*)\s(\d+)$/);
-    
-    let currentNumber = 0;
-    if (numberMatch) {
-        targetName = numberMatch[1];
-        currentNumber = parseInt(numberMatch[2], 10);
-    }
-
-    const getFinalString = (base, num) => {
-        let core = num > 0 ? `${base} ${num}` : base;
-        return `${prefix}${core}${suffix}`.trim();
-    };
-
-    let nextNumber = currentNumber + 1;
-    let finalName = getFinalString(targetName, nextNumber);
-
-    while (existingNames.has(finalName)) {
-        nextNumber++;
-        finalName = getFinalString(targetName, nextNumber);
-    }
-
-    existingNames.add(finalName); 
-    return finalName;
-}
-
-function sanitizeRowData(data, tab, mode = 'sync') {
-    if (mode === 'sync') {
-        const definitions = FIELD_DEFINITIONS[tab];
-        if (!definitions) return {};
-        const cleanData = {};
-        const pristine = data._pristine || {};
-        definitions.forEach(def => {
-            const key = def.key;
-            const val = data[key];
-            if (val === undefined || val === null || val === '') return;
-            if (JSON.stringify(val) !== JSON.stringify(pristine[key])) {
-                cleanData[key] = val;
-            }
-        });
-        return cleanData;
-    }
-
-    const systemReadOnlyFields = [
-        'id', 'uuid', 'created_at', 'updated_at', 'items_count', 'items',
-        'html_url', 'url', 'workflow_state', 'publish_at', 'course_id', 
-        'context_type', 'context_id', 'lti_context_id', 'global_id', 
-        'secure_params', 'original_lti_resource_link_id', 'items_url',
-        'locked_for_user', 'lock_info', 'lock_explanation', 'permissions', 
-        'submission', 'overrides', 'all_dates', 'can_duplicate'
-    ];
-
-    const safeIdFields = new Set(['assignment_group_id', 'grading_standard_id', 'prerequisite_module_ids']);
-    const forbiddenKeys = new Set(systemReadOnlyFields);
-    
-    const fieldDefs = FIELD_DEFINITIONS[tab];
-    if (fieldDefs) {
-        fieldDefs.forEach(field => {
-            if (field.editable === false) {
-                forbiddenKeys.add(field.key || field.name);
-            }
-        });
-    }
-
-    const sanitized = {};
-    Object.keys(data).forEach(key => {
-        if (key.startsWith('_')) return; 
-        if (forbiddenKeys.has(key)) return;
-        if (key.endsWith('_id') && !safeIdFields.has(key)) return;
-        if (key === 'position') return;
-
-        sanitized[key] = data[key];
-    });
-
-    return sanitized;
-}
-
-async function performDeepClone(moduleRow, prefix, suffix) {
-    if (!selectedCourseId) {
-        alert('No course selected.');
-        return;
-    }
-
-    try {
-        const modRes = await fetch(`/canvas/courses/${selectedCourseId}/modules?per_page=100`);
-        const allModules = modRes.ok ? await modRes.json() : [];
-        const existingModuleNames = new Set(allModules.map(m => m.name));
-
-        const newModuleName = getUniqueName(moduleRow.name, existingModuleNames, prefix, suffix);
-        const sanitizedModule = sanitizeRowData(moduleRow, 'modules', 'clone');
-        sanitizedModule.name = newModuleName;
-
-        const createModuleResponse = await fetch(`/canvas/courses/${selectedCourseId}/modules`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ module: sanitizedModule })
-        });
-
-        if (!createModuleResponse.ok) throw new Error(`Failed to create module.`);
-        const newModule = await createModuleResponse.json();
-
-        const items = moduleRow.items || [];
-        for (const item of items) {
-            const type = item.type;
-            const contentType = type.toLowerCase();
-            let newContent;
-            let itemPayload = { title: item.title, type: type, position: item.position, indent: item.indent };
-
-            if (contentType === 'subheader' || contentType === 'externalurl') {
-                if (contentType === 'externalurl') itemPayload.external_url = item.external_url;
-                newContent = { id: 'no-content-needed' }; 
-            } else {
-                let endpoint = '';
-                if (type === 'Assignment') endpoint = 'assignments';
-                else if (type === 'Quiz') endpoint = 'quizzes';
-                else if (type === 'Page') endpoint = 'pages';
-                else if (type === 'Discussion') endpoint = 'discussions';
-
-                if (endpoint) {
-                    const idToFetch = (type === 'Page') ? (item.page_url || item.content_id) : item.content_id;
-                    const res = await fetch(`/canvas/courses/${selectedCourseId}/${endpoint}/${idToFetch}`);
-                    
-                    if (res.ok) {
-                        const originalFullObject = await res.json();
-                        const sanitizedContent = sanitizeRowData(originalFullObject, endpoint, 'clone');
-                        
-                        const nameField = (type === 'Assignment' || type === 'Quiz' || type === 'Discussion') ? 'name' : 'title';
-                        const currentName = originalFullObject[nameField] || originalFullObject.title || originalFullObject.name;
-                        const newName = getUniqueName(currentName, new Set(), prefix, suffix);
-                        
-                        if (sanitizedContent.name !== undefined) sanitizedContent.name = newName;
-                        if (sanitizedContent.title !== undefined) sanitizedContent.title = newName;
-
-                        if (type === 'Assignment') {
-                            newContent = await createAssignment(selectedCourseId, sanitizedContent);
-                        } else if (type === 'Quiz') {
-                            newContent = await createQuiz(selectedCourseId, sanitizedContent);
-                        } else if (type === 'Page') {
-                            newContent = await createPage(selectedCourseId, sanitizedContent);
-                        } else if (type === 'Discussion') {
-                            newContent = await createDiscussion(selectedCourseId, sanitizedContent);
-                        }
-                    }
-                }
-            }
-
-            if (newContent) {
-                if (type === 'Page') {
-                    itemPayload.page_url = newContent.url || newContent.page_url;
-                } else if (newContent.id !== 'no-content-needed') {
-                    itemPayload.content_id = newContent.id;
-                }
-                await addModuleItem(selectedCourseId, newModule.id, itemPayload);
-            }
-        }
-        await refreshCurrentTab();
-    } catch (error) {
-        alert(`Cloning failed: ${error.message}`);
-    }
-}
-
 async function executeClone() {
-    const selectedRows = gridApi.getSelectedRows();
-    const method = document.getElementById('cloneMethod').value;
-    const prefix = document.getElementById('clonePrefix').value || '';
-    const suffix = document.getElementById('cloneSuffix').value || '';
-
-    if (currentTab === 'modules' && method === 'deep') {
-        for (const row of selectedRows) {
-            await performDeepClone(row, prefix, suffix);
-        }
-    } else if (method === 'deep') {
-        for (const row of selectedRows) {
-            const originalName = row.display_name || row.name || row.title || "Untitled";
-            const newName = getUniqueName(originalName, new Set(), prefix, suffix);
-            let newContent;
-
-            if (currentTab === 'assignments') {
-                const isLtiNewQuiz = row.is_quiz_lti || (row.submission_types && row.submission_types.includes('external_tool'));
-                if (isLtiNewQuiz) {
-                    const quizPayload = { title: newName, quiz_type: 'assignment' };
-                    const assignPayload = sanitizeRowData(row, 'assignments', 'clone');
-                    assignPayload.name = newName;
-                    newContent = await createQuiz(selectedCourseId, quizPayload, assignPayload);
-                } else {
-                    const assignPayload = sanitizeRowData(row, 'assignments', 'clone');
-                    assignPayload.name = newName;
-                    newContent = await createAssignment(selectedCourseId, assignPayload);
-                }
-            } else if (currentTab === 'quizzes') {
-                const quizPayload = sanitizeRowData(row, 'quizzes', 'clone');
-                quizPayload.title = newName;
-                newContent = await createQuiz(selectedCourseId, quizPayload);
-            } else if (currentTab === 'pages') {
-                const pagePayload = sanitizeRowData(row, 'pages', 'clone');
-                pagePayload.title = newName;
-                newContent = await createPage(selectedCourseId, pagePayload);
-            } else if (currentTab === 'discussions') {
-                const discPayload = sanitizeRowData(row, 'discussions', 'clone');
-                discPayload.title = newName;
-                newContent = await createDiscussion(selectedCourseId, discPayload);
-            }
-
-            if (newContent) {
-                console.log(`Successfully deep cloned individual ${currentTab} item:`, newContent);
+    const sr = gridApi.getSelectedRows(), m = document.getElementById('cloneMethod').value;
+    const pf = document.getElementById('clonePrefix').value || '', sf = document.getElementById('cloneSuffix').value || '';
+    if (currentTab === 'modules' && m === 'deep') {
+        for (const r of sr) await performDeepClone(r, pf, sf);
+    } else if (m === 'deep') {
+        const tc = FIELD_DEFINITIONS[currentTab];
+        for (const r of sr) {
+            const ep = tc.endpoint, itf = (currentTab === 'pages') ? (r.url || r.page_url) : r.id;
+            const res = await fetch(`/canvas/courses/${selectedCourseId}/${ep}/${itf}`);
+            if (res.ok) {
+                const ofo = await res.json(), sc = sanitizeRowData(ofo, ep, 'clone'), nn = getUniqueName(ofo.name || ofo.title || ofo.display_name || "Item", new Set(), pf, sf);
+                if (sc.name !== undefined) sc.name = nn;
+                if (sc.title !== undefined) sc.title = nn;
+                if (sc.display_name !== undefined) sc.display_name = nn;
+                await createDeepContent(currentTab.charAt(0).toUpperCase() + currentTab.slice(1, -1), sc);
             }
         }
         await refreshCurrentTab();
     } else {
-        const newItems = [];
-        selectedRows.forEach(row => {
-            let rawClone = JSON.parse(JSON.stringify(row));
-            const originalName = rawClone.display_name || rawClone.name || rawClone.title || "Untitled";
-            const newName = getUniqueName(originalName, new Set(), prefix, suffix);
-
-            if (rawClone.display_name !== undefined) rawClone.display_name = newName;
-            if (rawClone.name !== undefined) rawClone.name = newName;
-            if (rawClone.title !== undefined) rawClone.title = newName;
-
-            let cleanClone = sanitizeRowData(rawClone, currentTab, 'clone');
-            cleanClone.id = `TEMP_${Math.random().toString(36).substr(2, 9)}`;
-            cleanClone.isNew = true;
-            cleanClone.syncStatus = 'New';
-
-            if (currentTab === 'modules') {
-                if (method === 'structural') {
-                    cleanClone.items = [];
-                } else if (method === 'reuse') {
-                    cleanClone.items = (row.items || []).map(item => ({ ...item }));
-                }
-            }
-            newItems.push(cleanClone);
+        const ni = sr.map(r => {
+            let cc = prepareUIClone(r, currentTab, pf, sf);
+            if (currentTab === 'modules') cc.items = m === 'structural' ? [] : (r.items || []).map(x => ({ ...x }));
+            return cc;
         });
-        gridApi.applyTransaction({ add: newItems });
+        gridApi.applyTransaction({ add: ni });
     }
     closeActiveModal();
 }
 
-async function createAssignment(courseId, payload) {
-    const res = await fetch(`/canvas/courses/${courseId}/assignments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assignment: payload })
-    });
-    return res.ok ? await res.json() : null;
+async function executeDelete() {
+    const ci = document.getElementById('deleteConfirmInput'), m = ci.dataset.mode;
+    if (ci.value !== 'DELETE') { alert('Type DELETE.'); return; }
+    
+    const si = getSelectedItems();
+    if (!si || !si.length) { alert('No items.'); return; }
+    
+    const cId = document.getElementById('courseSelect')?.value || selectedCourseId;
+    if (!cId) { alert('No course.'); return; }
+
+    try {
+        const deleteBtn = document.querySelector('.modal-footer .btn-danger');
+        if (deleteBtn) {
+            deleteBtn.disabled = true;
+            deleteBtn.textContent = 'Deleting...';
+        }
+
+        for (const it of si) {
+            const ty = it._originTab || currentTab;
+            if (m === 'deep' && ty === 'modules') {
+                await deepPurgeModule(cId, it);
+            } else {
+                const itd = (ty === 'pages') ? (it.url || it.page_url) : it.id;
+                await deleteCanvasItem(ty, cId, itd);
+            }
+        }
+
+        closeActiveModal();
+
+        delete originalData['assignments'];
+        if (changes['assignments']) changes['assignments'] = {};
+
+        await refreshCurrentTab();
+
+        if (currentTab !== 'assignments') {
+            const tc = FIELD_DEFINITIONS['assignments'];
+            const r = await fetch(`/canvas/courses/${selectedCourseId}/${tc.endpoint}`);
+            const d = await r.json();
+            originalData['assignments'] = d.map(x => ({ ...x, _edit_status: 'synced' }));
+        }
+    } catch (e) {
+        console.error(e);
+        alert(`Error: ${e.message}`);
+    } finally {
+        const deleteBtn = document.querySelector('.modal-footer .btn-danger');
+        if (deleteBtn) {
+            deleteBtn.disabled = false;
+            deleteBtn.textContent = 'Delete';
+        }
+    }
 }
 
-async function createQuiz(courseId, quizPayload, assignmentPayload = null) {
-    console.log('[createQuiz] -> Initiating POST to /quizzes');
-    console.log('[createQuiz] -> Quiz Payload:', JSON.stringify(quizPayload, null, 2));
+function exportData() { if (gridApi) gridApi.exportDataAsCsv({ fileName: `canvas_${currentTab}_export.csv` }); }
 
-    const res = await fetch(`/canvas/courses/${courseId}/quizzes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quiz: quizPayload })
-    });
+document.addEventListener('change', e => {
+    if (e.target.name === 'ipPosition') {
+        const mc = document.getElementById('markerInputContainer');
+        if (mc) mc.style.display = (e.target.value === 'beforeMarker' || e.target.value === 'afterMarker') ? 'block' : 'none';
+    }
+});
 
-    const newQuiz = res.ok ? await res.json() : null;
+function toggleAllDateCheckboxes() {
+    const cbs = document.querySelectorAll('.date-col-checkbox'), ac = Array.from(cbs).every(x => x.checked);
+    cbs.forEach(x => x.checked = !ac);
+}
 
-    if (newQuiz && assignmentPayload && newQuiz.assignment_id) {
-        console.log(`[createQuiz] -> LTI Sync detected. Target Assignment ID: ${newQuiz.assignment_id}`);
-        console.log('[createQuiz] -> Assignment Payload (Metadata):', JSON.stringify(assignmentPayload, null, 2));
+function calculateDateOffset() {
+    const ov = document.getElementById('calcOldDate').value, nv = document.getElementById('calcNewDate').value;
+    if (!ov || !nv) return;
+    document.getElementById('dateOffsetDays').value = Math.round((new Date(nv) - new Date(ov)) / 86400000);
+}
 
-        const assignRes = await fetch(`/canvas/courses/${courseId}/assignments/${newQuiz.assignment_id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ assignment: assignmentPayload })
+function getUniqueName(on, en, pf = '', sf = '') {
+    let bn = on || "Untitled", tn = bn, nm = tn.match(/(.*)\s(\d+)$/), cn = 0;
+    if (nm) { tn = nm[1]; cn = parseInt(nm[2], 10); }
+    const gfs = (b, n) => `${pf}${n > 0 ? `${b} ${n}` : b}${sf}`.trim();
+    let nn = cn + 1, fn = gfs(tn, nn);
+    while (en.has(fn)) { nn++; fn = gfs(tn, nn); }
+    en.add(fn); return fn;
+}
+
+function sanitizeRowData(d, t, m = 'sync') {
+    if (m === 'sync') {
+        const tc = FIELD_DEFINITIONS[t];
+        if (!tc) return {};
+        const df = tc.fields, cd = {}, pr = d._pristine || {};
+        df.forEach(f => {
+            const k = f.key, v = d[k];
+            if (v !== undefined && v !== null && v !== '' && JSON.stringify(v) !== JSON.stringify(pr[k])) cd[k] = v;
         });
+        return cd;
+    }
+    const srf = ['id', 'uuid', 'created_at', 'updated_at', 'items_count', 'items', 'html_url', 'url', 'workflow_state', 'publish_at', 'course_id', 'context_type', 'context_id', 'lti_context_id', 'global_id', 'secure_params', 'original_lti_resource_link_id', 'items_url', 'locked_for_user', 'lock_info', 'lock_explanation', 'permissions', 'submission', 'overrides', 'all_dates', 'can_duplicate'];
+    const sif = new Set(['assignment_group_id', 'grading_standard_id', 'prerequisite_module_ids']), fk = new Set(srf);
+    const tc = FIELD_DEFINITIONS[t];
+    if (tc?.fields) tc.fields.forEach(f => { if (f.editable === false) fk.add(f.key || f.name); });
+    const san = {};
+    Object.keys(d).forEach(k => {
+        if (!k.startsWith('_') && !fk.has(k) && !(k.endsWith('_id') && !sif.has(k)) && k !== 'position') san[k] = d[k];
+    });
+    return san;
+}
 
-        if (!assignRes.ok) {
-            console.error('[createQuiz] -> Assignment Metadata Sync FAILED:', await assignRes.text());
-        } else {
-            console.log('[createQuiz] -> Assignment Metadata Sync SUCCESS');
+async function performDeepClone(mr, pf, sf) {
+    if (!selectedCourseId) { alert('No course.'); return; }
+    try {
+        const mr2 = await fetch(`/canvas/courses/${selectedCourseId}/modules?per_page=100`), am = mr2.ok ? await mr2.json() : [];
+        const emn = new Set(am.map(m => m.name)), nmn = getUniqueName(mr.name || mr.title || "Module", emn, pf, sf);
+        const nm = await createModules(selectedCourseId, nmn), its = mr.items || [];
+        for (const it of its) {
+            const ty = it.type, ct = ty.toLowerCase();
+            let nc, ip = { title: it.title, type: ty, position: it.position, indent: it.indent };
+            if (ct === 'subheader' || ct === 'externalurl') {
+                if (ct === 'externalurl') ip.external_url = it.external_url;
+                nc = { id: 'no-content-needed' };
+            } else {
+                let ep = '';
+                if (ty === 'Assignment') ep = 'assignments';
+                else if (ty === 'Quiz') ep = 'quizzes';
+                else if (ty === 'Page') ep = 'pages';
+                else if (ty === 'Discussion') ep = 'discussions';
+                if (ep) {
+                    const itf = (ty === 'Page') ? (it.page_url || it.content_id) : it.content_id;
+                    const r = await fetch(`/canvas/courses/${selectedCourseId}/${ep}/${itf}`);
+                    if (r.ok) {
+                        const ofo = await r.json(), sc = sanitizeRowData(ofo, ep, 'clone'), nn = getUniqueName(ofo.name || ofo.title || "Item", new Set(), pf, sf);
+                        if (sc.name !== undefined) sc.name = nn;
+                        if (sc.title !== undefined) sc.title = nn;
+                        nc = await createDeepContent(ty, sc);
+                    }
+                }
+            }
+            if (nc) {
+                if (ty === 'Page') ip.page_url = nc.url || nc.page_url;
+                else if (nc.id !== 'no-content-needed') ip.content_id = nc.id;
+                await addModuleItem(selectedCourseId, nm.id, ip);
+            }
+        }
+        await refreshCurrentTab();
+    } catch (e) { alert(`Cloning failed: ${e.message}`); }
+}
+
+
+
+const getNewName = (r, pf, sf, en = new Set()) => getUniqueName(r.display_name || r.name || r.title || "Untitled", en, pf, sf);
+
+async function createDeepContent(ty, sp) {
+    if (ty === 'Assignment') return await createAssignments(selectedCourseId, sp);
+    if (ty === 'Quiz') return await createQuizzes(selectedCourseId, sp);
+    if (ty === 'Page') return await createPages(selectedCourseId, sp);
+    if (ty === 'Discussion') return await createDiscussions(selectedCourseId, sp);
+    if (ty === 'Folder') return await createFolders(selectedCourseId, sp);
+    return null;
+}
+
+function prepareUIClone(r, ty, pf, sf) {
+    let rc = JSON.parse(JSON.stringify(r)), nn = getNewName(rc, pf, sf);
+    if (rc.display_name !== undefined) rc.display_name = nn;
+    if (rc.name !== undefined) rc.name = nn;
+    if (rc.title !== undefined) rc.title = nn;
+    let cc = sanitizeRowData(rc, ty, 'clone');
+    cc.id = `TEMP_${Math.random().toString(36).substr(2, 9)}`;
+    cc.isNew = true; cc.syncStatus = 'New';
+    return cc;
+}
+
+async function createAssignments(cId, p) {
+    const r = await fetch(`/canvas/courses/${cId}/assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignment: p }) });
+    return r.ok ? await r.json() : null;
+}
+
+async function createQuizzes(cId, qp, ap = null) {
+    const r = await fetch(`/canvas/courses/${cId}/quizzes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quiz: qp }) });
+    const nq = r.ok ? await r.json() : null;
+    if (nq && ap && nq.assignment_id) await fetch(`/canvas/courses/${cId}/assignments/${nq.assignment_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignment: ap }) });
+    return nq;
+}
+
+async function createPages(cId, p) {
+    const r = await fetch(`/canvas/courses/${cId}/pages`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wiki_page: p }) });
+    const res = r.ok ? await r.json() : null;
+    if (res && res.url && !res.id) res.id = res.url;
+    return res;
+}
+
+async function createDiscussions(cId, p) {
+    const r = await fetch(`/canvas/courses/${cId}/discussion_topics`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+    return r.ok ? await r.json() : null;
+}
+
+async function createFolders(cId, p) {
+    const r = await fetch(`/canvas/courses/${cId}/folders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+    return r.ok ? await r.json() : null;
+}
+
+const createModules = async (cId, mn) => {
+    const r = await fetch(`/canvas/courses/${cId}/modules`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ module: { name: mn } }) });
+    if (!r.ok) throw new Error(`Failed: ${r.statusText}`);
+    return await r.json();
+};
+
+async function addModuleItem(cId, mId, ip) {
+    const r = await fetch(`/canvas/courses/${cId}/modules/${mId}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ module_item: ip }) });
+    return r.ok ? await r.json() : null;
+}
+
+
+function getSelectedItems() {
+    const api = window.gridApi || (window.gridOptions && window.gridOptions.api);
+    if (!api) { console.error("No API."); return []; }
+    const r = api.getSelectedRows();
+    console.log("Grid:", { selected: r.length, total: api.getDisplayedRowCount() });
+    return r;
+}
+
+async function deleteCanvasItem(ty, cId, id) {
+    const config = FIELD_DEFINITIONS[ty];
+    const endpoint = config ? config.endpoint : ty;
+
+    const r = await fetch(`/canvas/${endpoint}/${cId}/${id}`, { 
+        method: 'DELETE', 
+        headers: { 'Content-Type': 'application/json' } 
+    });
+    
+    if (!r.ok) {
+        const et = await r.text();
+        let ed;
+        try { ed = JSON.parse(et); } catch { ed = { message: et }; }
+        throw new Error(ed.message || `Failed: ${ty} ${id}`);
+    }
+
+    const api = window.gridApi || (window.gridOptions && window.gridOptions.api);
+    if (api) {
+        const rowNode = api.getRowNode(id.toString());
+        if (rowNode) {
+            api.applyTransaction({ remove: [rowNode.data] });
         }
     }
 
-    return newQuiz;
+    return await r.json().catch(() => ({ status: 'success' }));
 }
 
-async function createPage(courseId, payload) {
-    const res = await fetch(`/canvas/courses/${courseId}/pages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wiki_page: payload })
+async function deepPurgeModule(cId, moduleItem) {
+    console.log(`[DEEP DELETE] Module | ${cId} | ${moduleItem.id}`);
+    
+    const r = await fetch(`/canvas/courses/${cId}/modules/${moduleItem.id}/full-delete`, { 
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
     });
-    const result = res.ok ? await res.json() : null;
-    if (result && result.url && !result.id) result.id = result.url;
-    return result;
+
+    if (!r.ok) {
+        const et = await r.text();
+        let ed;
+        try { ed = JSON.parse(et); } catch { ed = { message: et }; }
+        throw new Error(ed.message || `Failed to deep delete module ${moduleItem.id}`);
+    }
+
+    const api = window.gridApi || window.gridOptions?.api;
+    
+    if (api) {
+        const rowNode = api.getRowNode(moduleItem.id.toString());
+        if (rowNode) {
+            api.applyTransaction({ remove: [rowNode.data] });
+        }
+    }
+
+    return await r.json().catch(() => ({ status: 'success' }));
 }
 
-async function createDiscussion(courseId, payload) {
-    const res = await fetch(`/canvas/courses/${courseId}/discussions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
-    return res.ok ? await res.json() : null;
+async function handleDeepPurge() {
+    const si = getSelectedItems();
+    if (!si || !si.length) { alert('No items selected.'); return; }
+    
+    const cId = document.getElementById('courseSelect')?.value || selectedCourseId;
+    if (!cId) { alert('No course ID found.'); return; }
+
+    if (!confirm(`This will delete ${si.length} module(s) AND all contents inside them. Continue?`)) return;
+
+    try {
+        for (const it of si) {
+            await deepPurgeModule(cId, it);
+        }
+        
+        closeActiveModal();
+
+        delete originalData['assignments'];
+        if (changes['assignments']) changes['assignments'] = {};
+        
+        await refreshCurrentTab();
+        
+        if (currentTab !== 'assignments') {
+            const tc = FIELD_DEFINITIONS['assignments'];
+            const r = await fetch(`/canvas/courses/${selectedCourseId}/${tc.endpoint}`);
+            const d = await r.json();
+            originalData['assignments'] = d.map(x => ({ ...x, _edit_status: 'synced' }));
+        }
+
+        alert('Deep purge complete.');
+    } catch (e) {
+        console.error('Purge error:', e);
+        alert(`Purge failed: ${e.message}`);
+    }
 }
 
-async function addModuleItem(courseId, moduleId, itemPayload) {
-    const res = await fetch(`/canvas/courses/${courseId}/modules/${moduleId}/items`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ module_item: itemPayload })
+
+async function refreshCurrentTab() {
+    if (!selectedCourseId) { alert('Select course first.'); return; }
+    delete originalData[currentTab];
+    if (changes[currentTab]) changes[currentTab] = {};
+    try {
+        const api = window.gridApi || window.gridOptions?.api;
+        if (api) api.setGridOption('loading', true);
+        
+        let configKey = currentTab;
+        if (!FIELD_DEFINITIONS[configKey] && configKey === 'discussions') configKey = 'discussion_topics';
+        
+        const tc = FIELD_DEFINITIONS[configKey];
+        if (!tc) { throw new Error(`No config for: ${currentTab}`); }
+        
+        const r = await fetch(`/canvas/courses/${selectedCourseId}/${tc.endpoint}`);
+        const d = await r.json();
+        const ds = d.map(x => ({ ...x, _edit_status: 'synced' }));
+        
+        originalData[currentTab] = ds;
+        if (api) {
+            api.setGridOption('rowData', ds); 
+            api.setGridOption('loading', false); 
+            api.redrawRows();
+            if (currentTab === 'students') setTimeout(() => api.resetRowHeights(), 100);
+        }
+    } catch (e) {
+        console.error(`Error refreshing:`, e); 
+        alert(`Refresh failed: ${e.message}`);
+        const api = window.gridApi || window.gridOptions?.api;
+        if (api) api.setGridOption('loading', false);
+    }
+}
+
+function updateColumnVisibility(colIds, isVisible) {
+    console.log('updateColumnVisibility called');
+    console.log('colIds:', colIds);
+    console.log('isVisible (toggle value):', isVisible);
+
+    if (!gridApi) {
+        console.error('gridApi is not defined or not initialized');
+        return;
+    }
+
+    if (!colIds || colIds.length === 0) {
+        console.warn('No column IDs provided to updateColumnVisibility');
+        return;
+    }
+
+    const stateUpdates = colIds.map(id => ({
+        colId: id,
+        hide: !isVisible
+    }));
+
+    console.log('Applying stateUpdates:', stateUpdates);
+
+    gridApi.applyColumnState({
+        state: stateUpdates,
+        applyOrder: false
     });
-    return res.ok ? await res.json() : null;
 }

@@ -41,7 +41,7 @@
                     <summary>Content Management</summary>
                     <div class="group-content">
                         <button onclick="openModal('cloneModal')">Clone Items</button>
-                        <button onclick="openModal('deleteModal')">Delete Items</button>
+                        <button onclick="handleDeleteClick()">Delete Items</button>
                         <button onclick="openModal('mergeModal')">Merge Items</button>
                     </div>
                 </details>
@@ -54,7 +54,7 @@
                 </details>
         
                 <details class="tool-group">
-                    <summary>Editor Appearance</summary>
+                    <summary>Show/Hide Columns</summary>
                     <div class="group-content">
                         <button onclick="openModal('columnVisibilityModal')">Show/Hide Columns</button>
                     </div>
@@ -69,7 +69,7 @@
                 </details>
         
                 <details class="tool-group">
-                    <summary>Publish Status</summary>
+                    <summary>Canvas Publish Status</summary>
                     <div class="group-content">
                         <button onclick="openModal('publishModal')">Publish/Unpublish</button>
                     </div>

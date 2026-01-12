@@ -29,10 +29,36 @@
             <h3>Show/Hide Columns</h3>
             <button class="close-x" onclick="closeActiveModal()">&times;</button>
         </div>
-        <div id="columnListContainer" class="modal-body">
+        <div class="modal-body" style="max-height: 400px; overflow-y: auto; padding-bottom: 0;">
+            <div id="columnListContainer"></div>
+        </div>
+        <div class="modal-footer" style="display: flex; flex-direction: column; gap: 15px; border-top: 1px solid #eee;">
+            <div class="toggle-container" style="display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%;">
+                <span style="font-weight: 600; color: #666; font-size: 14px;">Hide</span>
+                <label class="switch">
+                    <input type="checkbox" id="visibilityToggle" checked>
+                    <span class="slider"></span>
+                </label>
+                <span style="font-weight: 600; color: #666; font-size: 14px;">Show</span>
             </div>
-        <div class="modal-footer">
-            <button class="primary-btn" onclick="closeActiveModal()">Done</button>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 10px; width: 100%;">
+                <button class="primary-btn" 
+                    onclick="(() => {
+                        const checkboxes = Array.from(document.querySelectorAll('.col-toggle-input'));
+                        const selectedIds = checkboxes.filter(cb => cb.checked).map(cb => cb.value);
+                        const isVisible = document.getElementById('visibilityToggle').checked;
+                        
+                        if (selectedIds.length > 0) {
+                            updateColumnVisibility(selectedIds, isVisible);
+                        }
+                        
+                        closeActiveModal();
+                    })()">
+                    Apply
+                </button>
+                <button class="ghost-btn" onclick="closeActiveModal()">Done</button>
+            </div>
         </div>
     </div>
 
@@ -276,5 +302,33 @@
             <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
         </div>
     </div>
+    <div id="deepPurgeModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Deep Purge Modules</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="color: #d93025; font-weight: bold;">Warning: This action is permanent.</p>
+            
+            <div id="moduleItemsInfo" style="margin: 15px 0; padding: 10px; background: #f5f5f5; border-radius: 4px;">
+                <p style="font-weight: bold; margin-bottom: 8px;">Selected Modules:</p>
+                <div id="moduleItemsList"></div>
+            </div>
+            
+            <p>Choose your deletion strategy:</p>
+            <select id="purgeMethod" style="width: 100%; margin-bottom: 15px; padding: 8px;">
+                <option value="standard">Standard (Module Shell Only)</option>
+                <option value="deep">Deep Purge (Delete All Content Items)</option>
+            </select>
+    
+            <p>Type "DELETE" to confirm the removal of selected modules.</p>
+            <input type="text" id="deepPurgeConfirmInput" placeholder="Type DELETE...">
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn delete-btn" onclick="handleDeepPurge()">Delete Permanently</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
 
 </div>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Canvas Cloning Test Lab</title>
+        <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-grid.css">
+        
+        <style>
+            body { font-family: sans-serif; padding: 40px; background-color: #eee; }
+            #test-suite-container { max-width: 1000px; margin: 0 auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid #ccc; background: #f9f9f9; padding: 20px; }
+            button { padding: 10px 15px; cursor: pointer; font-weight: bold; margin-right: 10px; }
+            #test-report-area { margin-top: 30px; }
+            table { width: 100%; border-collapse: collapse; background: #fff; }
+            th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
+            th { background: #f2f2f2; border-bottom: 2px solid #000; }
+        </style>
+    </head>tyle>
+</head>
+<body>
+
+<div id="test-suite-container" style="padding: 20px; border: 1px solid #ccc; background: #f9f9f9;">
+    <h3>Cloning Test Suite</h3>
+    
+    <div style="margin-bottom: 20px;">
+        <button id="btn-stage-1" onclick="runTestStage1()">Stage 1: Create Master Module & Items</button>
+        <button id="btn-stage-2" onclick="runTestStage2()">Stage 2: Clone Items (Stand-alone)</button>
+    </div>
+
+    <div id="test-report-area">
+        <h4>Execution Report</h4>
+        <table id="test-report-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="text-align: left; border-bottom: 2px solid #000;">
+                    <th>Action</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody id="test-report-body">
+            </tbody>
+        </table>
+    </div>
+</div>
+<div id="myGrid" style="display: none;"></div>
+
+<script src="../js/main.js"></script>
+<script src="test_suite.js"></script>
+
+</body>
+</html>
