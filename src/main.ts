@@ -2,22 +2,30 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { AppModule } from './app.module';
+import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // This tells Nest where to find your HTML files
-  // Use process.cwd() to get the project root, which works in both dev and production
+  // 1. ADDED: Increase limits for HUGE Canvas payloads
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ limit: '50mb', extended: true }));
+
+  // Keep your global prefix
+  app.setGlobalPrefix('bulk-canvas-editor');
+
+  // Keep your views and static assets config
   app.setBaseViewsDir(join(process.cwd(), 'views'));
   app.setViewEngine('ejs');
-
-  // Serve static files from the public directory
   app.useStaticAssets(join(process.cwd(), 'public'));
 
-  // Enable CORS if needed
+  // Keep CORS
   app.enableCors();
 
-  await app.listen(3000);
-  console.log('Application is running on: http://localhost:3000');
+  // 2. MODIFIED: Start the server (Render requires this)
+  const port = process.env.PORT || 3000;
+  await app.listen(port, '0.0.0.0');
 }
+
+// 3. MODIFIED: Execute the bootstrap function
 bootstrap();
