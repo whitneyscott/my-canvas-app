@@ -9,6 +9,13 @@
         <link rel="stylesheet" href="/css/style.css">
     </head>
 <body>
+    <div id="ui-debug-console" style="position: fixed; top: 0; right: 0; width: 300px; height: 200px; background: rgba(0,0,0,0.8); color: #00ff00; font-family: monospace; font-size: 12px; padding: 10px; overflow-y: auto; z-index: 9999; border-left: 2px solid #555;">
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #555; margin-bottom: 5px;">
+            <strong>DEBUG LOG</strong>
+            <button onclick="document.getElementById('ui-debug-console-body').innerHTML = ''" style="background: #444; color: white; border: none; cursor: pointer; font-size: 10px;">Clear</button>
+        </div>
+        <div id="ui-debug-console-body"></div>
+    </div>
     <div class="app-container">
         <aside class="sidebar">
             <div class="sidebar-header">Navigation</div>
