@@ -1,13 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 
 @Injectable()
 export class CanvasService {
+  private readonly logger = new Logger(CanvasService.name);
   private readonly baseUrl = process.env.CANVAS_BASE_URL || 'https://canvas.instructure.com/api/v1';
 
   private getHeaders(token: string) {
+    const apiKey = token || process.env.CANVAS_API_KEY;
     return {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'Accept': 'application/json'
     };
@@ -25,11 +27,19 @@ export class CanvasService {
   }
 
   async getCourses(token: string) {
-    if (!token) return [];
+    const apiKey = token || process.env.CANVAS_API_KEY;
+    if (!apiKey) {
+      this.logger.error('No Canvas API token found in request or environment variables');
+      return [];
+    }
     try {
       const url = `${this.baseUrl}/courses?per_page=100&include[]=term&state[]=unpublished&state[]=available&state[]=completed&enrollment_type=teacher`;
-      const response = await axios.get(url, { headers: this.getHeaders(token) });
-      if (!Array.isArray(response.data)) return [];
+      this.logger.log(`Fetching courses from: ${url}`);
+      const response = await axios.get(url, { headers: this.getHeaders(apiKey) });
+      if (!Array.isArray(response.data)) {
+        this.logger.warn('Canvas returned non-array data for courses');
+        return [];
+      }
       const grouped = response.data.reduce((acc: any, course: any) => {
         if (!course.id || (!course.name && !course.course_code)) return acc;
         const termName = course.term?.name || this.decodeNumericTerm(course.enrollment_term_id);
@@ -62,6 +72,11 @@ export class CanvasService {
       sortedTerms.forEach((group: any) => group.courses.sort((a: any, b: any) => b.id - a.id));
       return sortedTerms;
     } catch (error: any) {
+      this.logger.error(`Error fetching courses: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`Status: ${error.response.status}`);
+        this.logger.error(`Data: ${JSON.stringify(error.response.data)}`);
+      }
       return [];
     }
   }
