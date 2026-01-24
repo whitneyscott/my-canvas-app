@@ -16,7 +16,10 @@ async function bootstrap() {
 
   app.setBaseViewsDir(join(process.cwd(), 'views'));
   app.setViewEngine('ejs');
-  app.useStaticAssets(join(process.cwd(), 'public'));
+  
+  app.useStaticAssets(join(process.cwd(), 'public'), {
+    prefix: '/bulk-canvas-editor',
+  });
 
   app.enableCors();
 

@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+    
 <head>
+    <base href="/bulk-canvas-editor/">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Canvas LMS Bulk Editor</title>
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/bulk-canvas-editor/css/style.css">
 </head>
 <body>
     <div class="container">
@@ -3509,6 +3511,63 @@
         });
 
         async function loadCourses() {
+        const select = document.getElementById('courseSelect');
+        const loadingEl = document.getElementById('courseLoading');
+        
+        if (select) select.disabled = true;
+        if (loadingEl) loadingEl.classList.remove('hidden');
+        
+        try {
+            debugLog('Loading courses...', 'info');
+            const response = await fetch('/bulk-canvas-editor/canvas/courses');
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+            const responseData = await response.json();
+            debugLog(`Received response from API`, 'info');
+            
+            if (!Array.isArray(responseData)) {
+                debugLog(`ERROR: Expected array but got: ${typeof responseData}`, 'error');
+                debugLog(`Response data: ${JSON.stringify(responseData)}`, 'error');
+                return;
+            }
+            
+            const currentSelect = document.getElementById('courseSelect');
+            if (!currentSelect) {
+                debugLog('ERROR: courseSelect element not found', 'error');
+                return;
+            }
+            
+            currentSelect.innerHTML = '<option value="">-- Select a Course --</option>';
+            
+            let totalCourses = 0;
+            responseData.forEach(group => {
+                if (group.courses && Array.isArray(group.courses)) {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = group.term || 'No Term Assigned';
+                    group.courses.forEach(course => {
+                        const option = document.createElement('option');
+                        option.value = course.id || '';
+                        const courseName = course.name || 'Unnamed Course';
+                        const courseCode = course.course_code || course.id || '';
+                        option.textContent = `${courseName}${courseCode ? ' (' + courseCode + ')' : ''}`;
+                        optgroup.appendChild(option);
+                        totalCourses++;
+                    });
+                    currentSelect.appendChild(optgroup);
+                }
+            });
+            debugLog(`Loaded ${totalCourses} courses into dropdown`, 'success');
+        } catch (error) {
+            debugLog(`Error loading courses: ${error.message}`, 'error');
+            debugLog(`Error stack: ${error.stack}`, 'error');
+            console.error('loadCourses error:', error);
+        } finally {
+            if (select) select.disabled = false;
+            if (loadingEl) loadingEl.classList.add('hidden');
+        }
+    }
             const select = document.getElementById('courseSelect');
             const loadingEl = document.getElementById('courseLoading');
             
