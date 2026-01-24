@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Course Manager</title>
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/js/config.js"></script>
+    <script src="/js/helpers.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <button class="tab-btn" data-tab="announcements">Announcements</button>
+            <button class="tab-btn" data-tab="assignments">Assignments</button>
+            <button class="tab-btn" data-tab="discussions">Discussions</button>
+            <button class="tab-btn" data-tab="files">Files</button>
+            <button class="tab-btn" data-tab="modules">Modules</button>
+            <button class="tab-btn" data-tab="pages">Pages</button>
+            <button class="tab-btn" data-tab="quizzes">Quizzes</button>
+            <button class="tab-btn pii-module" data-tab="students" style="margin-top: auto;">Students</button>
+        </aside>
+
+        <main class="main-content">
+            <header class="toolbar">
+                <select id="courseSelect"></select>
+                <select id="editModeDropdown">
+                    <option value="">Bulk Actions...</option>
+                    <option value="searchReplace">Search & Replace</option>
+                </select>
+                <button class="primary-btn" id="syncBtn">Sync Changes</button>
+            </header>
+
+            <div id="myGrid" class="ag-theme-quartz"></div>
+        </main>
+    </div>
+
+    <script>
+        let gridApi;
+        let currentTab = 'assignments';
+        let originalData = {};
+        let changes = {};
+        let selectedCourseId = null;
+
+        const gridOptions = {
+            defaultColDef: window.CANVAS_CONFIG.GRID_DEFAULTS,
+            
+            getRowId: (params) => {
+                return String(params.data.id || params.data.url || Math.random());
+            },
+            
+            getRowStyle: params => {
+                if (params.data && params.data._edit_status === 'modified') {
+                    return window.CANVAS_CONFIG.ROW_STYLES.modified;
+                }
+                return null;
+            },
+            
+            onCellValueChanged: (params) => {
+                if (params.colDef.field !== '_edit_status') {
+                    CanvasHelpers.markRowAsModified(params);
+                    
+                    const id = params.data.id || params.data.url;
+                    CanvasHelpers.trackChange(changes, currentTab, id, params.colDef.field, params.newValue);
+                }
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const gridDiv = document.querySelector('#myGrid');
+            gridApi = agGrid.createGrid(gridDiv, gridOptions);
+            
+            await CanvasHelpers.populateCourseSelect(document.getElementById('courseSelect'));
+            
+            document.getElementById('courseSelect').addEventListener('change', onCourseSelected);
+            document.getElementById('syncBtn').addEventListener('click', syncChanges);
+            document.getElementById('editModeDropdown').addEventListener('change', handleEditModeChange);
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+            });
+            
+            const courseId = CanvasHelpers.getCourseIdFromURL();
+            if (courseId) {
+                document.getElementById('courseSelect').value = courseId;
+                selectedCourseId = courseId;
+                switchTab('assignments');
+            }
+        });
+
+        function switchTab(tabName) {
+            currentTab = tabName;
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tabName);
+            });
+
+            if (gridApi) {
+                gridApi.setFilterModel(null);
+                gridApi.setGridOption('columnDefs', CanvasHelpers.generateColumnDefs(tabName));
+                gridApi.setGridOption('rowData', originalData[tabName] || []);
+                setTimeout(() => gridApi.sizeColumnsToFit(), 100);
+            }
+
+            if (!originalData[tabName]) {
+                loadTabData(tabName);
+            }
+        }
+
+        function onCourseSelected() {
+            const select = document.getElementById('courseSelect');
+            const courseId = select.value;
+            
+            if (!courseId) {
+                selectedCourseId = null;
+                if (gridApi) {
+                    gridApi.setGridOption('rowData', []);
+                }
+                return;
+            }
+            
+            selectedCourseId = courseId;
+            CanvasHelpers.updateURL(courseId);
+            
+            originalData = {};
+            switchTab(currentTab);
+        }
+
+        async function loadTabData(tabName) {
+            try {
+                if (!selectedCourseId) {
+                    if (currentTab === tabName && gridApi) {
+                        gridApi.setGridOption('rowData', []);
+                    }
+                    return;
+                }
+
+                const endpoint = window.CANVAS_CONFIG.API.getTabData(selectedCourseId, tabName);
+                const data = await CanvasHelpers.loadData(endpoint);
+                
+                originalData[tabName] = data;
+                if (currentTab === tabName) {
+                    gridApi.setGridOption('rowData', data);
+                }
+            } catch (err) {
+                console.error(`Error loading ${tabName}:`, err);
+                if (currentTab === tabName && gridApi) {
+                    gridApi.setGridOption('rowData', []);
+                }
+            }
+        }
+
+        function handleEditModeChange() {
+            const mode = document.getElementById('editModeDropdown').value;
+            if (mode === 'searchReplace') {
+                console.log("Opening Search/Replace for", currentTab);
+            }
+        }
+
+        async function syncChanges() {
+            if (!selectedCourseId) {
+                return alert('Please select a course first.');
+            }
+
+            const tabChanges = changes[currentTab];
+            if (!tabChanges || Object.keys(tabChanges).length === 0) {
+                return alert('No pending changes to sync.');
+            }
+
+            for (const itemId in tabChanges) {
+                const updates = tabChanges[itemId];
+                const endpoint = window.CANVAS_CONFIG.API.updateItem(selectedCourseId, currentTab, itemId);
+
+                try {
+                    await CanvasHelpers.updateItem(endpoint, updates);
+                    CanvasHelpers.markRowAsSynced(gridApi, itemId);
+                    delete changes[currentTab][itemId];
+                } catch (err) {
+                    console.error(`Error syncing ${itemId}:`, err);
+                }
+            }
+            
+            alert('Sync completed.');
+        }
+    </script>
+</body>
+</html>

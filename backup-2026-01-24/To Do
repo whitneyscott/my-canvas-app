@@ -1,0 +1,81 @@
+
+0. Add the merging functionality
+   1. Assignment groups
+   2. Modules
+1. Accommodations System Updates
+   Option 1:
+   1. Add prompt - check if the assignment uses LPI tools. If it does ask if should add "UPDATE SOURCE MATERIALS" to the title
+   2. Use a start of semester quiz for students to self-select the accommodations.
+   3. Add a rubric - teacher completes it, checking DSSO approved or not approved
+   Option 2:
+   1. Bulk editor - create an assignment with the name that corresponds to each type of accommodation.
+   2. Teacher assigns students to each group based on DSSO accommodations
+   3. Bulk editor uses assigned to data to apply the accommodatons to assignments and quizzes
+2. check assignment groups in discussions and quizzes too... add visual indicator such as a dropdown icon
+4. Restore bulk editors: Access Exceptions left, add Assignment groups
+
+6. leverage the tab refresh function, but make it universal an apply it with a controller so that the tabs refresh whenever the data is updated either fetched or confirmed updated within Canvas
+7. Add tabs
+   1. Module Items
+   4. Course management
+   5. Rubrics 
+   6. Outcomes
+   
+7. Assignment, quizzes, others - add a settings link. Click it and open up an editor for the specific one. I'm not really sure what I mean here...
+8. Remove classic quizzes from Assignments tab?????
+9. Use this to create a course persistence thingy - can recreate all items from the data. The only possible exception being grades due to PII unless we also do those with SIS ID...
+10. Consolidate code: populate functions, others in the ChatGPT discussion
+
+Group 1: Access exceptions
+Group 2: Content Management
+Group 3: Date Management
+Group 4: Editor Appearance
+Group 5: Text Editing
+Group 6: Publish/Unpublish
+Group 7: Assignment Groups.... For bulk, but also have individual dropdowns. Remember to add "Create new"
+
+
+## V2 features
+1. Course audit
+      1. Check all images for alt tags and suggest them using AI where missing
+      2. Find broken links and suggest substitutes
+      3. Fix all other issues automatically from the page auditor checks.
+      4. Standards compliance
+      5. Outcomes alignment
+2. Increase power of the duplicate/unused file finder
+   1. Add more endpoints to check
+      1. Quizzes
+      2. Assignments
+      3. Discussions
+   2. Add data storage to preserve files to keep even thought they are empty - store it in Canvas in a specific file
+3. App settings
+   1. Themes
+   2. API key
+   3. Base URL
+   4. Other?
+4. Sanitizer - Strip junk inline CSS and legacy formatting from content descriptions, any other HTML that Canvas rejects
+5. Enhance the Insert tool to add "Tags" to items to help with the Filtering
+   
+
+
+   Since you are building a tool designed to integrate with Canvas, your distribution strategy needs to balance **security** (protecting those API keys), **accessibility** (how teachers open the app), and **maintenance** (how you push updates).
+
+Here is a breakdown of the best ways to distribute your new system.
+
+---
+## Distribution Comparison Table
+
+| Method | Best For... | Setup Difficulty | Teacher Effort |
+| --- | --- | --- | --- |
+| **LTI** | Institutional Adoption | High | Low (Built into Canvas) |
+| **Heroku** | Centralized Hosting | Medium | Low (Just a URL) |
+| **Git** | Developer Backup | Low | High (They must host it) |
+| **Extension** | Individual Power-Users | Medium | Medium (Must install) |
+
+---
+
+### My Recommendation: The "Professional" Stack
+
+1. **Git:** Keep your code in a private GitHub repo.
+2. **Heroku:** Deploy your code there so you have a live URL.
+3. **LTI:** Configure Canvas to point to that Heroku URL as an LTI tool.

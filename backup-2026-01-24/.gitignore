@@ -65,3 +65,5 @@ prisma/dev.db-journal
 
 # Backups
 /Backups
+backup-*
+FULL-BACKUP-*
