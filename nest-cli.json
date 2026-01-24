@@ -5,8 +5,16 @@
   "compilerOptions": {
     "deleteOutDir": true,
     "assets": [
-      { "include": "../views/**/*", "outDir": "dist" },
-      { "include": "../public/**/*", "outDir": "dist" }
+      {
+        "include": "../views/**/*",
+        "outDir": "dist/views",
+        "watchMode": true
+      },
+      {
+        "include": "../public/**/*",
+        "outDir": "dist/public",
+        "watchMode": true
+      }
     ],
     "watchAssets": true
   }
