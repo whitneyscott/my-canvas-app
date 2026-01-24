@@ -9,7 +9,7 @@ export class CanvasController {
   private getHeaders(token?: string) {
     const authToken = token || this.canvasToken;
     if (!authToken) {
-      throw new Error('Canvas token not available. Set CANVAS_TOKEN in .env file.');
+      throw new Error('Canvas token not available. Set CANVAS_TOKEN in Render or .env file.');
     }
     return {
       Authorization: `Bearer ${authToken}`,
@@ -32,8 +32,7 @@ export class CanvasController {
   @Get('courses')
   async getCourses() {
     if (!this.canvasToken) {
-      console.error('CANVAS_TOKEN not set in .env file');
-      return [];
+      return { error: 'Backend Error: CANVAS_TOKEN is missing from environment variables.' };
     }
     try {
       const url = `${this.baseUrl}/courses?per_page=100&include[]=term&state[]=unpublished&state[]=available&state[]=completed&enrollment_type=teacher`;
@@ -71,8 +70,11 @@ export class CanvasController {
       sortedTerms.forEach((group: any) => group.courses.sort((a: any, b: any) => b.id - a.id));
       return sortedTerms;
     } catch (error: any) {
-      console.error('Error fetching courses from Canvas:', error.response?.data || error.message);
-      return [];
+      return { 
+        error: 'Canvas API Error', 
+        message: error.message, 
+        details: error.response?.data || 'No additional details' 
+      };
     }
   }
 
@@ -81,54 +83,13 @@ export class CanvasController {
     @Param('courseId') courseId: string,
     @Param('type') type: string
   ) {
-    if (!this.canvasToken) {
-      console.error('CANVAS_TOKEN not set in .env file');
-      return [];
-    }
+    if (!this.canvasToken) return { error: 'CANVAS_TOKEN not configured' };
     try {
       let endpoint = (type === 'discussions' || type === 'announcements') ? 'discussion_topics' : type;
-      
       if (type === 'modules') {
         const url = `${this.baseUrl}/courses/${courseId}/${endpoint}?include[]=items&include[]=content_details&per_page=100`;
-        console.log(`[Canvas API] Fetching modules for course ${courseId}`);
-        console.log(`[Canvas API] URL: ${url}`);
-        
-        const response = await axios.get(url, {
-          headers: this.getHeaders(),
-        });
-        
-        console.log(`[Canvas API] Modules response status: ${response.status}`);
-        console.log(`[Canvas API] Modules response data type: ${typeof response.data}, isArray: ${Array.isArray(response.data)}`);
-        
+        const response = await axios.get(url, { headers: this.getHeaders() });
         let data = Array.isArray(response.data) ? response.data : [];
-        console.log(`[Canvas API] Fetched ${data.length} modules`);
-        
-        if (data.length > 0) {
-          data.forEach((module: any, index: number) => {
-            console.log(`[Canvas API] Module ${index + 1}: ${module.name} (ID: ${module.id})`);
-            console.log(`[Canvas API]   - items_count: ${module.items_count}`);
-            console.log(`[Canvas API]   - items array: ${Array.isArray(module.items) ? module.items.length + ' items' : 'not an array'}`);
-            console.log(`[Canvas API]   - Module keys: ${Object.keys(module).join(', ')}`);
-            
-            if (Array.isArray(module.items) && module.items.length > 0) {
-              console.log(`[Canvas API]   - First item: ${module.items[0].title} (${module.items[0].type})`);
-              console.log(`[Canvas API]   - First item keys: ${Object.keys(module.items[0]).join(', ')}`);
-              console.log(`[Canvas API]   - First item has content_details: ${!!module.items[0].content_details}`);
-              if (module.items[0].content_details) {
-                console.log(`[Canvas API]   - First item content_details keys: ${Object.keys(module.items[0].content_details).join(', ')}`);
-              }
-            } else {
-              console.log(`[Canvas API]   - No items array or empty. Checking for content_details at module level...`);
-              console.log(`[Canvas API]   - Module has content_details: ${!!module.content_details}`);
-              if (module.content_details) {
-                console.log(`[Canvas API]   - Module content_details:`, JSON.stringify(module.content_details, null, 2));
-              }
-            }
-            
-            console.log(`[Canvas API]   - Full module structure (first 1000 chars):`, JSON.stringify(module, null, 2).substring(0, 1000));
-          });
-        }
-        
         return data.map(item => ({ ...item, _parentCourseId: courseId, _originTab: type }));
       } else {
         const response = await axios.get(`${this.baseUrl}/courses/${courseId}/${endpoint}?per_page=100`, {
@@ -139,12 +100,7 @@ export class CanvasController {
         return data.map(item => ({ ...item, _parentCourseId: courseId, _originTab: type }));
       }
     } catch (error: any) {
-      console.error(`[Canvas API] Error fetching ${type} for course ${courseId}:`, error.message);
-      if (error.response) {
-        console.error(`[Canvas API] Error status: ${error.response.status}`);
-        console.error(`[Canvas API] Error data:`, JSON.stringify(error.response.data, null, 2));
-      }
-      return [];
+      return { error: `Failed to fetch ${type}`, message: error.message };
     }
   }
 
@@ -153,63 +109,13 @@ export class CanvasController {
     @Param('courseId') courseId: string,
     @Param('moduleId') moduleId: string
   ) {
-    if (!this.canvasToken) {
-      console.error('CANVAS_TOKEN not set in .env file');
-      return [];
-    }
+    if (!this.canvasToken) return { error: 'CANVAS_TOKEN not configured' };
     try {
-      console.log(`[Canvas API] Fetching module items for module ${moduleId} in course ${courseId}`);
-      
-      const moduleUrl = `${this.baseUrl}/courses/${courseId}/modules/${moduleId}`;
-      console.log(`[Canvas API] First, checking module details: ${moduleUrl}`);
-      const moduleResponse = await axios.get(moduleUrl, { headers: this.getHeaders() });
-      console.log(`[Canvas API] Module details - name: ${moduleResponse.data?.name}, items_count: ${moduleResponse.data?.items_count}`);
-      
-      const itemsUrl = `${this.baseUrl}/courses/${courseId}/modules/${moduleId}/items`;
-      console.log(`[Canvas API] Now fetching items from: ${itemsUrl}`);
-      
-      const url = `${itemsUrl}?include[]=content_details&per_page=100`;
-      console.log(`[Canvas API] Full URL with params: ${url}`);
-      
-      const response = await axios.get(url, { 
-        headers: this.getHeaders()
-      });
-      
-      console.log(`[Canvas API] Response status: ${response.status}`);
-      console.log(`[Canvas API] Actual request URL: ${response.config.url || response.request?.res?.responseUrl}`);
-      console.log(`[Canvas API] Response data type: ${typeof response.data}, isArray: ${Array.isArray(response.data)}`);
-      console.log(`[Canvas API] Response data length: ${Array.isArray(response.data) ? response.data.length : 'N/A'}`);
-      
-      if (!Array.isArray(response.data)) {
-        console.error('[Canvas API] Module items response is not an array:', response.data);
-        if (response.data && typeof response.data === 'object') {
-          console.error('[Canvas API] Response object keys:', Object.keys(response.data));
-          console.error('[Canvas API] Full response:', JSON.stringify(response.data, null, 2));
-        }
-        return [];
-      }
-      
-      console.log(`[Canvas API] Fetched ${response.data.length} items for module ${moduleId}`);
-      if (response.data.length > 0) {
-        console.log(`[Canvas API] First item sample:`, JSON.stringify(response.data[0], null, 2));
-        console.log(`[Canvas API] First item has content_details:`, !!response.data[0].content_details);
-      } else {
-        console.warn(`[Canvas API] WARNING: Module ${moduleId} returned 0 items but module.items_count is ${moduleResponse.data?.items_count}`);
-        if (moduleResponse.data?.items_count > 0) {
-          console.error(`[Canvas API] ERROR: Module has ${moduleResponse.data.items_count} items according to module data, but items endpoint returned 0!`);
-        }
-      }
+      const url = `${this.baseUrl}/courses/${courseId}/modules/${moduleId}/items?include[]=content_details&per_page=100`;
+      const response = await axios.get(url, { headers: this.getHeaders() });
       return response.data;
     } catch (error: any) {
-      console.error(`[Canvas API] Error fetching module items for module ${moduleId}:`, error.message);
-      if (error.response) {
-        console.error(`[Canvas API] Error status: ${error.response.status}`);
-        console.error(`[Canvas API] Error data:`, JSON.stringify(error.response.data, null, 2));
-      }
-      if (error.response?.status === 404) {
-        console.error(`[Canvas API] Module ${moduleId} not found in course ${courseId}`);
-      }
-      return [];
+      return { error: 'Failed to fetch module items', message: error.message };
     }
   }
 
@@ -219,10 +125,7 @@ export class CanvasController {
     @Param('moduleId') moduleId: string,
     @Body() body: any
   ) {
-    if (!this.canvasToken) {
-      console.error('CANVAS_TOKEN not set in .env file');
-      return { error: 'CANVAS_TOKEN not configured' };
-    }
+    if (!this.canvasToken) return { error: 'CANVAS_TOKEN not configured' };
     try {
       const response = await axios.post(
         `${this.baseUrl}/courses/${courseId}/modules/${moduleId}/items`,
@@ -231,8 +134,7 @@ export class CanvasController {
       );
       return response.data;
     } catch (error: any) {
-      console.error(`Error adding module item:`, error.response?.data || error.message);
-      return error.response?.data || { errors: [{ message: error.message }] };
+      return error.response?.data || { error: error.message };
     }
   }
 
@@ -242,14 +144,10 @@ export class CanvasController {
     @Param('type') type: string,
     @Body() body: any
   ) {
-    if (!this.canvasToken) {
-      console.error('CANVAS_TOKEN not set in .env file');
-      return { error: 'CANVAS_TOKEN not configured' };
-    }
+    if (!this.canvasToken) return { error: 'CANVAS_TOKEN not configured' };
     try {
       let endpoint = type === 'discussions' || type === 'announcements' ? 'discussion_topics' : type;
       let payload = body;
-
       if (type === 'modules') {
         payload = { module: { name: body.name || body.module?.name } };
       } else if (type === 'assignments' && !body.assignment) {
@@ -259,7 +157,6 @@ export class CanvasController {
       } else if (type === 'pages' && !body.wiki_page) {
         payload = { wiki_page: body };
       }
-
       const response = await axios.post(
         `${this.baseUrl}/courses/${courseId}/${endpoint}`,
         payload,
@@ -267,7 +164,6 @@ export class CanvasController {
       );
       return response.data;
     } catch (error: any) {
-      console.error(`Error creating ${type}:`, error.response?.data || error.message);
       return error.response?.data || { error: error.message };
     }
   }
@@ -279,10 +175,7 @@ export class CanvasController {
     @Param('id') id: string,
     @Body() body: any
   ) {
-    if (!this.canvasToken) {
-      console.error('CANVAS_TOKEN not set in .env file');
-      return { error: 'CANVAS_TOKEN not configured' };
-    }
+    if (!this.canvasToken) return { error: 'CANVAS_TOKEN not configured' };
     try {
       let endpoint = type === 'discussions' || type === 'announcements' ? 'discussion_topics' : type;
       const wrapperMap: Record<string, string> = {
@@ -292,11 +185,9 @@ export class CanvasController {
       };
       const wrapper = wrapperMap[type];
       let payload = body;
-      
       if (wrapper && !body[wrapper]) {
         payload = { [wrapper]: body };
       }
-      
       const urlId = type === 'pages' ? encodeURIComponent(id) : id;
       const response = await axios.put(
         `${this.baseUrl}/courses/${courseId}/${endpoint}/${urlId}`,
@@ -305,33 +196,26 @@ export class CanvasController {
       );
       return response.data;
     } catch (error: any) {
-      console.error(`Error updating ${type}:`, error.response?.data || error.message);
       return error.response?.data || { error: error.message };
     }
   }
 
   @Delete('courses/:courseId/modules/:moduleId/full-delete')
-  @Delete('courses/:courseId/modules/:moduleId/full-delete')
   async fullDeleteModule(
     @Param('courseId') courseId: string,
     @Param('moduleId') moduleId: string
   ) {
-    if (!this.canvasToken) {
-      console.error('CANVAS_TOKEN not set in .env file');
-      return { error: 'CANVAS_TOKEN not configured' };
-    }
+    if (!this.canvasToken) return { error: 'CANVAS_TOKEN not configured' };
     try {
       const itemsUrl = `${this.baseUrl}/courses/${courseId}/modules/${moduleId}/items`;
       const itemsResponse = await axios.get(`${itemsUrl}?include[]=content_details&per_page=100`, { 
         headers: this.getHeaders() 
       });
       const items = Array.isArray(itemsResponse.data) ? itemsResponse.data : [];
-      
       for (const item of items) {
         try {
           const type = item.type;
           const contentId = type === 'Page' ? (item.page_url || item.url) : item.content_id;
-
           if (contentId && !['ExternalTool', 'ExternalUrl', 'SubHeader'].includes(type)) {
             let typeEndpoint = '';
             switch (type) {
@@ -340,27 +224,21 @@ export class CanvasController {
               case 'Page': typeEndpoint = 'pages'; break;
               case 'DiscussionTopic': typeEndpoint = 'discussion_topics'; break;
             }
-
             if (typeEndpoint) {
               await axios.delete(`${this.baseUrl}/courses/${courseId}/${typeEndpoint}/${contentId}`, { 
                 headers: this.getHeaders() 
-              }).catch(e => console.error(`Underlying content delete failed: ${e.message}`));
+              }).catch(() => null);
             }
           }
-
           await axios.delete(`${itemsUrl}/${item.id}`, { headers: this.getHeaders() });
-        } catch (error: any) {
-          console.error(`Error deleting module item ${item.id}:`, error.message);
-        }
+        } catch (error: any) {}
       }
-      
       const moduleResponse = await axios.delete(
         `${this.baseUrl}/courses/${courseId}/modules/${moduleId}`,
         { headers: this.getHeaders() }
       );
       return moduleResponse.data;
     } catch (error: any) {
-      console.error(`Error full deleting module:`, error.response?.data || error.message);
       return { error: error.response?.data?.errors?.[0]?.message || error.message };
     }
   }
@@ -371,10 +249,7 @@ export class CanvasController {
     @Param('courseId') courseId: string,
     @Param('id') id: string
   ) {
-    if (!this.canvasToken) {
-      console.error('CANVAS_TOKEN not set in .env file');
-      return { error: 'CANVAS_TOKEN not configured' };
-    }
+    if (!this.canvasToken) return { error: 'CANVAS_TOKEN not configured' };
     try {
       const normalizedType = type.toLowerCase();
       let endpoint = '';
