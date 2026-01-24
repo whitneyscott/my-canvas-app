@@ -515,7 +515,17 @@
         </div>
 
     <script>
-        // Helper function: Get editable fields from FIELD_DEFINITIONS
+        (function() {
+            const originalFetch = window.fetch;
+            const API_BASE = '/bulk-canvas-editor';
+
+            window.fetch = function(url, options) {
+                if (typeof url === 'string' && url.startsWith('/canvas') && !url.startsWith(API_BASE)) {
+                    url = API_BASE + url;
+                }
+                return originalFetch(url, options);
+            };
+        })();
         function getEditableFields(tabName) {
             const fieldDefs = FIELD_DEFINITIONS[tabName];
             if (fieldDefs) {
