@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Canvas Course Manager</title>
+    
+        <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>
+        <link rel="stylesheet" href="/css/style.css">
+    </head>
+<body>
+    <div id="ui-debug-console" style="position: fixed; top: 0; right: 0; width: 300px; height: 200px; background: rgba(0,0,0,0.8); color: #00ff00; font-family: monospace; font-size: 12px; padding: 10px; overflow-y: auto; z-index: 9999; border-left: 2px solid #555;">
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #555; margin-bottom: 5px;">
+            <strong>DEBUG LOG</strong>
+            <button onclick="document.getElementById('ui-debug-console-body').innerHTML = ''" style="background: #444; color: white; border: none; cursor: pointer; font-size: 10px;">Clear</button>
+        </div>
+        <div id="ui-debug-console-body"></div>
+    </div>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">Navigation</div>
+            <details class="tool-group" open>
+                <summary>Course Content</summary>
+                <nav class="group-content">
+                    <button class="nav-btn active" data-tab="announcements" onclick="switchTab('announcements')">Announcements</button>
+                    <button class="nav-btn" data-tab="assignments" onclick="switchTab('assignments')">Assignments</button>
+                    <button class="nav-btn" data-tab="discussions" onclick="switchTab('discussions')">Discussions</button>
+                    <button class="nav-btn" data-tab="files" onclick="switchTab('files')">Files</button>
+                    <button class="nav-btn" data-tab="modules" onclick="switchTab('modules')">Modules</button>
+                    <button class="nav-btn" data-tab="pages" onclick="switchTab('pages')">Pages</button>
+                    <button class="nav-btn" data-tab="quizzes" onclick="switchTab('quizzes')">Quizzes</button>
+                    <button class="nav-btn pii-module" data-tab="students" onclick="switchTab('students')">Students</button>
+                </nav>
+            </details>
+        
+            <div class="sidebar-header" style="margin-top: 20px;">Bulk Actions</div>
+            <div class="bulk-actions-container">
+                
+                <details class="tool-group">
+                    <summary>Access Exceptions</summary>
+                    <div class="group-content">
+                        <button onclick="openModal('accommodationsModal')">Accommodations</button>
+                        <button onclick="openModal('assignToModal')">Assign To...</button>
+                    </div>
+                </details>
+        
+                <details class="tool-group">
+                    <summary>Content Management</summary>
+                    <div class="group-content">
+                        <button onclick="openModal('cloneModal')">Clone Items</button>
+                        <button onclick="handleDeleteClick()">Delete Items</button>
+                        <button onclick="openModal('mergeModal')">Merge Items</button>
+                    </div>
+                </details>
+        
+                <details class="tool-group">
+                    <summary>Date Management</summary>
+                    <div class="group-content">
+                        <button onclick="openModal('dateShiftModal')">Date Shift</button>
+                    </div>
+                </details>
+        
+                <details class="tool-group">
+                    <summary>Show/Hide Columns</summary>
+                    <div class="group-content">
+                        <button onclick="openModal('columnVisibilityModal')">Show/Hide Columns</button>
+                    </div>
+                </details>
+        
+                <details class="tool-group">
+                    <summary>Text Editing</summary>
+                    <div class="group-content">
+                        <button onclick="openModal('insertPasteModal')">Insert and Paste</button>
+                        <button onclick="openModal('searchReplaceModal')">Search and Replace</button>
+                    </div>
+                </details>
+        
+                <details class="tool-group">
+                    <summary>Canvas Publish Status</summary>
+                    <div class="group-content">
+                        <button onclick="openModal('publishModal')">Publish/Unpublish</button>
+                    </div>
+                </details>
+        
+            </div>
+        
+            <button class="sync-master-btn" onclick="syncChanges()">Sync All to Canvas</button>
+        </aside>
+    
+        <main class="main-content">
+            <header class="toolbar">
+                <select id="courseSelect" onchange="onCourseSelected()" style="padding: 8px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; min-width: 300px;">
+                    <option value="">Loading courses...</option>
+                </select>
+                <button class="primary-btn" onclick="refreshCurrentTab()">Reload</button>
+                <button class="primary-btn" onclick="syncChanges()">Sync Changes</button>
+            </header>
+    
+            <div id="myGrid" class="ag-theme-quartz" style="flex: 1; width: 100%;"></div>
+        </main>
+    </div>
+    <%- include('partials/modals') %>
+    <script>
+       
+    </script>
+    <script src="/js/main.js"></script>
+</body>
+</html>
