@@ -1,93 +1,100 @@
-const CONFIG = {
-    TABS: [
-      'announcements',
-      'assignments', 
-      'discussions',
-      'files',
-      'modules',
-      'pages',
-      'quizzes',
-      'students'
-    ],
-  
-    API: {
-      getCourses: '/canvas/courses',
-      getTabData: (courseId, tab) => `/canvas/courses/${courseId}/${tab}`,
-      updateItem: (courseId, tab, itemId) => `/canvas/courses/${courseId}/${tab}/${itemId}`
-    },
-  
-    FIELD_DEFINITIONS: {
-      announcements: [
-        { key: 'title', label: 'Title', editable: true, type: 'text' },
-        { key: 'delayed_post_at', label: 'Delayed Post At', editable: true, type: 'text' },
-        { key: 'published', label: 'Published', editable: true, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
-      ],
-      assignments: [
-        { key: 'name', label: 'Name', editable: true, type: 'text' },
-        { key: 'assignment_group_id', label: 'Assignment Group ID', editable: true, type: 'number' },
-        { key: 'points_possible', label: 'Points Possible', editable: true, type: 'number' },
-        { key: 'published', label: 'Published', editable: true, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
-      ],
-      discussions: [
-        { key: 'title', label: 'Title', editable: true, type: 'text' },
-        { key: 'allow_rating', label: 'Allow Rating', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
-        { key: 'published', label: 'Published', editable: true, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
-      ],
-      files: [
-        { key: 'display_name', label: 'Display Name', editable: true, type: 'text' },
-        { key: 'locked', label: 'Locked', editable: true, type: 'boolean', activeLabel: 'Locked', inactiveLabel: 'Visible' }
-      ],
-      modules: [
-        { key: 'name', label: 'Name', editable: true, type: 'text' },
-        { key: 'position', label: 'Position', editable: true, type: 'number' },
-        { key: 'published', label: 'Published', editable: true, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
-      ],
-      pages: [
-        { key: 'title', label: 'Title', editable: true, type: 'text' },
-        { key: 'published', label: 'Published', editable: true, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
-      ],
-      quizzes: [
-        { key: 'title', label: 'Title', editable: true, type: 'text' },
-        { key: 'allowed_attempts', label: 'Allowed Attempts', editable: true, type: 'number' },
-        { key: 'published', label: 'Published', editable: true, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
-      ],
-      students: [
-        { key: 'sortable_name', label: 'Name', editable: false, type: 'text' },
-        { key: 'login_id', label: 'Login ID', editable: false, type: 'text' },
-        { key: 'sis_user_id', label: 'SIS User ID', editable: false, type: 'text' }
+const CANVAS_CONFIG = {
+  FIELD_DEFINITIONS: {
+    assignments: {
+      displayName: 'Assignments',
+      endpoint: 'assignments',
+      fields: [
+        { key: 'name', label: 'name', editable: true, type: 'text' },
+        { key: 'description', label: 'description', editable: false, type: 'html' },
+        { key: 'assignment_group_id', label: 'assignment_group_id', editable: true, type: 'assignment_group_dropdown' },
+        { key: 'points_possible', label: 'points_possible', editable: true, type: 'number' },
+        { key: 'due_at', label: 'due_at', editable: true, type: 'date' },
+        { key: 'unlock_at', label: 'unlock_at', editable: true, type: 'date' },
+        { key: 'lock_at', label: 'lock_at', editable: true, type: 'date' },
+        { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
       ]
     },
-  
-    GRID_DEFAULTS: {
-      flex: 1,
-      filter: 'agTextColumnFilter',
-      floatingFilter: true,
-      sortable: true,
-      resizable: true,
-      editable: true,
-      unSortIcon: true,
-      minWidth: 100
+    discussion_topics: {
+      displayName: 'Discussions',
+      endpoint: 'discussion_topics',
+      fields: [
+        { key: 'title', label: 'title', editable: true, type: 'text' },
+        { key: 'message', label: 'message', editable: false, type: 'html' },
+        { key: 'allow_rating', label: 'allow_rating', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
+        { key: 'delayed_post_at', label: 'delayed_post_at', editable: true, type: 'date' },
+        { key: 'lock_at', label: 'lock_at', editable: true, type: 'date' },
+        { key: 'unlock_at', label: 'unlock_at', editable: true, type: 'date' },
+        { key: 'due_at', label: 'due_at', editable: true, type: 'date' },
+        { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
+      ]
     },
-  
-    STATUS_COLUMN: {
-      headerName: 'Edit Status',
-      field: '_edit_status',
-      width: 130,
-      editable: false,
-      pinned: 'left',
-      filter: false,
-      sortable: true
+    files: {
+      displayName: 'Files',
+      endpoint: 'files',
+      fields: [
+        { key: 'display_name', label: 'display_name', editable: true, type: 'text' },
+        { key: 'locked', label: 'locked', editable: false, type: 'boolean', activeLabel: 'Locked', inactiveLabel: 'Visible' }
+      ]
     },
-  
-    ROW_STYLES: {
-      modified: {
-        backgroundColor: '#fff9c4',
-        fontWeight: 'bold',
-        color: '#d35400'
-      }
+    folders: {
+      displayName: 'Folders',
+      endpoint: 'folders',
+      fields: [
+        { key: 'name', label: 'name', editable: true, type: 'text' },
+        { key: 'parent_folder_id', label: 'parent_folder_id', editable: true, type: 'number' },
+        { key: 'lock_at', label: 'lock_at', editable: true, type: 'date' },
+        { key: 'unlock_at', label: 'unlock_at', editable: true, type: 'date' },
+        { key: 'locked', label: 'locked', editable: false, type: 'boolean', activeLabel: 'Locked', inactiveLabel: 'Visible' }
+      ]
+    },
+    modules: {
+      displayName: 'Modules',
+      endpoint: 'modules',
+      fields: [
+        { key: 'name', label: 'name', editable: true, type: 'text' },
+        { key: 'position', label: 'position', editable: true, type: 'number' },
+        { key: 'unlock_at', label: 'unlock_at', editable: true, type: 'date' },
+        { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
+      ]
+    },
+    pages: {
+      displayName: 'Pages',
+      endpoint: 'pages',
+      fields: [
+        { key: 'title', label: 'title', editable: true, type: 'text' },
+        { key: 'body', label: 'body', editable: false, type: 'html' },
+        { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
+      ]
+    },
+    quizzes: {
+      displayName: 'Quizzes',
+      endpoint: 'quizzes',
+      fields: [
+        { key: 'title', label: 'title', editable: true, type: 'text' },
+        { key: 'description', label: 'description', editable: false, type: 'html' },
+        { key: 'assignment_group_id', label: 'assignment_group_id', editable: true, type: 'assignment_group_dropdown' },
+        { key: 'time_limit', label: 'time_limit', editable: true, type: 'number' },
+        { key: 'allowed_attempts', label: 'allowed_attempts', editable: true, type: 'number' },
+        { key: 'due_at', label: 'due_at', editable: true, type: 'date' },
+        { key: 'unlock_at', label: 'unlock_at', editable: true, type: 'date' },
+        { key: 'lock_at', label: 'lock_at', editable: true, type: 'date' },
+        { key: 'show_correct_answers_at', label: 'show_correct_answers_at', editable: true, type: 'date' },
+        { key: 'hide_correct_answers_at', label: 'hide_correct_answers_at', editable: true, type: 'date' },
+        { key: 'published', label: 'published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
+      ]
+    },
+    students: {
+      displayName: 'Students',
+      endpoint: 'students',
+      fields: [
+        { key: 'sis_user_id', label: 'sis_user_id', editable: false, type: 'text' },
+        { key: 'accommodations', label: 'Accommodations', editable: false, type: 'accommodations' }
+      ]
     }
-  };
-  
-  if (typeof window !== 'undefined') {
-    window.CANVAS_CONFIG = CONFIG;
   }
+};
+
+if (typeof window !== 'undefined') {
+  window.CANVAS_CONFIG = CANVAS_CONFIG;
+  window.FIELD_DEFINITIONS = CANVAS_CONFIG.FIELD_DEFINITIONS;
+}
