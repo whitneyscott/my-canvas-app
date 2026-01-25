@@ -397,39 +397,58 @@ async function loadCourses() {
 }
 
 function onCourseSelected() {
+    debugLog('onCourseSelected() called');
     const courseSelect = document.getElementById('courseSelect');
     const courseId = courseSelect.value;
+    debugLog(`Course selected: ${courseId}`);
+    
     if (!courseId) {
+        debugLog('No course ID, clearing data', 'warn');
         selectedCourseId = null;
         if (gridApi) gridApi.setGridOption('rowData', []);
         return;
     }
+    
     selectedCourseId = courseId;
+    debugLog(`selectedCourseId set to: ${selectedCourseId}`, 'success');
+    
     const url = new URL(window.location);
     url.searchParams.set('course_id', courseId);
-    window.history.pushState({}, '', u);
+    window.history.pushState({}, '', url);
+    
     originalData = {};
+    debugLog('Cleared originalData, calling switchTab');
     switchTab(currentTab);
 }
 
 async function loadTabData(tabName) {
+    debugLog(`loadTabData() called for: ${tabName}`);
     try {
-        if (!selectedCourseId) return;
+        if (!selectedCourseId) {
+            debugLog('No course selected, skipping data load', 'warn');
+            return;
+        }
 
-        let configKey = n;
-        if (!FIELD_DEFINITIONS[configKey] && n === 'discussions') configKey = 'discussion_topics';
+        let configKey = tabName;
+        if (!FIELD_DEFINITIONS[configKey] && tabName === 'discussions') configKey = 'discussion_topics';
 
         const tabConfig = FIELD_DEFINITIONS[configKey];
-        if (!tabConfig) { console.error(`No config for: ${n}`); return; }
+        if (!tabConfig) { 
+            debugLog(`ERROR: No config for: ${tabName}`, 'error');
+            console.error(`No config for: ${tabName}`); 
+            return; 
+        }
 
-        if (currentTab === n && gridApi) gridApi.setGridOption('loading', true);
+        if (currentTab === tabName && gridApi) gridApi.setGridOption('loading', true);
 
-        if (n === 'assignments' || n === 'quizzes') {
+        if (tabName === 'assignments' || tabName === 'quizzes') {
             try {
                 const agUrl = `/canvas/courses/${selectedCourseId}/assignment_groups`;
+                debugLog(`Fetching assignment groups from: ${agUrl}`);
                 const agResponse = await fetch(agUrl);
 
                 if (!agResponse.ok) {
+                    debugLog(`Assignment Groups fetch failed: ${agResponse.status}`, 'warn');
                     console.error('[Assignment Groups] Failed to fetch:', agResponse.status);
                     assignmentGroupsCache[selectedCourseId] = {};
                 } else {
@@ -438,39 +457,47 @@ async function loadTabData(tabName) {
                     agData.forEach(group => {
                         assignmentGroupsCache[selectedCourseId][group.id] = group.name;
                     });
+                    debugLog(`Loaded ${agData.length} assignment groups`, 'success');
                 }
             } catch (agError) {
+                debugLog(`ERROR loading assignment groups: ${agError.message}`, 'error');
                 console.error('[Assignment Groups] Error:', agError);
                 assignmentGroupsCache[selectedCourseId] = {};
             }
         }
 
-        const response = await fetch(`/canvas/courses/${selectedCourseId}/${tabConfig.endpoint}`);
+        const dataUrl = `/canvas/courses/${selectedCourseId}/${tabConfig.endpoint}`;
+        debugLog(`Fetching ${tabName} data from: ${dataUrl}`);
+        const response = await fetch(dataUrl);
 
         if (!response.ok) {
-            console.error(`Failed to load ${n}: ${response.status} ${response.statusText}`);
-            if (currentTab === n && gridApi) gridApi.setGridOption('loading', false);
+            debugLog(`ERROR: Failed to load ${tabName}: ${response.status} ${response.statusText}`, 'error');
+            console.error(`Failed to load ${tabName}: ${response.status} ${response.statusText}`);
+            if (currentTab === tabName && gridApi) gridApi.setGridOption('loading', false);
             return;
         }
 
         const data = await response.json();
 
-        if (!Array.isArray(d)) {
-            console.error(`Expected array for ${n}, got:`, d);
-            if (currentTab === n && gridApi) gridApi.setGridOption('loading', false);
+        if (!Array.isArray(data)) {
+            debugLog(`ERROR: Expected array for ${tabName}, got: ${typeof data}`, 'error');
+            console.error(`Expected array for ${tabName}, got:`, data);
+            if (currentTab === tabName && gridApi) gridApi.setGridOption('loading', false);
             return;
         }
 
-        const dataWithStatus = data.map(x => ({ ...x, _edit_status: 'synced' }));
-        originalData[tabName] = ds;
+        debugLog(`Received ${data.length} items for ${tabName}`, 'success');
+        const dataWithStatus = data.map(item => ({ ...item, _edit_status: 'synced' }));
+        originalData[tabName] = dataWithStatus;
 
-        if (currentTab === n && gridApi) {
-            if (n === 'assignments' || n === 'quizzes') {
+        if (currentTab === tabName && gridApi) {
+            if (tabName === 'assignments' || tabName === 'quizzes') {
                 gridApi.setGridOption('columnDefs', generateColumnDefs(tabName));
             }
 
             gridApi.setGridOption('rowData', dataWithStatus);
             gridApi.setGridOption('loading', false);
+            debugLog(`Grid updated with ${dataWithStatus.length} rows`, 'success');
 
             if (tabName === 'students') setTimeout(() => gridApi.resetRowHeights(), 100);
 

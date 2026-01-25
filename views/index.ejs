@@ -13,7 +13,10 @@
         <div class="debug-panel collapsed" id="debugPanel">
             <div class="debug-panel-header" onclick="toggleDebugPanel()">
                 <span>Debug Log</span>
-                <span id="debugToggle">▲</span>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button onclick="event.stopPropagation(); document.getElementById('debugContent').innerHTML = ''; debugLog('Log cleared');" style="background: #f90; color: #000; border: none; padding: 2px 8px; cursor: pointer; border-radius: 3px; font-size: 11px;">Clear</button>
+                    <span id="debugToggle">▲</span>
+                </div>
             </div>
             <div class="debug-panel-content" id="debugContent"></div>
         </div>
