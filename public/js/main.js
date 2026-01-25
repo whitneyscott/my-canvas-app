@@ -4,9 +4,38 @@ const FIELD_DEFINITIONS = window.FIELD_DEFINITIONS || window.CANVAS_CONFIG?.FIEL
 
 function debugLog(message, data = null) {
     const timestamp = new Date().toISOString().split('T')[1].slice(0, -1);
-    console.log(`[${timestamp}] ${message}`);
+    const logMessage = `[${timestamp}] ${message}`;
+    
+    console.log(logMessage);
     if (data !== null) {
         console.log(data);
+    }
+    
+    const debugPanel = document.getElementById('debugLog');
+    if (debugPanel) {
+        const entry = document.createElement('div');
+        entry.style.marginBottom = '8px';
+        entry.style.borderLeft = '3px solid #0f0';
+        entry.style.paddingLeft = '8px';
+        
+        const msgDiv = document.createElement('div');
+        msgDiv.textContent = logMessage;
+        msgDiv.style.color = '#0ff';
+        entry.appendChild(msgDiv);
+        
+        if (data !== null) {
+            const dataDiv = document.createElement('div');
+            dataDiv.textContent = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
+            dataDiv.style.color = '#0f0';
+            dataDiv.style.marginTop = '4px';
+            entry.appendChild(dataDiv);
+        }
+        
+        debugPanel.insertBefore(entry, debugPanel.firstChild);
+        
+        if (debugPanel.children.length > 50) {
+            debugPanel.removeChild(debugPanel.lastChild);
+        }
     }
 }
 

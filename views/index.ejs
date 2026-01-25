@@ -10,6 +10,14 @@
 </head>
 <body>
     <div class="app-container">
+        <div id="debugPanel" style="position: fixed; top: 10px; right: 10px; width: 400px; max-height: 80vh; overflow-y: auto; background: rgba(0,0,0,0.9); color: #0f0; padding: 15px; font-family: monospace; font-size: 11px; z-index: 9999; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #0f0; padding-bottom: 5px;">
+                <strong style="color: #0ff;">DEBUG LOG</strong>
+                <button onclick="document.getElementById('debugPanel').style.display='none'" style="background: #f00; color: #fff; border: none; padding: 2px 8px; cursor: pointer; border-radius: 3px;">X</button>
+            </div>
+            <div id="debugLog" style="white-space: pre-wrap; word-break: break-all;"></div>
+        </div>
+        
         <aside class="sidebar">
             <div class="tab-container"></div>
         </aside>
