@@ -1,9 +1,14 @@
 let assignmentGroupsCache = {};
 
-// FIELD_DEFINITIONS comes from config.js which is loaded first
-// This ensures we have a single source of truth for all field configurations
 const FIELD_DEFINITIONS = window.FIELD_DEFINITIONS || window.CANVAS_CONFIG?.FIELD_DEFINITIONS || {};
 
+function debugLog(message, data = null) {
+    const timestamp = new Date().toISOString().split('T')[1].slice(0, -1);
+    console.log(`[${timestamp}] ${message}`);
+    if (data !== null) {
+        console.log(data);
+    }
+}
 
 let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, selectedCourseId = null;
 
@@ -12,7 +17,7 @@ class CustomHeader {
         this.params = params;
         this.eGui = document.createElement('div');
         this.eGui.style.cssText = 'display: flex; align-items: center; justify-content: space-between; width: 100%;';
-        
+
         this.eGui.innerHTML = `
             <span class="header-label" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${params.displayName}</span>
             <span class="header-hide-btn" style="cursor: pointer; padding: 0 4px; font-size: 14px; font-weight: bold; color: #888; margin-left: 4px;">&times;</span>
@@ -32,20 +37,20 @@ class CustomHeader {
 }
 
 const gridOptions = {
-    rowSelection: { 
-        mode: 'multiRow', 
-        selectAll: 'filtered', 
-        headerCheckbox: true, 
-        checkboxes: true, 
-        enableClickSelection: false 
+    rowSelection: {
+        mode: 'multiRow',
+        selectAll: 'filtered',
+        headerCheckbox: true,
+        checkboxes: true,
+        enableClickSelection: false
     },
-    defaultColDef: { 
-        flex: 1, 
-        filter: 'agTextColumnFilter', 
-        floatingFilter: true, 
-        sortable: true, 
-        resizable: true, 
-        editable: true, 
+    defaultColDef: {
+        flex: 1,
+        filter: 'agTextColumnFilter',
+        floatingFilter: true,
+        sortable: true,
+        resizable: true,
+        editable: true,
         unSortIcon: true,
         singleClickEdit: true,
         headerComponent: CustomHeader
@@ -68,58 +73,84 @@ const gridOptions = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
+    debugLog('=== Canvas Manager Initializing ===');
+    debugLog('FIELD_DEFINITIONS available:', Object.keys(FIELD_DEFINITIONS).length > 0);
+    debugLog('FIELD_DEFINITIONS tabs:', Object.keys(FIELD_DEFINITIONS));
+
     const tabContainer = document.querySelector('.tab-container');
-    if (tc) {
-        tc.innerHTML = '';
-        Object.keys(FIELD_DEFINITIONS).forEach(k => {
-            const c = FIELD_DEFINITIONS[k], btn = document.createElement('button');
-            btn.className = 'tab-btn'; 
-            btn.textContent = c.displayName; 
-            btn.dataset.tab = k;
-            btn.onclick = () => switchTab(k);
-            tc.appendChild(btn);
+    if (tabContainer) {
+        tabContainer.innerHTML = '';
+        Object.keys(FIELD_DEFINITIONS).forEach(tabKey => {
+            const config = FIELD_DEFINITIONS[tabKey];
+            const button = document.createElement('button');
+            button.className = 'tab-btn';
+            button.textContent = config.displayName;
+            button.dataset.tab = tabKey;
+            button.onclick = () => switchTab(tabKey);
+            tabContainer.appendChild(button);
         });
+        debugLog('Tabs created:', Object.keys(FIELD_DEFINITIONS).length);
     }
-    
+
     const gridDiv = document.querySelector('#myGrid');
     gridApi = agGrid.createGrid(gridDiv, gridOptions);
-    
+
     await loadCourses();
-    
+
     const u = new URLSearchParams(window.location.search), cId = u.get('course_id');
     if (cId) {
         const courseSelect = document.getElementById('courseSelect');
-        if (s) { 
-            s.value = cId; 
-            selectedCourseId = cId; 
-            switchTab('assignments'); 
+        if (s) {
+            s.value = cId;
+            selectedCourseId = cId;
+            switchTab('assignments');
         }
     }
 });
 
 function switchTab(tabName) {
+    debugLog(`Switching to tab: ${tabName}`);
     currentTab = tabName;
     document.querySelectorAll('.tab-btn').forEach(button => {
         button.classList.toggle('active', button.dataset.tab === tabName);
     });
-    
+
     if (gridApi) {
         gridApi.setFilterModel(null);
-        gridApi.setGridOption('columnDefs', generateColumnDefs(tabName));
+        const columnDefs = generateColumnDefs(tabName);
+        debugLog(`Generated ${columnDefs.length} column definitions for ${tabName}`);
+        debugLog('Column definitions:', columnDefs.map(col => col.headerName || col.field));
+
+        gridApi.setGridOption('columnDefs', columnDefs);
         gridApi.setGridOption('rowData', originalData[tabName] || []);
-        setTimeout(() => { 
-            gridApi.sizeColumnsToFit(); 
-            if (tabName === 'students') gridApi.resetRowHeights(); 
+
+        setTimeout(() => {
+            gridApi.sizeColumnsToFit();
+            if (tabName === 'students') gridApi.resetRowHeights();
+
+            const visibleColumns = gridApi.getColumns();
+            debugLog(`Visible columns after render: ${visibleColumns ? visibleColumns.length : 0}`);
+            if (visibleColumns) {
+                debugLog('Column visibility:', visibleColumns.map(col => ({
+                    id: col.getColId(),
+                    visible: col.isVisible()
+                })));
+            }
         }, 100);
     }
     if (!originalData[tabName]) loadTabData(tabName);
 }
 
 function generateColumnDefs(tabName) {
+    debugLog(`Generating column definitions for: ${tabName}`);
     const tabConfig = FIELD_DEFINITIONS[tabName];
-    if (!tabConfig) return [];
+    if (!tabConfig) {
+        debugLog(`ERROR: No config found for tab: ${tabName}`);
+        return [];
+    }
 
     const defs = tabConfig.fields;
+    debugLog(`Found ${defs.length} field definitions:`, defs.map(f => f.key));
 
     const statusCol = {
         headerName: 'edit_status',
@@ -140,16 +171,16 @@ function generateColumnDefs(tabName) {
             field: field.key,
             editable: field.editable !== false
         };
-        
+
         if (field.type === 'assignment_group_dropdown') {
             const groups = assignmentGroupsCache[selectedCourseId] || {};
-            
+
             colDef.valueFormatter = params => {
                 if (!params.value) return '';
                 const name = groups[params.value];
                 return name || `Unknown Group (${params.value})`;
             };
-            
+
             colDef.cellEditor = 'agSelectCellEditor';
             colDef.cellEditorParams = {
                 values: Object.keys(groups).map(id => parseInt(id)),
@@ -159,7 +190,7 @@ function generateColumnDefs(tabName) {
                 valueListGap: 0,
                 valueListMaxHeight: 220
             };
-            
+
             colDef.valueParser = params => {
                 return parseInt(params.newValue);
             };
@@ -204,34 +235,46 @@ function generateColumnDefs(tabName) {
                 container.style.flexDirection = 'column';
                 container.style.gap = '4px';
                 container.style.padding = '4px';
-                
+
                 const options = ['Time: 1.25x', 'Time: 1.5x', 'Time: 2x', 'Extra attempts: 1', 'Extra Attempts: 2', 'Quiet Room', 'Other'];
                 options.forEach(option => {
                     const label = document.createElement('label');
                     label.style.display = 'flex';
                     label.style.alignItems = 'center';
                     label.style.gap = '6px';
-                    
+
                     const checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
                     checkbox.value = option;
                     checkbox.disabled = true;
-                    
+
                     const span = document.createElement('span');
                     span.textContent = option;
-                    
+
                     label.appendChild(checkbox);
                     label.appendChild(span);
                     container.appendChild(label);
                 });
-                
+
                 return container;
             };
         }
         return colDef;
     });
 
-    return [statusCol, ...mapping];
+    const idCol = {
+        headerName: 'ID',
+        field: 'id',
+        width: 100,
+        editable: false,
+        hide: false,
+        pinned: 'left'
+    };
+
+    const allColumns = [statusCol, idCol, ...mapping];
+    debugLog(`Returning ${allColumns.length} total columns (status + id + ${mapping.length} data columns)`);
+
+    return allColumns;
 }
 
 async function refreshCurrentTab() {
@@ -240,26 +283,26 @@ async function refreshCurrentTab() {
     if (changes[currentTab]) changes[currentTab] = {};
     try {
         if (gridApi) gridApi.setGridOption('loading', true);
-        
+
         let configKey = currentTab;
         if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
-        
+
         const tabContainer = FIELD_DEFINITIONS[configKey];
         if (!tc) { throw new Error(`No config for: ${currentTab}`); }
-        
+
         const response = await fetch(`/canvas/courses/${selectedCourseId}/${tc.endpoint}`);
         const data = await r.json();
         const ds = d.map(x => ({ ...x, _edit_status: 'synced' }));
         originalData[currentTab] = ds;
-        
+
         if (gridApi) {
-            gridApi.setGridOption('rowData', ds); 
-            gridApi.setGridOption('loading', false); 
+            gridApi.setGridOption('rowData', ds);
+            gridApi.setGridOption('loading', false);
             gridApi.redrawRows();
             if (currentTab === 'students') setTimeout(() => gridApi.resetRowHeights(), 100);
         }
     } catch (event) {
-        console.error(`Error refreshing:`, event); 
+        console.error(`Error refreshing:`, event);
         alert('Refresh failed.');
         if (gridApi) gridApi.setGridOption('loading', false);
     }
@@ -276,30 +319,30 @@ async function loadCourses() {
     try {
         const courseSelect = document.getElementById('courseSelect');
         if (!s) return;
-        
+
         s.innerHTML = '<option value="">Loading courses...</option>';
-        
+
         const response = await fetch('/canvas/courses');
         if (!r.ok) {
             console.error('Failed to load courses:', r.status, r.statusText);
             s.innerHTML = '<option value="">Error loading courses</option>';
             return;
         }
-        
+
         const g = await r.json();
         if (!Array.isArray(g)) {
             console.error('Expected array of course groups, got:', g);
             s.innerHTML = '<option value="">Error loading courses</option>';
             return;
         }
-        
+
         s.innerHTML = '<option value="">Select a course...</option>';
-        
+
         if (g.length === 0) {
             s.innerHTML = '<option value="">No courses available</option>';
             return;
         }
-        
+
         g.forEach(x => {
             if (!x.term || !Array.isArray(x.courses)) return;
             const og = document.createElement('optgroup');
@@ -324,36 +367,36 @@ async function loadCourses() {
 
 function onCourseSelected() {
     const select = document.getElementById('courseSelect'), cId = s.value;
-    if (!cId) { 
-        selectedCourseId = null; 
-        if (gridApi) gridApi.setGridOption('rowData', []); 
-        return; 
+    if (!cId) {
+        selectedCourseId = null;
+        if (gridApi) gridApi.setGridOption('rowData', []);
+        return;
     }
     selectedCourseId = cId;
     const u = new URL(window.location);
-    u.searchParams.set('course_id', cId); 
+    u.searchParams.set('course_id', cId);
     window.history.pushState({}, '', u);
-    originalData = {}; 
+    originalData = {};
     switchTab(currentTab);
 }
 
 async function loadTabData(tabName) {
     try {
         if (!selectedCourseId) return;
-        
+
         let configKey = n;
         if (!FIELD_DEFINITIONS[configKey] && n === 'discussions') configKey = 'discussion_topics';
-        
+
         const tabContainer = FIELD_DEFINITIONS[configKey];
         if (!tc) { console.error(`No config for: ${n}`); return; }
-        
+
         if (currentTab === n && gridApi) gridApi.setGridOption('loading', true);
-        
+
         if (n === 'assignments' || n === 'quizzes') {
             try {
                 const agUrl = `/canvas/courses/${selectedCourseId}/assignment_groups`;
                 const agResponse = await fetch(agUrl);
-                
+
                 if (!agResponse.ok) {
                     console.error('[Assignment Groups] Failed to fetch:', agResponse.status);
                     assignmentGroupsCache[selectedCourseId] = {};
@@ -369,36 +412,36 @@ async function loadTabData(tabName) {
                 assignmentGroupsCache[selectedCourseId] = {};
             }
         }
-        
+
         const response = await fetch(`/canvas/courses/${selectedCourseId}/${tc.endpoint}`);
-        
+
         if (!r.ok) {
             console.error(`Failed to load ${n}: ${r.status} ${r.statusText}`);
             if (currentTab === n && gridApi) gridApi.setGridOption('loading', false);
             return;
         }
-        
+
         const data = await r.json();
-        
+
         if (!Array.isArray(d)) {
             console.error(`Expected array for ${n}, got:`, d);
             if (currentTab === n && gridApi) gridApi.setGridOption('loading', false);
             return;
         }
-        
+
         const ds = d.map(x => ({ ...x, _edit_status: 'synced' }));
         originalData[tabName] = ds;
-        
+
         if (currentTab === n && gridApi) {
             if (n === 'assignments' || n === 'quizzes') {
                 gridApi.setGridOption('columnDefs', generateColumnDefs(tabName));
             }
-            
+
             gridApi.setGridOption('rowData', ds);
             gridApi.setGridOption('loading', false);
-            
+
             if (tabName === 'students') setTimeout(() => gridApi.resetRowHeights(), 100);
-            
+
             if (n === 'assignments' || n === 'quizzes') {
                 gridApi.refreshCells({ force: true });
             }
@@ -419,29 +462,29 @@ async function syncChanges() {
     if (!selectedCourseId) return alert('Select course first.');
     const tabContainer = changes[currentTab];
     if (!tc || !Object.keys(tc).length) return alert('No changes.');
-    
+
     let configKey = currentTab;
     if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
-    
+
     const cfg = FIELD_DEFINITIONS[configKey];
     if (!cfg) return alert('Invalid tab.');
     const ep = cfg.endpoint;
-    
+
     for (const iId in tc) {
         const u = tc[iId], url = `/canvas/courses/${selectedCourseId}/${ep}/${iId}`;
         try {
-            const response = await fetch(url, { 
-                method: 'PUT', 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify(u) 
+            const response = await fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(u)
             });
-            
+
             if (r.ok) {
                 const rn = [];
                 gridApi.forEachNode(n => {
                     const nId = n.data.id || n.data.url;
                     if (String(nId) === String(iId)) {
-                        n.setDataValue('_edit_status', 'synced'); 
+                        n.setDataValue('_edit_status', 'synced');
                         rn.push(n);
                         if (originalData[currentTab]) {
                             const or = originalData[currentTab].find(x => String(x.id || x.url) === String(iId));
@@ -460,21 +503,21 @@ async function syncChanges() {
 async function handleDeleteClick() {
     const sel = getSelectedItems();
     if (!sel.length) { alert("Select at least one item."); return; }
-    
+
     if (currentTab === 'modules') {
         for (const m of sel) {
             try {
                 const response = await fetch(`/canvas/modules/${selectedCourseId}/${m.id}/items`);
-                
+
                 if (!r.ok) {
                     const errorText = await r.text();
                     console.error(`[Frontend] Failed to fetch items: ${r.status} ${r.statusText}`, errorText);
                     m.items = [];
                     continue;
                 }
-                
+
                 const its = await r.json();
-                
+
                 if (!Array.isArray(its)) {
                     console.error(`[Frontend] Expected array, got:`, typeof its, its);
                     m.items = [];
@@ -486,7 +529,7 @@ async function handleDeleteClick() {
                 m.items = [];
             }
         }
-        
+
         const infoDiv = document.getElementById('moduleItemsList');
         if (infoDiv) {
             infoDiv.innerHTML = '';
@@ -501,18 +544,18 @@ async function handleDeleteClick() {
                 infoDiv.appendChild(div);
             });
         }
-        
+
         openModal('deepPurgeModal');
         document.getElementById('deepPurgeConfirmInput').value = '';
         document.getElementById('purgeMethod').value = 'standard';
-    } else { 
-        openModal('deleteModal'); 
-        document.getElementById('deleteConfirmInput').value = ''; 
+    } else {
+        openModal('deleteModal');
+        document.getElementById('deleteConfirmInput').value = '';
     }
 }
 
-function handleOverlayClick(event) { 
-    if (event.target.id === 'modalOverlay') closeActiveModal(); 
+function handleOverlayClick(event) {
+    if (event.target.id === 'modalOverlay') closeActiveModal();
 }
 
 function populateColumnSelector() {
@@ -521,22 +564,22 @@ function populateColumnSelector() {
 
     container.innerHTML = '';
     const colDefs = gridApi.getColumnDefs();
-    
+
     const selectAllRow = document.createElement('div');
     selectAllRow.className = 'checkbox-group';
     selectAllRow.style.cssText = 'flex-direction:row;justify-content:space-between;padding:8px 12px;margin-bottom:10px;border-bottom:2px solid #eee';
-    
+
     const selectAllLabel = document.createElement('label');
     selectAllLabel.textContent = 'Select All / None';
     selectAllLabel.style.fontWeight = 'bold';
-    
+
     const selectAllCb = document.createElement('input');
     selectAllCb.type = 'checkbox';
     selectAllCb.checked = colDefs.every(cd => {
         const col = gridApi.getColumn(cd.colId || cd.field);
         return col ? col.isVisible() : true;
     });
-    
+
     selectAllCb.onchange = (event) => {
         container.querySelectorAll('.col-toggle-input').forEach(cb => cb.checked = event.target.checked);
     };
@@ -546,7 +589,7 @@ function populateColumnSelector() {
 
     colDefs.forEach((cd) => {
         const id = cd.colId || cd.field;
-        
+
         if (id === '_edit_status' || id === 'id') return;
 
         const row = document.createElement('div');
@@ -564,7 +607,7 @@ function populateColumnSelector() {
 
         const liveCol = gridApi.getColumn(id);
         cb.checked = liveCol ? liveCol.isVisible() : true;
-        
+
         row.append(label, cb);
         container.appendChild(row);
     });
@@ -578,12 +621,12 @@ function populateColumnDropdown(sId) {
     }
 
     s.innerHTML = '';
-    
+
     gridApi.getColumnDefs().forEach(c => {
         const id = c.colId || c.field;
         if (c.headerName && id && id !== '_edit_status' && id !== 'id') {
             const o = document.createElement('option');
-            o.value = id; 
+            o.value = id;
             o.innerText = c.headerName;
             s.appendChild(o);
         }
@@ -595,13 +638,13 @@ function populateMergeSelector() {
     if (!s || !gridApi) return;
     s.innerHTML = '';
     const sr = gridApi.getSelectedRows();
-    if (sr.length < 2) { 
-        s.innerHTML = '<option>Select 2+ rows...</option>'; 
-        return; 
+    if (sr.length < 2) {
+        s.innerHTML = '<option>Select 2+ rows...</option>';
+        return;
     }
     sr.forEach(r => {
         const o = document.createElement('option');
-        o.value = r.id || r.url; 
+        o.value = r.id || r.url;
         o.innerText = r.name || r.title || r.display_name || o.value;
         s.appendChild(o);
     });
@@ -611,30 +654,30 @@ function populateDateColumnSelector() {
     const c = document.getElementById('dateColumnSelector');
     if (!c) { console.error('dateColumnSelector not found'); return; }
     c.innerHTML = '';
-    
+
     let configKey = currentTab;
     if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
-    
+
     const tabContainer = FIELD_DEFINITIONS[configKey];
-    if (!tc) { 
-        c.innerHTML = '<div style="text-align:center;padding:10px;color:#666">Select valid tab</div>'; 
-        return; 
+    if (!tc) {
+        c.innerHTML = '<div style="text-align:center;padding:10px;color:#666">Select valid tab</div>';
+        return;
     }
-    
+
     let mc = 0;
     tc.fields.forEach(d => {
         if (d.type === 'date' && d.editable === true) {
             mc++;
             const response = document.createElement('div'), l = document.createElement('label'), cb = document.createElement('input');
-            r.className = 'checkbox-group'; 
+            r.className = 'checkbox-group';
             r.style.cssText = 'flex-direction:row;justify-content:space-between;padding:8px 12px;margin-bottom:5px';
-            l.textContent = d.label || d.key; 
+            l.textContent = d.label || d.key;
             l.style.fontWeight = '500';
-            cb.type = 'checkbox'; 
-            cb.className = 'date-col-checkbox'; 
-            cb.value = d.key; 
+            cb.type = 'checkbox';
+            cb.className = 'date-col-checkbox';
+            cb.value = d.key;
             cb.checked = true;
-            r.append(l, cb); 
+            r.append(l, cb);
             c.appendChild(r);
         }
     });
@@ -645,17 +688,17 @@ function populateNumericColumnSelector(sId) {
     const select = document.getElementById(sId);
     if (!s) return;
     s.innerHTML = '';
-    
+
     let configKey = currentTab;
     if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
-    
+
     const tabContainer = FIELD_DEFINITIONS[configKey];
     if (!tc) return;
-    
+
     tc.fields.forEach(d => {
         if (d.type === 'number' || (d.key && d.key.toLowerCase().includes('points'))) {
             const o = document.createElement('option');
-            o.value = d.key; 
+            o.value = d.key;
             o.textContent = d.label || d.key;
             s.appendChild(o);
         }
@@ -666,7 +709,7 @@ function openModal(mId) {
     const ov = document.getElementById('modalOverlay'), tm = document.getElementById(mId);
     if (!tm || !ov) return;
     document.querySelectorAll('.modal-content-wrapper').forEach(m => m.classList.remove('active'));
-    
+
     if (mId === 'searchReplaceModal') populateColumnDropdown('srColumnTarget');
     else if (mId === 'insertPasteModal') populateColumnDropdown('ipColumnTarget');
     else if (mId === 'bulkEditModal') populateColumnDropdown('beColumnTarget');
@@ -676,22 +719,22 @@ function openModal(mId) {
     else if (mId === 'pointsModal') populateNumericColumnSelector('pointsColumnTarget');
     else if (mId === 'deleteModal') {
         const inp = document.getElementById('deleteConfirmInput');
-        if (inp) { 
-            inp.value = ''; 
-            inp.dataset.mode = (currentTab === 'modules') ? 'deep' : 'individual'; 
+        if (inp) {
+            inp.value = '';
+            inp.dataset.mode = (currentTab === 'modules') ? 'deep' : 'individual';
         }
     } else if (mId === 'cloneModal') {
         const ms = document.getElementById('cloneMethod'), isMod = (currentTab === 'modules');
         if (ms) {
             Array.from(ms.options).forEach(o => {
                 const isIt = (o.value === 'item');
-                o.hidden = isMod ? isIt : !isIt; 
+                o.hidden = isMod ? isIt : !isIt;
                 o.disabled = isMod ? isIt : !isIt;
             });
             ms.value = isMod ? 'structural' : 'item';
         }
     }
-    ov.classList.add('active'); 
+    ov.classList.add('active');
     tm.classList.add('active');
 }
 
@@ -706,10 +749,10 @@ function executeBulkEdit() {
     if (!gridApi) return;
     let n = gridApi.getSelectedRows();
     if (!n.length) { n = []; gridApi.forEachNodeAfterFilter(x => n.push(x.data)); }
-    n.forEach(x => { 
-        gridApi.forEachNode(gn => { 
-            if (gn.data === x) gn.setDataValue(tc, nv); 
-        }); 
+    n.forEach(x => {
+        gridApi.forEachNode(gn => {
+            if (gn.data === x) gn.setDataValue(tc, nv);
+        });
     });
     closeActiveModal();
 }
@@ -724,14 +767,14 @@ function executeSearchReplace() {
         const cv = x[tc];
         if (cv && typeof cv === 'string') {
             let nv;
-            if (ur) { 
-                try { nv = cv.replace(new RegExp(st, 'g'), rt); } 
-                catch { return; } 
+            if (ur) {
+                try { nv = cv.replace(new RegExp(st, 'g'), rt); }
+                catch { return; }
             } else nv = cv.split(st).join(rt);
-            if (nv !== cv) { 
-                gridApi.forEachNode(gn => { 
-                    if (gn.data === x) gn.setDataValue(tc, nv); 
-                }); 
+            if (nv !== cv) {
+                gridApi.forEachNode(gn => {
+                    if (gn.data === x) gn.setDataValue(tc, nv);
+                });
             }
         }
     });
@@ -753,10 +796,10 @@ function executeInsertPaste() {
             const p = cv.split(mk);
             nv = pos === 'beforeMarker' ? (p[0] + ti + mk + params.slice(1).join(mk)) : (p[0] + mk + ti + params.slice(1).join(mk));
         }
-        if (nv !== cv) { 
-            gridApi.forEachNode(gn => { 
-                if (gn.data === x) gn.setDataValue(tc, nv); 
-            }); 
+        if (nv !== cv) {
+            gridApi.forEachNode(gn => {
+                if (gn.data === x) gn.setDataValue(tc, nv);
+            });
         }
     });
     closeActiveModal();
@@ -770,10 +813,10 @@ function executePublishStatus() {
     let n = gridApi.getSelectedRows();
     if (!n.length) { n = []; gridApi.forEachNodeAfterFilter(x => n.push(x.data)); }
     if (!n.length) { alert('No rows.'); return; }
-    n.forEach(x => { 
-        gridApi.forEachNode(gn => { 
-            if (gn.data === x) gn.setDataValue('published', pv); 
-        }); 
+    n.forEach(x => {
+        gridApi.forEachNode(gn => {
+            if (gn.data === x) gn.setDataValue('published', pv);
+        });
     });
     closeActiveModal();
 }
@@ -809,10 +852,10 @@ function executeDateShift() {
                 if (to) { const [h, m] = to.split(':'); bd.setHours(parseInt(h), parseInt(m), 0, 0); }
                 ndv = bd.toISOString();
             }
-            if (ndv !== null) { 
-                gridApi.forEachNode(gn => { 
-                    if (gn.data === x) gn.setDataValue(df, ndv); 
-                }); 
+            if (ndv !== null) {
+                gridApi.forEachNode(gn => {
+                    if (gn.data === x) gn.setDataValue(df, ndv);
+                });
             }
         });
     });
@@ -827,8 +870,8 @@ function executePointsUpdate() {
     sr.forEach(r => {
         const cv = parseFloat(r[f]) || 0;
         let fv = op === 'set' ? v : op === 'scale' ? cv * v : cv + v;
-        gridApi.forEachNode(gn => { 
-            if (gn.data === r) gn.setDataValue(f, Number(fv.toFixed(2))); 
+        gridApi.forEachNode(gn => {
+            if (gn.data === r) gn.setDataValue(f, Number(fv.toFixed(2)));
         });
     });
     closeActiveModal();
@@ -837,13 +880,13 @@ function executePointsUpdate() {
 async function executeClone() {
     const sr = gridApi.getSelectedRows(), m = document.getElementById('cloneMethod').value;
     const pf = document.getElementById('clonePrefix').value || '', sf = document.getElementById('cloneSuffix').value || '';
-    
+
     if (currentTab === 'modules' && m === 'deep') {
         for (const r of sr) await performDeepClone(r, pf, sf);
     } else if (m === 'deep') {
         let configKey = currentTab;
         if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
-        
+
         const tabContainer = FIELD_DEFINITIONS[configKey];
         for (const r of sr) {
             const ep = tc.endpoint, itf = (currentTab === 'pages') ? (r.url || r.page_url) : r.id;
@@ -871,10 +914,10 @@ async function executeClone() {
 async function executeDelete() {
     const ci = document.getElementById('deleteConfirmInput'), m = ci.dataset.mode;
     if (ci.value !== 'DELETE') { alert('Type DELETE.'); return; }
-    
+
     const si = getSelectedItems();
     if (!si || !si.length) { alert('No items.'); return; }
-    
+
     const cId = document.getElementById('courseSelect')?.value || selectedCourseId;
     if (!cId) { alert('No course.'); return; }
 
@@ -919,8 +962,8 @@ async function executeDelete() {
     }
 }
 
-function exportData() { 
-    if (gridApi) gridApi.exportDataAsCsv({ fileName: `canvas_${currentTab}_export.csv` }); 
+function exportData() {
+    if (gridApi) gridApi.exportDataAsCsv({ fileName: `canvas_${currentTab}_export.csv` });
 }
 
 function toggleAllDateCheckboxes() {
@@ -940,7 +983,7 @@ function getUniqueName(on, en, pf = '', sf = '') {
     const gfs = (b, n) => `${pf}${n > 0 ? `${b} ${n}` : b}${sf}`.trim();
     let nn = cn + 1, fn = gfs(tn, nn);
     while (en.has(fn)) { nn++; fn = gfs(tn, nn); }
-    en.add(fn); 
+    en.add(fn);
     return fn;
 }
 
@@ -948,10 +991,10 @@ function sanitizeRowData(d, t, m = 'sync') {
     if (m === 'sync') {
         let configKey = t;
         if (!FIELD_DEFINITIONS[configKey] && t === 'discussions') configKey = 'discussion_topics';
-        
+
         const tabContainer = FIELD_DEFINITIONS[configKey];
         if (!tc) return {};
-        
+
         const df = tc.fields, cd = {}, pr = d._pristine || {};
         df.forEach(f => {
             const k = f.key, v = d[k];
@@ -959,16 +1002,16 @@ function sanitizeRowData(d, t, m = 'sync') {
         });
         return cd;
     }
-    
+
     const srf = ['id', 'uuid', 'created_at', 'updated_at', 'items_count', 'items', 'html_url', 'url', 'workflow_state', 'publish_at', 'course_id', 'context_type', 'context_id', 'lti_context_id', 'global_id', 'secure_params', 'original_lti_resource_link_id', 'items_url', 'locked_for_user', 'lock_info', 'lock_explanation', 'permissions', 'submission', 'overrides', 'all_dates', 'can_duplicate'];
     const sif = new Set(['assignment_group_id', 'grading_standard_id', 'prerequisite_module_ids']), fk = new Set(srf);
-    
+
     let configKey = t;
     if (!FIELD_DEFINITIONS[configKey] && t === 'discussions') configKey = 'discussion_topics';
-    
+
     const tabContainer = FIELD_DEFINITIONS[configKey];
     if (tc?.fields) tc.fields.forEach(f => { if (f.editable === false) fk.add(f.key || f.name); });
-    
+
     const san = {};
     Object.keys(d).forEach(k => {
         if (!k.startsWith('_') && !fk.has(k) && !(k.endsWith('_id') && !sif.has(k)) && k !== 'position') san[k] = d[k];
@@ -1033,42 +1076,42 @@ function prepareUIClone(r, ty, pf, sf) {
     if (rc.title !== undefined) rc.title = nn;
     let cc = sanitizeRowData(rc, ty, 'clone');
     cc.id = `TEMP_${Math.random().toString(36).substr(2, 9)}`;
-    cc.isNew = true; 
+    cc.isNew = true;
     cc.syncStatus = 'New';
     return cc;
 }
 
 async function createAssignments(cId, params) {
-    const response = await fetch(`/canvas/courses/${cId}/assignments`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ assignment: p }) 
+    const response = await fetch(`/canvas/courses/${cId}/assignments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignment: p })
     });
     return r.ok ? await r.json() : null;
 }
 
 async function createQuizzes(cId, qp, ap = null) {
-    const response = await fetch(`/canvas/courses/${cId}/quizzes`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ quiz: qp }) 
+    const response = await fetch(`/canvas/courses/${cId}/quizzes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quiz: qp })
     });
     const nq = r.ok ? await r.json() : null;
     if (nq && ap && nq.assignment_id) {
-        await fetch(`/canvas/courses/${cId}/assignments/${nq.assignment_id}`, { 
-            method: 'PUT', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ assignment: ap }) 
+        await fetch(`/canvas/courses/${cId}/assignments/${nq.assignment_id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ assignment: ap })
         });
     }
     return nq;
 }
 
 async function createPages(cId, params) {
-    const response = await fetch(`/canvas/courses/${cId}/pages`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ wiki_page: p }) 
+    const response = await fetch(`/canvas/courses/${cId}/pages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wiki_page: p })
     });
     const res = r.ok ? await r.json() : null;
     if (res && res.url && !res.id) res.id = res.url;
@@ -1076,38 +1119,38 @@ async function createPages(cId, params) {
 }
 
 async function createDiscussions(cId, params) {
-    const response = await fetch(`/canvas/courses/${cId}/discussion_topics`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(params) 
+    const response = await fetch(`/canvas/courses/${cId}/discussion_topics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
     });
     return r.ok ? await r.json() : null;
 }
 
 async function createFolders(cId, params) {
-    const response = await fetch(`/canvas/courses/${cId}/folders`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(params) 
+    const response = await fetch(`/canvas/courses/${cId}/folders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
     });
     return r.ok ? await r.json() : null;
 }
 
 const createModules = async (cId, mn) => {
-    const response = await fetch(`/canvas/courses/${cId}/modules`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ module: { name: mn } }) 
+    const response = await fetch(`/canvas/courses/${cId}/modules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ module: { name: mn } })
     });
     if (!r.ok) throw new Error(`Failed: ${r.statusText}`);
     return await r.json();
 };
 
 async function addModuleItem(cId, mId, ip) {
-    const response = await fetch(`/canvas/courses/${cId}/modules/${mId}/items`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ module_item: ip }) 
+    const response = await fetch(`/canvas/courses/${cId}/modules/${mId}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ module_item: ip })
     });
     return r.ok ? await r.json() : null;
 }
@@ -1121,15 +1164,15 @@ function getSelectedItems() {
 async function deleteCanvasItem(ty, cId, id) {
     let configKey = ty;
     if (!FIELD_DEFINITIONS[configKey] && ty === 'discussions') configKey = 'discussion_topics';
-    
+
     const config = FIELD_DEFINITIONS[configKey];
     const endpoint = config ? config.endpoint : ty;
 
-    const response = await fetch(`/canvas/${endpoint}/${cId}/${id}`, { 
-        method: 'DELETE', 
-        headers: { 'Content-Type': 'application/json' } 
+    const response = await fetch(`/canvas/${endpoint}/${cId}/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
     });
-    
+
     if (!r.ok) {
         const et = await r.text();
         let ed;
@@ -1148,7 +1191,7 @@ async function deleteCanvasItem(ty, cId, id) {
 }
 
 async function deepPurgeModule(cId, moduleItem) {
-    const response = await fetch(`/canvas/courses/${cId}/modules/${moduleItem.id}/full-delete`, { 
+    const response = await fetch(`/canvas/courses/${cId}/modules/${moduleItem.id}/full-delete`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
     });
@@ -1173,7 +1216,7 @@ async function deepPurgeModule(cId, moduleItem) {
 async function handleDeepPurge() {
     const si = getSelectedItems();
     if (!si || !si.length) { alert('No items selected.'); return; }
-    
+
     const cId = document.getElementById('courseSelect')?.value || selectedCourseId;
     if (!cId) { alert('No course ID found.'); return; }
 
@@ -1183,12 +1226,12 @@ async function handleDeepPurge() {
         for (const it of si) {
             await deepPurgeModule(cId, it);
         }
-        
+
         closeActiveModal();
         delete originalData['assignments'];
         if (changes['assignments']) changes['assignments'] = {};
         await refreshCurrentTab();
-        
+
         if (currentTab !== 'assignments') {
             const tabContainer = FIELD_DEFINITIONS['assignments'];
             const response = await fetch(`/canvas/courses/${selectedCourseId}/${tc.endpoint}`);
