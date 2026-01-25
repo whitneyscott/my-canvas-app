@@ -164,3 +164,68 @@ body, html {
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
+.debug-panel {
+    position: fixed;
+    bottom: 0;
+    right: 20px;
+    width: 400px;
+    max-height: 400px;
+    background: rgba(0, 0, 0, 0.95);
+    border: 1px solid #0f0;
+    border-radius: 8px 8px 0 0;
+    z-index: 10000;
+    transition: max-height 0.3s ease;
+    font-family: 'Courier New', monospace;
+}
+
+.debug-panel.collapsed {
+    max-height: 40px;
+}
+
+.debug-panel-header {
+    padding: 10px 15px;
+    background: rgba(0, 50, 0, 0.9);
+    color: #0f0;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    border-radius: 8px 8px 0 0;
+    user-select: none;
+}
+
+.debug-panel-header:hover {
+    background: rgba(0, 70, 0, 0.9);
+}
+
+.debug-panel-content {
+    padding: 10px;
+    overflow-y: auto;
+    max-height: 350px;
+    color: #0f0;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.debug-log {
+    margin-bottom: 5px;
+    padding: 3px 5px;
+    border-left: 2px solid #0f0;
+    padding-left: 8px;
+}
+
+.debug-log.error {
+    color: #f00;
+    border-left-color: #f00;
+}
+
+.debug-log.warn {
+    color: #ff0;
+    border-left-color: #ff0;
+}
+
+.debug-log.success {
+    color: #0ff;
+    border-left-color: #0ff;
+}
