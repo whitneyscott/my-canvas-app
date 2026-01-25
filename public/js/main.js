@@ -86,6 +86,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     debugLog('=== Canvas Manager Initializing ===');
     debugLog(`FIELD_DEFINITIONS available: ${Object.keys(FIELD_DEFINITIONS).length > 0}`);
     debugLog(`FIELD_DEFINITIONS tabs: ${Object.keys(FIELD_DEFINITIONS).join(', ')}`);
+    
+    debugLog('--- Function Existence Check ---');
+    debugLog(`loadCourses exists: ${typeof loadCourses !== 'undefined'}`);
+    debugLog(`onCourseSelected exists: ${typeof onCourseSelected !== 'undefined'}`);
+    debugLog(`syncChanges exists: ${typeof syncChanges !== 'undefined'}`);
+    debugLog(`refreshCurrentTab exists: ${typeof refreshCurrentTab !== 'undefined'}`);
+    debugLog(`switchTab exists: ${typeof switchTab !== 'undefined'}`);
+    debugLog(`generateColumnDefs exists: ${typeof generateColumnDefs !== 'undefined'}`);
+    debugLog(`toggleDebugPanel exists: ${typeof toggleDebugPanel !== 'undefined'}`);
 
     const tabContainer = document.querySelector('.tab-container');
     if (tabContainer) {
@@ -295,16 +304,16 @@ async function refreshCurrentTab() {
         let configKey = currentTab;
         if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
 
-        const tabContainer = FIELD_DEFINITIONS[configKey];
-        if (!tc) { throw new Error(`No config for: ${currentTab}`); }
+        const tabConfig = FIELD_DEFINITIONS[configKey];
+        if (!tabConfig) { throw new Error(`No config for: ${currentTab}`); }
 
-        const response = await fetch(`/canvas/courses/${selectedCourseId}/${tc.endpoint}`);
-        const data = await r.json();
-        const ds = d.map(x => ({ ...x, _edit_status: 'synced' }));
-        originalData[currentTab] = ds;
+        const response = await fetch(`/canvas/courses/${selectedCourseId}/${tabConfig.endpoint}`);
+        const data = await response.json();
+        const dataWithStatus = data.map(x => ({ ...x, _edit_status: 'synced' }));
+        originalData[currentTab] = dataWithStatus;
 
         if (gridApi) {
-            gridApi.setGridOption('rowData', ds);
+            gridApi.setGridOption('rowData', dataWithStatus);
             gridApi.setGridOption('loading', false);
             gridApi.redrawRows();
             if (currentTab === 'students') setTimeout(() => gridApi.resetRowHeights(), 100);
@@ -324,65 +333,80 @@ document.addEventListener('change', event => {
 });
 
 async function loadCourses() {
+    debugLog('loadCourses() called');
     try {
         const courseSelect = document.getElementById('courseSelect');
-        if (!s) return;
+        if (!courseSelect) {
+            debugLog('ERROR: courseSelect element not found', 'error');
+            return;
+        }
 
-        s.innerHTML = '<option value="">Loading courses...</option>';
+        courseSelect.innerHTML = '<option value="">Loading courses...</option>';
+        debugLog('Fetching courses from /canvas/courses');
 
         const response = await fetch('/canvas/courses');
-        if (!r.ok) {
-            console.error('Failed to load courses:', r.status, r.statusText);
-            s.innerHTML = '<option value="">Error loading courses</option>';
+        if (!response.ok) {
+            debugLog(`ERROR: Failed to load courses: ${response.status} ${response.statusText}`, 'error');
+            console.error('Failed to load courses:', response.status, response.statusText);
+            courseSelect.innerHTML = '<option value="">Error loading courses</option>';
             return;
         }
 
-        const g = await r.json();
-        if (!Array.isArray(g)) {
-            console.error('Expected array of course groups, got:', g);
-            s.innerHTML = '<option value="">Error loading courses</option>';
+        const courseGroups = await response.json();
+        debugLog(`Received ${Array.isArray(courseGroups) ? courseGroups.length : 0} course groups`);
+        
+        if (!Array.isArray(courseGroups)) {
+            debugLog('ERROR: Expected array of course groups', 'error');
+            console.error('Expected array of course groups, got:', courseGroups);
+            courseSelect.innerHTML = '<option value="">Error loading courses</option>';
             return;
         }
 
-        s.innerHTML = '<option value="">Select a course...</option>';
+        courseSelect.innerHTML = '<option value="">Select a course...</option>';
 
-        if (g.length === 0) {
-            s.innerHTML = '<option value="">No courses available</option>';
+        if (courseGroups.length === 0) {
+            debugLog('No courses available', 'warn');
+            courseSelect.innerHTML = '<option value="">No courses available</option>';
             return;
         }
 
-        g.forEach(x => {
-            if (!x.term || !Array.isArray(x.courses)) return;
-            const og = document.createElement('optgroup');
-            og.label = x.term;
-            x.courses.forEach(c => {
-                if (!c.id) return;
-                const o = document.createElement('option');
-                o.value = c.id;
-                o.textContent = `${c.name || c.course_code || 'Untitled'} (${c.course_code || 'No Code'})`;
-                og.appendChild(o);
+        let totalCourses = 0;
+        courseGroups.forEach(group => {
+            if (!group.term || !Array.isArray(group.courses)) return;
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = group.term;
+            group.courses.forEach(course => {
+                if (!course.id) return;
+                const option = document.createElement('option');
+                option.value = course.id;
+                option.textContent = `${course.name || course.course_code || 'Untitled'} (${course.course_code || 'No Code'})`;
+                optgroup.appendChild(option);
+                totalCourses++;
             });
-            if (og.children.length > 0) {
-                s.appendChild(og);
+            if (optgroup.children.length > 0) {
+                courseSelect.appendChild(optgroup);
             }
         });
-    } catch (event) {
-        console.error('Error loading courses:', event);
+        debugLog(`Loaded ${totalCourses} courses successfully`, 'success');
+    } catch (error) {
+        debugLog(`ERROR in loadCourses: ${error.message}`, 'error');
+        console.error('Error loading courses:', error);
         const courseSelect = document.getElementById('courseSelect');
-        if (s) s.innerHTML = '<option value="">Error loading courses</option>';
+        if (courseSelect) courseSelect.innerHTML = '<option value="">Error loading courses</option>';
     }
 }
 
 function onCourseSelected() {
-    const select = document.getElementById('courseSelect'), cId = s.value;
-    if (!cId) {
+    const courseSelect = document.getElementById('courseSelect');
+    const courseId = courseSelect.value;
+    if (!courseId) {
         selectedCourseId = null;
         if (gridApi) gridApi.setGridOption('rowData', []);
         return;
     }
-    selectedCourseId = cId;
-    const u = new URL(window.location);
-    u.searchParams.set('course_id', cId);
+    selectedCourseId = courseId;
+    const url = new URL(window.location);
+    url.searchParams.set('course_id', courseId);
     window.history.pushState({}, '', u);
     originalData = {};
     switchTab(currentTab);
@@ -395,8 +419,8 @@ async function loadTabData(tabName) {
         let configKey = n;
         if (!FIELD_DEFINITIONS[configKey] && n === 'discussions') configKey = 'discussion_topics';
 
-        const tabContainer = FIELD_DEFINITIONS[configKey];
-        if (!tc) { console.error(`No config for: ${n}`); return; }
+        const tabConfig = FIELD_DEFINITIONS[configKey];
+        if (!tabConfig) { console.error(`No config for: ${n}`); return; }
 
         if (currentTab === n && gridApi) gridApi.setGridOption('loading', true);
 
@@ -421,15 +445,15 @@ async function loadTabData(tabName) {
             }
         }
 
-        const response = await fetch(`/canvas/courses/${selectedCourseId}/${tc.endpoint}`);
+        const response = await fetch(`/canvas/courses/${selectedCourseId}/${tabConfig.endpoint}`);
 
-        if (!r.ok) {
-            console.error(`Failed to load ${n}: ${r.status} ${r.statusText}`);
+        if (!response.ok) {
+            console.error(`Failed to load ${n}: ${response.status} ${response.statusText}`);
             if (currentTab === n && gridApi) gridApi.setGridOption('loading', false);
             return;
         }
 
-        const data = await r.json();
+        const data = await response.json();
 
         if (!Array.isArray(d)) {
             console.error(`Expected array for ${n}, got:`, d);
@@ -437,7 +461,7 @@ async function loadTabData(tabName) {
             return;
         }
 
-        const ds = d.map(x => ({ ...x, _edit_status: 'synced' }));
+        const dataWithStatus = data.map(x => ({ ...x, _edit_status: 'synced' }));
         originalData[tabName] = ds;
 
         if (currentTab === n && gridApi) {
@@ -445,7 +469,7 @@ async function loadTabData(tabName) {
                 gridApi.setGridOption('columnDefs', generateColumnDefs(tabName));
             }
 
-            gridApi.setGridOption('rowData', ds);
+            gridApi.setGridOption('rowData', dataWithStatus);
             gridApi.setGridOption('loading', false);
 
             if (tabName === 'students') setTimeout(() => gridApi.resetRowHeights(), 100);
@@ -468,42 +492,49 @@ function trackChange(tabName, itemId, fieldName, value) {
 
 async function syncChanges() {
     if (!selectedCourseId) return alert('Select course first.');
-    const tabContainer = changes[currentTab];
-    if (!tc || !Object.keys(tc).length) return alert('No changes.');
+    const tabChanges = changes[currentTab];
+    if (!tabChanges || !Object.keys(tabChanges).length) return alert('No changes.');
 
     let configKey = currentTab;
     if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
 
-    const cfg = FIELD_DEFINITIONS[configKey];
-    if (!cfg) return alert('Invalid tab.');
-    const ep = cfg.endpoint;
+    const config = FIELD_DEFINITIONS[configKey];
+    if (!config) return alert('Invalid tab.');
+    const endpoint = config.endpoint;
 
-    for (const iId in tc) {
-        const u = tc[iId], url = `/canvas/courses/${selectedCourseId}/${ep}/${iId}`;
+    for (const itemId in tabChanges) {
+        const updates = tabChanges[itemId];
+        const url = `/canvas/courses/${selectedCourseId}/${endpoint}/${itemId}`;
         try {
             const response = await fetch(url, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(u)
+                body: JSON.stringify(updates)
             });
 
-            if (r.ok) {
-                const rn = [];
-                gridApi.forEachNode(n => {
-                    const nId = n.data.id || n.data.url;
-                    if (String(nId) === String(iId)) {
-                        n.setDataValue('_edit_status', 'synced');
-                        rn.push(n);
+            if (response.ok) {
+                const rowNodes = [];
+                gridApi.forEachNode(node => {
+                    const nodeId = node.data.id || node.data.url;
+                    if (String(nodeId) === String(itemId)) {
+                        node.setDataValue('_edit_status', 'synced');
+                        rowNodes.push(node);
                         if (originalData[currentTab]) {
-                            const or = originalData[currentTab].find(x => String(x.id || x.url) === String(iId));
-                            if (or) Object.keys(u).forEach(f => or[f] = u[f]);
+                            const originalRow = originalData[currentTab].find(item => String(item.id || item.url) === String(itemId));
+                            if (originalRow) {
+                                Object.keys(updates).forEach(fieldKey => originalRow[fieldKey] = updates[fieldKey]);
+                            }
                         }
                     }
                 });
-                if (rn.length) gridApi.redrawRows({ rowNodes: rn });
-                delete changes[currentTab][iId];
+                if (rowNodes.length) {
+                    gridApi.redrawRows({ rowNodes: rowNodes });
+                }
+                delete changes[currentTab][itemId];
             }
-        } catch (event) { console.error(event); }
+        } catch (error) { 
+            console.error(error); 
+        }
     }
     alert('Sync completed.');
 }
@@ -517,14 +548,14 @@ async function handleDeleteClick() {
             try {
                 const response = await fetch(`/canvas/modules/${selectedCourseId}/${m.id}/items`);
 
-                if (!r.ok) {
-                    const errorText = await r.text();
-                    console.error(`[Frontend] Failed to fetch items: ${r.status} ${r.statusText}`, errorText);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`[Frontend] Failed to fetch items: ${response.status} ${response.statusText}`, errorText);
                     m.items = [];
                     continue;
                 }
 
-                const its = await r.json();
+                const its = await response.json();
 
                 if (!Array.isArray(its)) {
                     console.error(`[Frontend] Expected array, got:`, typeof its, its);
@@ -628,7 +659,7 @@ function populateColumnDropdown(sId) {
         return;
     }
 
-    s.innerHTML = '';
+    courseSelect.innerHTML = '';
 
     gridApi.getColumnDefs().forEach(c => {
         const id = c.colId || c.field;
@@ -636,7 +667,7 @@ function populateColumnDropdown(sId) {
             const o = document.createElement('option');
             o.value = id;
             o.innerText = c.headerName;
-            s.appendChild(o);
+            courseSelect.appendChild(o);
         }
     });
 }
@@ -644,17 +675,17 @@ function populateColumnDropdown(sId) {
 function populateMergeSelector() {
     const select = document.getElementById('mergeTargetSelect');
     if (!s || !gridApi) return;
-    s.innerHTML = '';
+    courseSelect.innerHTML = '';
     const sr = gridApi.getSelectedRows();
     if (sr.length < 2) {
-        s.innerHTML = '<option>Select 2+ rows...</option>';
+        courseSelect.innerHTML = '<option>Select 2+ rows...</option>';
         return;
     }
     sr.forEach(r => {
         const o = document.createElement('option');
         o.value = r.id || r.url;
         o.innerText = r.name || r.title || r.display_name || o.value;
-        s.appendChild(o);
+        courseSelect.appendChild(o);
     });
 }
 
@@ -666,14 +697,14 @@ function populateDateColumnSelector() {
     let configKey = currentTab;
     if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
 
-    const tabContainer = FIELD_DEFINITIONS[configKey];
-    if (!tc) {
+    const tabConfig = FIELD_DEFINITIONS[configKey];
+        if (!tabConfig) {
         c.innerHTML = '<div style="text-align:center;padding:10px;color:#666">Select valid tab</div>';
         return;
     }
 
     let mc = 0;
-    tc.fields.forEach(d => {
+    tabConfig.fields.forEach(d => {
         if (d.type === 'date' && d.editable === true) {
             mc++;
             const response = document.createElement('div'), l = document.createElement('label'), cb = document.createElement('input');
@@ -695,20 +726,20 @@ function populateDateColumnSelector() {
 function populateNumericColumnSelector(sId) {
     const select = document.getElementById(sId);
     if (!s) return;
-    s.innerHTML = '';
+    courseSelect.innerHTML = '';
 
     let configKey = currentTab;
     if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
 
-    const tabContainer = FIELD_DEFINITIONS[configKey];
-    if (!tc) return;
+    const tabConfig = FIELD_DEFINITIONS[configKey];
+        if (!tabConfig) return;
 
-    tc.fields.forEach(d => {
+    tabConfig.fields.forEach(d => {
         if (d.type === 'number' || (d.key && d.key.toLowerCase().includes('points'))) {
             const o = document.createElement('option');
             o.value = d.key;
             o.textContent = d.label || d.key;
-            s.appendChild(o);
+            courseSelect.appendChild(o);
         }
     });
 }
@@ -895,26 +926,29 @@ async function executeClone() {
         let configKey = currentTab;
         if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
 
-        const tabContainer = FIELD_DEFINITIONS[configKey];
-        for (const r of sr) {
-            const ep = tc.endpoint, itf = (currentTab === 'pages') ? (r.url || r.page_url) : r.id;
-            const res = await fetch(`/canvas/courses/${selectedCourseId}/${ep}/${itf}`);
+        const tabConfig = FIELD_DEFINITIONS[configKey];
+        for (const row of sr) {
+            const endpoint = tabConfig.endpoint;
+            const itemIdentifier = (currentTab === 'pages') ? (row.url || row.page_url) : row.id;
+            const res = await fetch(`/canvas/courses/${selectedCourseId}/${endpoint}/${itemIdentifier}`);
             if (res.ok) {
-                const ofo = await res.json(), sc = sanitizeRowData(ofo, ep, 'clone'), nn = getUniqueName(ofo.name || ofo.title || ofo.display_name || "Item", new Set(), pf, sf);
-                if (sc.name !== undefined) sc.name = nn;
-                if (sc.title !== undefined) sc.title = nn;
-                if (sc.display_name !== undefined) sc.display_name = nn;
-                await createDeepContent(currentTab.charAt(0).toUpperCase() + currentTab.slice(1, -1), sc);
+                const originalFullObject = await res.json();
+                const sanitizedCopy = sanitizeRowData(originalFullObject, endpoint, 'clone');
+                const newName = getUniqueName(originalFullObject.name || originalFullObject.title || originalFullObject.display_name || "Item", new Set(), pf, sf);
+                if (sanitizedCopy.name !== undefined) sanitizedCopy.name = newName;
+                if (sanitizedCopy.title !== undefined) sanitizedCopy.title = newName;
+                if (sanitizedCopy.display_name !== undefined) sanitizedCopy.display_name = newName;
+                await createDeepContent(currentTab.charAt(0).toUpperCase() + currentTab.slice(1, -1), sanitizedCopy);
             }
         }
         await refreshCurrentTab();
     } else {
-        const ni = sr.map(r => {
-            let cc = prepareUIClone(r, currentTab, pf, sf);
-            if (currentTab === 'modules') cc.items = m === 'structural' ? [] : (r.items || []).map(x => ({ ...x }));
-            return cc;
+        const newItems = sr.map(row => {
+            let clonedCopy = prepareUIClone(row, currentTab, pf, sf);
+            if (currentTab === 'modules') clonedCopy.items = m === 'structural' ? [] : (row.items || []).map(item => ({ ...item }));
+            return clonedCopy;
         });
-        gridApi.applyTransaction({ add: ni });
+        gridApi.applyTransaction({ add: newItems });
     }
     closeActiveModal();
 }
@@ -926,8 +960,8 @@ async function executeDelete() {
     const si = getSelectedItems();
     if (!si || !si.length) { alert('No items.'); return; }
 
-    const cId = document.getElementById('courseSelect')?.value || selectedCourseId;
-    if (!cId) { alert('No course.'); return; }
+    const courseId = document.getElementById('courseSelect')?.value || selectedCourseId;
+    if (!courseId) { alert('No course.'); return; }
 
     try {
         const deleteBtn = document.querySelector('.modal-footer .btn-danger');
@@ -939,10 +973,10 @@ async function executeDelete() {
         for (const it of si) {
             const ty = it._originTab || currentTab;
             if (m === 'deep' && ty === 'modules') {
-                await deepPurgeModule(cId, it);
+                await deepPurgeModule(courseId, it);
             } else {
                 const itd = (ty === 'pages') ? (it.url || it.page_url) : it.id;
-                await deleteCanvasItem(ty, cId, itd);
+                await deleteCanvasItem(ty, courseId, itd);
             }
         }
 
@@ -954,8 +988,8 @@ async function executeDelete() {
         if (currentTab !== 'assignments') {
             let configKey = 'assignments';
             const tabContainer = FIELD_DEFINITIONS[configKey];
-            const response = await fetch(`/canvas/courses/${selectedCourseId}/${tc.endpoint}`);
-            const data = await r.json();
+            const response = await fetch(`/canvas/courses/${selectedCourseId}/${tabConfig.endpoint}`);
+            const data = await response.json();
             originalData['assignments'] = d.map(x => ({ ...x, _edit_status: 'synced' }));
         }
     } catch (event) {
@@ -989,8 +1023,8 @@ function getUniqueName(on, en, pf = '', sf = '') {
     let bn = on || "Untitled", tn = bn, nm = tn.match(/(.*)\s(\d+)$/), cn = 0;
     if (nm) { tn = nm[1]; cn = parseInt(nm[2], 10); }
     const gfs = (b, n) => `${pf}${n > 0 ? `${b} ${n}` : b}${sf}`.trim();
-    let nn = cn + 1, fn = gfs(tn, nn);
-    while (en.has(fn)) { nn++; fn = gfs(tn, nn); }
+    let nextNum = currentNum + 1, finalName = getFormattedString(trimmedName, nextNum);
+    while (existingNames.has(finalName)) { nextNum++; finalName = getFormattedString(trimmedName, nextNum); }
     en.add(fn);
     return fn;
 }
@@ -1000,10 +1034,10 @@ function sanitizeRowData(d, t, m = 'sync') {
         let configKey = t;
         if (!FIELD_DEFINITIONS[configKey] && t === 'discussions') configKey = 'discussion_topics';
 
-        const tabContainer = FIELD_DEFINITIONS[configKey];
-        if (!tc) return {};
+        const tabConfig = FIELD_DEFINITIONS[configKey];
+        if (!tabConfig) return {};
 
-        const df = tc.fields, cd = {}, pr = d._pristine || {};
+        const df = tabConfig.fields, cd = {}, pr = d._pristine || {};
         df.forEach(f => {
             const k = f.key, v = d[k];
             if (v !== undefined && v !== null && v !== '' && JSON.stringify(v) !== JSON.stringify(pr[k])) cd[k] = v;
@@ -1018,7 +1052,7 @@ function sanitizeRowData(d, t, m = 'sync') {
     if (!FIELD_DEFINITIONS[configKey] && t === 'discussions') configKey = 'discussion_topics';
 
     const tabContainer = FIELD_DEFINITIONS[configKey];
-    if (tc?.fields) tc.fields.forEach(f => { if (f.editable === false) fk.add(f.key || f.name); });
+    if (tc?.fields) tabConfig.fields.forEach(f => { if (f.editable === false) fk.add(f.key || f.name); });
 
     const san = {};
     Object.keys(d).forEach(k => {
@@ -1041,18 +1075,18 @@ async function performDeepClone(mr, pf, sf) {
                 nc = { id: 'no-content-needed' };
             } else {
                 let ep = '';
-                if (ty === 'Assignment') ep = 'assignments';
-                else if (ty === 'Quiz') ep = 'quizzes';
-                else if (ty === 'Page') ep = 'pages';
-                else if (ty === 'Discussion') ep = 'discussions';
-                if (ep) {
+                if (ty === 'Assignment') endpoint = 'assignments';
+                else if (ty === 'Quiz') endpoint = 'quizzes';
+                else if (ty === 'Page') endpoint = 'pages';
+                else if (ty === 'Discussion') endpoint = 'discussions';
+                if (endpoint) {
                     const itf = (ty === 'Page') ? (it.page_url || it.content_id) : it.content_id;
-                    const response = await fetch(`/canvas/courses/${selectedCourseId}/${ep}/${itf}`);
-                    if (r.ok) {
-                        const ofo = await r.json(), sc = sanitizeRowData(ofo, ep, 'clone'), nn = getUniqueName(ofo.name || ofo.title || "Item", new Set(), pf, sf);
-                        if (sc.name !== undefined) sc.name = nn;
-                        if (sc.title !== undefined) sc.title = nn;
-                        nc = await createDeepContent(ty, sc);
+                    const response = await fetch(`/canvas/courses/${selectedCourseId}/${endpoint}/${itf}`);
+                    if (response.ok) {
+                        const ofo = await response.json(), sanitizedCopy = sanitizeRowData(originalFullObject, endpoint, 'clone'), newName = getUniqueName(ofo.name || ofo.title || "Item", new Set(), pf, sf);
+                        if (sanitizedCopy.name !== undefined) sanitizedCopy.name = newName;
+                        if (sanitizedCopy.title !== undefined) sanitizedCopy.title = newName;
+                        newContent = await createDeepContent(ty, sanitizedCopy);
                     }
                 }
             }
@@ -1079,9 +1113,9 @@ async function createDeepContent(ty, sp) {
 
 function prepareUIClone(r, ty, pf, sf) {
     let rc = JSON.parse(JSON.stringify(r)), nn = getNewName(rc, pf, sf);
-    if (rc.display_name !== undefined) rc.display_name = nn;
-    if (rc.name !== undefined) rc.name = nn;
-    if (rc.title !== undefined) rc.title = nn;
+    if (rowCopy.display_name !== undefined) rowCopy.display_name = newName;
+    if (rowCopy.name !== undefined) rowCopy.name = newName;
+    if (rowCopy.title !== undefined) rowCopy.title = newName;
     let cc = sanitizeRowData(rc, ty, 'clone');
     cc.id = `TEMP_${Math.random().toString(36).substr(2, 9)}`;
     cc.isNew = true;
@@ -1089,24 +1123,24 @@ function prepareUIClone(r, ty, pf, sf) {
     return cc;
 }
 
-async function createAssignments(cId, params) {
-    const response = await fetch(`/canvas/courses/${cId}/assignments`, {
+async function createAssignments(courseId, params) {
+    const response = await fetch(`/canvas/courses/${courseId}/assignments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ assignment: p })
     });
-    return r.ok ? await r.json() : null;
+    return response.ok ? await response.json() : null;
 }
 
-async function createQuizzes(cId, qp, ap = null) {
-    const response = await fetch(`/canvas/courses/${cId}/quizzes`, {
+async function createQuizzes(courseId, qp, ap = null) {
+    const response = await fetch(`/canvas/courses/${courseId}/quizzes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quiz: qp })
     });
-    const nq = r.ok ? await r.json() : null;
+    const nq = response.ok ? await response.json() : null;
     if (nq && ap && nq.assignment_id) {
-        await fetch(`/canvas/courses/${cId}/assignments/${nq.assignment_id}`, {
+        await fetch(`/canvas/courses/${courseId}/assignments/${nq.assignment_id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ assignment: ap })
@@ -1115,52 +1149,52 @@ async function createQuizzes(cId, qp, ap = null) {
     return nq;
 }
 
-async function createPages(cId, params) {
-    const response = await fetch(`/canvas/courses/${cId}/pages`, {
+async function createPages(courseId, params) {
+    const response = await fetch(`/canvas/courses/${courseId}/pages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ wiki_page: p })
     });
-    const res = r.ok ? await r.json() : null;
+    const res = response.ok ? await response.json() : null;
     if (res && res.url && !res.id) res.id = res.url;
     return res;
 }
 
-async function createDiscussions(cId, params) {
-    const response = await fetch(`/canvas/courses/${cId}/discussion_topics`, {
+async function createDiscussions(courseId, params) {
+    const response = await fetch(`/canvas/courses/${courseId}/discussion_topics`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
     });
-    return r.ok ? await r.json() : null;
+    return response.ok ? await response.json() : null;
 }
 
-async function createFolders(cId, params) {
-    const response = await fetch(`/canvas/courses/${cId}/folders`, {
+async function createFolders(courseId, params) {
+    const response = await fetch(`/canvas/courses/${courseId}/folders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
     });
-    return r.ok ? await r.json() : null;
+    return response.ok ? await response.json() : null;
 }
 
-const createModules = async (cId, mn) => {
-    const response = await fetch(`/canvas/courses/${cId}/modules`, {
+const createModules = async (courseId, mn) => {
+    const response = await fetch(`/canvas/courses/${courseId}/modules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ module: { name: mn } })
     });
-    if (!r.ok) throw new Error(`Failed: ${r.statusText}`);
-    return await r.json();
+    if (!response.ok) throw new Error(`Failed: ${response.statusText}`);
+    return await response.json();
 };
 
-async function addModuleItem(cId, mId, ip) {
-    const response = await fetch(`/canvas/courses/${cId}/modules/${mId}/items`, {
+async function addModuleItem(courseId, mId, ip) {
+    const response = await fetch(`/canvas/courses/${courseId}/modules/${mId}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ module_item: ip })
     });
-    return r.ok ? await r.json() : null;
+    return response.ok ? await response.json() : null;
 }
 
 function getSelectedItems() {
@@ -1169,20 +1203,20 @@ function getSelectedItems() {
     return r;
 }
 
-async function deleteCanvasItem(ty, cId, id) {
+async function deleteCanvasItem(ty, courseId, id) {
     let configKey = ty;
     if (!FIELD_DEFINITIONS[configKey] && ty === 'discussions') configKey = 'discussion_topics';
 
     const config = FIELD_DEFINITIONS[configKey];
     const endpoint = config ? config.endpoint : ty;
 
-    const response = await fetch(`/canvas/${endpoint}/${cId}/${id}`, {
+    const response = await fetch(`/canvas/${endpoint}/${courseId}/${id}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
     });
 
-    if (!r.ok) {
-        const et = await r.text();
+    if (!response.ok) {
+        const et = await response.text();
         let ed;
         try { ed = JSON.parse(et); } catch { ed = { message: et }; }
         throw new Error(ed.message || `Failed: ${ty} ${id}`);
@@ -1195,17 +1229,17 @@ async function deleteCanvasItem(ty, cId, id) {
         }
     }
 
-    return await r.json().catch(() => ({ status: 'success' }));
+    return await response.json().catch(() => ({ status: 'success' }));
 }
 
-async function deepPurgeModule(cId, moduleItem) {
-    const response = await fetch(`/canvas/courses/${cId}/modules/${moduleItem.id}/full-delete`, {
+async function deepPurgeModule(courseId, moduleItem) {
+    const response = await fetch(`/canvas/courses/${courseId}/modules/${moduleItem.id}/full-delete`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
     });
 
-    if (!r.ok) {
-        const et = await r.text();
+    if (!response.ok) {
+        const et = await response.text();
         let ed;
         try { ed = JSON.parse(et); } catch { ed = { message: et }; }
         throw new Error(ed.message || `Failed to deep delete module ${moduleItem.id}`);
@@ -1218,21 +1252,21 @@ async function deepPurgeModule(cId, moduleItem) {
         }
     }
 
-    return await r.json().catch(() => ({ status: 'success' }));
+    return await response.json().catch(() => ({ status: 'success' }));
 }
 
 async function handleDeepPurge() {
     const si = getSelectedItems();
     if (!si || !si.length) { alert('No items selected.'); return; }
 
-    const cId = document.getElementById('courseSelect')?.value || selectedCourseId;
-    if (!cId) { alert('No course ID found.'); return; }
+    const courseId = document.getElementById('courseSelect')?.value || selectedCourseId;
+    if (!courseId) { alert('No course ID found.'); return; }
 
     if (!confirm(`This will delete ${si.length} module(s) AND all contents inside them. Continue?`)) return;
 
     try {
         for (const it of si) {
-            await deepPurgeModule(cId, it);
+            await deepPurgeModule(courseId, it);
         }
 
         closeActiveModal();
@@ -1242,8 +1276,8 @@ async function handleDeepPurge() {
 
         if (currentTab !== 'assignments') {
             const tabContainer = FIELD_DEFINITIONS['assignments'];
-            const response = await fetch(`/canvas/courses/${selectedCourseId}/${tc.endpoint}`);
-            const data = await r.json();
+            const response = await fetch(`/canvas/courses/${selectedCourseId}/${tabConfig.endpoint}`);
+            const data = await response.json();
             originalData['assignments'] = d.map(x => ({ ...x, _edit_status: 'synced' }));
         }
 
