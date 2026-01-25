@@ -107,12 +107,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await loadCourses();
 
-    const u = new URLSearchParams(window.location.search), cId = u.get('course_id');
-    if (cId) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const courseId = urlParams.get('course_id');
+    if (courseId) {
         const courseSelect = document.getElementById('courseSelect');
-        if (s) {
-            s.value = cId;
-            selectedCourseId = cId;
+        if (courseSelect) {
+            courseSelect.value = courseId;
+            selectedCourseId = courseId;
             switchTab('assignments');
         }
     }
