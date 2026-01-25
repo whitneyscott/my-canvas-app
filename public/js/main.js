@@ -235,13 +235,13 @@ function generateColumnDefs(tabName) {
             colDef.cellRenderer = params => {
                 const isTrue = params.value === true;
                 const button = document.createElement('button');
-                btn.className = `btn-toggle ${isTrue ? 'active' : 'inactive'}`;
-                btn.textContent = isTrue ? (field.activeLabel || 'Active') : (field.inactiveLabel || 'Inactive');
-                btn.onclick = () => {
+                button.className = `btn-toggle ${isTrue ? 'active' : 'inactive'}`;
+                button.textContent = isTrue ? (field.activeLabel || 'Active') : (field.inactiveLabel || 'Inactive');
+                button.onclick = () => {
                     const newValue = !isTrue;
                     params.node.setDataValue(field.key, newValue);
                 };
-                return btn;
+                return button;
             };
         } else if (field.type === 'accommodations') {
             colDef.editable = false;
@@ -501,13 +501,13 @@ async function loadTabData(tabName) {
 
             if (tabName === 'students') setTimeout(() => gridApi.resetRowHeights(), 100);
 
-            if (n === 'assignments' || n === 'quizzes') {
+            if (tabName === 'assignments' || tabName === 'quizzes') {
                 gridApi.refreshCells({ force: true });
             }
         }
-    } catch (event) {
-        console.error(`Error loading ${n}:`, event);
-        if (currentTab === n && gridApi) gridApi.setGridOption('loading', false);
+    } catch (error) {
+        console.error(`Error loading ${tabName}:`, error);
+        if (currentTab === tabName && gridApi) gridApi.setGridOption('loading', false);
     }
 }
 
