@@ -42,21 +42,36 @@ body, html {
     background-color: #ffffff;
     overflow: hidden;
 }
+/* --- SIDEBAR & LAYOUT --- */
+.sidebar {
+    width: 250px;
+    height: 100%;
+    flex-shrink: 0;
+    /* Deepest Navy for maximum contrast with the white app and blue buttons */
+    background-color: #9baebe; 
+    border-right: 1px solid #d1d1d1;
+    display: flex;
+    flex-direction: column;
+    padding-top: 15px;
+}
 
 .tab-container {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px; /* Increased gap for better visual separation */
 }
 
+/* --- TAB BUTTONS --- */
 .tab-btn {
     position: relative;
     padding: 14px 20px;
     cursor: pointer;
-    background: #2c3e50;
+    /* Brighter blue than the background so they are clearly visible */
+    background: #243447; 
     color: #ffffff;
-    border: none;
+    border: 1px solid rgba(255, 255, 255, 0.1); /* Subtle rim light */
     border-radius: 8px 0 0 8px;
+    margin-left: 12px;
     text-align: left;
     font-size: 15px;
     font-weight: 600;
@@ -64,16 +79,20 @@ body, html {
 }
 
 .tab-btn:hover {
-    background-color: #3e5871;
-    padding-left: 25px;
+    background-color: #34495e;
+    padding-left: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
+/* --- ACTIVE STATE --- */
 .tab-btn.active {
     background-color: #ffffff;
-    color: #1a252f;
-    box-shadow: -4px 2px 8px rgba(0,0,0,0.2);
-    width: calc(100% + 1px);
+    color: #0f171e;
+    box-shadow: -5px 0 15px rgba(0,0,0,0.3);
+    width: calc(100% + 1px); 
     z-index: 2;
+    margin-left: 12px;
+    border: none;
 }
 
 .tab-btn.active::after {
@@ -82,16 +101,15 @@ body, html {
     right: -1px;
     top: 0;
     height: 100%;
-    width: 4px;
+    width: 5px;
     background: #3498db;
 }
 
+/* --- ACCESSIBILITY --- */
 .tab-btn:focus-visible {
     outline: 3px solid #f1c40f;
     outline-offset: -4px;
 }
-
-
 
 .toolbar {
     padding: 12px 20px;

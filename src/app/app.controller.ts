@@ -11,8 +11,8 @@ export class AppController {
 
   @Get()
   @Render('index')
-  root() {
-    return {};
+  root(@Query('courseId') courseId?: string) {
+    return { courseId: courseId || null };
   }
 
   @Get('auth/status')
@@ -23,9 +23,10 @@ export class AppController {
     const isLti = !!req.session?.ltiVerified;
 
     if (isProduction) {
-      return { needsToken: !isLti && (!hasToken || !hasUrl) };
+      const authenticated = isLti || (hasToken && hasUrl);
+      return { needsToken: !authenticated };
     }
-    
+
     return { needsToken: false };
   }
 
@@ -55,11 +56,12 @@ export class AppController {
       req.session.canvasUrl = body.canvasUrl.replace(/\/+$/, "");
       
       return new Promise((resolve) => {
-        req.session.save(() => {
+        req.session.save((err) => {
+          if (err) resolve({ success: false });
           resolve({ success: true });
         });
       });
     }
-    return { success: false, message: 'Invalid credentials or session' };
+    return { success: false, message: 'Invalid credentials' };
   }
 }

@@ -456,7 +456,6 @@ async function loadCourses() {
 
         if (!response.ok) {
             debugLog(`ERROR: Failed to load courses: ${response.status} ${response.statusText}`, 'error');
-            console.error('Failed to load courses:', response.status, response.statusText);
             courseSelect.innerHTML = '<option value="">Error loading courses</option>';
             return;
         }
@@ -466,7 +465,6 @@ async function loadCourses() {
         
         if (!Array.isArray(courseGroups)) {
             debugLog('ERROR: Expected array of course groups', 'error');
-            console.error('Expected array of course groups, got:', courseGroups);
             courseSelect.innerHTML = '<option value="">Error loading courses</option>';
             return;
         }
@@ -496,7 +494,21 @@ async function loadCourses() {
                 courseSelect.appendChild(optgroup);
             }
         });
-        debugLog(`Loaded ${totalCourses} courses successfully`, 'success');
+
+        debugLog(`SUCCESS: Loaded ${totalCourses} courses successfully`, 'success');
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const autoCourseId = urlParams.get('courseId') || (window.SERVER_DATA && window.SERVER_DATA.courseId);
+
+        if (autoCourseId && autoCourseId !== 'null' && autoCourseId !== '' && autoCourseId !== '<%= courseId %>') {
+            debugLog(`Auto-selecting course context: ${autoCourseId}`);
+            courseSelect.value = autoCourseId;
+            
+            if (typeof onCourseSelected === 'function') {
+                onCourseSelected();
+            }
+        }
+
     } catch (error) {
         debugLog(`ERROR in loadCourses: ${error.message}`, 'error');
         console.error('Error loading courses:', error);
@@ -521,12 +533,16 @@ function onCourseSelected() {
     selectedCourseId = courseId;
     debugLog(`selectedCourseId set to: ${selectedCourseId}`, 'success');
     
+    // Update URL to match current selection without refreshing
     const url = new URL(window.location);
-    url.searchParams.set('course_id', courseId);
+    url.searchParams.set('courseId', courseId);
     window.history.pushState({}, '', url);
     
+    // Reset state and reload
     originalData = {};
-    debugLog('Cleared originalData, calling switchTab');
+    if (gridApi) gridApi.setGridOption('rowData', []);
+    
+    debugLog('Cleared originalData and Grid, calling switchTab');
     switchTab(currentTab);
 }
 
