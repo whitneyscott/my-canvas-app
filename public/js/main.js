@@ -1,25 +1,39 @@
 async function init() {
     debugLog("Initializing Application...");
+    const overlay = document.getElementById('token-overlay');
+    const appBody = document.querySelector('.app-container');
 
     try {
-        // 1. Ask the server: "What is my current status?"
         const response = await fetch('/auth/status');
         const status = await response.json();
 
-        debugLog(`Status received: NeedsToken=${status.needsToken}`);
-
-        // 2. Decide: Show the login box OR load the data
-        if (status.needsToken) {
-            document.getElementById('token-overlay').style.display = 'flex';
-            debugLog("Token required. Showing overlay.");
+        if (status && status.needsToken === true) {
+            debugLog("Access Denied: Token Required.");
+            overlay.style.display = 'flex';
+            appBody.style.display = 'none';
         } else {
-            debugLog("Authentication valid. Loading courses...");
-            await loadCourses(); // This calls your existing course loader
+            debugLog("Access Granted.");
+            overlay.style.display = 'none';
+            appBody.style.display = 'grid'; 
+            await loadCourses();
         }
     } catch (err) {
-        debugLog("Error during initialization: " + err.message);
-        console.error("Init failed:", err);
+        debugLog("CRITICAL ERROR: Could not verify session.");
+        showFlashError("System Authentication Failure");
     }
+}
+
+function showFlashError(message) {
+    const overlay = document.getElementById('token-overlay');
+    overlay.style.display = 'flex';
+    overlay.style.background = 'rgba(139, 0, 0, 0.95)';
+    overlay.innerHTML = `
+        <div style="background: white; padding: 3rem; border-radius: 8px; border: 5px solid red;">
+            <h1 style="color: red; margin: 0;">ACCESS BLOCKED</h1>
+            <p style="font-size: 1.2rem; font-weight: bold;">${message}</p>
+            <button onclick="location.reload()" style="padding: 10px 20px; cursor: pointer;">Retry Connection</button>
+        </div>
+    `;
 }
 
 // Run the function as soon as the window loads

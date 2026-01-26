@@ -11,7 +11,7 @@ body, html {
 }
 
 .app-container {
-    display: flex;
+    display: none; 
     height: 100vh;
     width: 100vw;
 }

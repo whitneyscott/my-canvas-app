@@ -16,14 +16,20 @@ root() {
 }
 
 @Get('auth/status')
-async getStatus(@Req() req: any) {
-  const isLocal = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
+getStatus(@Req() req: any) {
+  const isProduction = process.env.NODE_ENV === 'production';
   const hasToken = !!req.session?.canvasToken;
   const isLti = !!req.session?.ltiVerified;
-  
-  return {
-    needsToken: !isLocal && !hasToken && !isLti
-  };
+
+  if (isProduction && !hasToken && !isLti) {
+    return { needsToken: true };
+  }
+
+  if (!isProduction) {
+    return { needsToken: false };
+  }
+
+  return { needsToken: !hasToken && !isLti };
 }
 
   @Post('lti-launch')
