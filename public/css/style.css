@@ -6,18 +6,16 @@ body, html {
     margin: 0;
     padding: 0;
     height: 100vh;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: sans-serif;
     overflow: hidden;
 }
 
-/* This is the master switch */
 #main-app-wrapper {
-    display: none; /* Controlled by JS */
+    display: none;
     height: 100vh;
     width: 100vw;
 }
 
-/* Your original layout stays exactly as you liked it */
 .app-container {
     display: flex;
     flex-direction: row;
@@ -25,14 +23,16 @@ body, html {
     width: 100%;
 }
 
+/* Sidebar Styling */
 .sidebar {
     width: 250px;
     height: 100%;
     flex-shrink: 0;
-    background-color: #da960e; /* Restoring default sidebar color - adjust if needed */
-    border-right: 1px solid #ddd;
+    background-color: #9baebe;
+    border-right: 1px solid #8a9ba9;
     display: flex;
     flex-direction: column;
+    padding-top: 15px;
 }
 
 .main-content {
@@ -42,34 +42,21 @@ body, html {
     background-color: #ffffff;
     overflow: hidden;
 }
-/* --- SIDEBAR & LAYOUT --- */
-.sidebar {
-    width: 250px;
-    height: 100%;
-    flex-shrink: 0;
-    /* Deepest Navy for maximum contrast with the white app and blue buttons */
-    background-color: #9baebe; 
-    border-right: 1px solid #d1d1d1;
-    display: flex;
-    flex-direction: column;
-    padding-top: 15px;
-}
 
+/* Navigation Tabs */
 .tab-container {
     display: flex;
     flex-direction: column;
-    gap: 8px; /* Increased gap for better visual separation */
+    gap: 8px;
 }
 
-/* --- TAB BUTTONS --- */
 .tab-btn {
     position: relative;
     padding: 14px 20px;
     cursor: pointer;
-    /* Brighter blue than the background so they are clearly visible */
-    background: #243447; 
+    background: #7d90a1;
     color: #ffffff;
-    border: 1px solid rgba(255, 255, 255, 0.1); /* Subtle rim light */
+    border: none;
     border-radius: 8px 0 0 8px;
     margin-left: 12px;
     text-align: left;
@@ -79,17 +66,15 @@ body, html {
 }
 
 .tab-btn:hover {
-    background-color: #34495e;
+    background-color: #6a7d8f;
     padding-left: 28px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
-/* --- ACTIVE STATE --- */
 .tab-btn.active {
     background-color: #ffffff;
-    color: #0f171e;
-    box-shadow: -5px 0 15px rgba(0,0,0,0.3);
-    width: calc(100% + 1px); 
+    color: #2c3e50;
+    box-shadow: -4px 0 10px rgba(0,0,0,0.1);
+    width: calc(100% + 1px);
     z-index: 2;
     margin-left: 12px;
     border: none;
@@ -105,12 +90,7 @@ body, html {
     background: #3498db;
 }
 
-/* --- ACCESSIBILITY --- */
-.tab-btn:focus-visible {
-    outline: 3px solid #f1c40f;
-    outline-offset: -4px;
-}
-
+/* Toolbar Controls */
 .toolbar {
     padding: 12px 20px;
     background: #f8f9fa;
@@ -154,6 +134,7 @@ body, html {
     background-color: #2ecc71;
 }
 
+/* Grid Container */
 #myGrid {
     flex: 1;
     width: 100%;
@@ -172,6 +153,7 @@ body, html {
     --ag-font-size: 14px;
 }
 
+/* Toggle Buttons (Inside Grid) */
 .btn-toggle {
     padding: 4px 12px;
     border-radius: 4px;
@@ -194,6 +176,7 @@ body, html {
     border-color: #ffcdd2;
 }
 
+/* Modals & Overlays */
 .modal-overlay {
     display: none;
     position: fixed;
@@ -227,6 +210,7 @@ body, html {
     flex-direction: column;
 }
 
+/* System Debug Monitor */
 .debug-panel {
     position: fixed;
     top: 20px;

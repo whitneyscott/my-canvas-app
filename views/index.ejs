@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-<div id="token-overlay" style="display: none; ..."> ... </div>
+    <div id="token-overlay" style="display: none;"> </div>
 
     <div id="main-app-wrapper" style="display: none;">
         <div class="app-container">
@@ -41,13 +41,16 @@
                 <div id="myGrid" class="ag-theme-quartz" style="height: 500px; width: 100%;"></div>
             </main>
         </div>
-
     </div>
+
     <script>
+        // Wrapping the EJS tag in quotes tells the JS engine this is a string,
+        // which usually stops the 'identifier expected' red squiggles.
         window.SERVER_DATA = {
-            courseId: "<%= courseId %>"
+            courseId: "<%= typeof courseId !== 'undefined' ? courseId : '' %>"
         };
     </script>
+
     <script src="/js/config.js"></script>
     <script src="/js/helpers.js"></script>
     <script src="/js/main.js"></script>
