@@ -4,33 +4,30 @@ import type { Response } from 'express';
 @Controller()
 export class AppController {
 
-@Get('test-path')
-testPath() {
-  return { status: 'ok' };
-}
-
-@Get()
-@Render('index')
-root() {
-  return {}; // Send nothing. EJS has nothing to trip over.
-}
-
-@Get('auth/status')
-getStatus(@Req() req: any) {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const hasToken = !!req.session?.canvasToken;
-  const isLti = !!req.session?.ltiVerified;
-
-  if (isProduction && !hasToken && !isLti) {
-    return { needsToken: true };
+  @Get('test-path')
+  testPath() {
+    return { status: 'ok' };
   }
 
-  if (!isProduction) {
+  @Get()
+  @Render('index')
+  root() {
+    return {};
+  }
+
+  @Get('auth/status')
+  getStatus(@Req() req: any) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const hasToken = !!req.session?.canvasToken;
+    const hasUrl = !!req.session?.canvasUrl;
+    const isLti = !!req.session?.ltiVerified;
+
+    if (isProduction) {
+      return { needsToken: !isLti && (!hasToken || !hasUrl) };
+    }
+    
     return { needsToken: false };
   }
-
-  return { needsToken: !hasToken && !isLti };
-}
 
   @Post('lti-launch')
   async handleLtiLaunch(@Req() req: any, @Res() res: Response) {
@@ -52,17 +49,17 @@ getStatus(@Req() req: any) {
   }
 
   @Post('auth/set-token')
-  async setToken(@Body('token') token: string, @Req() req: any) {
-    if (token && req.session) {
-      req.session.canvasToken = token;
+  async setToken(@Body() body: { token: string; canvasUrl: string }, @Req() req: any) {
+    if (body.token && body.canvasUrl && req.session) {
+      req.session.canvasToken = body.token;
+      req.session.canvasUrl = body.canvasUrl.replace(/\/+$/, "");
       
-      // Explicitly saving the session ensures the next request sees the token
       return new Promise((resolve) => {
         req.session.save(() => {
           resolve({ success: true });
         });
       });
     }
-    return { success: false, message: 'Invalid token or session' };
+    return { success: false, message: 'Invalid credentials or session' };
   }
 }

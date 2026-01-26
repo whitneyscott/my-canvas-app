@@ -10,10 +10,14 @@
 <body>
     <div id="token-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
         <div style="background: white; padding: 2rem; border-radius: 8px; width: 400px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.3); font-family: sans-serif;">
-            <h2 style="margin-top: 0; color: #333;">Canvas API Access</h2>
-            <p style="color: #666;">Enter your Canvas API Access Token to securely connect.</p>
-            <input type="password" id="token-input" placeholder="Paste token here..." style="width: 100%; padding: 12px; margin: 20px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
-            <button onclick="submitToken()" style="background: #007bff; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold;">Connect to Canvas</button>
+            <h2 style="margin-top: 0; color: #333;">Canvas Connection</h2>
+            <p style="color: #666;">Enter your Canvas details to securely connect.</p>
+            
+            <input type="text" id="canvas-url-input" placeholder="https://canvas.instructure.com" style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+            
+            <input type="password" id="token-input" placeholder="Paste API Token here..." style="width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+            
+            <button id="submit-btn" onclick="submitCredentials()" style="background: #007bff; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold;">Connect to Canvas</button>
         </div>
     </div>
 

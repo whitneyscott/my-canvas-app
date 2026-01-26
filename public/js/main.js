@@ -23,6 +23,34 @@ async function init() {
     }
 }
 
+async function submitCredentials() {
+    const canvasUrl = document.getElementById('canvas-url-input').value;
+    const token = document.getElementById('token-input').value;
+
+    if (!canvasUrl || !token) {
+        alert("Both Canvas URL and Token are required.");
+        return;
+    }
+
+    try {
+        const response = await fetch('/auth/set-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ canvasUrl, token })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            debugLog("Credentials saved. Reloading app...");
+            location.reload();
+        } else {
+            alert("Error: " + result.message);
+        }
+    } catch (err) {
+        debugLog("Login error: " + err.message);
+    }
+}
 function showFlashError(message) {
     const overlay = document.getElementById('token-overlay');
     overlay.style.display = 'flex';
