@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Scope, Inject } from '@nestjs/common';
+import { REQUEST } from '@nestjs/core';
 
 interface CanvasCourse {
   id: number;
@@ -11,12 +12,15 @@ interface CanvasCourse {
   created_at?: string;
 }
 
-@Injectable()
+@Injectable({ scope: Scope.REQUEST })
 export class CanvasService {
+  constructor(@Inject(REQUEST) private readonly req: any) {}
+  
+  
   async getCourses() {
     const { token, baseUrl } = await this.getAuthHeaders();
 
-    const termMap = await this.getTermMap(baseUrl, token);
+    const termMap = await this.getTermMap();
     
     let allCourses: CanvasCourse[] = [];
     let url: string | null = `${baseUrl}/users/self/courses?per_page=100&state=all`;
@@ -54,10 +58,7 @@ export class CanvasService {
     const grouped = processedCourses.reduce((acc, course) => {
       const term = course.term_label;
       if (!acc[term]) {
-        // Find the date for this term if it exists in our map
         const termData = Object.values(termMap).find(t => t.name === term);
-        
-        // Use Term End Date > Course End Date > Created At > Epoch
         const sortDate = termData?.end || course.end_date || course.created_at || '1970-01-01T00:00:00Z';
 
         acc[term] = {
@@ -74,8 +75,6 @@ export class CanvasService {
       .sort((a, b) => {
         if (a.term === 'No Term Assigned') return 1;
         if (b.term === 'No Term Assigned') return -1;
-        
-        // Sorting by end_date (Newest/Latest end date at the top)
         return new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime();
       })
       .map(group => ({
@@ -112,8 +111,9 @@ export class CanvasService {
     return `${termName} ${realYear}`;
   }
 
-  private async getTermMap(baseUrl: string, token: string): Promise<Record<number, { name: string; end: string }>> {
+private async getTermMap(): Promise<Record<number, { name: string; end: string }>> {
     try {
+      const { token, baseUrl } = await this.getAuthHeaders();
       const response = await fetch(`${baseUrl}/accounts/self/terms`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -142,12 +142,17 @@ export class CanvasService {
     return match ? match[1] : null;
   }
 
-  private async getAuthHeaders(): Promise<{ token: string; baseUrl: string }> {
-    const token = process.env.CANVAS_TOKEN;
+private async getAuthHeaders() {
+    let token = process.env.CANVAS_TOKEN;
+
+    if (this.req && this.req.session && this.req.session.canvasToken) {
+      token = this.req.session.canvasToken;
+    }
+
     const baseUrl = process.env.CANVAS_BASE_URL;
 
-    if (!token || !baseUrl) {
-      throw new Error('Missing CANVAS_TOKEN or CANVAS_BASE_URL in .env file');
+    if (!token) {
+      throw new Error('Unauthorized: No Canvas token found.');
     }
 
     return { token, baseUrl };

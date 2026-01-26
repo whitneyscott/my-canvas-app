@@ -1,23 +1,88 @@
+async function init() {
+    debugLog("Initializing Application...");
+
+    try {
+        // 1. Ask the server: "What is my current status?"
+        const response = await fetch('/auth/status');
+        const status = await response.json();
+
+        debugLog(`Status received: NeedsToken=${status.needsToken}`);
+
+        // 2. Decide: Show the login box OR load the data
+        if (status.needsToken) {
+            document.getElementById('token-overlay').style.display = 'flex';
+            debugLog("Token required. Showing overlay.");
+        } else {
+            debugLog("Authentication valid. Loading courses...");
+            await loadCourses(); // This calls your existing course loader
+        }
+    } catch (err) {
+        debugLog("Error during initialization: " + err.message);
+        console.error("Init failed:", err);
+    }
+}
+
+// Run the function as soon as the window loads
+window.onload = init;
 let assignmentGroupsCache = {};
 
 const FIELD_DEFINITIONS = window.FIELD_DEFINITIONS || window.CANVAS_CONFIG?.FIELD_DEFINITIONS || {};
 
 function debugLog(message, type = 'info') {
-    const content = document.getElementById('debugContent');
-    const time = new Date().toLocaleTimeString();
+    const debugContent = document.getElementById('debugContent');
+    if (!debugContent) return;
+
+    const timestamp = new Date().toLocaleTimeString([], { hour12: false });
     const logEntry = document.createElement('div');
-    logEntry.className = `debug-log ${type}`;
-    logEntry.textContent = `[${time}]${type !== 'info' ? ' ' + type.toUpperCase() + ':' : ''} ${message}`;
-    content.appendChild(logEntry);
-    content.scrollTop = content.scrollHeight;
-    console.log(`[${type.toUpperCase()}]`, message);
+    logEntry.className = 'debug-entry';
+    
+    const typeColors = {
+        info: '#00ff00',
+        warn: '#ffb000',
+        error: '#ff0000',
+        success: '#00ffff'
+    };
+    
+    logEntry.style.color = typeColors[type] || typeColors.info;
+    
+    const logPrefix = type !== 'info' ? ` ${type.toUpperCase()}:` : '';
+    logEntry.textContent = `[${timestamp}]${logPrefix} ${message}`;
+    
+    debugContent.appendChild(logEntry);
+    debugContent.scrollTop = debugContent.scrollHeight;
+    
+    console.log(`%c[${type.toUpperCase()}] ${message}`, `color: ${typeColors[type]}`);
 }
 
 function toggleDebugPanel() {
-    const panel = document.getElementById('debugPanel');
-    const toggle = document.getElementById('debugToggle');
-    panel.classList.toggle('collapsed');
-    toggle.textContent = panel.classList.contains('collapsed') ? '▲' : '▼';
+    const debugPanel = document.getElementById('debugPanel');
+    const debugToggleBtn = document.getElementById('debugToggle');
+    if (!debugPanel || !debugToggleBtn) return;
+
+    debugPanel.classList.toggle('collapsed');
+    debugToggleBtn.textContent = debugPanel.classList.contains('collapsed') ? '▲' : '▼';
+}
+
+function setGridStatus(tabName, message, color = '#00ff00') {
+    if (!gridApi) return;
+    
+    const overlayTemplate = `
+        <div style="text-align: center; background: rgba(0,0,0,0.8); padding: 20px; border: 2px solid ${color}; border-radius: 8px; color: white; font-family: monospace;">
+            <div class="retro-spinner" style="margin-bottom: 15px;"></div>
+            <div style="font-size: 1.2em; margin-bottom: 8px; font-weight: bold; color: ${color}; uppercase;">
+                LOADING ${tabName}
+            </div>
+            <div style="font-size: 1em; color: #ddd;">
+                ${message}
+            </div>
+            <div style="margin-top: 15px; font-size: 0.8em; color: #666;">
+                System responding... Please wait
+            </div>
+        </div>
+    `;
+    
+    gridApi.setGridOption('overlayLoadingTemplate', overlayTemplate);
+    gridApi.showLoadingOverlay();
 }
 
 let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, selectedCourseId = null;
@@ -79,83 +144,78 @@ const gridOptions = {
     onGridReady: params => {
         window.gridApi = params.api;
         gridApi = params.api;
-    }
+    },
+    overlayLoadingTemplate: 
+        '<div class="ag-overlay-loading-wrapper">' +
+        '  <div class="ag-overlay-loading-center">' +
+        '    <span class="ag-icon ag-icon-loading" style="font-size: 24px;"></span>' + 
+        '    <span id="custom-loading-text" style="margin-left: 10px; font-weight: bold;">Loading...</span>' +
+        '  </div>' +
+        '</div>'
 };
+const NEEDS_TOKEN = Boolean('<%= needsToken %>' === 'true');
+const LTI_COURSE_ID = '<%= courseId %>';
 
 document.addEventListener('DOMContentLoaded', async () => {
     debugLog('=== Canvas Manager Initializing ===');
-    debugLog(`FIELD_DEFINITIONS available: ${Object.keys(FIELD_DEFINITIONS).length > 0}`);
-    debugLog(`FIELD_DEFINITIONS tabs: ${Object.keys(FIELD_DEFINITIONS).join(', ')}`);
-    
-    debugLog('--- Function Existence Check ---');
-    debugLog(`loadCourses exists: ${typeof loadCourses !== 'undefined'}`);
-    debugLog(`onCourseSelected exists: ${typeof onCourseSelected !== 'undefined'}`);
-    debugLog(`syncChanges exists: ${typeof syncChanges !== 'undefined'}`);
-    debugLog(`refreshCurrentTab exists: ${typeof refreshCurrentTab !== 'undefined'}`);
-    debugLog(`switchTab exists: ${typeof switchTab !== 'undefined'}`);
-    debugLog(`generateColumnDefs exists: ${typeof generateColumnDefs !== 'undefined'}`);
-    debugLog(`toggleDebugPanel exists: ${typeof toggleDebugPanel !== 'undefined'}`);
 
-    const tabContainer = document.querySelector('.tab-container');
-    if (tabContainer) {
-        tabContainer.innerHTML = '';
-        Object.keys(FIELD_DEFINITIONS).forEach(tabKey => {
-            const config = FIELD_DEFINITIONS[tabKey];
-            const button = document.createElement('button');
-            button.className = 'tab-btn';
-            button.textContent = config.displayName;
-            button.dataset.tab = tabKey;
-            button.onclick = () => switchTab(tabKey);
-            tabContainer.appendChild(button);
-        });
-        debugLog(`Tabs created: ${Object.keys(FIELD_DEFINITIONS).length}`);
+    if (NEEDS_TOKEN) {
+        debugLog('Authentication required. Showing overlay.', 'warn');
+        return;
     }
-
+    
     const gridDiv = document.querySelector('#myGrid');
-    gridApi = agGrid.createGrid(gridDiv, gridOptions);
+    if (gridDiv) {
+        gridApi = agGrid.createGrid(gridDiv, gridOptions);
+    }
 
     await loadCourses();
 
     const urlParams = new URLSearchParams(window.location.search);
-    const courseId = urlParams.get('course_id');
-    if (courseId) {
+    const courseId = LTI_COURSE_ID || urlParams.get('courseId') || urlParams.get('course_id');
+    
+    if (courseId && courseId !== '') {
         const courseSelect = document.getElementById('courseSelect');
         if (courseSelect) {
             courseSelect.value = courseId;
             selectedCourseId = courseId;
-            switchTab('assignments');
+            debugLog(`Course context detected: ${courseId}`, 'info');
+            
+            if (typeof onCourseSelected === 'function') {
+                onCourseSelected();
+            }
         }
+    } else {
+        switchTab(currentTab || 'assignments');
     }
 });
 
-function switchTab(tabName) {
-    debugLog(`Switching to tab: ${tabName}`);
-    currentTab = tabName;
-    document.querySelectorAll('.tab-btn').forEach(button => {
-        button.classList.toggle('active', button.dataset.tab === tabName);
-    });
-
-    if (gridApi) {
-        gridApi.setFilterModel(null);
-        const columnDefs = generateColumnDefs(tabName);
-        debugLog(`Generated ${columnDefs.length} column definitions for ${tabName}`);
-        debugLog(`Column definitions: ${columnDefs.map(col => col.headerName || col.field).join(', ')}`);
-
-        gridApi.setGridOption('columnDefs', columnDefs);
-        gridApi.setGridOption('rowData', originalData[tabName] || []);
-
-        setTimeout(() => {
-            gridApi.sizeColumnsToFit();
-            if (tabName === 'students') gridApi.resetRowHeights();
-
-            const visibleColumns = gridApi.getColumns();
-            debugLog(`Visible columns after render: ${visibleColumns ? visibleColumns.length : 0}`);
-            if (visibleColumns) {
-                debugLog(`Column visibility: ${visibleColumns.map(col => col.getColId() + ':' + col.isVisible()).join(', ')}`);
-            }
-        }, 100);
+async function submitToken() {
+    const tokenInput = document.getElementById('token-input');
+    const token = tokenInput.value.trim();
+    
+    if (!token) {
+        alert('Please enter a valid token');
+        return;
     }
-    if (!originalData[tabName]) loadTabData(tabName);
+
+    try {
+        const response = await fetch('/auth/set-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+        });
+
+        if (response.ok) {
+            // This hides the overlay and reloads the page to trigger loadCourses()
+            window.location.reload();
+        } else {
+            alert('Failed to save token to session');
+        }
+    } catch (error) {
+        console.error('Error submitting token:', error);
+        alert('Error connecting to the server');
+    }
 }
 
 function generateColumnDefs(tabName) {
@@ -327,8 +387,8 @@ async function refreshCurrentTab() {
 
 document.addEventListener('change', event => {
     if (event.target.name === 'ipPosition') {
-        const mc = document.getElementById('markerInputContainer');
-        if (mc) mc.style.display = (event.target.value === 'beforeMarker' || event.target.value === 'afterMarker') ? 'block' : 'none';
+        const markerContainer = document.getElementById('markerInputContainer');
+        if (markerContainer) markerContainer.style.display = (event.target.value === 'beforeMarker' || event.target.value === 'afterMarker') ? 'block' : 'none';
     }
 });
 
@@ -345,6 +405,14 @@ async function loadCourses() {
         debugLog('Fetching courses from /canvas/courses');
 
         const response = await fetch('/canvas/courses');
+        
+        if (response.status === 401) {
+            debugLog('Session expired or token invalid. Redirecting to auth.', 'warn');
+            const overlay = document.getElementById('token-overlay');
+            if (overlay) overlay.style.display = 'flex';
+            return;
+        }
+
         if (!response.ok) {
             debugLog(`ERROR: Failed to load courses: ${response.status} ${response.statusText}`, 'error');
             console.error('Failed to load courses:', response.status, response.statusText);
@@ -421,93 +489,99 @@ function onCourseSelected() {
     switchTab(currentTab);
 }
 
-async function loadTabData(tabName) {
-    debugLog(`loadTabData() called for: ${tabName}`);
-    try {
-        if (!selectedCourseId) {
-            debugLog('No course selected, skipping data load', 'warn');
-            return;
-        }
+function switchTab(tabName) {
+    const allTabs = document.querySelectorAll('.tab-btn');
+    
+    allTabs.forEach(tab => {
+        const isTarget = tab.getAttribute('onclick').includes(tabName);
+        tab.classList.toggle('active', isTarget);
+        tab.setAttribute('aria-selected', isTarget ? 'true' : 'false');
+    });
 
-        let configKey = tabName;
+    currentTab = tabName;
+    debugLog(`Switched to ${tabName} view`, 'info');
+    
+    if (typeof loadTabData === 'function') {
+        loadTabData(tabName);
+    }
+}
+
+async function loadTabData(tabName) {
+    debugLog("loadTabData() called for: " + tabName);
+    
+    try {
+        if (!selectedCourseId) return;
+
+        var configKey = tabName;
         if (!FIELD_DEFINITIONS[configKey] && tabName === 'discussions') configKey = 'discussion_topics';
 
-        const tabConfig = FIELD_DEFINITIONS[configKey];
-        if (!tabConfig) { 
-            debugLog(`ERROR: No config for: ${tabName}`, 'error');
-            console.error(`No config for: ${tabName}`); 
-            return; 
+        var tabConfig = FIELD_DEFINITIONS[configKey];
+        if (!tabConfig) return;
+
+        var currentBatch = 1;
+        var batchSize = 100;
+        var displayTab = tabName.charAt(0).toUpperCase() + tabName.slice(1);
+        
+        // Show the native spinner immediately
+        if (gridApi) {
+            gridApi.showLoadingOverlay();
+            var initialText = document.getElementById('custom-loading-text');
+            if (initialText) initialText.innerHTML = "Fetching " + displayTab + " 1 to 100...";
         }
 
-        if (currentTab === tabName && gridApi) gridApi.setGridOption('loading', true);
+        var progressInterval = setInterval(function() {
+            var textElement = document.getElementById('custom-loading-text');
+            if (textElement) {
+                var start = (currentBatch * batchSize) + 1;
+                var end = (currentBatch + 1) * batchSize;
+                textElement.innerHTML = "Fetching " + displayTab + " " + start + " to " + end + "...";
+            }
+            currentBatch++;
+        }, 2000);
 
         if (tabName === 'assignments' || tabName === 'quizzes') {
             try {
-                const agUrl = `/canvas/courses/${selectedCourseId}/assignment_groups`;
-                debugLog(`Fetching assignment groups from: ${agUrl}`);
-                const agResponse = await fetch(agUrl);
-
-                if (!agResponse.ok) {
-                    debugLog(`Assignment Groups fetch failed: ${agResponse.status}`, 'warn');
-                    console.error('[Assignment Groups] Failed to fetch:', agResponse.status);
+                var agUrl = "/canvas/courses/" + selectedCourseId + "/assignment_groups";
+                var agResponse = await fetch(agUrl);
+                if (agResponse.ok) {
+                    var agData = await agResponse.json();
                     assignmentGroupsCache[selectedCourseId] = {};
-                } else {
-                    const agData = await agResponse.json();
-                    assignmentGroupsCache[selectedCourseId] = {};
-                    agData.forEach(group => {
+                    agData.forEach(function(group) {
                         assignmentGroupsCache[selectedCourseId][group.id] = group.name;
                     });
-                    debugLog(`Loaded ${agData.length} assignment groups`, 'success');
                 }
             } catch (agError) {
-                debugLog(`ERROR loading assignment groups: ${agError.message}`, 'error');
-                console.error('[Assignment Groups] Error:', agError);
                 assignmentGroupsCache[selectedCourseId] = {};
             }
         }
 
-        const dataUrl = `/canvas/courses/${selectedCourseId}/${tabConfig.endpoint}`;
-        debugLog(`Fetching ${tabName} data from: ${dataUrl}`);
-        const response = await fetch(dataUrl);
+        var dataUrl = "/canvas/courses/" + selectedCourseId + "/" + tabConfig.endpoint;
+        var response = await fetch(dataUrl);
+
+        clearInterval(progressInterval);
 
         if (!response.ok) {
-            debugLog(`ERROR: Failed to load ${tabName}: ${response.status} ${response.statusText}`, 'error');
-            console.error(`Failed to load ${tabName}: ${response.status} ${response.statusText}`);
-            if (currentTab === tabName && gridApi) gridApi.setGridOption('loading', false);
+            if (gridApi) gridApi.hideOverlay();
             return;
         }
 
-        const data = await response.json();
-
-        if (!Array.isArray(data)) {
-            debugLog(`ERROR: Expected array for ${tabName}, got: ${typeof data}`, 'error');
-            console.error(`Expected array for ${tabName}, got:`, data);
-            if (currentTab === tabName && gridApi) gridApi.setGridOption('loading', false);
-            return;
-        }
-
-        debugLog(`Received ${data.length} items for ${tabName}`, 'success');
-        const dataWithStatus = data.map(item => ({ ...item, _edit_status: 'synced' }));
+        var data = await response.json();
+        var dataWithStatus = data.map(function(item) { 
+            return Object.assign({}, item, { _edit_status: 'synced' }); 
+        });
+        
         originalData[tabName] = dataWithStatus;
 
         if (currentTab === tabName && gridApi) {
             if (tabName === 'assignments' || tabName === 'quizzes') {
                 gridApi.setGridOption('columnDefs', generateColumnDefs(tabName));
             }
-
             gridApi.setGridOption('rowData', dataWithStatus);
-            gridApi.setGridOption('loading', false);
-            debugLog(`Grid updated with ${dataWithStatus.length} rows`, 'success');
-
-            if (tabName === 'students') setTimeout(() => gridApi.resetRowHeights(), 100);
-
-            if (tabName === 'assignments' || tabName === 'quizzes') {
-                gridApi.refreshCells({ force: true });
-            }
+            gridApi.hideOverlay();
         }
     } catch (error) {
-        console.error(`Error loading ${tabName}:`, error);
-        if (currentTab === tabName && gridApi) gridApi.setGridOption('loading', false);
+        if (typeof progressInterval !== 'undefined') clearInterval(progressInterval);
+        if (gridApi) gridApi.hideOverlay();
     }
 }
 
@@ -565,52 +639,42 @@ async function syncChanges() {
     }
     alert('Sync completed.');
 }
-
 async function handleDeleteClick() {
-    const sel = getSelectedItems();
-    if (!sel.length) { alert("Select at least one item."); return; }
+    const selectedItems = getSelectedItems();
+    if (!selectedItems.length) { alert("Select at least one item."); return; }
 
     if (currentTab === 'modules') {
-        for (const m of sel) {
+        for (const module of selectedItems) {
             try {
-                const response = await fetch(`/canvas/modules/${selectedCourseId}/${m.id}/items`);
-
+                const response = await fetch(`/canvas/modules/${selectedCourseId}/${module.id}/items`);
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error(`[Frontend] Failed to fetch items: ${response.status} ${response.statusText}`, errorText);
-                    m.items = [];
+                    console.error(`[Frontend] Failed to fetch items: ${response.status}`, errorText);
+                    module.items = [];
                     continue;
                 }
-
-                const its = await response.json();
-
-                if (!Array.isArray(its)) {
-                    console.error(`[Frontend] Expected array, got:`, typeof its, its);
-                    m.items = [];
-                    continue;
-                }
-                m.items = its;
-            } catch (event) {
-                console.error(`Error fetching items for module ${m.id}:`, event);
-                m.items = [];
+                const itemsList = await response.json();
+                module.items = Array.isArray(itemsList) ? itemsList : [];
+            } catch (error) {
+                console.error(`Error fetching items for module ${module.id}:`, error);
+                module.items = [];
             }
         }
 
         const infoDiv = document.getElementById('moduleItemsList');
         if (infoDiv) {
             infoDiv.innerHTML = '';
-            sel.forEach(m => {
-                const itemCount = Array.isArray(m.items) ? m.items.length : 0;
+            selectedItems.forEach(module => {
+                const itemCount = Array.isArray(module.items) ? module.items.length : 0;
                 const div = document.createElement('div');
                 div.style.marginBottom = '8px';
                 div.style.padding = '6px';
                 div.style.background = itemCount > 0 ? '#e8f5e9' : '#fff3cd';
                 div.style.borderLeft = '3px solid ' + (itemCount > 0 ? '#4caf50' : '#ffc107');
-                div.innerHTML = `<strong>${m.name || 'Unnamed Module'}</strong>: <span style="font-weight: bold; color: ${itemCount > 0 ? '#2e7d32' : '#856404'}">${itemCount} item${itemCount !== 1 ? 's' : ''}</span>`;
+                div.innerHTML = `<strong>${module.name || 'Unnamed Module'}</strong>: <span style="font-weight: bold; color: ${itemCount > 0 ? '#2e7d32' : '#856404'}">${itemCount} item${itemCount !== 1 ? 's' : ''}</span>`;
                 infoDiv.appendChild(div);
             });
         }
-
         openModal('deepPurgeModal');
         document.getElementById('deepPurgeConfirmInput').value = '';
         document.getElementById('purgeMethod').value = 'standard';
@@ -627,9 +691,8 @@ function handleOverlayClick(event) {
 function populateColumnSelector() {
     const container = document.getElementById('columnListContainer');
     if (!container || !gridApi) return;
-
     container.innerHTML = '';
-    const colDefs = gridApi.getColumnDefs();
+    const columnDefinitions = gridApi.getColumnDefs();
 
     const selectAllRow = document.createElement('div');
     selectAllRow.className = 'checkbox-group';
@@ -639,207 +702,196 @@ function populateColumnSelector() {
     selectAllLabel.textContent = 'Select All / None';
     selectAllLabel.style.fontWeight = 'bold';
 
-    const selectAllCb = document.createElement('input');
-    selectAllCb.type = 'checkbox';
-    selectAllCb.checked = colDefs.every(cd => {
-        const col = gridApi.getColumn(cd.colId || cd.field);
-        return col ? col.isVisible() : true;
+    const selectAllCheckbox = document.createElement('input');
+    selectAllCheckbox.type = 'checkbox';
+    selectAllCheckbox.checked = columnDefinitions.every(colDef => {
+        const column = gridApi.getColumn(colDef.colId || colDef.field);
+        return column ? column.isVisible() : true;
     });
 
-    selectAllCb.onchange = (event) => {
-        container.querySelectorAll('.col-toggle-input').forEach(cb => cb.checked = event.target.checked);
+    selectAllCheckbox.onchange = (event) => {
+        container.querySelectorAll('.col-toggle-input').forEach(checkbox => checkbox.checked = event.target.checked);
     };
 
-    selectAllRow.append(selectAllLabel, selectAllCb);
+    selectAllRow.append(selectAllLabel, selectAllCheckbox);
     container.appendChild(selectAllRow);
 
-    colDefs.forEach((cd) => {
-        const id = cd.colId || cd.field;
-
+    columnDefinitions.forEach((colDef) => {
+        const id = colDef.colId || colDef.field;
         if (id === '_edit_status' || id === 'id') return;
-
         const row = document.createElement('div');
         row.className = 'checkbox-group';
         row.style.cssText = 'flex-direction:row;justify-content:space-between;padding:8px 12px;margin-bottom:5px';
-
         const label = document.createElement('label');
-        label.textContent = cd.headerName || id;
+        label.textContent = colDef.headerName || id;
         label.style.fontWeight = '500';
-
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.className = 'col-toggle-input';
-        cb.value = id;
-
-        const liveCol = gridApi.getColumn(id);
-        cb.checked = liveCol ? liveCol.isVisible() : true;
-
-        row.append(label, cb);
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'col-toggle-input';
+        checkbox.value = id;
+        const liveColumn = gridApi.getColumn(id);
+        checkbox.checked = liveColumn ? liveColumn.isVisible() : true;
+        row.append(label, checkbox);
         container.appendChild(row);
     });
 }
 
-function populateColumnDropdown(sId) {
-    const select = document.getElementById(sId);
-    if (!s || !gridApi) {
-        console.error('Dropdown population failed: Element or GridApi missing');
-        return;
-    }
-
-    courseSelect.innerHTML = '';
-
-    gridApi.getColumnDefs().forEach(c => {
-        const id = c.colId || c.field;
-        if (c.headerName && id && id !== '_edit_status' && id !== 'id') {
-            const o = document.createElement('option');
-            o.value = id;
-            o.innerText = c.headerName;
-            courseSelect.appendChild(o);
+function populateColumnDropdown(selectId) {
+    const selectElement = document.getElementById(selectId);
+    if (!selectElement || !gridApi) return;
+    selectElement.innerHTML = '';
+    gridApi.getColumnDefs().forEach(colDef => {
+        const id = colDef.colId || colDef.field;
+        if (colDef.headerName && id && id !== '_edit_status' && id !== 'id') {
+            const option = document.createElement('option');
+            option.value = id;
+            option.innerText = colDef.headerName;
+            selectElement.appendChild(option);
         }
     });
 }
 
 function populateMergeSelector() {
-    const select = document.getElementById('mergeTargetSelect');
-    if (!s || !gridApi) return;
-    courseSelect.innerHTML = '';
-    const sr = gridApi.getSelectedRows();
-    if (sr.length < 2) {
-        courseSelect.innerHTML = '<option>Select 2+ rows...</option>';
+    const selectElement = document.getElementById('mergeTargetSelect');
+    if (!selectElement || !gridApi) return;
+    selectElement.innerHTML = '';
+    const selectedRows = gridApi.getSelectedRows();
+    if (selectedRows.length < 2) {
+        selectElement.innerHTML = '<option>Select 2+ rows...</option>';
         return;
     }
-    sr.forEach(r => {
-        const o = document.createElement('option');
-        o.value = r.id || r.url;
-        o.innerText = r.name || r.title || r.display_name || o.value;
-        courseSelect.appendChild(o);
+    selectedRows.forEach(row => {
+        const option = document.createElement('option');
+        option.value = row.id || row.url;
+        option.innerText = row.name || row.title || row.display_name || option.value;
+        selectElement.appendChild(option);
     });
 }
 
 function populateDateColumnSelector() {
-    const c = document.getElementById('dateColumnSelector');
-    if (!c) { console.error('dateColumnSelector not found'); return; }
-    c.innerHTML = '';
-
+    const container = document.getElementById('dateColumnSelector');
+    if (!container) return;
+    container.innerHTML = '';
     let configKey = currentTab;
     if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
-
     const tabConfig = FIELD_DEFINITIONS[configKey];
-        if (!tabConfig) {
-        c.innerHTML = '<div style="text-align:center;padding:10px;color:#666">Select valid tab</div>';
+    if (!tabConfig) {
+        container.innerHTML = '<div style="text-align:center;padding:10px;color:#666">Select valid tab</div>';
         return;
     }
-
-    let mc = 0;
-    tabConfig.fields.forEach(d => {
-        if (d.type === 'date' && d.editable === true) {
-            mc++;
-            const response = document.createElement('div'), l = document.createElement('label'), cb = document.createElement('input');
-            r.className = 'checkbox-group';
-            r.style.cssText = 'flex-direction:row;justify-content:space-between;padding:8px 12px;margin-bottom:5px';
-            l.textContent = d.label || d.key;
-            l.style.fontWeight = '500';
-            cb.type = 'checkbox';
-            cb.className = 'date-col-checkbox';
-            cb.value = d.key;
-            cb.checked = true;
-            r.append(l, cb);
-            c.appendChild(r);
+    let matchCount = 0;
+    tabConfig.fields.forEach(field => {
+        if (field.type === 'date' && field.editable === true) {
+            matchCount++;
+            const row = document.createElement('div');
+            const label = document.createElement('label');
+            const checkbox = document.createElement('input');
+            row.className = 'checkbox-group';
+            row.style.cssText = 'flex-direction:row;justify-content:space-between;padding:8px 12px;margin-bottom:5px';
+            label.textContent = field.label || field.key;
+            label.style.fontWeight = '500';
+            checkbox.type = 'checkbox';
+            checkbox.className = 'date-col-checkbox';
+            checkbox.value = field.key;
+            checkbox.checked = true;
+            row.append(label, checkbox);
+            container.appendChild(row);
         }
     });
-    if (!mc) c.innerHTML = '<div style="text-align:center;padding:10px;color:#666">No date fields</div>';
+    if (!matchCount) container.innerHTML = '<div style="text-align:center;padding:10px;color:#666">No date fields</div>';
 }
 
-function populateNumericColumnSelector(sId) {
-    const select = document.getElementById(sId);
-    if (!s) return;
-    courseSelect.innerHTML = '';
-
+function populateNumericColumnSelector(selectId) {
+    const selectElement = document.getElementById(selectId);
+    if (!selectElement) return;
+    selectElement.innerHTML = '';
     let configKey = currentTab;
     if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
-
     const tabConfig = FIELD_DEFINITIONS[configKey];
-        if (!tabConfig) return;
-
-    tabConfig.fields.forEach(d => {
-        if (d.type === 'number' || (d.key && d.key.toLowerCase().includes('points'))) {
-            const o = document.createElement('option');
-            o.value = d.key;
-            o.textContent = d.label || d.key;
-            courseSelect.appendChild(o);
+    if (!tabConfig) return;
+    tabConfig.fields.forEach(field => {
+        if (field.type === 'number' || (field.key && field.key.toLowerCase().includes('points'))) {
+            const option = document.createElement('option');
+            option.value = field.key;
+            option.textContent = field.label || field.key;
+            selectElement.appendChild(option);
         }
     });
 }
 
-function openModal(mId) {
-    const ov = document.getElementById('modalOverlay'), tm = document.getElementById(mId);
-    if (!tm || !ov) return;
+function openModal(modalId) {
+    const overlay = document.getElementById('modalOverlay');
+    const targetModal = document.getElementById(modalId);
+    if (!targetModal || !overlay) return;
     document.querySelectorAll('.modal-content-wrapper').forEach(m => m.classList.remove('active'));
-
-    if (mId === 'searchReplaceModal') populateColumnDropdown('srColumnTarget');
-    else if (mId === 'insertPasteModal') populateColumnDropdown('ipColumnTarget');
-    else if (mId === 'bulkEditModal') populateColumnDropdown('beColumnTarget');
-    else if (mId === 'mergeModal') populateMergeSelector();
-    else if (mId === 'columnVisibilityModal') populateColumnSelector();
-    else if (mId === 'dateShiftModal') populateDateColumnSelector();
-    else if (mId === 'pointsModal') populateNumericColumnSelector('pointsColumnTarget');
-    else if (mId === 'deleteModal') {
-        const inp = document.getElementById('deleteConfirmInput');
-        if (inp) {
-            inp.value = '';
-            inp.dataset.mode = (currentTab === 'modules') ? 'deep' : 'individual';
+    if (modalId === 'searchReplaceModal') populateColumnDropdown('srColumnTarget');
+    else if (modalId === 'insertPasteModal') populateColumnDropdown('ipColumnTarget');
+    else if (modalId === 'bulkEditModal') populateColumnDropdown('beColumnTarget');
+    else if (modalId === 'mergeModal') populateMergeSelector();
+    else if (modalId === 'columnVisibilityModal') populateColumnSelector();
+    else if (modalId === 'dateShiftModal') populateDateColumnSelector();
+    else if (modalId === 'pointsModal') populateNumericColumnSelector('pointsColumnTarget');
+    else if (modalId === 'deleteModal') {
+        const input = document.getElementById('deleteConfirmInput');
+        if (input) {
+            input.value = '';
+            input.dataset.mode = (currentTab === 'modules') ? 'deep' : 'individual';
         }
-    } else if (mId === 'cloneModal') {
-        const ms = document.getElementById('cloneMethod'), isMod = (currentTab === 'modules');
-        if (ms) {
-            Array.from(ms.options).forEach(o => {
-                const isIt = (o.value === 'item');
-                o.hidden = isMod ? isIt : !isIt;
-                o.disabled = isMod ? isIt : !isIt;
+    } else if (modalId === 'cloneModal') {
+        const methodSelect = document.getElementById('cloneMethod');
+        const isModuleTab = (currentTab === 'modules');
+        if (methodSelect) {
+            Array.from(methodSelect.options).forEach(option => {
+                const isItemMode = (option.value === 'item');
+                option.hidden = isModuleTab ? isItemMode : !isItemMode;
+                option.disabled = isModuleTab ? isItemMode : !isItemMode;
             });
-            ms.value = isMod ? 'structural' : 'item';
+            methodSelect.value = isModuleTab ? 'structural' : 'item';
         }
     }
-    ov.classList.add('active');
-    tm.classList.add('active');
+    overlay.classList.add('active');
+    targetModal.classList.add('active');
 }
 
 function closeActiveModal() {
-    const ov = document.getElementById('modalOverlay');
-    if (ov) ov.classList.remove('active');
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) overlay.classList.remove('active');
     document.querySelectorAll('.modal-content-wrapper').forEach(m => m.classList.remove('active'));
 }
 
 function executeBulkEdit() {
-    const tabContainer = document.getElementById('beColumnTarget').value, nv = document.getElementById('beValueInput').value;
+    const targetColumn = document.getElementById('beColumnTarget').value;
+    const newValue = document.getElementById('beValueInput').value;
     if (!gridApi) return;
-    let n = gridApi.getSelectedRows();
-    if (!n.length) { n = []; gridApi.forEachNodeAfterFilter(x => n.push(x.data)); }
-    n.forEach(x => {
-        gridApi.forEachNode(gn => {
-            if (gn.data === x) gn.setDataValue(tc, nv);
+    let nodesToUpdate = gridApi.getSelectedRows();
+    if (!nodesToUpdate.length) { nodesToUpdate = []; gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data)); }
+    nodesToUpdate.forEach(rowData => {
+        gridApi.forEachNode(gridNode => {
+            if (gridNode.data === rowData) gridNode.setDataValue(targetColumn, newValue);
         });
     });
     closeActiveModal();
 }
 
 function executeSearchReplace() {
-    const tabContainer = document.getElementById('srColumnTarget').value, st = document.getElementById('srSearchInput').value;
-    const rt = document.getElementById('srReplaceInput').value, ur = document.getElementById('srUseRegex').checked;
-    if (!st || !gridApi) return;
-    let n = gridApi.getSelectedRows();
-    if (!n.length) { n = []; gridApi.forEachNodeAfterFilter(x => n.push(x.data)); }
-    n.forEach(x => {
-        const cv = x[tc];
-        if (cv && typeof cv === 'string') {
-            let nv;
-            if (ur) {
-                try { nv = cv.replace(new RegExp(st, 'g'), rt); }
+    const targetColumn = document.getElementById('srColumnTarget').value;
+    const searchText = document.getElementById('srSearchInput').value;
+    const replaceText = document.getElementById('srReplaceInput').value;
+    const useRegex = document.getElementById('srUseRegex').checked;
+    if (!searchText || !gridApi) return;
+    let nodesToUpdate = gridApi.getSelectedRows();
+    if (!nodesToUpdate.length) { nodesToUpdate = []; gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data)); }
+    nodesToUpdate.forEach(rowData => {
+        const currentValue = rowData[targetColumn];
+        if (currentValue && typeof currentValue === 'string') {
+            let updatedValue;
+            if (useRegex) {
+                try { updatedValue = currentValue.replace(new RegExp(searchText, 'g'), replaceText); }
                 catch { return; }
-            } else nv = cv.split(st).join(rt);
-            if (nv !== cv) {
-                gridApi.forEachNode(gn => {
-                    if (gn.data === x) gn.setDataValue(tc, nv);
+            } else updatedValue = currentValue.split(searchText).join(replaceText);
+            if (updatedValue !== currentValue) {
+                gridApi.forEachNode(gridNode => {
+                    if (gridNode.data === rowData) gridNode.setDataValue(targetColumn, updatedValue);
                 });
             }
         }
@@ -848,23 +900,25 @@ function executeSearchReplace() {
 }
 
 function executeInsertPaste() {
-    const tabContainer = document.getElementById('ipColumnTarget').value, ti = document.getElementById('ipTextInput').value;
-    const pos = document.querySelector('input[name="ipPosition"]:checked')?.value, mk = document.getElementById('ipMarkerInput').value;
+    const targetColumn = document.getElementById('ipColumnTarget').value;
+    const textToInsert = document.getElementById('ipTextInput').value;
+    const position = document.querySelector('input[name="ipPosition"]:checked')?.value;
+    const marker = document.getElementById('ipMarkerInput').value;
     if (!gridApi) return;
-    let n = gridApi.getSelectedRows();
-    if (!n.length) { n = []; gridApi.forEachNodeAfterFilter(x => n.push(x.data)); }
-    n.forEach(x => {
-        const cv = x[tc] || "";
-        let nv = cv;
-        if (pos === 'start') nv = ti + cv;
-        else if (pos === 'end') nv = cv + ti;
-        else if (mk && cv.includes(mk)) {
-            const p = cv.split(mk);
-            nv = pos === 'beforeMarker' ? (p[0] + ti + mk + params.slice(1).join(mk)) : (p[0] + mk + ti + params.slice(1).join(mk));
+    let nodesToUpdate = gridApi.getSelectedRows();
+    if (!nodesToUpdate.length) { nodesToUpdate = []; gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data)); }
+    nodesToUpdate.forEach(rowData => {
+        const currentValue = rowData[targetColumn] || "";
+        let updatedValue = currentValue;
+        if (position === 'start') updatedValue = textToInsert + currentValue;
+        else if (position === 'end') updatedValue = currentValue + textToInsert;
+        else if (marker && currentValue.includes(marker)) {
+            const parts = currentValue.split(marker);
+            updatedValue = position === 'beforeMarker' ? (parts[0] + textToInsert + marker + parts.slice(1).join(marker)) : (parts[0] + marker + textToInsert + parts.slice(1).join(marker));
         }
-        if (nv !== cv) {
-            gridApi.forEachNode(gn => {
-                if (gn.data === x) gn.setDataValue(tc, nv);
+        if (updatedValue !== currentValue) {
+            gridApi.forEachNode(gridNode => {
+                if (gridNode.data === rowData) gridNode.setDataValue(targetColumn, updatedValue);
             });
         }
     });
@@ -873,15 +927,15 @@ function executeInsertPaste() {
 
 function executePublishStatus() {
     if (!gridApi) return;
-    const ss = document.querySelector('input[name="pubStatus"]:checked')?.value;
-    if (!ss) return;
-    const pv = ss === 'true';
-    let n = gridApi.getSelectedRows();
-    if (!n.length) { n = []; gridApi.forEachNodeAfterFilter(x => n.push(x.data)); }
-    if (!n.length) { alert('No rows.'); return; }
-    n.forEach(x => {
-        gridApi.forEachNode(gn => {
-            if (gn.data === x) gn.setDataValue('published', pv);
+    const selectedStatus = document.querySelector('input[name="pubStatus"]:checked')?.value;
+    if (!selectedStatus) return;
+    const publishValue = selectedStatus === 'true';
+    let nodesToUpdate = gridApi.getSelectedRows();
+    if (!nodesToUpdate.length) { nodesToUpdate = []; gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data)); }
+    if (!nodesToUpdate.length) { alert('No rows.'); return; }
+    nodesToUpdate.forEach(rowData => {
+        gridApi.forEachNode(gridNode => {
+            if (gridNode.data === rowData) gridNode.setDataValue('published', publishValue);
         });
     });
     closeActiveModal();
@@ -889,38 +943,38 @@ function executePublishStatus() {
 
 function executeDateShift() {
     if (!gridApi) return;
-    const od = parseInt(document.getElementById('dateOffsetDays').value) || 0;
-    const to = document.getElementById('timeOverride').value, mfd = document.getElementById('manualFixedDate').value;
-    const sdc = Array.from(document.querySelectorAll('.date-col-checkbox:checked')).map(x => x.value);
-    if (!sdc.length) { alert('Select date columns.'); return; }
-    let n = gridApi.getSelectedRows();
-    if (!n.length) { n = []; gridApi.forEachNodeAfterFilter(x => n.push(x.data)); }
-    if (!n.length) { alert('No rows.'); return; }
-    n.forEach(x => {
-        sdc.forEach(df => {
-            const cv = x[df];
-            let ndv = null;
-            if (mfd) {
-                const fd = new Date(mfd);
-                if (to) { const [h, m] = to.split(':'); fd.setHours(parseInt(h), parseInt(m), 0, 0); }
-                ndv = fd.toISOString();
-            } else if (cv) {
-                const cd = new Date(cv);
-                if (!isNaN(cd.getTime())) {
-                    const nd = new Date(cd);
-                    nd.setDate(nd.getDate() + od);
-                    if (to) { const [h, m] = to.split(':'); nd.setHours(parseInt(h), parseInt(m), 0, 0); }
-                    ndv = nd.toISOString();
+    const offsetDays = parseInt(document.getElementById('dateOffsetDays').value) || 0;
+    const timeOverride = document.getElementById('timeOverride').value;
+    const manualDate = document.getElementById('manualFixedDate').value;
+    const selectedDateColumns = Array.from(document.querySelectorAll('.date-col-checkbox:checked')).map(checkbox => checkbox.value);
+    if (!selectedDateColumns.length) { alert('Select date columns.'); return; }
+    let nodesToUpdate = gridApi.getSelectedRows();
+    if (!nodesToUpdate.length) { nodesToUpdate = []; gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data)); }
+    nodesToUpdate.forEach(rowData => {
+        selectedDateColumns.forEach(field => {
+            const currentValue = rowData[field];
+            let newDateValue = null;
+            if (manualDate) {
+                const dateObj = new Date(manualDate);
+                if (timeOverride) { const [hours, mins] = timeOverride.split(':'); dateObj.setHours(parseInt(hours), parseInt(mins), 0, 0); }
+                newDateValue = dateObj.toISOString();
+            } else if (currentValue) {
+                const currentDate = new Date(currentValue);
+                if (!isNaN(currentDate.getTime())) {
+                    const shiftedDate = new Date(currentDate);
+                    shiftedDate.setDate(shiftedDate.getDate() + offsetDays);
+                    if (timeOverride) { const [hours, mins] = timeOverride.split(':'); shiftedDate.setHours(parseInt(hours), parseInt(mins), 0, 0); }
+                    newDateValue = shiftedDate.toISOString();
                 }
-            } else if (od !== 0) {
-                const bd = new Date();
-                bd.setDate(bd.getDate() + od);
-                if (to) { const [h, m] = to.split(':'); bd.setHours(parseInt(h), parseInt(m), 0, 0); }
-                ndv = bd.toISOString();
+            } else if (offsetDays !== 0) {
+                const baseDate = new Date();
+                baseDate.setDate(baseDate.getDate() + offsetDays);
+                if (timeOverride) { const [hours, mins] = timeOverride.split(':'); baseDate.setHours(parseInt(hours), parseInt(mins), 0, 0); }
+                newDateValue = baseDate.toISOString();
             }
-            if (ndv !== null) {
-                gridApi.forEachNode(gn => {
-                    if (gn.data === x) gn.setDataValue(df, ndv);
+            if (newDateValue !== null) {
+                gridApi.forEachNode(gridNode => {
+                    if (gridNode.data === rowData) gridNode.setDataValue(field, newDateValue);
                 });
             }
         });
@@ -929,39 +983,41 @@ function executeDateShift() {
 }
 
 function executePointsUpdate() {
-    const f = document.getElementById('pointsColumnTarget').value, op = document.getElementById('pointsOp').value;
-    const v = parseFloat(document.getElementById('pointsValue').value), sr = gridApi.getSelectedRows();
-    if (!sr.length) { alert("Select rows."); return; }
-    if (isNaN(v)) { alert("Enter valid number."); return; }
-    sr.forEach(r => {
-        const cv = parseFloat(r[f]) || 0;
-        let fv = op === 'set' ? v : op === 'scale' ? cv * v : cv + v;
-        gridApi.forEachNode(gn => {
-            if (gn.data === r) gn.setDataValue(f, Number(fv.toFixed(2)));
+    const targetField = document.getElementById('pointsColumnTarget').value;
+    const operation = document.getElementById('pointsOp').value;
+    const pointsValue = parseFloat(document.getElementById('pointsValue').value);
+    const selectedRows = gridApi.getSelectedRows();
+    if (!selectedRows.length) { alert("Select rows."); return; }
+    if (isNaN(pointsValue)) { alert("Enter valid number."); return; }
+    selectedRows.forEach(rowData => {
+        const currentValue = parseFloat(rowData[targetField]) || 0;
+        let finalValue = operation === 'set' ? pointsValue : operation === 'scale' ? currentValue * pointsValue : currentValue + pointsValue;
+        gridApi.forEachNode(gridNode => {
+            if (gridNode.data === rowData) gridNode.setDataValue(targetField, Number(finalValue.toFixed(2)));
         });
     });
     closeActiveModal();
 }
 
 async function executeClone() {
-    const sr = gridApi.getSelectedRows(), m = document.getElementById('cloneMethod').value;
-    const pf = document.getElementById('clonePrefix').value || '', sf = document.getElementById('cloneSuffix').value || '';
-
-    if (currentTab === 'modules' && m === 'deep') {
-        for (const r of sr) await performDeepClone(r, pf, sf);
-    } else if (m === 'deep') {
+    const selectedRows = gridApi.getSelectedRows();
+    const method = document.getElementById('cloneMethod').value;
+    const prefix = document.getElementById('clonePrefix').value || '';
+    const suffix = document.getElementById('cloneSuffix').value || '';
+    if (currentTab === 'modules' && method === 'deep') {
+        for (const rowData of selectedRows) await performDeepClone(rowData, prefix, suffix);
+    } else if (method === 'deep') {
         let configKey = currentTab;
         if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
-
         const tabConfig = FIELD_DEFINITIONS[configKey];
-        for (const row of sr) {
+        for (const rowData of selectedRows) {
             const endpoint = tabConfig.endpoint;
-            const itemIdentifier = (currentTab === 'pages') ? (row.url || row.page_url) : row.id;
-            const res = await fetch(`/canvas/courses/${selectedCourseId}/${endpoint}/${itemIdentifier}`);
-            if (res.ok) {
-                const originalFullObject = await res.json();
+            const itemIdentifier = (currentTab === 'pages') ? (rowData.url || rowData.page_url) : rowData.id;
+            const response = await fetch(`/canvas/courses/${selectedCourseId}/${endpoint}/${itemIdentifier}`);
+            if (response.ok) {
+                const originalFullObject = await response.json();
                 const sanitizedCopy = sanitizeRowData(originalFullObject, endpoint, 'clone');
-                const newName = getUniqueName(originalFullObject.name || originalFullObject.title || originalFullObject.display_name || "Item", new Set(), pf, sf);
+                const newName = getUniqueName(originalFullObject.name || originalFullObject.title || originalFullObject.display_name || "Item", new Set(), prefix, suffix);
                 if (sanitizedCopy.name !== undefined) sanitizedCopy.name = newName;
                 if (sanitizedCopy.title !== undefined) sanitizedCopy.title = newName;
                 if (sanitizedCopy.display_name !== undefined) sanitizedCopy.display_name = newName;
@@ -970,9 +1026,9 @@ async function executeClone() {
         }
         await refreshCurrentTab();
     } else {
-        const newItems = sr.map(row => {
-            let clonedCopy = prepareUIClone(row, currentTab, pf, sf);
-            if (currentTab === 'modules') clonedCopy.items = m === 'structural' ? [] : (row.items || []).map(item => ({ ...item }));
+        const newItems = selectedRows.map(rowData => {
+            let clonedCopy = prepareUIClone(rowData, currentTab, prefix, suffix);
+            if (currentTab === 'modules') clonedCopy.items = method === 'structural' ? [] : (rowData.items || []).map(item => ({ ...item }));
             return clonedCopy;
         });
         gridApi.applyTransaction({ add: newItems });
@@ -981,53 +1037,40 @@ async function executeClone() {
 }
 
 async function executeDelete() {
-    const ci = document.getElementById('deleteConfirmInput'), m = ci.dataset.mode;
-    if (ci.value !== 'DELETE') { alert('Type DELETE.'); return; }
-
-    const si = getSelectedItems();
-    if (!si || !si.length) { alert('No items.'); return; }
-
+    const confirmInput = document.getElementById('deleteConfirmInput');
+    const mode = confirmInput.dataset.mode;
+    if (confirmInput.value !== 'DELETE') { alert('Type DELETE.'); return; }
+    const selectedItems = getSelectedItems();
+    if (!selectedItems || !selectedItems.length) { alert('No items.'); return; }
     const courseId = document.getElementById('courseSelect')?.value || selectedCourseId;
     if (!courseId) { alert('No course.'); return; }
-
     try {
         const deleteBtn = document.querySelector('.modal-footer .btn-danger');
-        if (deleteBtn) {
-            deleteBtn.disabled = true;
-            deleteBtn.textContent = 'Deleting...';
-        }
-
-        for (const it of si) {
-            const ty = it._originTab || currentTab;
-            if (m === 'deep' && ty === 'modules') {
-                await deepPurgeModule(courseId, it);
+        if (deleteBtn) { deleteBtn.disabled = true; deleteBtn.textContent = 'Deleting...'; }
+        for (const item of selectedItems) {
+            const type = item._originTab || currentTab;
+            if (mode === 'deep' && type === 'modules') {
+                await deepPurgeModule(courseId, item);
             } else {
-                const itd = (ty === 'pages') ? (it.url || it.page_url) : it.id;
-                await deleteCanvasItem(ty, courseId, itd);
+                const identifier = (type === 'pages') ? (item.url || item.page_url) : item.id;
+                await deleteCanvasItem(type, courseId, identifier);
             }
         }
-
         closeActiveModal();
         delete originalData['assignments'];
         if (changes['assignments']) changes['assignments'] = {};
         await refreshCurrentTab();
-
         if (currentTab !== 'assignments') {
-            let configKey = 'assignments';
-            const tabContainer = FIELD_DEFINITIONS[configKey];
-            const response = await fetch(`/canvas/courses/${selectedCourseId}/${tabConfig.endpoint}`);
+            const response = await fetch(`/canvas/courses/${selectedCourseId}/${FIELD_DEFINITIONS['assignments'].endpoint}`);
             const data = await response.json();
-            originalData['assignments'] = d.map(x => ({ ...x, _edit_status: 'synced' }));
+            originalData['assignments'] = data.map(record => ({ ...record, _edit_status: 'synced' }));
         }
-    } catch (event) {
-        console.error(event);
-        alert(`Error: ${event.message}`);
+    } catch (error) {
+        console.error(error);
+        alert(`Error: ${error.message}`);
     } finally {
         const deleteBtn = document.querySelector('.modal-footer .btn-danger');
-        if (deleteBtn) {
-            deleteBtn.disabled = false;
-            deleteBtn.textContent = 'Delete';
-        }
+        if (deleteBtn) { deleteBtn.disabled = false; deleteBtn.textContent = 'Delete'; }
     }
 }
 
@@ -1036,155 +1079,175 @@ function exportData() {
 }
 
 function toggleAllDateCheckboxes() {
-    const cbs = document.querySelectorAll('.date-col-checkbox'), ac = Array.from(cbs).every(x => x.checked);
-    cbs.forEach(x => x.checked = !ac);
+    const checkboxes = document.querySelectorAll('.date-col-checkbox');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    checkboxes.forEach(cb => cb.checked = !allChecked);
 }
 
 function calculateDateOffset() {
-    const ov = document.getElementById('calcOldDate').value, nv = document.getElementById('calcNewDate').value;
-    if (!ov || !nv) return;
-    document.getElementById('dateOffsetDays').value = Math.round((new Date(nv) - new Date(ov)) / 86400000);
+    const oldVal = document.getElementById('calcOldDate').value;
+    const newVal = document.getElementById('calcNewDate').value;
+    if (!oldVal || !newVal) return;
+    document.getElementById('dateOffsetDays').value = Math.round((new Date(newVal) - new Date(oldVal)) / 86400000);
 }
 
-function getUniqueName(on, en, pf = '', sf = '') {
-    let bn = on || "Untitled", tn = bn, nm = tn.match(/(.*)\s(\d+)$/), cn = 0;
-    if (nm) { tn = nm[1]; cn = parseInt(nm[2], 10); }
-    const gfs = (b, n) => `${pf}${n > 0 ? `${b} ${n}` : b}${sf}`.trim();
-    let nextNum = currentNum + 1, finalName = getFormattedString(trimmedName, nextNum);
-    while (existingNames.has(finalName)) { nextNum++; finalName = getFormattedString(trimmedName, nextNum); }
-    en.add(fn);
-    return fn;
+function getUniqueName(originalName, existingNames, prefix = '', suffix = '') {
+    let baseName = originalName || "Untitled";
+    let trimmedName = baseName;
+    let currentCounter = 0;
+    const match = baseName.match(/(.*)\s(\d+)$/);
+    if (match) { trimmedName = match[1]; currentCounter = parseInt(match[2], 10); }
+    const formatName = (name, num) => `${prefix}${num > 0 ? `${name} ${num}` : name}${suffix}`.trim();
+    let nextNum = currentCounter;
+    let finalName = formatName(trimmedName, nextNum);
+    while (existingNames.has(finalName)) { nextNum++; finalName = formatName(trimmedName, nextNum); }
+    existingNames.add(finalName);
+    return finalName;
 }
 
-function sanitizeRowData(d, t, m = 'sync') {
-    if (m === 'sync') {
-        let configKey = t;
-        if (!FIELD_DEFINITIONS[configKey] && t === 'discussions') configKey = 'discussion_topics';
+function sanitizeRowData(rowData, tabType, method = 'sync') {
+    let configKey = tabType;
+    if (!FIELD_DEFINITIONS[configKey] && tabType === 'discussions') configKey = 'discussion_topics';
+    const tabConfig = FIELD_DEFINITIONS[configKey];
+    if (!tabConfig) return {};
 
-        const tabConfig = FIELD_DEFINITIONS[configKey];
-        if (!tabConfig) return {};
-
-        const df = tabConfig.fields, cd = {}, pr = d._pristine || {};
-        df.forEach(f => {
-            const k = f.key, v = d[k];
-            if (v !== undefined && v !== null && v !== '' && JSON.stringify(v) !== JSON.stringify(pr[k])) cd[k] = v;
+    if (method === 'sync') {
+        const dataFields = tabConfig.fields;
+        const changedData = {};
+        const pristineData = rowData._pristine || {};
+        dataFields.forEach(field => {
+            const key = field.key;
+            const value = rowData[key];
+            if (value !== undefined && value !== null && value !== '' && JSON.stringify(value) !== JSON.stringify(pristineData[key])) {
+                changedData[key] = value;
+            }
         });
-        return cd;
+        return changedData;
     }
 
-    const srf = ['id', 'uuid', 'created_at', 'updated_at', 'items_count', 'items', 'html_url', 'url', 'workflow_state', 'publish_at', 'course_id', 'context_type', 'context_id', 'lti_context_id', 'global_id', 'secure_params', 'original_lti_resource_link_id', 'items_url', 'locked_for_user', 'lock_info', 'lock_explanation', 'permissions', 'submission', 'overrides', 'all_dates', 'can_duplicate'];
-    const sif = new Set(['assignment_group_id', 'grading_standard_id', 'prerequisite_module_ids']), fk = new Set(srf);
+    const systemRestrictedFields = ['id', 'uuid', 'created_at', 'updated_at', 'items_count', 'items', 'html_url', 'url', 'workflow_state', 'publish_at', 'course_id', 'context_type', 'context_id', 'lti_context_id', 'global_id', 'secure_params', 'original_lti_resource_link_id', 'items_url', 'locked_for_user', 'lock_info', 'lock_explanation', 'permissions', 'submission', 'overrides', 'all_dates', 'can_duplicate'];
+    const specialIncludedIds = new Set(['assignment_group_id', 'grading_standard_id', 'prerequisite_module_ids']);
+    const exclusionSet = new Set(systemRestrictedFields);
 
-    let configKey = t;
-    if (!FIELD_DEFINITIONS[configKey] && t === 'discussions') configKey = 'discussion_topics';
+    if (tabConfig.fields) {
+        tabConfig.fields.forEach(field => { if (field.editable === false) exclusionSet.add(field.key || field.name); });
+    }
 
-    const tabContainer = FIELD_DEFINITIONS[configKey];
-    if (tc?.fields) tabConfig.fields.forEach(f => { if (f.editable === false) fk.add(f.key || f.name); });
-
-    const san = {};
-    Object.keys(d).forEach(k => {
-        if (!k.startsWith('_') && !fk.has(k) && !(k.endsWith('_id') && !sif.has(k)) && k !== 'position') san[k] = d[k];
+    const sanitizedObject = {};
+    Object.keys(rowData).forEach(key => {
+        const isInternal = key.startsWith('_');
+        const isExcluded = exclusionSet.has(key);
+        const isGenericId = key.endsWith('_id') && !specialIncludedIds.has(key);
+        if (!isInternal && !isExcluded && !isGenericId && key !== 'position') sanitizedObject[key] = rowData[key];
     });
-    return san;
+    return sanitizedObject;
 }
 
-async function performDeepClone(mr, pf, sf) {
+async function performDeepClone(moduleRecord, prefix, suffix) {
     if (!selectedCourseId) { alert('No course.'); return; }
     try {
-        const mr2 = await fetch(`/canvas/courses/${selectedCourseId}/modules?per_page=100`), am = mr2.ok ? await mr2.json() : [];
-        const emn = new Set(am.map(m => m.name)), nmn = getUniqueName(mr.name || mr.title || "Module", emn, pf, sf);
-        const nm = await createModules(selectedCourseId, nmn), its = mr.items || [];
-        for (const it of its) {
-            const ty = it.type, ct = ty.toLowerCase();
-            let nc, ip = { title: it.title, type: ty, position: it.position, indent: it.indent };
-            if (ct === 'subheader' || ct === 'externalurl') {
-                if (ct === 'externalurl') ip.external_url = it.external_url;
-                nc = { id: 'no-content-needed' };
+        const response = await fetch(`/canvas/courses/${selectedCourseId}/modules?per_page=100`);
+        const allModules = response.ok ? await response.json() : [];
+        const existingNames = new Set(allModules.map(m => m.name));
+        const newModuleName = getUniqueName(moduleRecord.name || moduleRecord.title || "Module", existingNames, prefix, suffix);
+        const newModule = await createModules(selectedCourseId, newModuleName);
+        const moduleItems = moduleRecord.items || [];
+        for (const item of moduleItems) {
+            const itemType = item.type;
+            const contentType = itemType.toLowerCase();
+            let newContent;
+            let itemParams = { title: item.title, type: itemType, position: item.position, indent: item.indent };
+            if (contentType === 'subheader' || contentType === 'externalurl') {
+                if (contentType === 'externalurl') itemParams.external_url = item.external_url;
+                newContent = { id: 'no-content-needed' };
             } else {
-                let ep = '';
-                if (ty === 'Assignment') endpoint = 'assignments';
-                else if (ty === 'Quiz') endpoint = 'quizzes';
-                else if (ty === 'Page') endpoint = 'pages';
-                else if (ty === 'Discussion') endpoint = 'discussions';
-                if (endpoint) {
-                    const itf = (ty === 'Page') ? (it.page_url || it.content_id) : it.content_id;
-                    const response = await fetch(`/canvas/courses/${selectedCourseId}/${endpoint}/${itf}`);
-                    if (response.ok) {
-                        const ofo = await response.json(), sanitizedCopy = sanitizeRowData(originalFullObject, endpoint, 'clone'), newName = getUniqueName(ofo.name || ofo.title || "Item", new Set(), pf, sf);
-                        if (sanitizedCopy.name !== undefined) sanitizedCopy.name = newName;
-                        if (sanitizedCopy.title !== undefined) sanitizedCopy.title = newName;
-                        newContent = await createDeepContent(ty, sanitizedCopy);
+                let apiEndpoint = '';
+                if (itemType === 'Assignment') apiEndpoint = 'assignments';
+                else if (itemType === 'Quiz') apiEndpoint = 'quizzes';
+                else if (itemType === 'Page') apiEndpoint = 'pages';
+                else if (itemType === 'Discussion') apiEndpoint = 'discussions';
+                if (apiEndpoint) {
+                    const contentIdentifier = (itemType === 'Page') ? (item.page_url || item.content_id) : item.content_id;
+                    const contentResponse = await fetch(`/canvas/courses/${selectedCourseId}/${apiEndpoint}/${contentIdentifier}`);
+                    if (contentResponse.ok) {
+                        const originalFullObject = await contentResponse.json();
+                        const sanitizedCopy = sanitizeRowData(originalFullObject, apiEndpoint, 'clone');
+                        const uniqueItemName = getUniqueName(originalFullObject.name || originalFullObject.title || "Item", new Set(), prefix, suffix);
+                        if (sanitizedCopy.name !== undefined) sanitizedCopy.name = uniqueItemName;
+                        if (sanitizedCopy.title !== undefined) sanitizedCopy.title = uniqueItemName;
+                        newContent = await createDeepContent(itemType, sanitizedCopy);
                     }
                 }
             }
-            if (nc) {
-                if (ty === 'Page') ip.page_url = nc.url || nc.page_url;
-                else if (nc.id !== 'no-content-needed') ip.content_id = nc.id;
-                await addModuleItem(selectedCourseId, nm.id, ip);
+            if (newContent) {
+                if (itemType === 'Page') itemParams.page_url = newContent.url || newContent.page_url;
+                else if (newContent.id !== 'no-content-needed') itemParams.content_id = newContent.id;
+                await addModuleItem(selectedCourseId, newModule.id, itemParams);
             }
         }
         await refreshCurrentTab();
-    } catch (event) { alert(`Cloning failed: ${event.message}`); }
+    } catch (error) { alert(`Cloning failed: ${error.message}`); }
 }
 
-const getNewName = (r, pf, sf, en = new Set()) => getUniqueName(r.display_name || r.name || r.title || "Untitled", en, pf, sf);
+const getNewName = (record, prefix, suffix, existingSet = new Set()) => getUniqueName(record.display_name || record.name || record.title || "Untitled", existingSet, prefix, suffix);
 
-async function createDeepContent(ty, sp) {
-    if (ty === 'Assignment') return await createAssignments(selectedCourseId, sp);
-    if (ty === 'Quiz') return await createQuizzes(selectedCourseId, sp);
-    if (ty === 'Page') return await createPages(selectedCourseId, sp);
-    if (ty === 'Discussion') return await createDiscussions(selectedCourseId, sp);
-    if (ty === 'Folder') return await createFolders(selectedCourseId, sp);
+async function createDeepContent(itemType, sanitizedParams) {
+    if (itemType === 'Assignment') return await createAssignments(selectedCourseId, sanitizedParams);
+    if (itemType === 'Quiz') return await createQuizzes(selectedCourseId, sanitizedParams);
+    if (itemType === 'Page') return await createPages(selectedCourseId, sanitizedParams);
+    if (itemType === 'Discussion') return await createDiscussions(selectedCourseId, sanitizedParams);
+    if (itemType === 'Folder') return await createFolders(selectedCourseId, sanitizedParams);
     return null;
 }
 
-function prepareUIClone(r, ty, pf, sf) {
-    let rc = JSON.parse(JSON.stringify(r)), nn = getNewName(rc, pf, sf);
-    if (rowCopy.display_name !== undefined) rowCopy.display_name = newName;
-    if (rowCopy.name !== undefined) rowCopy.name = newName;
-    if (rowCopy.title !== undefined) rowCopy.title = newName;
-    let cc = sanitizeRowData(rc, ty, 'clone');
-    cc.id = `TEMP_${Math.random().toString(36).substr(2, 9)}`;
-    cc.isNew = true;
-    cc.syncStatus = 'New';
-    return cc;
+function prepareUIClone(row, type, prefix, suffix) {
+    let rowCopy = JSON.parse(JSON.stringify(row));
+    let uniqueName = getNewName(rowCopy, prefix, suffix);
+    if (rowCopy.display_name !== undefined) rowCopy.display_name = uniqueName;
+    if (rowCopy.name !== undefined) rowCopy.name = uniqueName;
+    if (rowCopy.title !== undefined) rowCopy.title = uniqueName;
+    let clonedContent = sanitizeRowData(rowCopy, type, 'clone');
+    clonedContent.id = `TEMP_${Math.random().toString(36).substr(2, 9)}`;
+    clonedContent.isNew = true;
+    clonedContent.syncStatus = 'New';
+    return clonedContent;
 }
 
 async function createAssignments(courseId, params) {
     const response = await fetch(`/canvas/courses/${courseId}/assignments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assignment: p })
+        body: JSON.stringify({ assignment: params })
     });
     return response.ok ? await response.json() : null;
 }
 
-async function createQuizzes(courseId, qp, ap = null) {
+async function createQuizzes(courseId, quizParams, assignmentParams = null) {
     const response = await fetch(`/canvas/courses/${courseId}/quizzes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quiz: qp })
+        body: JSON.stringify({ quiz: quizParams })
     });
-    const nq = response.ok ? await response.json() : null;
-    if (nq && ap && nq.assignment_id) {
-        await fetch(`/canvas/courses/${courseId}/assignments/${nq.assignment_id}`, {
+    const newQuiz = response.ok ? await response.json() : null;
+    if (newQuiz && assignmentParams && newQuiz.assignment_id) {
+        await fetch(`/canvas/courses/${courseId}/assignments/${newQuiz.assignment_id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ assignment: ap })
+            body: JSON.stringify({ assignment: assignmentParams })
         });
     }
-    return nq;
+    return newQuiz;
 }
 
 async function createPages(courseId, params) {
     const response = await fetch(`/canvas/courses/${courseId}/pages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wiki_page: p })
+        body: JSON.stringify({ wiki_page: params })
     });
-    const res = response.ok ? await response.json() : null;
-    if (res && res.url && !res.id) res.id = res.url;
-    return res;
+    const result = response.ok ? await response.json() : null;
+    if (result && result.url && !result.id) result.id = result.url;
+    return result;
 }
 
 async function createDiscussions(courseId, params) {
@@ -1205,57 +1268,49 @@ async function createFolders(courseId, params) {
     return response.ok ? await response.json() : null;
 }
 
-const createModules = async (courseId, mn) => {
+const createModules = async (courseId, moduleName) => {
     const response = await fetch(`/canvas/courses/${courseId}/modules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ module: { name: mn } })
+        body: JSON.stringify({ module: { name: moduleName } })
     });
     if (!response.ok) throw new Error(`Failed: ${response.statusText}`);
     return await response.json();
 };
 
-async function addModuleItem(courseId, mId, ip) {
-    const response = await fetch(`/canvas/courses/${courseId}/modules/${mId}/items`, {
+async function addModuleItem(courseId, moduleId, itemParams) {
+    const response = await fetch(`/canvas/courses/${courseId}/modules/${moduleId}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ module_item: ip })
+        body: JSON.stringify({ module_item: itemParams })
     });
     return response.ok ? await response.json() : null;
 }
 
 function getSelectedItems() {
     if (!gridApi) { console.error("No API."); return []; }
-    const response = gridApi.getSelectedRows();
-    return r;
+    return gridApi.getSelectedRows();
 }
 
-async function deleteCanvasItem(ty, courseId, id) {
-    let configKey = ty;
-    if (!FIELD_DEFINITIONS[configKey] && ty === 'discussions') configKey = 'discussion_topics';
-
+async function deleteCanvasItem(type, courseId, identifier) {
+    let configKey = type;
+    if (!FIELD_DEFINITIONS[configKey] && type === 'discussions') configKey = 'discussion_topics';
     const config = FIELD_DEFINITIONS[configKey];
-    const endpoint = config ? config.endpoint : ty;
-
-    const response = await fetch(`/canvas/${endpoint}/${courseId}/${id}`, {
+    const endpoint = config ? config.endpoint : type;
+    const response = await fetch(`/canvas/${endpoint}/${courseId}/${identifier}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
     });
-
     if (!response.ok) {
-        const et = await response.text();
-        let ed;
-        try { ed = JSON.parse(et); } catch { ed = { message: et }; }
-        throw new Error(ed.message || `Failed: ${ty} ${id}`);
+        const errorText = await response.text();
+        let errorDetail;
+        try { errorDetail = JSON.parse(errorText); } catch { errorDetail = { message: errorText }; }
+        throw new Error(errorDetail.message || `Failed: ${type} ${identifier}`);
     }
-
     if (gridApi) {
-        const rowNode = gridApi.getRowNode(id.toString());
-        if (rowNode) {
-            gridApi.applyTransaction({ remove: [rowNode.data] });
-        }
+        const rowNode = gridApi.getRowNode(identifier.toString());
+        if (rowNode) gridApi.applyTransaction({ remove: [rowNode.data] });
     }
-
     return await response.json().catch(() => ({ status: 'success' }));
 }
 
@@ -1264,75 +1319,46 @@ async function deepPurgeModule(courseId, moduleItem) {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
     });
-
     if (!response.ok) {
-        const et = await response.text();
-        let ed;
-        try { ed = JSON.parse(et); } catch { ed = { message: et }; }
-        throw new Error(ed.message || `Failed to deep delete module ${moduleItem.id}`);
+        const errorText = await response.text();
+        let errorDetail;
+        try { errorDetail = JSON.parse(errorText); } catch { errorDetail = { message: errorText }; }
+        throw new Error(errorDetail.message || `Failed to deep delete module ${moduleItem.id}`);
     }
-
     if (gridApi) {
         const rowNode = gridApi.getRowNode(moduleItem.id.toString());
-        if (rowNode) {
-            gridApi.applyTransaction({ remove: [rowNode.data] });
-        }
+        if (rowNode) gridApi.applyTransaction({ remove: [rowNode.data] });
     }
-
     return await response.json().catch(() => ({ status: 'success' }));
 }
 
 async function handleDeepPurge() {
-    const si = getSelectedItems();
-    if (!si || !si.length) { alert('No items selected.'); return; }
-
+    const selectedItems = getSelectedItems();
+    if (!selectedItems || !selectedItems.length) { alert('No items selected.'); return; }
     const courseId = document.getElementById('courseSelect')?.value || selectedCourseId;
     if (!courseId) { alert('No course ID found.'); return; }
-
-    if (!confirm(`This will delete ${si.length} module(s) AND all contents inside them. Continue?`)) return;
-
+    if (!confirm(`This will delete ${selectedItems.length} module(s) AND all contents inside them. Continue?`)) return;
     try {
-        for (const it of si) {
-            await deepPurgeModule(courseId, it);
-        }
-
+        for (const item of selectedItems) await deepPurgeModule(courseId, item);
         closeActiveModal();
         delete originalData['assignments'];
         if (changes['assignments']) changes['assignments'] = {};
         await refreshCurrentTab();
-
         if (currentTab !== 'assignments') {
-            const tabContainer = FIELD_DEFINITIONS['assignments'];
-            const response = await fetch(`/canvas/courses/${selectedCourseId}/${tabConfig.endpoint}`);
+            const response = await fetch(`/canvas/courses/${selectedCourseId}/${FIELD_DEFINITIONS['assignments'].endpoint}`);
             const data = await response.json();
-            originalData['assignments'] = d.map(x => ({ ...x, _edit_status: 'synced' }));
+            originalData['assignments'] = data.map(record => ({ ...record, _edit_status: 'synced' }));
         }
-
         alert('Deep purge complete.');
-    } catch (event) {
-        console.error('Purge error:', event);
-        alert(`Purge failed: ${event.message}`);
+    } catch (error) {
+        console.error('Purge error:', error);
+        alert(`Purge failed: ${error.message}`);
     }
 }
 
-function updateColumnVisibility(colIds, isVisible) {
-    if (!gridApi) {
-        console.error('gridApi is not defined or not initialized');
-        return;
-    }
-
-    if (!colIds || colIds.length === 0) {
-        console.warn('No column IDs provided to updateColumnVisibility');
-        return;
-    }
-
-    const stateUpdates = colIds.map(id => ({
-        colId: id,
-        hide: !isVisible
-    }));
-
-    gridApi.applyColumnState({
-        state: stateUpdates,
-        applyOrder: false
-    });
+function updateColumnVisibility(columnIds, isVisible) {
+    if (!gridApi) { console.error('gridApi is not defined or not initialized'); return; }
+    if (!columnIds || columnIds.length === 0) { console.warn('No column IDs provided to updateColumnVisibility'); return; }
+    const stateUpdates = columnIds.map(id => ({ colId: id, hide: !isVisible }));
+    gridApi.applyColumnState({ state: stateUpdates, applyOrder: false });
 }

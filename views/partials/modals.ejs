@@ -1,0 +1,365 @@
+<div id="modalOverlay" class="modal-overlay" onclick="handleOverlayClick(event)">
+
+    <div id="publishModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Publish / Unpublish</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Set visibility for selected/filtered items:</p>
+            <div class="radio-group">
+                <div>
+                    <input type="radio" id="pubTrue" name="pubStatus" value="true" checked>
+                    <label for="pubTrue">Published</label>
+                </div>
+                <div>
+                    <input type="radio" id="pubFalse" name="pubStatus" value="false">
+                    <label for="pubFalse">Unpublished</label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn" onclick="executePublishStatus()">Apply Status</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div id="columnVisibilityModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Show/Hide Columns</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="max-height: 400px; overflow-y: auto; padding-bottom: 0;">
+            <div id="columnListContainer"></div>
+        </div>
+        <div class="modal-footer" style="display: flex; flex-direction: column; gap: 15px; border-top: 1px solid #eee;">
+            <div class="toggle-container" style="display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%;">
+                <span style="font-weight: 600; color: #666; font-size: 14px;">Hide</span>
+                <label class="switch">
+                    <input type="checkbox" id="visibilityToggle" checked>
+                    <span class="slider"></span>
+                </label>
+                <span style="font-weight: 600; color: #666; font-size: 14px;">Show</span>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 10px; width: 100%;">
+                <button class="primary-btn" onclick="(() => {
+                    const checkboxes = Array.from(document.querySelectorAll('.col-toggle-input'));
+                    const selectedIds = checkboxes.filter(cb => cb.checked).map(cb => cb.value);
+                    const isVisible = document.getElementById('visibilityToggle').checked;
+                    if (selectedIds.length > 0) {
+                        updateColumnVisibility(selectedIds, isVisible);
+                    }
+                    closeActiveModal();
+                })()">Apply</button>
+                <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="searchReplaceModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Search and Replace</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <label>Target Column</label>
+            <select id="srColumnTarget"></select>
+            <label>Search For</label>
+            <input type="text" id="srSearchInput" placeholder="Pattern...">
+            <div class="checkbox-group">
+                <div>
+                    <input type="checkbox" id="srUseRegex">
+                    <label for="srUseRegex">Use Regex</label>
+                </div>
+            </div>
+            <label>Replace With</label>
+            <input type="text" id="srReplaceInput" placeholder="Replacement...">
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn" onclick="executeSearchReplace()">Apply to Selected/Filtered</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div id="insertPasteModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Insert and Paste</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <label>Target Column</label>
+            <select id="ipColumnTarget"></select>
+            <label>Text to Insert</label>
+            <input type="text" id="ipTextInput" placeholder="New text...">
+            <div class="radio-group">
+                <label>Insertion Point:</label>
+                <div><input type="radio" id="ipStart" name="ipPosition" value="start" checked><label for="ipStart">Start</label></div>
+                <div><input type="radio" id="ipEnd" name="ipPosition" value="end"><label for="ipEnd">End</label></div>
+                <div><input type="radio" id="ipBeforeMarker" name="ipPosition" value="beforeMarker"><label for="ipBeforeMarker">Before Marker</label></div>
+                <div><input type="radio" id="ipAfterMarker" name="ipPosition" value="afterMarker"><label for="ipAfterMarker">After Marker</label></div>
+            </div>
+            <div id="markerInputContainer" style="display: none;">
+                <label>Marker String:</label>
+                <input type="text" id="ipMarkerInput">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn" onclick="executeInsertPaste()">Apply</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div id="cloneModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Clone Content</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <label>Cloning Strategy</label>
+            <select id="cloneMethod">
+                <option value="item">Standard Duplicate (UI only, not synced)</option>
+                <option value="structural">Structural Clone (Empty Shell)</option>
+                <option value="deep">Deep Clone (Duplicate Everything)</option>
+            </select>
+    
+            <div class="serialization-controls">
+                <label>Naming Prefix</label>
+                <input type="text" id="clonePrefix" placeholder="e.g. Section B -">
+                
+                <label>Naming Suffix</label>
+                <input type="text" id="cloneSuffix" placeholder="e.g. (Copy)">
+            </div>
+            
+            <p class="status-note">
+                Names will automatically increment (e.g., "Page 1", "Page 2") to prevent duplicates.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn" onclick="executeClone()">Execute Clone</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div id="deleteModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Delete Items</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="color: #d93025; font-weight: bold;">⚠️ Warning: This action is permanent.</p>
+            <p>Type "DELETE" to confirm the removal of selected items.</p>
+            <input type="text" id="deleteConfirmInput" placeholder="Type DELETE...">
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn btn-danger" onclick="executeDelete()">Delete Permanently</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div id="deepPurgeModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Deep Purge Modules</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="color: #d93025; font-weight: bold;">⚠️ Warning: This action is permanent.</p>
+            
+            <div id="moduleItemsInfo" style="margin: 15px 0; padding: 10px; background: #f5f5f5; border-radius: 4px;">
+                <p style="font-weight: bold; margin-bottom: 8px;">Selected Modules:</p>
+                <div id="moduleItemsList"></div>
+            </div>
+            
+            <p>Choose your deletion strategy:</p>
+            <select id="purgeMethod" style="width: 100%; margin-bottom: 15px; padding: 8px;">
+                <option value="standard">Standard (Module Shell Only)</option>
+                <option value="deep">Deep Purge (Delete All Content Items)</option>
+            </select>
+    
+            <p>Type "DELETE" to confirm the removal of selected modules.</p>
+            <input type="text" id="deepPurgeConfirmInput" placeholder="Type DELETE...">
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn btn-danger" onclick="handleDeepPurge()">Delete Permanently</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div id="mergeModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Merge Items</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <label>Target Item (The one to keep)</label>
+            <select id="mergeTargetSelect"></select>
+            <p style="margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 4px; font-size: 0.9em;">
+                <strong>Note:</strong> All other selected items will be removed from the grid. 
+                Their names will be combined into the target item.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn" onclick="executeMerge()">Confirm Merge</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div id="pointsModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Points/Weighting</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <label>Target Column</label>
+            <select id="pointsColumnTarget"></select>
+            
+            <label>Operation</label>
+            <select id="pointsOp">
+                <option value="set">Set to absolute value</option>
+                <option value="scale">Multiply by factor</option>
+                <option value="add">Add/Subtract value</option>
+            </select>
+            
+            <label>Value</label>
+            <input type="number" id="pointsValue" step="0.5" placeholder="Enter value...">
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn" onclick="executePointsUpdate()">Update Points</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div id="assignToModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Assign To</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 15px;">Choose who can see the selected assignments/quizzes:</p>
+            
+            <div class="radio-group">
+                <div>
+                    <input type="radio" id="assignEveryone" name="assignTarget" value="everyone" checked>
+                    <label for="assignEveryone">Everyone (All Students)</label>
+                </div>
+                <div>
+                    <input type="radio" id="assignSpecific" name="assignTarget" value="specific">
+                    <label for="assignSpecific">Specific Students</label>
+                </div>
+            </div>
+            
+            <div id="studentIdListContainer" style="display: none; margin-top: 15px;">
+                <label>Student ID Codes (comma-separated):</label>
+                <textarea id="studentIds" rows="3" style="width:100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;" placeholder="e.g. 12345, 67890, 11223"></textarea>
+                <p style="font-size: 0.85em; color: #666; margin-top: 5px;">
+                    Enter Canvas student IDs separated by commas
+                </p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn" onclick="executeAssignTo()">Update Assignment</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div id="dateShiftModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Smart Date & Time Shift</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div id="dateShiftBody" class="modal-body">
+            <div style="background: #f1f4f6; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #d1d5db;">
+                <label style="font-size: 0.85em; font-weight: bold; display: block; margin-bottom: 8px;">
+                    📅 Semester Offset Calculator
+                </label>
+                <div style="display: flex; gap: 8px; align-items: flex-end;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.75em; display: block; margin-bottom: 4px;">Old Semester Start</label>
+                        <input type="date" id="calcOldDate" style="width: 100%; padding: 6px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.75em; display: block; margin-bottom: 4px;">New Semester Start</label>
+                        <input type="date" id="calcNewDate" style="width: 100%; padding: 6px;">
+                    </div>
+                    <button class="secondary-btn" onclick="calculateDateOffset()" style="padding: 6px 12px;">Calculate</button>
+                </div>
+            </div>
+    
+            <label>Days to Offset</label>
+            <input type="number" id="dateOffsetDays" value="0" placeholder="Enter positive or negative number">
+    
+            <label>Time Override (Optional)</label>
+            <input type="time" id="timeOverride" step="60">
+            <p style="font-size: 0.85em; color: #666; margin-top: -5px;">Set a specific time for all dates (leave blank to keep original times)</p>
+    
+            <hr style="width: 100%; border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+    
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <label style="margin-bottom: 0; font-weight: bold;">Apply to Date Fields:</label>
+                <button class="secondary-btn" onclick="toggleAllDateCheckboxes()" style="font-size: 11px; padding: 4px 8px;">Toggle All</button>
+            </div>
+            
+            <div id="dateColumnSelector"></div>
+    
+            <hr style="width: 100%; border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+    
+            <label>Fixed Date Override (ignores offset)</label>
+            <input type="date" id="manualFixedDate">
+            <p style="font-size: 0.85em; color: #666; margin-top: -5px;">Set all dates to this specific date (overrides offset calculation)</p>
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn" onclick="executeDateShift()">Apply Changes</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div id="accommodationsModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Apply Accommodations</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 15px;">Apply accommodations to selected assignments or quizzes:</p>
+            
+            <label>Time Multiplier</label>
+            <input type="number" id="accTimeMult" step="0.25" min="1" placeholder="e.g. 1.5 for 50% extra time">
+            <p style="font-size: 0.85em; color: #666; margin-top: -5px;">Multiplies quiz time limits (e.g., 1.5 = 50% extra time)</p>
+            
+            <label>Extra Attempts</label>
+            <input type="number" id="accExtraAtt" step="1" min="0" placeholder="e.g. 1 for one extra attempt">
+            <p style="font-size: 0.85em; color: #666; margin-top: -5px;">Additional attempts beyond the default</p>
+            
+            <div style="background: #e8f5e9; padding: 10px; border-radius: 4px; margin-top: 15px;">
+                <strong>💡 Tip:</strong> These changes apply to ALL students. For individual student accommodations, 
+                use the "Assign To" feature or Canvas's built-in accommodations system.
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn" onclick="executeAccommodations()">Apply Accommodations</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div id="bulkEditModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Bulk Edit</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <label>Target Column</label>
+            <select id="beColumnTarget"></select>
+            
+            <label>New Value</label>
+            <input type="text" id="beValueInput" placeholder="Enter new value for all selected/filtered rows">
+            
+            <p style="font-size: 0.85em; color: #666; margin-top: 10px;">
+                This will set the same value for all selected rows (or all filtered rows if none selected).
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn" onclick="executeBulkEdit()">Apply to Selected/Filtered</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
+</div>
