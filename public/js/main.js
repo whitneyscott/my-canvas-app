@@ -1,25 +1,24 @@
 async function init() {
     debugLog("Initializing Application...");
     const overlay = document.getElementById('token-overlay');
-    const appBody = document.querySelector('.app-container');
+    const wrapper = document.getElementById('main-app-wrapper');
 
     try {
         const response = await fetch('/auth/status');
         const status = await response.json();
 
         if (status && status.needsToken === true) {
-            debugLog("Access Denied: Token Required.");
+            debugLog("Status: Token Required");
             overlay.style.display = 'flex';
-            appBody.style.display = 'none';
+            wrapper.style.display = 'none';
         } else {
-            debugLog("Access Granted.");
+            debugLog("Status: Access Granted");
             overlay.style.display = 'none';
-            appBody.style.display = 'grid'; 
+            wrapper.style.display = 'block'; // Reveals the pre-laid-out app
             await loadCourses();
         }
     } catch (err) {
-        debugLog("CRITICAL ERROR: Could not verify session.");
-        showFlashError("System Authentication Failure");
+        debugLog("Init Error: " + err.message);
     }
 }
 

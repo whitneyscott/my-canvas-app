@@ -8,50 +8,41 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <div id="token-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
-        <div style="background: white; padding: 2rem; border-radius: 8px; width: 400px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.3); font-family: sans-serif;">
-            <h2 style="margin-top: 0; color: #333;">Canvas Connection</h2>
-            <p style="color: #666;">Enter your Canvas details to securely connect.</p>
-            
-            <input type="text" id="canvas-url-input" placeholder="https://canvas.instructure.com" style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
-            
-            <input type="password" id="token-input" placeholder="Paste API Token here..." style="width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
-            
-            <button id="submit-btn" onclick="submitCredentials()" style="background: #007bff; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold;">Connect to Canvas</button>
-        </div>
-    </div>
+<div id="token-overlay" style="display: none; ..."> ... </div>
 
-    <div class="app-container">
-        <div class="debug-panel collapsed" id="debugPanel">
-            <div class="debug-panel-header" onclick="toggleDebugPanel()">
-                <span>System Debug Monitor</span>
-                <span id="debugToggle">▲</span>
+    <div id="main-app-wrapper" style="display: none;">
+        <div class="app-container">
+            <div class="debug-panel collapsed" id="debugPanel">
+                <div class="debug-panel-header" onclick="toggleDebugPanel()">
+                    <span>System Debug Monitor</span>
+                    <span id="debugToggle">▲</span>
+                </div>
+                <div class="debug-panel-content" id="debugContent"></div>
             </div>
-            <div class="debug-panel-content" id="debugContent"></div>
+            
+            <aside class="sidebar">
+                <nav class="tab-container" id="tabContainer">
+                    <button class="tab-btn active" onclick="switchTab('assignments')">Assignments</button>
+                    <button class="tab-btn" onclick="switchTab('modules')">Modules</button>
+                    <button class="tab-btn" onclick="switchTab('pages')">Pages</button>
+                    <button class="tab-btn" onclick="switchTab('quizzes')">Quizzes</button>
+                    <button class="tab-btn" onclick="switchTab('discussions')">Discussions</button>
+                </nav>
+            </aside>
+
+            <main class="main-content">
+                <header class="toolbar">
+                    <select id="courseSelect" onchange="onCourseSelected()">
+                        <option value="">Select a Course</option>
+                    </select>
+                    <button class="primary-btn" onclick="syncChanges()">Sync Changes</button>
+                    <button class="primary-btn" onclick="refreshCurrentTab()">Refresh</button>
+                </header>
+                <div id="myGrid" class="ag-theme-quartz" style="height: 500px; width: 100%;"></div>
+            </main>
         </div>
-        
-        <aside class="sidebar">
-            <nav class="tab-container" id="tabContainer">
-                <button class="tab-btn active" onclick="switchTab('assignments')">Assignments</button>
-                <button class="tab-btn" onclick="switchTab('modules')">Modules</button>
-                <button class="tab-btn" onclick="switchTab('pages')">Pages</button>
-                <button class="tab-btn" onclick="switchTab('quizzes')">Quizzes</button>
-                <button class="tab-btn" onclick="switchTab('discussions')">Discussions</button>
-            </nav>
-        </aside>
 
-        <main class="main-content">
-            <header class="toolbar">
-                <select id="courseSelect" onchange="onCourseSelected()">
-                    <option value="">Select a Course</option>
-                </select>
-                <button class="primary-btn" onclick="syncChanges()">Sync Changes</button>
-                <button class="primary-btn" onclick="refreshCurrentTab()">Refresh</button>
-            </header>
-            <div id="myGrid" class="ag-theme-quartz" style="height: 500px; width: 100%;"></div>
-        </main>
     </div>
-
     <script src="/js/config.js"></script>
     <script src="/js/helpers.js"></script>
     <script src="/js/main.js"></script>
