@@ -88,9 +88,15 @@ export class AuthController {
     const expected = oauthSignature.generate(method, url, params, consumerSecret, undefined, {
       encodeSignature: false,
     });
-
+    console.log('Signature Base String components:', { method, url });
+    console.log('param keys:', Object.keys(params));
+    console.log('expected signature:', expected);
+    console.log('provided signature (raw):', providedSig);
     // Compare signatures (allow for URL-encoded provided signature)
     const decodedProvided = decodeURIComponent(providedSig);
+    console.log('decoded provided signature:', decodedProvided);
+    console.log('protocol & host:', req.protocol, req.get('host'));
+    console.log('x-forwarded proto/host:', req.get('x-forwarded-proto'), req.get('x-forwarded-host'));
 
     if (decodedProvided !== expected && providedSig !== expected) {
       return res.status(401).send('Invalid LTI signature');
