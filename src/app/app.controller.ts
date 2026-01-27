@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Render, Query, Req, Res, Body } from '@nestjs/common';
+import { Controller, Get, Post, Render, Query, Req, Res, Body, BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
+import { AuthService } from './auth/auth.service';
 
 @Controller()
 export class AppController {
+  constructor(private authService: AuthService) {}
 
   @Get('test-path')
   testPath() {
@@ -122,21 +124,62 @@ export class AppController {
   }
 
   @Post('lti-launch')
+  @Post('lti-launch')
+  @Post('lti/launch')
   async handleLtiLaunch(@Req() req: any, @Res() res: Response) {
-    const roles = req.body?.roles || '';
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const oauthSignature = require('oauth-signature');
+
+    // Prefer raw body for form-encoded LTI launches
+    const contentType = (req.get('content-type') || '').toLowerCase();
+    let params: Record<string, any> = {};
+    if (req.rawBody && contentType.includes('application/x-www-form-urlencoded')) {
+      params = Object.fromEntries(new URLSearchParams(req.rawBody));
+    } else {
+      params = { ...(req.body || {}) };
+    }
+
+    const providedSig = params.oauth_signature;
+    if (!providedSig) {
+      throw new BadRequestException('Missing oauth_signature');
+    }
+    delete params.oauth_signature;
+
+    const providedConsumerKey = params.oauth_consumer_key || params.oauth_consumerkey || req.body?.oauth_consumer_key;
+    let consumerSecret = '';
+    const sharedSecret = process.env.LTI_SHARED_SECRET;
+    const envConsumerKey = process.env.LTI_CONSUMER_KEY;
+    if (sharedSecret) {
+      if (!providedConsumerKey || !envConsumerKey || providedConsumerKey === envConsumerKey) {
+        consumerSecret = sharedSecret;
+      }
+    }
+    if (!consumerSecret) consumerSecret = process.env.LTI_CONSUMER_SECRET || '';
+    if (!consumerSecret) throw new BadRequestException('LTI consumer secret not configured for provided consumer key');
+
+    const method = req.method || 'POST';
+    const proto = req.get('x-forwarded-proto') || req.protocol;
+    const host = req.get('x-forwarded-host') || req.get('host');
+    const url = `${proto}://${host}${req.originalUrl}`;
+
+    const expected = oauthSignature.generate(method, url, params, consumerSecret, undefined, { encodeSignature: false });
+    const decodedProvided = decodeURIComponent(providedSig);
+    if (decodedProvided !== expected && providedSig !== expected) {
+      return res.status(401).send('Invalid LTI signature');
+    }
+
+    // Signature verified — now extract courseId and roles from req.body/rawBody
+    const roles = (req.rawBody && contentType.includes('application/x-www-form-urlencoded'))
+      ? (new URLSearchParams(req.rawBody).get('roles') || '')
+      : (req.body?.roles || '');
     const isInstructor = roles.includes('Instructor') || roles.includes('ContentDeveloper');
+    if (!isInstructor) return res.status(403).send('Access Denied: Only instructors can launch this tool.');
 
-    if (!isInstructor) {
-      return res.status(403).send('Access Denied: Only instructors can launch this tool.');
-    }
+    const courseId = (req.rawBody && contentType.includes('application/x-www-form-urlencoded'))
+      ? (new URLSearchParams(req.rawBody).get('custom_canvas_course_id') || undefined)
+      : req.body?.custom_canvas_course_id;
 
-    const courseId = req.body?.custom_canvas_course_id;
-    
-    if (req.session) {
-      req.session.ltiVerified = true;
-      req.session.courseId = courseId;
-    }
-
+    this.authService.setLtiSession(req, courseId);
     return res.redirect(`/?courseId=${courseId}`);
   }
 

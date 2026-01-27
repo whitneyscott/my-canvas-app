@@ -35,9 +35,16 @@ export class AuthController {
   @Post('lti-launch')
   async handleLtiLaunch(@Req() req: any, @Res() res: Response) {
     // Verify OAuth1 signature for LTI launch
-    const params = { ...(req.body || {}) };
-    const providedSig = params.oauth_signature;
+    // Prefer the original raw body when present (application/x-www-form-urlencoded from Canvas)
+    const contentType = (req.get('content-type') || '').toLowerCase();
+    let params: Record<string, any> = {};
+    if (req.rawBody && contentType.includes('application/x-www-form-urlencoded')) {
+      params = Object.fromEntries(new URLSearchParams(req.rawBody));
+    } else {
+      params = { ...(req.body || {}) };
+    }
 
+    const providedSig = params.oauth_signature;
     if (!providedSig) {
       throw new BadRequestException('Missing oauth_signature');
     }
@@ -73,7 +80,9 @@ export class AuthController {
     }
 
     const method = req.method || 'POST';
-    const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+    const proto = req.get('x-forwarded-proto') || req.protocol;
+    const host = req.get('x-forwarded-host') || req.get('host');
+    const url = `${proto}://${host}${req.originalUrl}`;
 
     const expected = oauthSignature.generate(method, url, params, consumerSecret, undefined, {
       encodeSignature: false,
@@ -86,14 +95,19 @@ export class AuthController {
       return res.status(401).send('Invalid LTI signature');
     }
 
-    const roles = req.body?.roles || '';
+    // After signature verification, read LTI-provided fields from the parsed body
+    const roles = (req.rawBody && contentType.includes('application/x-www-form-urlencoded'))
+      ? (new URLSearchParams(req.rawBody).get('roles') || '')
+      : (req.body?.roles || '');
     const isInstructor = roles.includes('Instructor') || roles.includes('ContentDeveloper');
 
     if (!isInstructor) {
       return res.status(403).send('Access Denied: Only instructors can launch this tool.');
     }
 
-    const courseId = req.body?.custom_canvas_course_id;
+    const courseId = (req.rawBody && contentType.includes('application/x-www-form-urlencoded'))
+      ? (new URLSearchParams(req.rawBody).get('custom_canvas_course_id') || undefined)
+      : req.body?.custom_canvas_course_id;
     this.authService.setLtiSession(req, courseId);
 
     return res.redirect(`/?courseId=${courseId}`);
