@@ -14,3 +14,4 @@ alwaysApply: true
 - **Silent Assumptions:** If a task has a standard industry solution (e.g., NestJS best practices), implement it silently without asking for permission first.
 - **Context Pruning:** If I ask a question about a specific file, ignore all other project files unless explicitly mentioned.
 - **No Self-Evident Comments:** Never add comments to code that describe *what* the code is doing (e.g., `// creating a variable`). Only add comments for *why* (complex logic).
+- **Single Source of Truth:** Always apply the Single Source of Truth principle where possible. Centralize data definitions, configuration values, and business logic in one authoritative location. Avoid duplicating constants, types, or logic across multiple files. When data needs to be shared, reference the single source rather than creating copies.

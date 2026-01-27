@@ -8,7 +8,34 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <div id="token-overlay" style="display: none;"> </div>
+    <div id="token-overlay" style="display: none;">
+        <div class="login-modal">
+            <div class="login-content">
+                <h2>Canvas API Authentication</h2>
+                <p>Enter your Canvas API token to access your courses.</p>
+                
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="canvasUrl">Canvas Base URL:</label>
+                        <input type="url" id="canvasUrl" name="canvasUrl" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="canvasToken">Canvas API Token:</label>
+                        <input type="password" id="canvasToken" name="canvasToken" required>
+                        <small>Get your token from Canvas Account > Settings > Approved Integrations</small>
+                    </div>
+                    
+                    <div id="loginError" class="error-message" style="display: none;"></div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="primary-btn">Connect</button>
+                        <button type="button" class="secondary-btn" onclick="closeLoginModal()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <div id="main-app-wrapper" style="display: none;">
         <div class="app-container">
@@ -51,6 +78,7 @@
         };
     </script>
 
+    <script src="/js/auth.js"></script>
     <script src="/js/config.js"></script>
     <script src="/js/helpers.js"></script>
     <script src="/js/main.js"></script>

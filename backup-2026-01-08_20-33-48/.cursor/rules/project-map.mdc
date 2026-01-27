@@ -1,9 +1,0 @@
----
-description: Grug map rules v1
-alwaysApply: true
----
-- Grug Map: Look at folder names first. Do not scan file contents to find "where things are."
-- Core Paths: Logic is in src/ (services/controllers). Tests are in test/.
-- Surgical Context: Only read files for the specific module being discussed.
-- Ignore Junk: Never look at dist/ or node_modules/.
-- Manual: Use @Files for direct edits; avoid @Codebase unless lost.
