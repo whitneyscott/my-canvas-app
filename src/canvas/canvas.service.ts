@@ -142,14 +142,14 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return match ? match[1] : null;
   }
 
-private async getAuthHeaders() {
+  private async getAuthHeaders() {
     let token = process.env.CANVAS_TOKEN;
 
     if (this.req && this.req.session && this.req.session.canvasToken) {
       token = this.req.session.canvasToken;
     }
 
-    const baseUrl = process.env.CANVAS_BASE_URL;
+    const baseUrl = process.env.CANVAS_BASE_URL || 'https://tjc.instructure.com/api/v1';
 
     if (!token) {
       throw new Error('Unauthorized: No Canvas token found.');

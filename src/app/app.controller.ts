@@ -11,8 +11,98 @@ export class AppController {
 
   @Get()
   @Render('index')
-  root(@Query('courseId') courseId?: string) {
-    return { courseId: courseId || null };
+  root(@Query('courseId') courseId?: string, @Req() req?: any) {
+    // Determine deployment mode using the existing logic
+    const deploymentMode = this.getDeploymentMode(req);
+    
+    switch (deploymentMode) {
+      case 'local':
+        // Local development - auto-load from .env
+        return {
+          courseId: courseId || null,
+          deploymentMode: 'local',
+          autoLoad: true,
+          canvasUrl: process.env.CANVAS_BASE_URL || 'https://tjc.instructure.com/api/v1',
+          canvasToken: process.env.CANVAS_TOKEN || null
+        };
+        
+      case 'render':
+        // Render deployment - show login modal
+        const hasValidSession = req?.session?.canvasToken && req?.session?.canvasUrl;
+        
+        if (hasValidSession) {
+          return {
+            courseId: courseId || null,
+            deploymentMode: 'render',
+            autoLoad: false,
+            canvasUrl: req.session.canvasUrl,
+            canvasToken: req.session.canvasToken
+          };
+        } else {
+          return {
+            courseId: courseId || null,
+            deploymentMode: 'render',
+            autoLoad: false,
+            showLoginModal: true,
+            defaultCanvasUrl: 'https://tjc.instructure.com/api/v1'
+          };
+        }
+        
+      case 'lti':
+        // LTI deployment - use LTI parameters
+        const ltiCourseId = req?.body?.custom_canvas_course_id || req?.query?.custom_canvas_course_id;
+        const ltiRoles = req?.body?.roles || req?.query?.roles;
+        const isInstructor = ltiRoles && (ltiRoles.includes('Instructor') || ltiRoles.includes('ContentDeveloper'));
+        
+        if (!isInstructor) {
+          return {
+            deploymentMode: 'lti',
+            error: 'Access Denied: Only instructors can access this tool.',
+            courseId: null
+          };
+        }
+        
+        return {
+          courseId: ltiCourseId || courseId || null,
+          deploymentMode: 'lti',
+          autoLoad: true,
+          ltiVerified: true,
+          canvasUrl: process.env.CANVAS_BASE_URL || 'https://tjc.instructure.com/api/v1',
+          canvasToken: process.env.CANVAS_TOKEN || null
+        };
+        
+      default:
+        // Fallback to render mode
+        return {
+          courseId: courseId || null,
+          deploymentMode: 'render',
+          autoLoad: false,
+          showLoginModal: true,
+          defaultCanvasUrl: 'https://tjc.instructure.com/api/v1'
+        };
+    }
+  }
+
+  // Helper method to determine deployment mode
+  private getDeploymentMode(req: any): string {
+    // LTI: Check for LTI parameters in request body or query
+    if (req?.body?.custom_canvas_course_id || 
+        req?.query?.custom_canvas_course_id ||
+        req?.body?.roles ||
+        req?.query?.roles) {
+      return 'lti';
+    }
+    
+    // Render: Check for production environment OR no .env file access
+    if (process.env.NODE_ENV === 'production' || 
+        process.env.RENDER || 
+        req?.get?.('x-render') ||
+        !process.env.CANVAS_TOKEN) {
+      return 'render';
+    }
+    
+    // Local: Development environment with .env file
+    return 'local';
   }
 
   @Get('auth/status')
