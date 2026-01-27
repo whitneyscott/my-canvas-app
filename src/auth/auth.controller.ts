@@ -95,19 +95,15 @@ export class AuthController {
       return res.status(401).send('Invalid LTI signature');
     }
 
-    // After signature verification, read LTI-provided fields from the parsed body
-    const roles = (req.rawBody && contentType.includes('application/x-www-form-urlencoded'))
-      ? (new URLSearchParams(req.rawBody).get('roles') || '')
-      : (req.body?.roles || '');
+    // After signature verification, read LTI-provided fields from `req.body` (Canvas prepends `custom_`)
+    const roles = req.body?.custom_canvas_roles || req.body?.roles || '';
     const isInstructor = roles.includes('Instructor') || roles.includes('ContentDeveloper');
 
     if (!isInstructor) {
       return res.status(403).send('Access Denied: Only instructors can launch this tool.');
     }
 
-    const courseId = (req.rawBody && contentType.includes('application/x-www-form-urlencoded'))
-      ? (new URLSearchParams(req.rawBody).get('custom_canvas_course_id') || undefined)
-      : req.body?.custom_canvas_course_id;
+    const courseId = req.body?.custom_canvas_course_id || undefined;
     this.authService.setLtiSession(req, courseId);
 
     return res.redirect(`/?courseId=${courseId}`);

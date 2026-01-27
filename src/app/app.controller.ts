@@ -51,9 +51,9 @@ export class AppController {
         }
         
       case 'lti':
-        // LTI deployment - use LTI parameters
+        // LTI deployment - use LTI parameters (Canvas prepends `custom_` to keys defined in the XML)
         const ltiCourseId = req?.body?.custom_canvas_course_id || req?.query?.custom_canvas_course_id;
-        const ltiRoles = req?.body?.roles || req?.query?.roles;
+        const ltiRoles = req?.body?.custom_canvas_roles || req?.body?.roles || req?.query?.roles;
         const isInstructor = ltiRoles && (ltiRoles.includes('Instructor') || ltiRoles.includes('ContentDeveloper'));
         
         if (!isInstructor) {
@@ -91,6 +91,7 @@ export class AppController {
     // LTI: Check for LTI parameters in request body or query
     if (req?.body?.custom_canvas_course_id || 
         req?.query?.custom_canvas_course_id ||
+        req?.body?.custom_canvas_roles ||
         req?.body?.roles ||
         req?.query?.roles) {
       return 'lti';
@@ -195,6 +196,7 @@ export class AppController {
       console.log('--- LTI DEBUG REQUEST ---');
       console.log('url:', (req.get('x-forwarded-proto') || req.protocol) + '://' + (req.get('x-forwarded-host') || req.get('host')) + req.originalUrl);
       console.log('headers:', JSON.stringify(req.headers, null, 2));
+      console.log('req.body:', JSON.stringify(req.body || {}, null, 2));
       console.log('rawBody:', raw);
       console.log('--- END LTI DEBUG ---');
 
