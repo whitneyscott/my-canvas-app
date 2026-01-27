@@ -124,7 +124,6 @@ export class AppController {
   }
 
   @Post('lti-launch')
-  @Post('lti-launch')
   @Post('lti/launch')
   async handleLtiLaunch(@Req() req: any, @Res() res: Response) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -181,6 +180,29 @@ export class AppController {
 
     this.authService.setLtiSession(req, courseId);
     return res.redirect(`/?courseId=${courseId}`);
+  }
+
+  // Temporary debug endpoint to troubleshoot Canvas LTI POSTs.
+  // Logs headers and raw body, returns 200. Remove after debugging.
+  @Post('lti/launch-debug')
+  async handleLtiLaunchDebug(@Req() req: any, @Res() res: Response) {
+    try {
+      const contentType = (req.get('content-type') || '').toLowerCase();
+      const raw = req.rawBody && contentType.includes('application/x-www-form-urlencoded')
+        ? req.rawBody
+        : JSON.stringify(req.body || {});
+
+      console.log('--- LTI DEBUG REQUEST ---');
+      console.log('url:', (req.get('x-forwarded-proto') || req.protocol) + '://' + (req.get('x-forwarded-host') || req.get('host')) + req.originalUrl);
+      console.log('headers:', JSON.stringify(req.headers, null, 2));
+      console.log('rawBody:', raw);
+      console.log('--- END LTI DEBUG ---');
+
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error('LTI debug handler error', err);
+      return res.status(500).json({ ok: false, error: 'debug handler error' });
+    }
   }
 
   @Post('auth/set-token')
