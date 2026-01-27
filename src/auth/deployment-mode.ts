@@ -27,5 +27,5 @@ export function getDeploymentMode(req: any): DeploymentMode {
 }
 
 export function getDefaultCanvasUrl(): string {
-  return process.env.CANVAS_BASE_URL || 'https://instructure.tjc';
+  return process.env.CANVAS_BASE_URL || 'https://tjc.instructure.com/api/v1';
 }
