@@ -127,6 +127,8 @@ export class AppController {
   @Post('lti-launch')
   @Post('lti/launch')
   async handleLtiLaunch(@Req() req: any, @Res() res: Response) {
+    console.log('LTI Launch Request Received at /lti/launch');
+    console.log('LTI Launch Request Received at /lti-launch');
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const oauthSignature = require('oauth-signature');
 

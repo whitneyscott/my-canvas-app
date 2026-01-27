@@ -34,6 +34,7 @@ export class AuthController {
 
   @Post('lti-launch')
   async handleLtiLaunch(@Req() req: any, @Res() res: Response) {
+    console.log('LTI Launch Request Received at /auth/lti-launch');
     // Verify OAuth1 signature for LTI launch
     // Prefer the original raw body when present (application/x-www-form-urlencoded from Canvas)
     const contentType = (req.get('content-type') || '').toLowerCase();
