@@ -68,7 +68,8 @@ export class AppController {
           autoLoad: true,
           ltiVerified: true,
           canvasUrl: process.env.CANVAS_BASE_URL || 'https://tjc.instructure.com/api/v1',
-          canvasToken: process.env.CANVAS_TOKEN || null
+          canvasToken: process.env.CANVAS_TOKEN || null,
+          appName: 'Canvas Bulk Editor'
         };
         
       default:

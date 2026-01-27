@@ -87,4 +87,8 @@ export class AuthService {
     req.session.ltiVerified = true;
     req.session.courseId = courseId;
   }
+
+  getAppName(): string {
+    return 'Canvas Bulk Editor';
+  }
 }
