@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Render, Query, Req, Res, Body, BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
-import { AuthService } from './auth/auth.service';
+import { AuthService } from '../auth/auth.service';
 
 @Controller()
 export class AppController {
