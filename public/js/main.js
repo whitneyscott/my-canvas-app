@@ -563,6 +563,73 @@ function switchTab(tabName) {
     }
 }
 
+// Tab Interception System
+let tabInterceptionEnabled = false;
+
+function handleTabClick(event) {
+    const tab = event.currentTarget;
+    const tabName = tab.getAttribute('data-tab');
+    
+    if (tabInterceptionEnabled && tabName !== 'assignments') {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Show interception message
+        const message = 'Module Integration Pending: This feature is planned for a future development phase.';
+        alert(message);
+        
+        // Log the interception
+        debugLog(`Tab interception blocked: ${tabName}`, 'warn');
+        
+        return false;
+    }
+    
+    // Allow normal navigation for Assignments or when interception is disabled
+    return true;
+}
+
+// Hidden Toggle System
+function toggleTabInterception() {
+    tabInterceptionEnabled = !tabInterceptionEnabled;
+    const status = tabInterceptionEnabled ? 'ENABLED' : 'DISABLED';
+    debugLog(`Tab Interception: ${status}`, tabInterceptionEnabled ? 'warn' : 'info');
+    
+    // Visual feedback - flash the active tab
+    const activeTab = document.querySelector('.tab-btn.active');
+    if (activeTab) {
+        activeTab.style.boxShadow = tabInterceptionEnabled ? '0 0 10px red inset' : 'none';
+        setTimeout(() => {
+            activeTab.style.boxShadow = 'none';
+        }, 500);
+    }
+}
+
+// Keyboard Shortcut Handler
+document.addEventListener('keydown', function(event) {
+    // Ctrl+Shift+L to toggle tab interception
+    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'l') {
+        event.preventDefault();
+        toggleTabInterception();
+    }
+});
+
+// Initialize tab interception system
+document.addEventListener('DOMContentLoaded', function() {
+    // Add data-tab attributes to existing tab buttons for interception system
+    const tabs = document.querySelectorAll('.tab-btn');
+    tabs.forEach(tab => {
+        // Extract tab name from onclick attribute
+        const onclickAttr = tab.getAttribute('onclick');
+        if (onclickAttr && onclickAttr.includes("switchTab('")) {
+            const tabName = onclickAttr.match(/switchTab\('([^']+)'\)/)[1];
+            tab.setAttribute('data-tab', tabName);
+            tab.addEventListener('click', handleTabClick);
+        }
+    });
+    
+    debugLog('Tab Interception System Initialized', 'info');
+});
+
 async function loadTabData(tabName) {
     debugLog("loadTabData() called for: " + tabName);
     
