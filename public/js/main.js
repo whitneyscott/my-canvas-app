@@ -238,6 +238,19 @@ const gridOptions = {
     onGridReady: params => {
         window.gridApi = params.api;
         gridApi = params.api;
+        
+        // Hide internal columns by default based on project definitions
+        const internalColumns = ['_edit_status', 'id', 'uuid', 'created_at', 'updated_at', 'items_count', 'html_url', 'url', 'workflow_state', 'publish_at', 'course_id', 'context_type', 'context_id', 'lti_context_id', 'global_id', 'secure_params', 'original_lti_resource_link_id', 'items_url', 'locked_for_user', 'lock_info', 'lock_explanation', 'permissions', 'submission', 'overrides', 'all_dates', 'can_duplicate'];
+        
+        // Get current column definitions and hide internal columns
+        const columnDefs = params.api.getColumnDefs();
+        const columnsToHide = columnDefs
+            .map(col => col.field || col.colId)
+            .filter(field => internalColumns.includes(field));
+        
+        if (columnsToHide.length > 0) {
+            params.api.setColumnsVisible(columnsToHide, false);
+        }
     },
     overlayLoadingTemplate: 
         '<div class="ag-overlay-loading-wrapper">' +
