@@ -263,6 +263,32 @@ const gridOptions = {
             params.api.redrawRows({ rowNodes: [params.node] });
         }
     },
+    // Additional event handler to catch programmatic changes
+    onRowDataUpdated: params => {
+        // This catches programmatic updates that bypass onCellValueChanged
+        if (gridApi) {
+            gridApi.forEachNode(node => {
+                const originalRow = originalData[currentTab]?.find(item => String(item.id || item.url) === String(node.data.id || node.data.url));
+                if (originalRow) {
+                    const hasChanges = Object.keys(node.data).some(key => {
+                        if (key === '_edit_status' || key === 'id' || key === 'url') return false;
+                        return JSON.stringify(node.data[key]) !== JSON.stringify(originalRow[key]);
+                    });
+                    if (hasChanges && node.data._edit_status !== 'modified') {
+                        node.setDataValue('_edit_status', 'modified');
+                        // Track changes for all modified fields
+                        Object.keys(node.data).forEach(key => {
+                            if (key !== '_edit_status' && key !== 'id' && key !== 'url') {
+                                if (JSON.stringify(node.data[key]) !== JSON.stringify(originalRow[key])) {
+                                    trackChange(currentTab, node.data.id || node.data.url, key, node.data[key]);
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+        }
+    },
     onGridReady: params => {
         window.gridApi = params.api;
         gridApi = params.api;
