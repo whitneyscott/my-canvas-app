@@ -133,14 +133,20 @@ export class AppController {
 
   @Post(['lti/launch', 'lti-launch'])
   async handleLtiLaunch(@Req() req: any, @Res() res: Response) {
-    /*
-    Original LTI handling logic commented out for diagnostics.
-    Keep the previous implementation here for reference while debugging.
+    // Extract courseId from raw body (preferred) or parsed body
+    const contentType = (req.get('content-type') || '').toLowerCase();
+    let params: Record<string, any> = {};
+    if (req.rawBody && contentType.includes('application/x-www-form-urlencoded')) {
+      params = Object.fromEntries(new URLSearchParams(req.rawBody));
+    } else {
+      params = { ...(req.body || {}) };
+    }
 
-    (Original body removed)
-    */
-    console.log('handleLtiLaunch invoked — logic stubbed for debugging');
-    return res.status(200).json({ ok: 'lti handler stubbed' });
+    const courseId = params.custom_canvas_course_id || req.body?.custom_canvas_course_id;
+    // This sets the session so the user doesn't have to log in manually
+    await this.authService.setLtiSession(req, courseId);
+    // Redirect the user to the UI with the courseId as a query parameter
+    return res.redirect(`/?courseId=${courseId}`);
   }
 
   // Temporary debug endpoint to troubleshoot Canvas LTI POSTs.
