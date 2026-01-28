@@ -675,7 +675,25 @@ function handleTabClick(event) {
         // Log the interception
         debugLog(`Tab interception blocked: ${tabName}`, 'warn');
         
-        return false;
+        // Clear the grid to prevent ghost data
+        if (gridApi) {
+            gridApi.setGridOption('rowData', []);
+            gridApi.hideOverlay();
+        }
+        
+        // Reset currentTab to previous tab to maintain state
+        const previousTab = currentTab;
+        currentTab = previousTab;
+        
+        // Re-activate the previous tab
+        const allTabs = document.querySelectorAll('.tab-btn');
+        allTabs.forEach(tab => {
+            const isTarget = tab.getAttribute('onclick').includes(previousTab);
+            tab.classList.toggle('active', isTarget);
+            tab.setAttribute('aria-selected', isTarget ? 'true' : 'false');
+        });
+        
+        return false; // Stop execution immediately
     }
     
     // Allow normal navigation for Assignments or when interception is disabled
