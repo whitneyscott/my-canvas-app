@@ -613,6 +613,34 @@ function onCourseSelected() {
 }
 
 function switchTab(tabName) {
+    // Security Check: Enforce tab interception guard clause
+    if (tabInterceptionEnabled && tabName !== 'assignments') {
+        const message = 'Module Integration Pending: This feature is planned for a future development phase.';
+        alert(message);
+        debugLog(`Tab interception blocked: ${tabName}`, 'warn');
+        
+        // Clear the grid to prevent ghost data
+        if (gridApi) {
+            gridApi.setGridOption('rowData', []);
+            gridApi.hideOverlay();
+        }
+        
+        // Reset currentTab to previous tab to maintain state
+        const previousTab = currentTab;
+        currentTab = previousTab;
+        
+        // Re-activate the previous tab
+        const allTabs = document.querySelectorAll('.tab-btn');
+        allTabs.forEach(tab => {
+            const isTarget = tab.getAttribute('onclick').includes(previousTab);
+            tab.classList.toggle('active', isTarget);
+            tab.setAttribute('aria-selected', isTarget ? 'true' : 'false');
+        });
+        
+        return false; // Stop execution immediately
+    }
+
+    // Normal tab switching logic for allowed tabs
     const allTabs = document.querySelectorAll('.tab-btn');
     
     allTabs.forEach(tab => {
