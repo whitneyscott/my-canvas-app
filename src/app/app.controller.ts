@@ -124,8 +124,7 @@ export class AppController {
     return { needsToken: false };
   }
 
-  @Post('lti-launch')
-  @Post('lti/launch')
+  @Post(['lti/launch', 'lti-launch'])
   async handleLtiLaunch(@Req() req: any, @Res() res: Response) {
     console.log('LTI Launch Request Received at /lti/launch');
     console.log('LTI Launch Request Received at /lti-launch');
