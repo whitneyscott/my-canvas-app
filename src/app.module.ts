@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller';
+import { AppController } from './app/app.controller';
 import { CanvasController } from './canvas/canvas.controller';
 import { CanvasService } from './canvas/canvas.service';
 import { AutomatedTestModule } from './automated-test/automated-test.module';
