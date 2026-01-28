@@ -1486,3 +1486,38 @@ function updateColumnVisibility(columnIds, isVisible) {
     const stateUpdates = columnIds.map(id => ({ colId: id, hide: !isVisible }));
     gridApi.applyColumnState({ state: stateUpdates, applyOrder: false });
 }
+
+// Dropdown Functions
+function toggleDropdown(dropdownId) {
+    const dropdown = document.getElementById(dropdownId);
+    if (!dropdown) return;
+    
+    const isActive = dropdown.classList.contains('active');
+    
+    // Close all other dropdowns
+    document.querySelectorAll('.dropdown-menu').forEach(menu => {
+        if (menu.id !== dropdownId) {
+            menu.classList.remove('active');
+        }
+    });
+    
+    // Toggle current dropdown
+    dropdown.classList.toggle('active', !isActive);
+}
+
+function closeDropdown(dropdownId) {
+    const dropdown = document.getElementById(dropdownId);
+    if (dropdown) {
+        dropdown.classList.remove('active');
+    }
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(event) {
+    const dropdownContainer = event.target.closest('.dropdown-container');
+    if (!dropdownContainer) {
+        document.querySelectorAll('.dropdown-menu').forEach(menu => {
+            menu.classList.remove('active');
+        });
+    }
+});

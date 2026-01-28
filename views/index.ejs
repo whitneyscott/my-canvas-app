@@ -64,6 +64,21 @@
                     <select id="courseSelect" onchange="onCourseSelected()">
                         <option value="">Select a Course</option>
                     </select>
+                    <div class="toolbar-actions">
+                        <div class="dropdown-container">
+                            <button class="primary-btn dropdown-trigger" onclick="toggleDropdown('bulkActionsDropdown')">
+                                Bulk Actions ▼
+                            </button>
+                            <div id="bulkActionsDropdown" class="dropdown-menu">
+                                <div class="dropdown-item" onclick="openModal('searchReplaceModal'); closeDropdown('bulkActionsDropdown')">Search & Replace</div>
+                                <div class="dropdown-item" onclick="openModal('dateShiftModal'); closeDropdown('bulkActionsDropdown')">Date Shift</div>
+                                <div class="dropdown-item" onclick="openModal('pointsModal'); closeDropdown('bulkActionsDropdown')">Points</div>
+                                <div class="dropdown-item" onclick="openModal('cloneModal'); closeDropdown('bulkActionsDropdown')">Clone</div>
+                                <div class="dropdown-item" onclick="openModal('deleteModal'); closeDropdown('bulkActionsDropdown')">Delete</div>
+                            </div>
+                        </div>
+                        <button class="primary-btn" onclick="openModal('columnVisibilityModal')">Columns</button>
+                    </div>
                     <button class="primary-btn" onclick="syncChanges()">Sync Changes</button>
                     <button class="primary-btn" onclick="refreshCurrentTab()">Refresh</button>
                 </header>
