@@ -152,7 +152,13 @@ export class AppController {
     const sharedSecret = process.env.LTI_SHARED_SECRET;
     const envConsumerKey = process.env.LTI_CONSUMER_KEY;
     if (sharedSecret) {
-      if (!providedConsumerKey || !envConsumerKey || providedConsumerKey === envConsumerKey) {
+      // If an env consumer key is configured, require it to match the provided key.
+      if (envConsumerKey) {
+        if (providedConsumerKey && providedConsumerKey === envConsumerKey) {
+          consumerSecret = sharedSecret;
+        }
+      } else {
+        // No env consumer key configured -> use shared secret for any incoming key
         consumerSecret = sharedSecret;
       }
     }
@@ -160,9 +166,8 @@ export class AppController {
     if (!consumerSecret) throw new BadRequestException('LTI consumer secret not configured for provided consumer key');
 
     const method = req.method || 'POST';
-    const proto = req.get('x-forwarded-proto') || req.protocol;
     const host = req.get('x-forwarded-host') || req.get('host');
-    const url = `${proto}://${host}${req.originalUrl}`;
+    const url = `https://${host}${req.originalUrl.split('?')[0]}`;
 
     const expected = oauthSignature.generate(method, url, params, consumerSecret, undefined, { encodeSignature: false });
     console.log('Signature Base String components:', { method, url });
