@@ -222,7 +222,35 @@ const gridOptions = {
         editable: true,
         unSortIcon: true,
         singleClickEdit: true,
-        headerComponent: CustomHeader
+        headerComponent: CustomHeader,
+        // Enable sorting and filtering for all columns
+        comparator: (valueA, valueB, nodeA, nodeB, isInverted) => {
+            // Handle null/undefined values
+            if (valueA == null && valueB == null) return 0;
+            if (valueA == null) return isInverted ? 1 : -1;
+            if (valueB == null) return isInverted ? -1 : 1;
+            
+            // Handle date sorting
+            if (typeof valueA === 'string' && typeof valueB === 'string') {
+                const dateA = new Date(valueA);
+                const dateB = new Date(valueB);
+                if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
+                    return isInverted ? dateB.getTime() - dateA.getTime() : dateA.getTime() - dateB.getTime();
+                }
+            }
+            
+            // Handle numeric sorting
+            const numA = parseFloat(valueA);
+            const numB = parseFloat(valueB);
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return isInverted ? numB - numA : numA - numB;
+            }
+            
+            // Handle string sorting
+            const strA = String(valueA).toLowerCase();
+            const strB = String(valueB).toLowerCase();
+            return isInverted ? strB.localeCompare(strA) : strA.localeCompare(strB);
+        }
     },
     getRowId: (params) => {
         return String(params.data.id || params.data.url || Math.random());
@@ -251,6 +279,10 @@ const gridOptions = {
         if (columnsToHide.length > 0) {
             params.api.setColumnsVisible(columnsToHide, false);
         }
+        
+        // Enable sorting and filtering for all columns
+        params.api.setGridOption('sorting', true);
+        params.api.setGridOption('filtering', true);
     },
     overlayLoadingTemplate: 
         '<div class="ag-overlay-loading-wrapper">' +
@@ -1127,11 +1159,20 @@ function executeSearchReplace() {
             } else updatedValue = currentValue.split(searchText).join(replaceText);
             if (updatedValue !== currentValue) {
                 gridApi.forEachNode(gridNode => {
-                    if (gridNode.data === rowData) gridNode.setDataValue(targetColumn, updatedValue);
+                    if (gridNode.data === rowData) {
+                        // Use startEditing to trigger onCellValueChanged event
+                        gridNode.setDataValue(targetColumn, updatedValue);
+                        // Manually trigger edit status update since setDataValue might not trigger onCellValueChanged
+                        gridNode.setDataValue('_edit_status', 'modified');
+                        // Track the change
+                        trackChange(currentTab, rowData.id || rowData.url, targetColumn, updatedValue);
+                    }
                 });
             }
         }
     });
+    // Force redraw to show updated edit status
+    gridApi.redrawRows();
     closeActiveModal();
 }
 
