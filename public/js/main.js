@@ -104,6 +104,59 @@ function toggleDebugPanel() {
     debugToggleBtn.textContent = debugPanel.classList.contains('collapsed') ? '▲' : '▼';
 }
 
+// Debug Panel Drag and Drop
+let isDragging = false;
+let currentX;
+let currentY;
+let initialX;
+let initialY;
+let xOffset = 0;
+let yOffset = 0;
+
+function dragStart(e) {
+    if (e.target.closest('.debug-panel-header')) {
+        isDragging = true;
+        initialX = e.clientX - xOffset;
+        initialY = e.clientY - yOffset;
+    }
+}
+
+function dragEnd() {
+    isDragging = false;
+}
+
+function drag(e) {
+    if (isDragging) {
+        e.preventDefault();
+        currentX = e.clientX - initialX;
+        currentY = e.clientY - initialY;
+
+        xOffset = currentX;
+        yOffset = currentY;
+
+        const debugPanel = document.getElementById('debugPanel');
+        debugPanel.style.transform = `translate(${currentX}px, ${currentY}px)`;
+    }
+}
+
+// Initialize debug panel drag functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const debugPanel = document.getElementById('debugPanel');
+    if (debugPanel) {
+        debugPanel.addEventListener('mousedown', dragStart);
+        document.addEventListener('mouseup', dragEnd);
+        document.addEventListener('mousemove', drag);
+    }
+});
+
+// Keyboard shortcut for debug panel toggle (Ctrl+Alt+D)
+document.addEventListener('keydown', function(event) {
+    if (event.ctrlKey && event.altKey && event.key.toLowerCase() === 'd') {
+        event.preventDefault();
+        toggleDebugPanel();
+    }
+});
+
 function setGridStatus(tabName, message, color = '#00ff00') {
     if (!gridApi) return;
     
