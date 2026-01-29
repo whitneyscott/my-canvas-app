@@ -297,7 +297,7 @@ const gridOptions = {
         const internalColumns = ['_edit_status', 'id', 'uuid', 'created_at', 'updated_at', 'items_count', 'html_url', 'url', 'workflow_state', 'publish_at', 'course_id', 'context_type', 'context_id', 'lti_context_id', 'global_id', 'secure_params', 'original_lti_resource_link_id', 'items_url', 'locked_for_user', 'lock_info', 'lock_explanation', 'permissions', 'submission', 'overrides', 'all_dates', 'can_duplicate'];
         
         // Get current column definitions and hide internal columns
-        const columnDefs = params.api.getColumnDefs();
+        const columnDefs = params.api.getColumnDefs() || [];
         const columnsToHide = columnDefs
             .map(col => col.field || col.colId)
             .filter(field => internalColumns.includes(field));
@@ -696,22 +696,22 @@ function switchTab(tabName) {
         });
         
         return false; // Stop execution immediately
-    }
+    } else {
+        // Normal tab switching logic for allowed tabs
+        const allTabs = document.querySelectorAll('.tab-btn');
+        
+        allTabs.forEach(tab => {
+            const isTarget = tab.getAttribute('onclick').includes(tabName);
+            tab.classList.toggle('active', isTarget);
+            tab.setAttribute('aria-selected', isTarget ? 'true' : 'false');
+        });
 
-    // Normal tab switching logic for allowed tabs
-    const allTabs = document.querySelectorAll('.tab-btn');
-    
-    allTabs.forEach(tab => {
-        const isTarget = tab.getAttribute('onclick').includes(tabName);
-        tab.classList.toggle('active', isTarget);
-        tab.setAttribute('aria-selected', isTarget ? 'true' : 'false');
-    });
-
-    currentTab = tabName;
-    debugLog(`Switched to ${tabName} view`, 'info');
-    
-    if (typeof loadTabData === 'function') {
-        loadTabData(tabName);
+        currentTab = tabName;
+        debugLog(`Switched to ${tabName} view`, 'info');
+        
+        if (typeof loadTabData === 'function') {
+            loadTabData(tabName);
+        }
     }
 }
 
