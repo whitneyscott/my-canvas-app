@@ -716,7 +716,7 @@ function switchTab(tabName) {
 }
 
 // Tab Interception System
-let tabInterceptionEnabled = false;
+let tabInterceptionEnabled = true;
 
 function handleTabClick(event) {
     const tab = event.currentTarget;
