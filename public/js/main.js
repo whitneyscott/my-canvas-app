@@ -465,6 +465,9 @@ function generateColumnDefs(tabName) {
                 button.onclick = () => {
                     const newValue = !isTrue;
                     params.node.setDataValue(field.key, newValue);
+                    params.node.setDataValue('_edit_status', 'modified');
+                    trackChange(currentTab, params.data.id || params.data.url, field.key, newValue);
+                    params.api.redrawRows({ rowNodes: [params.node] });
                 };
                 return button;
             };
@@ -1161,9 +1164,14 @@ function executeBulkEdit() {
     if (!nodesToUpdate.length) { nodesToUpdate = []; gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data)); }
     nodesToUpdate.forEach(rowData => {
         gridApi.forEachNode(gridNode => {
-            if (gridNode.data === rowData) gridNode.setDataValue(targetColumn, newValue);
+            if (gridNode.data === rowData) {
+                gridNode.setDataValue(targetColumn, newValue);
+                gridNode.setDataValue('_edit_status', 'modified');
+                trackChange(currentTab, rowData.id || rowData.url, targetColumn, newValue);
+            }
         });
     });
+    gridApi.redrawRows();
     closeActiveModal();
 }
 
@@ -1221,10 +1229,15 @@ function executeInsertPaste() {
         }
         if (updatedValue !== currentValue) {
             gridApi.forEachNode(gridNode => {
-                if (gridNode.data === rowData) gridNode.setDataValue(targetColumn, updatedValue);
+                if (gridNode.data === rowData) {
+                    gridNode.setDataValue(targetColumn, updatedValue);
+                    gridNode.setDataValue('_edit_status', 'modified');
+                    trackChange(currentTab, rowData.id || rowData.url, targetColumn, updatedValue);
+                }
             });
         }
     });
+    gridApi.redrawRows();
     closeActiveModal();
 }
 
@@ -1238,9 +1251,14 @@ function executePublishStatus() {
     if (!nodesToUpdate.length) { alert('No rows.'); return; }
     nodesToUpdate.forEach(rowData => {
         gridApi.forEachNode(gridNode => {
-            if (gridNode.data === rowData) gridNode.setDataValue('published', publishValue);
+            if (gridNode.data === rowData) {
+                gridNode.setDataValue('published', publishValue);
+                gridNode.setDataValue('_edit_status', 'modified');
+                trackChange(currentTab, rowData.id || rowData.url, 'published', publishValue);
+            }
         });
     });
+    gridApi.redrawRows();
     closeActiveModal();
 }
 
