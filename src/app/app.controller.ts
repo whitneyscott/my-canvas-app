@@ -55,7 +55,8 @@ export class AppController {
             deploymentMode: 'render',
             autoLoad: false,
             showLoginModal: true,
-            defaultCanvasUrl: 'https://tjc.instructure.com/api/v1'
+            defaultCanvasUrl: 'https://tjc.instructure.com/api/v1',
+            modePassword: process.env.MODE_PASSWORD || 'dev2025'
           };
         }
         
@@ -69,7 +70,8 @@ export class AppController {
           return {
             deploymentMode: 'lti',
             error: 'Access Denied: Only instructors can access this tool.',
-            courseId: null
+            courseId: null,
+            modePassword: process.env.MODE_PASSWORD || 'dev2025'
           };
         }
         
@@ -91,7 +93,8 @@ export class AppController {
           deploymentMode: 'render',
           autoLoad: false,
           showLoginModal: true,
-          defaultCanvasUrl: 'https://tjc.instructure.com/api/v1'
+          defaultCanvasUrl: 'https://tjc.instructure.com/api/v1',
+          modePassword: process.env.MODE_PASSWORD || 'dev2025'
         };
     }
   }
