@@ -258,43 +258,8 @@ const gridOptions = {
     getRowStyle: params => params.data?._edit_status === 'modified' ? { backgroundColor: '#fff9c4', fontWeight: 'bold', color: '#d35400' } : null,
     onCellValueChanged: params => {
         if (params.colDef.field !== '_edit_status') {
-            const itemId = params.data.id || params.data.url;
-            const fieldName = params.colDef.field;
-            const newValue = params.newValue;
-
-            // Find the original value from originalData
-            const originalRow = originalData[currentTab]?.find(item =>
-                String(item.id || item.url) === String(itemId)
-            );
-
-            if (originalRow) {
-                const originalValue = originalRow[fieldName];
-
-                // Compare new value with original value
-                if (JSON.stringify(newValue) === JSON.stringify(originalValue)) {
-                    // Value matches original - clear edit status
-                    params.node.setDataValue('_edit_status', 'synced');
-
-                    // Remove from changes object
-                    if (changes[currentTab] && changes[currentTab][itemId]) {
-                        delete changes[currentTab][itemId][fieldName];
-
-                        // If no more changes for this item, remove the item entry
-                        if (Object.keys(changes[currentTab][itemId]).length === 0) {
-                            delete changes[currentTab][itemId];
-                        }
-                    }
-                } else {
-                    // Value differs from original - mark as modified
-                    params.node.setDataValue('_edit_status', 'modified');
-                    trackChange(currentTab, itemId, fieldName, newValue);
-                }
-            } else {
-                // No original row found (new item) - mark as modified
-                params.node.setDataValue('_edit_status', 'modified');
-                trackChange(currentTab, itemId, fieldName, newValue);
-            }
-
+            params.node.setDataValue('_edit_status', 'modified');
+            trackChange(currentTab, params.data.id || params.data.url, params.colDef.field, params.newValue);
             params.api.redrawRows({ rowNodes: [params.node] });
         }
     },
