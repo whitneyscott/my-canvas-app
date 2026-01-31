@@ -1600,7 +1600,7 @@ async function deleteCanvasItem(type, courseId, identifier) {
     if (!FIELD_DEFINITIONS[configKey] && type === 'discussions') configKey = 'discussion_topics';
     const config = FIELD_DEFINITIONS[configKey];
     const endpoint = config ? config.endpoint : type;
-    const response = await fetch(`/canvas/${endpoint}/${courseId}/${identifier}`, {
+    const response = await fetch(`/canvas/courses/${courseId}/${endpoint}/${identifier}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
     });
