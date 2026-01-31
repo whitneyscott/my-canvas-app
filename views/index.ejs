@@ -81,6 +81,7 @@
                     </div>
                     <button class="primary-btn" onclick="syncChanges()">Sync Changes</button>
                     <button class="primary-btn" onclick="refreshCurrentTab()">Refresh</button>
+                    <button class="primary-btn" onclick="openModal('modeSelectionModal')" title="Application Mode Settings">⚙️ Mode</button>
                 </header>
                 <div id="myGrid" class="ag-theme-quartz" style="height: 500px; width: 100%;"></div>
             </main>
@@ -96,6 +97,7 @@
         window.SERVER_DATA = {
             courseId: "<%= typeof courseId !== 'undefined' ? courseId : '' %>"
         };
+        window.MODE_PASSWORD = "<%= typeof modePassword !== 'undefined' ? modePassword : 'dev2025' %>";
     </script>
 
     <script src="/js/auth.js"></script>

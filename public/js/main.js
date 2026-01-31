@@ -1700,3 +1700,106 @@ document.addEventListener('click', function(event) {
         });
     }
 });
+
+// Application Mode Management
+let currentAppMode = localStorage.getItem('appMode') || 'demo';
+
+function initializeAppMode() {
+    applyAppMode(currentAppMode);
+    debugLog(`Application mode initialized: ${currentAppMode}`, 'info');
+}
+
+function applyAppMode(mode) {
+    currentAppMode = mode;
+    localStorage.setItem('appMode', mode);
+
+    const debugPanel = document.getElementById('debugPanel');
+
+    switch(mode) {
+        case 'developer':
+            // All tabs active, debug panel visible
+            tabInterceptionEnabled = false;
+            if (debugPanel) debugPanel.style.display = 'block';
+            debugLog('Developer Mode: All tabs active, debug panel visible', 'success');
+            break;
+
+        case 'production':
+            // All tabs active, debug panel hidden
+            tabInterceptionEnabled = false;
+            if (debugPanel) debugPanel.style.display = 'none';
+            debugLog('Production Mode: All tabs active, debug panel hidden', 'info');
+            break;
+
+        case 'demo':
+        default:
+            // Only assignments tab active, debug panel hidden
+            tabInterceptionEnabled = true;
+            if (debugPanel) debugPanel.style.display = 'none';
+            debugLog('Demo Mode: Only Assignments tab active', 'warn');
+            break;
+    }
+
+    // Update current mode display in modal
+    const modeDisplay = document.getElementById('currentModeDisplay');
+    if (modeDisplay) {
+        modeDisplay.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+    }
+}
+
+function executeModeChange() {
+    const selectedMode = document.querySelector('input[name="appMode"]:checked')?.value;
+    const passwordInput = document.getElementById('modePassword');
+    const modePassword = passwordInput?.value;
+
+    if (!selectedMode) {
+        alert('Please select a mode');
+        return;
+    }
+
+    // Demo mode doesn't need password
+    if (selectedMode === 'demo') {
+        applyAppMode('demo');
+        closeActiveModal();
+        if (passwordInput) passwordInput.value = '';
+        location.reload(); // Reload to apply tab restrictions
+        return;
+    }
+
+    // Developer and Production modes need password
+    const correctPassword = window.MODE_PASSWORD || 'dev2025';
+    if (modePassword !== correctPassword) {
+        alert('Incorrect password');
+        return;
+    }
+
+    applyAppMode(selectedMode);
+    closeActiveModal();
+    if (passwordInput) passwordInput.value = '';
+    location.reload(); // Reload to apply changes
+}
+
+// Event listener for mode radio buttons to show/hide password field
+document.addEventListener('change', function(event) {
+    if (event.target.name === 'appMode') {
+        const passwordContainer = document.getElementById('modePasswordContainer');
+        const selectedMode = event.target.value;
+
+        if (passwordContainer) {
+            // Show password field for developer and production modes
+            passwordContainer.style.display = (selectedMode !== 'demo') ? 'block' : 'none';
+        }
+    }
+});
+
+// Initialize mode on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initializeAppMode();
+
+    // Set current mode radio button when modal opens
+    const modeRadios = document.querySelectorAll('input[name="appMode"]');
+    modeRadios.forEach(radio => {
+        if (radio.value === currentAppMode) {
+            radio.checked = true;
+        }
+    });
+});

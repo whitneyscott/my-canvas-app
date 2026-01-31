@@ -362,4 +362,48 @@
         </div>
     </div>
 
+    <div id="modeSelectionModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Application Mode Settings</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 15px;">Select the application mode. Password required for Developer and Production modes.</p>
+
+            <div class="radio-group">
+                <div>
+                    <input type="radio" id="modeDemo" name="appMode" value="demo" checked>
+                    <label for="modeDemo">Demo Mode</label>
+                    <p style="font-size: 0.85em; color: #666; margin: 5px 0 0 24px;">Only Assignments tab active, no debug panel</p>
+                </div>
+                <div>
+                    <input type="radio" id="modeProduction" name="appMode" value="production">
+                    <label for="modeProduction">Production Mode</label>
+                    <p style="font-size: 0.85em; color: #666; margin: 5px 0 0 24px;">All tabs active, no debug panel</p>
+                </div>
+                <div>
+                    <input type="radio" id="modeDeveloper" name="appMode" value="developer">
+                    <label for="modeDeveloper">Developer Mode</label>
+                    <p style="font-size: 0.85em; color: #666; margin: 5px 0 0 24px;">All tabs active, debug panel visible</p>
+                </div>
+            </div>
+
+            <div id="modePasswordContainer" style="margin-top: 15px; display: none;">
+                <label>Password</label>
+                <input type="password" id="modePassword" placeholder="Enter mode password...">
+                <p style="font-size: 0.85em; color: #666; margin-top: 5px;">
+                    Password required for Developer and Production modes
+                </p>
+            </div>
+
+            <div style="background: #e3f2fd; padding: 10px; border-radius: 4px; margin-top: 15px;">
+                <strong>Current Mode:</strong> <span id="currentModeDisplay">Demo</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn" onclick="executeModeChange()">Apply Mode</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
 </div>

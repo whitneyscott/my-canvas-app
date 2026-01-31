@@ -32,7 +32,8 @@ export class AppController {
           deploymentMode: 'local',
           autoLoad: true,
           canvasUrl: process.env.CANVAS_BASE_URL || 'https://tjc.instructure.com/api/v1',
-          canvasToken: process.env.CANVAS_TOKEN || null
+          canvasToken: process.env.CANVAS_TOKEN || null,
+          modePassword: process.env.MODE_PASSWORD || 'dev2025'
         };
         
       case 'render':
@@ -45,7 +46,8 @@ export class AppController {
             deploymentMode: 'render',
             autoLoad: false,
             canvasUrl: req.session.canvasUrl,
-            canvasToken: req.session.canvasToken
+            canvasToken: req.session.canvasToken,
+            modePassword: process.env.MODE_PASSWORD || 'dev2025'
           };
         } else {
           return {
@@ -78,7 +80,8 @@ export class AppController {
           ltiVerified: true,
           canvasUrl: process.env.CANVAS_BASE_URL || 'https://tjc.instructure.com/api/v1',
           canvasToken: process.env.CANVAS_TOKEN || null,
-          appName: 'Canvas Bulk Editor'
+          appName: 'Canvas Bulk Editor',
+          modePassword: process.env.MODE_PASSWORD || 'dev2025'
         };
         
       default:
