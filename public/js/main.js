@@ -499,32 +499,9 @@ function generateColumnDefs(tabName) {
                 button.textContent = isTrue ? (field.activeLabel || 'Active') : (field.inactiveLabel || 'Inactive');
                 button.onclick = () => {
                     const newValue = !isTrue;
-                    const itemId = params.data.id || params.data.url;
-
                     params.node.setDataValue(field.key, newValue);
-
-                    // Check if value matches original
-                    const originalRow = originalData[currentTab]?.find(item =>
-                        String(item.id || item.url) === String(itemId)
-                    );
-
-                    if (originalRow && JSON.stringify(newValue) === JSON.stringify(originalRow[field.key])) {
-                        // Value matches original - clear edit status
-                        params.node.setDataValue('_edit_status', 'synced');
-
-                        // Remove from changes object
-                        if (changes[currentTab] && changes[currentTab][itemId]) {
-                            delete changes[currentTab][itemId][field.key];
-                            if (Object.keys(changes[currentTab][itemId]).length === 0) {
-                                delete changes[currentTab][itemId];
-                            }
-                        }
-                    } else {
-                        // Value differs from original - mark as modified
-                        params.node.setDataValue('_edit_status', 'modified');
-                        trackChange(currentTab, itemId, field.key, newValue);
-                    }
-
+                    params.node.setDataValue('_edit_status', 'modified');
+                    trackChange(currentTab, params.data.id || params.data.url, field.key, newValue);
                     params.api.redrawRows({ rowNodes: [params.node] });
                 };
                 return button;
