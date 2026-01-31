@@ -258,8 +258,43 @@ const gridOptions = {
     getRowStyle: params => params.data?._edit_status === 'modified' ? { backgroundColor: '#fff9c4', fontWeight: 'bold', color: '#d35400' } : null,
     onCellValueChanged: params => {
         if (params.colDef.field !== '_edit_status') {
-            params.node.setDataValue('_edit_status', 'modified');
-            trackChange(currentTab, params.data.id || params.data.url, params.colDef.field, params.newValue);
+            const itemId = params.data.id || params.data.url;
+            const fieldName = params.colDef.field;
+            const newValue = params.newValue;
+
+            // Find the original value from originalData
+            const originalRow = originalData[currentTab]?.find(item =>
+                String(item.id || item.url) === String(itemId)
+            );
+
+            if (originalRow) {
+                const originalValue = originalRow[fieldName];
+
+                // Compare new value with original value
+                if (JSON.stringify(newValue) === JSON.stringify(originalValue)) {
+                    // Value matches original - clear edit status
+                    params.node.setDataValue('_edit_status', 'synced');
+
+                    // Remove from changes object
+                    if (changes[currentTab] && changes[currentTab][itemId]) {
+                        delete changes[currentTab][itemId][fieldName];
+
+                        // If no more changes for this item, remove the item entry
+                        if (Object.keys(changes[currentTab][itemId]).length === 0) {
+                            delete changes[currentTab][itemId];
+                        }
+                    }
+                } else {
+                    // Value differs from original - mark as modified
+                    params.node.setDataValue('_edit_status', 'modified');
+                    trackChange(currentTab, itemId, fieldName, newValue);
+                }
+            } else {
+                // No original row found (new item) - mark as modified
+                params.node.setDataValue('_edit_status', 'modified');
+                trackChange(currentTab, itemId, fieldName, newValue);
+            }
+
             params.api.redrawRows({ rowNodes: [params.node] });
         }
     },
@@ -464,9 +499,32 @@ function generateColumnDefs(tabName) {
                 button.textContent = isTrue ? (field.activeLabel || 'Active') : (field.inactiveLabel || 'Inactive');
                 button.onclick = () => {
                     const newValue = !isTrue;
+                    const itemId = params.data.id || params.data.url;
+
                     params.node.setDataValue(field.key, newValue);
-                    params.node.setDataValue('_edit_status', 'modified');
-                    trackChange(currentTab, params.data.id || params.data.url, field.key, newValue);
+
+                    // Check if value matches original
+                    const originalRow = originalData[currentTab]?.find(item =>
+                        String(item.id || item.url) === String(itemId)
+                    );
+
+                    if (originalRow && JSON.stringify(newValue) === JSON.stringify(originalRow[field.key])) {
+                        // Value matches original - clear edit status
+                        params.node.setDataValue('_edit_status', 'synced');
+
+                        // Remove from changes object
+                        if (changes[currentTab] && changes[currentTab][itemId]) {
+                            delete changes[currentTab][itemId][field.key];
+                            if (Object.keys(changes[currentTab][itemId]).length === 0) {
+                                delete changes[currentTab][itemId];
+                            }
+                        }
+                    } else {
+                        // Value differs from original - mark as modified
+                        params.node.setDataValue('_edit_status', 'modified');
+                        trackChange(currentTab, itemId, field.key, newValue);
+                    }
+
                     params.api.redrawRows({ rowNodes: [params.node] });
                 };
                 return button;
@@ -1295,11 +1353,16 @@ function executeDateShift() {
             }
             if (newDateValue !== null) {
                 gridApi.forEachNode(gridNode => {
-                    if (gridNode.data === rowData) gridNode.setDataValue(field, newDateValue);
+                    if (gridNode.data === rowData) {
+                        gridNode.setDataValue(field, newDateValue);
+                        gridNode.setDataValue('_edit_status', 'modified');
+                        trackChange(currentTab, rowData.id || rowData.url, field, newDateValue);
+                    }
                 });
             }
         });
     });
+    gridApi.redrawRows();
     closeActiveModal();
 }
 
@@ -1313,10 +1376,16 @@ function executePointsUpdate() {
     selectedRows.forEach(rowData => {
         const currentValue = parseFloat(rowData[targetField]) || 0;
         let finalValue = operation === 'set' ? pointsValue : operation === 'scale' ? currentValue * pointsValue : currentValue + pointsValue;
+        const pointsResult = Number(finalValue.toFixed(2));
         gridApi.forEachNode(gridNode => {
-            if (gridNode.data === rowData) gridNode.setDataValue(targetField, Number(finalValue.toFixed(2)));
+            if (gridNode.data === rowData) {
+                gridNode.setDataValue(targetField, pointsResult);
+                gridNode.setDataValue('_edit_status', 'modified');
+                trackChange(currentTab, rowData.id || rowData.url, targetField, pointsResult);
+            }
         });
     });
+    gridApi.redrawRows();
     closeActiveModal();
 }
 
@@ -1531,6 +1600,7 @@ function prepareUIClone(row, type, prefix, suffix) {
     clonedContent.id = `TEMP_${Math.random().toString(36).substr(2, 9)}`;
     clonedContent.isNew = true;
     clonedContent.syncStatus = 'New';
+    clonedContent._edit_status = 'modified';
     return clonedContent;
 }
 
