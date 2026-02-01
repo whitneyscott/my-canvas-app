@@ -711,7 +711,13 @@ function switchTab(tabName) {
 
         currentTab = tabName;
         debugLog(`Switched to ${tabName} view`, 'info');
-        
+
+        // Show/hide merge menu item based on tab
+        const mergeMenuItem = document.getElementById('mergeMenuItem');
+        if (mergeMenuItem) {
+            mergeMenuItem.style.display = (tabName === 'modules') ? 'block' : 'none';
+        }
+
         if (typeof loadTabData === 'function') {
             loadTabData(tabName);
         }
@@ -1403,6 +1409,139 @@ async function executeDelete() {
     } finally {
         const deleteBtn = document.querySelector('.modal-footer .btn-danger');
         if (deleteBtn) { deleteBtn.disabled = false; deleteBtn.textContent = 'Delete'; }
+    }
+}
+
+async function executeMerge() {
+    // Validation
+    if (currentTab !== 'modules') {
+        alert('Merge is only available for modules.');
+        return;
+    }
+
+    const selectedModules = getSelectedItems();
+    if (!selectedModules || selectedModules.length < 2) {
+        alert('Please select at least 2 modules to merge.');
+        return;
+    }
+
+    const targetModuleId = document.getElementById('mergeTargetSelect').value;
+    if (!targetModuleId) {
+        alert('Please select a target module.');
+        return;
+    }
+
+    const courseId = document.getElementById('courseSelect')?.value || selectedCourseId;
+    if (!courseId) {
+        alert('No course selected.');
+        return;
+    }
+
+    // Setup
+    const targetModule = selectedModules.find(m => m.id.toString() === targetModuleId);
+    const sourceModules = selectedModules.filter(m => m.id.toString() !== targetModuleId);
+
+    if (!targetModule) {
+        alert('Target module not found in selection.');
+        return;
+    }
+
+    const combinedName = selectedModules.map(m => m.name || `Module ${m.id}`).join(' + ');
+
+    // Confirmation
+    const confirmMsg = `This will:\n` +
+        `- Merge ${sourceModules.length} module(s) into "${targetModule.name}"\n` +
+        `- Rename target to: "${combinedName}"\n` +
+        `- Move all items from source modules to target\n` +
+        `- Delete source modules\n\nContinue?`;
+
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+
+    // Execution
+    try {
+        const mergeBtn = document.querySelector('#mergeModal .primary-btn');
+        if (mergeBtn) {
+            mergeBtn.disabled = true;
+            mergeBtn.textContent = 'Merging...';
+        }
+
+        // Get current target items count for position numbering
+        const targetItemsResponse = await fetch(`/canvas/courses/${courseId}/modules/${targetModuleId}/items`);
+        if (!targetItemsResponse.ok) throw new Error('Failed to fetch target module items');
+        const targetItems = await targetItemsResponse.json();
+        let nextPosition = targetItems.length + 1;
+
+        // Copy items from each source module to target
+        for (const sourceModule of sourceModules) {
+            try {
+                const itemsResponse = await fetch(`/canvas/courses/${courseId}/modules/${sourceModule.id}/items`);
+                if (!itemsResponse.ok) {
+                    console.warn(`Failed to fetch items from module ${sourceModule.id}`);
+                    continue;
+                }
+                const items = await itemsResponse.json();
+                items.sort((a, b) => (a.position || 0) - (b.position || 0));
+
+                for (const item of items) {
+                    try {
+                        const itemParams = {
+                            title: item.title,
+                            type: item.type,
+                            position: nextPosition,
+                            indent: item.indent || 0
+                        };
+
+                        if (item.type === 'ExternalUrl') {
+                            itemParams.external_url = item.external_url;
+                        } else if (item.type === 'Page') {
+                            itemParams.page_url = item.page_url;
+                        } else if (item.content_id) {
+                            itemParams.content_id = item.content_id;
+                        }
+
+                        await addModuleItem(courseId, targetModuleId, itemParams);
+                        nextPosition++;
+                    } catch (itemError) {
+                        console.error(`Failed to copy item "${item.title}":`, itemError);
+                    }
+                }
+            } catch (moduleError) {
+                console.error(`Error processing module ${sourceModule.id}:`, moduleError);
+            }
+        }
+
+        // Update target module name
+        const updateResponse = await fetch(`/canvas/courses/${courseId}/modules/${targetModuleId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ module: { name: combinedName } })
+        });
+        if (!updateResponse.ok) console.warn('Failed to update module name');
+
+        // Delete source modules
+        for (const sourceModule of sourceModules) {
+            try {
+                await deleteCanvasItem('modules', courseId, sourceModule.id);
+            } catch (deleteError) {
+                console.error(`Failed to delete module ${sourceModule.id}:`, deleteError);
+            }
+        }
+
+        closeActiveModal();
+        await refreshCurrentTab();
+        alert(`Successfully merged ${sourceModules.length} module(s) into "${targetModule.name}"`);
+
+    } catch (error) {
+        console.error('Merge error:', error);
+        alert(`Merge failed: ${error.message}\n\nSome changes may have been applied. Please refresh to see current state.`);
+    } finally {
+        const mergeBtn = document.querySelector('#mergeModal .primary-btn');
+        if (mergeBtn) {
+            mergeBtn.disabled = false;
+            mergeBtn.textContent = 'Confirm Merge';
+        }
     }
 }
 
