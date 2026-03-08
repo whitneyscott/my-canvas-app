@@ -20,6 +20,7 @@ export class OAuthController {
     const sess = req.session as import('express-session').Session & {
       ltiVerified?: boolean;
       canvasApiDomain?: string;
+      ltiClientId?: string;
     };
     if (!sess.ltiVerified || !sess.canvasApiDomain) {
       throw new UnauthorizedException(
@@ -28,6 +29,7 @@ export class OAuthController {
     }
 
     const clientId =
+      sess.ltiClientId ||
       this.config.get<string>('CANVAS_OAUTH_CLIENT_ID') ||
       this.config.get<string>('LTI_CLIENT_ID');
     const appUrl = this.config.get<string>('APP_URL') || 'http://localhost:3000';
@@ -67,14 +69,18 @@ export class OAuthController {
       canvasApiDomain?: string;
       canvasToken?: string;
       canvasUrl?: string;
+      ltiClientId?: string;
     };
     if (!sess.canvasApiDomain)
       throw new UnauthorizedException('Session expired');
 
     const clientId =
+      sess.ltiClientId ||
       this.config.get<string>('CANVAS_OAUTH_CLIENT_ID') ||
       this.config.get<string>('LTI_CLIENT_ID');
-    const clientSecret = this.config.get<string>('CANVAS_OAUTH_CLIENT_SECRET');
+    const secretsJson = this.config.get<string>('CANVAS_OAUTH_CLIENT_SECRETS');
+    const secretsMap = secretsJson ? (() => { try { return JSON.parse(secretsJson) as Record<string, string>; } catch { return null; } })() : null;
+    const clientSecret = (secretsMap && clientId && secretsMap[clientId]) || this.config.get<string>('CANVAS_OAUTH_CLIENT_SECRET');
     const appUrl = this.config.get<string>('APP_URL') || 'http://localhost:3000';
     if (!clientId || !clientSecret)
       throw new UnauthorizedException('OAuth not configured');

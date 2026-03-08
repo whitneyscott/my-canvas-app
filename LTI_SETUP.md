@@ -34,16 +34,21 @@ The same Developer Key can be used for OAuth, or create a separate one:
 
 ## 4. Environment Variables
 
+The app uses the client_id from the LTI launch (the Developer Key used for the installation) for OAuth, so it works regardless of which installation or Canvas instance is used.
+
 ```env
 SESSION_SECRET=<random-secret>
 APP_URL=https://your-app-url.com
 LTI_CLIENT_ID=<from-step-2>
 LTI_PRIVATE_KEY_PATH=private-key.pem
 LTI_KEY_ID=default
-CANVAS_OAUTH_CLIENT_ID=<from-step-3>
-CANVAS_OAUTH_CLIENT_SECRET=<from-step-3>
-MODE_PASSWORD=<optional>
+CANVAS_OAUTH_CLIENT_SECRET=<developer-key-secret>
 ```
+
+- **LTI_CLIENT_ID**: Used to validate the OIDC login; must match your Developer Key.
+- **CANVAS_OAUTH_CLIENT_SECRET**: Secret for the Developer Key used for OAuth.
+- **CANVAS_OAUTH_CLIENT_ID** (optional): Fallback if client_id isn't in the launch.
+- **CANVAS_OAUTH_CLIENT_SECRETS** (optional): JSON map for multiple Canvas instances, e.g. `{"client_id_1":"secret1","client_id_2":"secret2"}`.
 
 ## 5. Install LTI Tool in Canvas
 

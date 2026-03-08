@@ -113,6 +113,8 @@ export class LtiController {
     sess.ltiVerified = true;
     sess.courseId = courseId;
     sess.ltiSub = String(claims.sub || '');
+    const aud = claims.aud;
+    sess.ltiClientId = Array.isArray(aud) ? String(aud[0] || '') : String(aud || '');
     const rawDomain =
       custom.custom_canvas_api_domain ||
       custom.canvas_api_domain ||

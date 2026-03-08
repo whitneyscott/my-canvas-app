@@ -7,6 +7,7 @@ declare module 'express-session' {
     ltiVerified?: boolean;
     courseId?: string;
     canvasApiDomain?: string;
+    ltiClientId?: string;
     ltiSub?: string;
     returnUrl?: string;
   }
