@@ -36,6 +36,6 @@
 - Local: `http://localhost:3000`
 - Production: `https://canvas-bulk-editor.onrender.com`
 
-**Debug log**
+**Debug log with a shareable link**
 - Available at `/lti/debug`. Shows login, launch, and OAuth steps.
-- Use it to confirm `iss`, `redirectUri`, and errors without checking Render logs.
+- Because it's a URL you can fetch, others (or tools) can inspect it directly instead of copying and pasting logs—saves time and reduces mistakes.
