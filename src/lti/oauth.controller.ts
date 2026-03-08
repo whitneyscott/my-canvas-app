@@ -29,8 +29,8 @@ export class OAuthController {
     }
 
     const clientId =
-      sess.ltiClientId ||
       this.config.get<string>('CANVAS_OAUTH_CLIENT_ID') ||
+      sess.ltiClientId ||
       this.config.get<string>('LTI_CLIENT_ID');
     const appUrl = this.config.get<string>('APP_URL') || 'http://localhost:3000';
     if (!clientId)
@@ -75,8 +75,8 @@ export class OAuthController {
       throw new UnauthorizedException('Session expired');
 
     const clientId =
-      sess.ltiClientId ||
       this.config.get<string>('CANVAS_OAUTH_CLIENT_ID') ||
+      sess.ltiClientId ||
       this.config.get<string>('LTI_CLIENT_ID');
     const secretsJson = this.config.get<string>('CANVAS_OAUTH_CLIENT_SECRETS');
     const secretsMap = secretsJson ? (() => { try { return JSON.parse(secretsJson) as Record<string, string>; } catch { return null; } })() : null;
