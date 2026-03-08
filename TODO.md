@@ -10,6 +10,7 @@
    - Fixes manual edit marking issues
    - Simplifies codebase with single source of truth
    - Eliminates timing bugs by always comparing to originalData
+5. **LTI 1.3 migration** - User-authorized access only, no hardcoded API key
 
 ---
 
