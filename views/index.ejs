@@ -8,6 +8,23 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
+    <% if (typeof error !== 'undefined' && error) { %>
+    <div id="error-overlay" style="display: flex; position: fixed; inset: 0; background: rgba(0,0,0,0.9); align-items: center; justify-content: center;">
+        <div style="background: white; padding: 2rem; border-radius: 8px; text-align: center;">
+            <h2 style="color: #c00;">Access Error</h2>
+            <p><%= error %></p>
+        </div>
+    </div>
+    <% } %>
+    <div id="oauth-overlay" style="display: none;">
+        <div class="login-modal">
+            <div class="login-content">
+                <h2>Canvas Bulk Editor</h2>
+                <p>Authorize access to your Canvas courses to continue.</p>
+                <a href="/oauth/canvas" class="primary-btn" style="display: inline-block; text-decoration: none; margin-top: 1rem;">Authorize with Canvas</a>
+            </div>
+        </div>
+    </div>
     <div id="token-overlay" style="display: none;">
         <div class="login-modal">
             <div class="login-content">

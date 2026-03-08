@@ -143,18 +143,11 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   private async getAuthHeaders() {
-    let token = process.env.CANVAS_TOKEN;
-
-    if (this.req && this.req.session && this.req.session.canvasToken) {
-      token = this.req.session.canvasToken;
+    const token = this.req?.session?.canvasToken;
+    const baseUrl = this.req?.session?.canvasUrl;
+    if (!token || !baseUrl) {
+      throw new Error('Unauthorized: No Canvas token. Launch via LTI and complete Canvas OAuth.');
     }
-
-    const baseUrl = process.env.CANVAS_BASE_URL || 'https://tjc.instructure.com/api/v1';
-
-    if (!token) {
-      throw new Error('Unauthorized: No Canvas token found.');
-    }
-
     return { token, baseUrl };
   }
 

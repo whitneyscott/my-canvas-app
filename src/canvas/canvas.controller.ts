@@ -462,26 +462,7 @@ export class CanvasController {
     return this.canvasService.deleteAssignmentOverride(courseId, assignmentId, overrideId);
   }
 
-@Post('auth/set-token')
-  async setToken(...args: any[]) {
-    const req = args.find(a => a && a.session);
-    const body = args.find(a => a && a.token);
-    
-    const token = body?.token;
-
-    if (!token) {
-      throw new Error('Token is required');
-    }
-
-    if (req && req.session) {
-      req.session.canvasToken = token;
-      return { success: true };
-    }
-    
-    throw new Error('Session not found');
-  }
-
-  @Post('courses/:courseId/assignments/:assignmentId/overrides')
+@Post('courses/:courseId/assignments/:assignmentId/overrides')
   async createAssignmentOverride(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('assignmentId', ParseIntPipe) assignmentId: number,

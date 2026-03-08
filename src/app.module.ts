@@ -5,16 +5,18 @@ import { CanvasController } from './canvas/canvas.controller';
 import { CanvasService } from './canvas/canvas.service';
 import { AutomatedTestModule } from './automated-test/automated-test.module';
 import { AuthModule } from './auth/auth.module';
+import { LtiModule } from './lti/lti.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ 
+    ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
       expandVariables: true
     }),
     AuthModule,
     AutomatedTestModule,
+    LtiModule,
   ],
   controllers: [AppController, CanvasController],
   providers: [CanvasService],

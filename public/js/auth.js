@@ -5,7 +5,11 @@ async function checkAuthentication() {
         const status = await response.json();
 
         if (status && status.needsToken === true) {
-            showLoginModal(status);
+            if (status.needsOAuth) {
+                showOAuthOverlay();
+            } else {
+                showLoginModal(status);
+            }
         } else {
             showApp();
         }
@@ -15,19 +19,21 @@ async function checkAuthentication() {
     }
 }
 
+function showOAuthOverlay() {
+    const overlay = document.getElementById('oauth-overlay');
+    if (overlay) overlay.style.display = 'flex';
+}
+
 function showLoginModal(status) {
+    const oauthOverlay = document.getElementById('oauth-overlay');
+    if (oauthOverlay) oauthOverlay.style.display = 'none';
     const overlay = document.getElementById('token-overlay');
     const loginForm = document.getElementById('loginForm');
     const canvasUrlInput = document.getElementById('canvasUrl');
     const loginError = document.getElementById('loginError');
     
     if (overlay && loginForm && canvasUrlInput) {
-        // Set default URL based on deployment mode
-        if (status.mode === 'RENDER') {
-            canvasUrlInput.value = status.defaultUrl || 'https://instructure.tjc';
-        } else {
-            canvasUrlInput.value = status.defaultUrl || '';
-        }
+        canvasUrlInput.value = status.defaultUrl || 'https://canvas.instructure.com/api/v1';
         
         overlay.style.display = 'flex';
         loginError.style.display = 'none';
@@ -95,6 +101,8 @@ function showError(message) {
 }
 
 function showApp() {
+    const oauthOverlay = document.getElementById('oauth-overlay');
+    if (oauthOverlay) oauthOverlay.style.display = 'none';
     const overlay = document.getElementById('token-overlay');
     const wrapper = document.getElementById('main-app-wrapper');
     
