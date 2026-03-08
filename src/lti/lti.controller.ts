@@ -46,7 +46,7 @@ export class LtiController {
     if (!iss || !loginHint || !clientId)
       throw new UnauthorizedException('Missing OIDC params');
     const expectedClientId = this.config.get<string>('LTI_CLIENT_ID');
-    if (clientId !== expectedClientId)
+    if (expectedClientId && clientId !== expectedClientId)
       throw new UnauthorizedException('Invalid client_id');
 
     const state = randomBytes(16).toString('hex');

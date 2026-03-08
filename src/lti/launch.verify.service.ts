@@ -7,8 +7,7 @@ export class LaunchVerifyService {
   constructor(private config: ConfigService) {}
 
   async verify(idToken: string): Promise<jose.JWTPayload & Record<string, unknown>> {
-    const clientId = this.config.get<string>('LTI_CLIENT_ID');
-    if (!clientId) throw new Error('LTI_CLIENT_ID not configured');
+    const expectedClientId = this.config.get<string>('LTI_CLIENT_ID');
 
     const unprotected = jose.decodeProtectedHeader(idToken);
     if (!unprotected.alg || !unprotected.kid) throw new Error('Invalid JWT header');
@@ -29,11 +28,13 @@ export class LaunchVerifyService {
 
     await jose.compactVerify(idToken, key);
 
-    const aud = payload.aud;
-    const audienceOk = Array.isArray(aud)
-      ? aud.includes(clientId)
-      : aud === clientId;
-    if (!audienceOk) throw new Error('Invalid audience');
+    if (expectedClientId) {
+      const aud = payload.aud;
+      const audienceOk = Array.isArray(aud)
+        ? aud.includes(expectedClientId)
+        : aud === expectedClientId;
+      if (!audienceOk) throw new Error('Invalid audience');
+    }
 
     return payload;
   }
