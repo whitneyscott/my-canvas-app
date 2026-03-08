@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LTI Debug - Canvas Bulk Editor</title>
+  <style>
+    body { font-family: monospace; font-size: 13px; margin: 1rem; max-width: 900px; }
+    h1 { font-size: 1.2rem; }
+    .error { background: #fee; padding: 1rem; margin: 1rem 0; border: 1px solid #c00; }
+    .entry { margin: 0.5rem 0; padding: 0.5rem; background: #f5f5f5; border-left: 3px solid #666; }
+    .entry .ts { color: #666; font-size: 11px; }
+    .entry .step { font-weight: bold; margin-bottom: 0.25rem; }
+    .entry pre { margin: 0; overflow-x: auto; }
+    a { color: #06c; }
+  </style>
+</head>
+<body>
+  <h1>LTI / OAuth Debug Log</h1>
+  <% if (typeof error !== 'undefined' && error) { %>
+  <div class="error"><strong>Error:</strong> <%= error %></div>
+  <% } %>
+  <p><a href="/">← Back to app</a> | <a href="/lti/debug">Refresh log</a></p>
+  <h2>Recent flow (newest first)</h2>
+  <% if (typeof log !== 'undefined' && log && log.length) { %>
+    <% log.forEach(function(entry) { %>
+    <div class="entry">
+      <div class="ts"><%= entry.ts %></div>
+      <div class="step"><%= entry.step %></div>
+      <pre><%= JSON.stringify(entry.data, null, 2) %></pre>
+    </div>
+    <% }); %>
+  <% } else { %>
+  <p>No log entries yet. Trigger an LTI launch or OAuth flow to see activity.</p>
+  <% } %>
+</body>
+</html>

@@ -13,6 +13,7 @@
         <div style="background: white; padding: 2rem; border-radius: 8px; text-align: center;">
             <h2 style="color: #c00;">Access Error</h2>
             <p><%= error %></p>
+            <p><a href="/lti/debug?error=<%= encodeURIComponent(error) %>">View debug log</a></p>
         </div>
     </div>
     <% } %>
@@ -22,6 +23,7 @@
                 <h2>Canvas Bulk Editor</h2>
                 <p>Authorize access to your Canvas courses to continue.</p>
                 <a href="/oauth/canvas" class="primary-btn" style="display: inline-block; text-decoration: none; margin-top: 1rem;">Authorize with Canvas</a>
+                <p style="margin-top: 1rem; font-size: 0.9rem;"><a href="/lti/debug">View debug log</a></p>
             </div>
         </div>
     </div>

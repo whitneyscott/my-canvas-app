@@ -15,6 +15,7 @@ import { randomBytes } from 'crypto';
 import { LaunchVerifyService } from './launch.verify.service';
 import { PlatformService } from './platform.service';
 import { getState, setState } from './state.store';
+import { log as debugLog, getLog } from './lti.debug';
 
 @Controller('lti')
 export class LtiController {
@@ -30,6 +31,11 @@ export class LtiController {
     return this.jwksService.getJwksJson();
   }
 
+  @Get('debug')
+  async debug(@Query('error') error: string, @Res() res: Response) {
+    return res.render('lti-debug', { log: getLog(), error: error ? decodeURIComponent(error) : null });
+  }
+
   @All('login')
   async login(
     @Query('iss') qIss: string,
@@ -43,11 +49,16 @@ export class LtiController {
     const loginHint = qLoginHint || req.body?.login_hint;
     const targetLinkUri = qTargetLinkUri || req.body?.target_link_uri;
     const clientId = qClientId || req.body?.client_id;
-    if (!iss || !loginHint || !clientId)
-      throw new UnauthorizedException('Missing OIDC params');
+    debugLog('login_received', { method: req.method, iss, loginHint: loginHint ? '[present]' : null, targetLinkUri: targetLinkUri || null, clientId });
+    if (!iss || !loginHint || !clientId) {
+      debugLog('login_error', { error: 'Missing OIDC params', hasIss: !!iss, hasLoginHint: !!loginHint, hasClientId: !!clientId });
+      return res.redirect('/lti/debug?error=' + encodeURIComponent('Missing OIDC params'));
+    }
     const expectedClientId = this.config.get<string>('LTI_CLIENT_ID');
-    if (expectedClientId && clientId !== expectedClientId)
-      throw new UnauthorizedException('Invalid client_id');
+    if (expectedClientId && clientId !== expectedClientId) {
+      debugLog('login_error', { error: 'Invalid client_id', received: clientId, expected: expectedClientId });
+      return res.redirect('/lti/debug?error=' + encodeURIComponent('Invalid client_id'));
+    }
 
     const state = randomBytes(16).toString('hex');
     const nonce = randomBytes(16).toString('hex');
@@ -57,6 +68,7 @@ export class LtiController {
     const authUrl = await this.platform.getOidcAuthUrl(iss);
     const redirectUri =
       (this.config.get<string>('APP_URL') || 'http://localhost:3000').replace(/\/$/, '') + '/lti/launch';
+    debugLog('login_redirect', { state: state.slice(0, 8) + '...', target, redirectUri });
     const redirect =
       `${authUrl}?scope=openid` +
       `&response_type=id_token` +
@@ -75,16 +87,29 @@ export class LtiController {
       (typeof req.body?.id_token === 'string' && req.body.id_token) || null;
     const state =
       (typeof req.body?.state === 'string' && req.body.state) || null;
-    if (!idToken || !state)
-      throw new UnauthorizedException('Missing id_token or state');
+    debugLog('launch_received', { hasIdToken: !!idToken, hasState: !!state, statePreview: state ? state.slice(0, 8) + '...' : null });
+    if (!idToken || !state) {
+      debugLog('launch_error', { error: 'Missing id_token or state' });
+      return res.redirect('/lti/debug?error=' + encodeURIComponent('Missing id_token or state'));
+    }
 
     const stored = getState(state);
-    if (!stored)
-      throw new UnauthorizedException('Invalid or expired state');
+    if (!stored) {
+      debugLog('launch_error', { error: 'Invalid or expired state', statePreview: state.slice(0, 8) + '...' });
+      return res.redirect('/lti/debug?error=' + encodeURIComponent('Invalid or expired state'));
+    }
 
-    const claims = await this.launchVerify.verify(idToken);
-    if (claims.nonce && claims.nonce !== stored.nonce)
-      throw new UnauthorizedException('Nonce mismatch');
+    let claims;
+    try {
+      claims = await this.launchVerify.verify(idToken);
+    } catch (err) {
+      debugLog('launch_error', { error: String(err instanceof Error ? err.message : err) });
+      return res.redirect('/lti/debug?error=' + encodeURIComponent(String(err instanceof Error ? err.message : err)));
+    }
+    if (claims.nonce && claims.nonce !== stored.nonce) {
+      debugLog('launch_error', { error: 'Nonce mismatch' });
+      return res.redirect('/lti/debug?error=' + encodeURIComponent('Nonce mismatch'));
+    }
 
     const context = claims['https://purl.imsglobal.org/spec/lti/claim/context'] as { id?: string } | undefined;
     const custom =
@@ -122,6 +147,7 @@ export class LtiController {
     sess.canvasApiDomain = rawDomain.startsWith('http')
       ? rawDomain
       : 'https://' + rawDomain.replace(/^\/+|\/+$/g, '');
+    debugLog('launch_success', { courseId, canvasApiDomain: sess.canvasApiDomain, ltiClientId: sess.ltiClientId });
 
     return new Promise<void>((resolve, reject) => {
       (sess as import('express-session').Session).save((err) => {
