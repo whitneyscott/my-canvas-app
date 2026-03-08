@@ -1,5 +1,6 @@
 import {
   Controller,
+  All,
   Get,
   Post,
   Query,
@@ -29,14 +30,19 @@ export class LtiController {
     return this.jwksService.getJwksJson();
   }
 
-  @Get('login')
+  @All('login')
   async login(
-    @Query('iss') iss: string,
-    @Query('login_hint') loginHint: string,
-    @Query('target_link_uri') targetLinkUri: string,
-    @Query('client_id') clientId: string,
+    @Query('iss') qIss: string,
+    @Query('login_hint') qLoginHint: string,
+    @Query('target_link_uri') qTargetLinkUri: string,
+    @Query('client_id') qClientId: string,
+    @Req() req: Request,
     @Res() res: Response
   ) {
+    const iss = qIss || req.body?.iss;
+    const loginHint = qLoginHint || req.body?.login_hint;
+    const targetLinkUri = qTargetLinkUri || req.body?.target_link_uri;
+    const clientId = qClientId || req.body?.client_id;
     if (!iss || !loginHint || !clientId)
       throw new UnauthorizedException('Missing OIDC params');
     const expectedClientId = this.config.get<string>('LTI_CLIENT_ID');
