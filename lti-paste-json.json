@@ -1,0 +1,54 @@
+{
+  "title": "Canvas Bulk Editor",
+  "description": "Bulk editor for Canvas course content",
+  "target_link_uri": "http://localhost:3000/",
+  "oidc_initiation_url": "http://localhost:3000/lti/login",
+  "oidc_initiation_urls": {},
+  "public_jwk_url": "http://localhost:3000/lti/jwks",
+  "public_jwk": null,
+  "custom_fields": {
+    "canvas_course_id": "$Canvas.course.id",
+    "canvas_api_base_url": "$Canvas.api.baseUrl",
+    "canvas_domain": "$Canvas.api.domain",
+    "canvas_roles": "$Canvas.membership.roles",
+    "canvas_enrollment_type": "$Canvas.enrollment.type"
+  },
+  "scopes": [
+    "https://purl.imsglobal.org/spec/lti-reg/scope/registration.readonly",
+    "https://purl.imsglobal.org/spec/lti-reg/scope/registration",
+    "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+    "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+    "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+    "https://purl.imsglobal.org/spec/lti-ags/scope/score",
+    "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly",
+    "https://purl.imsglobal.org/spec/lti/scope/noticehandlers",
+    "https://purl.imsglobal.org/spec/lti/scope/asset.readonly",
+    "https://purl.imsglobal.org/spec/lti/scope/report",
+    "https://purl.imsglobal.org/spec/lti/scope/eula/deployment",
+    "https://purl.imsglobal.org/spec/lti/scope/eula/user",
+    "https://canvas.instructure.com/lti/public_jwk/scope/update",
+    "https://canvas.instructure.com/lti/account_lookup/scope/show",
+    "https://canvas.instructure.com/lti-ags/progress/scope/show",
+    "https://canvas.instructure.com/lti/page_content/show"
+  ],
+  "extensions": [
+    {
+      "domain": "localhost",
+      "tool_id": "canvas_bulk_edit",
+      "privacy_level": "private",
+      "platform": "canvas.instructure.com",
+      "settings": {
+        "text": "Canvas Bulk Editor",
+        "platform": "canvas.instructure.com",
+        "placements": [
+          {
+            "text": "Canvas Bulk Editor",
+            "placement": "course_navigation",
+            "message_type": "LtiResourceLinkRequest",
+            "target_link_uri": "http://localhost:3000/"
+          }
+        ]
+      }
+    }
+  ]
+}
