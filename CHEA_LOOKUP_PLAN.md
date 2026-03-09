@@ -2,15 +2,15 @@
 
 ## Overview
 
-Standalone, read-only microservice mapping CIP codes to accreditation bodies. New repo/package next to Canvas Bulk Editor; no edits to existing Canvas code.
+Standalone, read-only microservice mapping CIP codes to accreditation bodies. Lives **inside this repo** (Canvas Bulk Editor) as a separate runnable service so others can use the DB/API without using the editor. Minimal or no changes to existing Canvas app code; add as a sibling service (e.g. `services/accreditation-lookup/` or `accreditation-lookup/`).
 
 ---
 
 ## Phase 1: Project scaffold
 
-1.1 Create new repo folder (e.g. `accreditation-lookup-service`) beside Canvas-Bulk-Editor.
+1.1 Create service folder inside this repo (e.g. `services/accreditation-lookup/` or `accreditation-lookup/`).
 
-1.2 Initialize Node.js project:
+1.2 Initialize Node.js project in that folder:
 
 - `package.json` with name, version, `type: "module"` (or `"commonjs"`)
 - Dependencies: express, pg, playwright, node-cron, dotenv
@@ -182,4 +182,4 @@ Standalone, read-only microservice mapping CIP codes to accreditation bodies. Ne
 | 9 | Phase 8: Bootstrap script | 6 |
 | 10 | Phase 9–10: Docker + README | All |
 
-**Recommended next step:** Phase 1 — scaffold the new project with no changes to the existing Canvas Bulk Editor codebase.
+**Recommended next step:** Phase 1 — scaffold the service inside this repo (new folder + package.json, tsconfig, Docker, .env.example) with no changes to existing Canvas Bulk Editor app code.
