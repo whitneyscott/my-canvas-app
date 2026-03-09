@@ -2175,27 +2175,68 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   private static readonly ACCREDITATION_PROFILE_PAGE_URL = 'accreditation-profile';
   private static readonly START_HERE_MODULE_NAME = 'Start Here';
 
+  private static readonly ACCREDITATION_PRE_CLASS = 'accreditation-profile-data';
+
+  private static readonly PROFILE_KEYS: Array<{ key: string; label: string }> = [
+    { key: 'state', label: 'State' },
+    { key: 'city', label: 'City' },
+    { key: 'institutionName', label: 'Institution' },
+    { key: 'institutionId', label: 'Institution ID' },
+    { key: 'program', label: 'Program' },
+  ];
+
   private static parseAccreditationBlock(body: string): Record<string, unknown> | null {
-    const match = body?.match(/<!--\s*accreditation:(.+?)\s*-->/s);
-    if (!match) return null;
-    try {
-      const parsed = JSON.parse(match[1].trim());
-      return typeof parsed === 'object' && parsed !== null ? parsed : null;
-    } catch {
-      return null;
+    const raw = body ?? '';
+    const preRegex = new RegExp(`<pre[^>]*class=["'][^"']*${CanvasService.ACCREDITATION_PRE_CLASS}[^"']*["'][^>]*>([\\s\\S]*?)</pre>`, 'i');
+    let text = raw.match(preRegex)?.[1]?.trim() ?? '';
+    if (!text) {
+      text = raw.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>\s*<p[^>]*>/gi, '\n').replace(/<[^>]+>/g, '');
+      if (!text) {
+        const legacyMatch = raw.match(/<!--\s*accreditation:(.+?)\s*-->/s);
+        if (legacyMatch) {
+          try {
+            const parsed = JSON.parse(legacyMatch[1].trim());
+            return typeof parsed === 'object' && parsed !== null ? parsed : null;
+          } catch { /* fall through */ }
+        }
+        return null;
+      }
     }
+    const profile: Record<string, unknown> = { v: 1 };
+    for (const line of text.split(/\r?\n/)) {
+      const m = line.match(/^([^:]+):\s*(.*)$/);
+      if (!m) continue;
+      const label = m[1].trim();
+      const value = m[2].trim();
+      const def = CanvasService.PROFILE_KEYS.find(d => d.label === label);
+      if (def && value) profile[def.key] = def.key === 'institutionId' ? (parseInt(value, 10) || value) : value;
+    }
+    return profile;
   }
 
   private static buildAccreditationBlock(profile: Record<string, unknown>): string {
-    return `<!-- accreditation:${JSON.stringify(profile)} -->`;
+    const lines = CanvasService.PROFILE_KEYS.map(d => {
+        const v = profile[d.key];
+        return v != null && String(v).trim() ? `${d.label}: ${String(v).trim()}` : null;
+      })
+      .filter(Boolean) as string[];
+    const inner = lines.length ? lines.join('\n') : 'No profile data yet. Use the Standards Sync tab to set State, City, Institution, and Program.';
+    return `<pre class="${CanvasService.ACCREDITATION_PRE_CLASS}">${inner}</pre>`;
   }
 
   private static mergeAccreditationBlockInBody(body: string, profile: Record<string, unknown>): string {
     const block = CanvasService.buildAccreditationBlock(profile);
-    if (/<!--\s*accreditation:.+?\s*-->/s.test(body ?? '')) {
-      return body.replace(/<!--\s*accreditation:.+?\s*-->/s, block);
+    const preRegex = new RegExp(`<pre[^>]*class=["'][^"']*${CanvasService.ACCREDITATION_PRE_CLASS}[^"']*["'][^>]*>[\\s\\S]*?</pre>`, 'gi');
+    const legacyRegex = /<!--\s*accreditation:.+?\s*-->/s;
+    let out = body ?? '';
+    if (preRegex.test(out)) {
+      out = out.replace(preRegex, block);
+    } else if (legacyRegex.test(out)) {
+      out = out.replace(legacyRegex, block);
+    } else {
+      out = out.trim() ? `${block}\n\n${out}` : block;
     }
-    return (body ?? '').trim() ? `${block}\n\n${body}` : block;
+    return out.trim();
   }
 
   async ensureStartHereModule(courseId: number) {
@@ -2237,16 +2278,18 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   async getAccreditationProfile(courseId: number) {
-    const { page } = await this.getOrCreateAccreditationProfilePage(courseId);
-    const body = page.body ?? '';
+    await this.getOrCreateAccreditationProfilePage(courseId);
+    const page = await this.getPage(courseId, CanvasService.ACCREDITATION_PROFILE_PAGE_URL);
+    const body = page?.body ?? '';
     const profile = CanvasService.parseAccreditationBlock(body);
     return profile ?? { v: 1 };
   }
 
   async saveAccreditationProfile(courseId: number, profile: Record<string, unknown>) {
-    const { page } = await this.getOrCreateAccreditationProfilePage(courseId);
-    const pageUrl = page.url ?? CanvasService.ACCREDITATION_PROFILE_PAGE_URL;
-    const merged = CanvasService.mergeAccreditationBlockInBody(page.body ?? '', profile);
+    await this.getOrCreateAccreditationProfilePage(courseId);
+    const pageUrl = CanvasService.ACCREDITATION_PROFILE_PAGE_URL;
+    const page = await this.getPage(courseId, pageUrl);
+    const merged = CanvasService.mergeAccreditationBlockInBody(page?.body ?? '', profile);
     return this.updatePage(courseId, pageUrl, { wiki_page: { body: merged } });
   }
 

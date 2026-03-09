@@ -16,7 +16,7 @@ const CANVAS_CONFIG = {
     },
     discussion_topics: {
       displayName: 'Discussions',
-      endpoint: 'discussion_topics',
+      endpoint: 'discussions',
       fields: [
         { key: 'title', label: 'Title', editable: true, type: 'text' },
         { key: 'message', label: 'Message', editable: false, type: 'html' },

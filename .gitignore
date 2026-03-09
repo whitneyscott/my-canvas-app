@@ -40,6 +40,7 @@ private-key.pem
 
 # dotenv environment variable files
 .env
+.env.backup
 .env.development.local
 .env.test.local
 .env.production.local
@@ -48,6 +49,7 @@ private-key.pem
 # temp directory
 .temp
 .tmp
+lti-debug-output.json
 
 # Runtime data
 pids

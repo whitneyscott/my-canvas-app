@@ -110,6 +110,45 @@
         </div>
     </div>
 
+    <div id="moduleCloneOptionsModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Clone Module(s)</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p id="moduleCloneMessage" style="margin-bottom: 20px;"></p>
+            <div class="serialization-controls" style="margin-bottom: 15px;">
+                <label>Number of copies</label>
+                <input type="number" id="moduleCloneCopies" min="1" value="1" style="width: 80px;">
+                <label>Placement</label>
+                <select id="moduleClonePlacement">
+                    <option value="top">At the top</option>
+                    <option value="bottom">At the bottom</option>
+                    <option value="before">Before the selected module</option>
+                    <option value="after">After the selected module</option>
+                </select>
+                <label>Prefix</label>
+                <input type="text" id="moduleClonePrefix" placeholder="e.g. Section - ">
+                <label>Base name</label>
+                <input type="text" id="moduleCloneBaseName" placeholder="Defaults to selected module name">
+                <label>Suffix</label>
+                <input type="text" id="moduleCloneSuffix" placeholder="e.g. (Copy)">
+                <label style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                    <input type="checkbox" id="moduleCloneAutoIncrement" checked>
+                    Auto-increment suffix (1, 2, 3...)
+                </label>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button type="button" class="secondary-btn" style="width: 100%;" onclick="executeModuleClone('structureOnly')">Structure Only (Empty Shell)</button>
+                <button type="button" class="secondary-btn" style="width: 100%;" onclick="executeModuleClone('structureShared')">Structure + Shared Content</button>
+                <button type="button" class="primary-btn" style="width: 100%;" onclick="executeModuleClone('deepCopy')">Deep Copy (Duplicate Everything)</button>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
     <div id="cloneModal" class="modal-content-wrapper">
         <div class="modal-header">
             <h3>Clone Content</h3>
@@ -137,6 +176,23 @@
         </div>
         <div class="modal-footer">
             <button class="primary-btn" onclick="executeClone()">Execute Clone</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div id="moduleDeleteOptionsModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Delete Module(s)</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p id="moduleDeleteMessage" style="margin-bottom: 20px;"></p>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button type="button" class="secondary-btn" style="width: 100%;" onclick="executeModuleDelete('module-only')">Delete Module Only</button>
+                <button type="button" class="primary-btn btn-danger" style="width: 100%;" onclick="executeModuleDelete('module-and-items')">Delete Module and All Items</button>
+            </div>
+        </div>
+        <div class="modal-footer">
             <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
         </div>
     </div>

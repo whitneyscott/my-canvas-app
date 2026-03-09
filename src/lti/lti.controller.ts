@@ -12,6 +12,8 @@ import { JwksService } from './jwks.service';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import { randomBytes } from 'crypto';
+import { writeFileSync } from 'fs';
+import { join } from 'path';
 import { LaunchVerifyService } from './launch.verify.service';
 import { PlatformService } from './platform.service';
 import { getState, setState } from './state.store';
@@ -33,7 +35,15 @@ export class LtiController {
 
   @Get('debug')
   async debug(@Query('error') error: string, @Res() res: Response) {
-    return res.render('lti-debug', { log: getLog(), error: error ? decodeURIComponent(error) : null });
+    const log = getLog();
+    const err = error ? decodeURIComponent(error) : null;
+    try {
+      writeFileSync(
+        join(process.cwd(), 'lti-debug-output.json'),
+        JSON.stringify({ error: err, log, ts: new Date().toISOString() }, null, 2)
+      );
+    } catch (_) {}
+    return res.render('lti-debug', { log, error: err });
   }
 
   @All('login')
@@ -42,43 +52,55 @@ export class LtiController {
     @Query('login_hint') qLoginHint: string,
     @Query('target_link_uri') qTargetLinkUri: string,
     @Query('client_id') qClientId: string,
+    @Query('lti_message_hint') qLtiMessageHint: string,
     @Req() req: Request,
     @Res() res: Response
   ) {
-    const iss = qIss || req.body?.iss;
-    const loginHint = qLoginHint || req.body?.login_hint;
-    const targetLinkUri = qTargetLinkUri || req.body?.target_link_uri;
-    const clientId = qClientId || req.body?.client_id;
-    debugLog('login_received', { method: req.method, iss, loginHint: loginHint ? '[present]' : null, targetLinkUri: targetLinkUri || null, clientId });
-    if (!iss || !loginHint || !clientId) {
-      debugLog('login_error', { error: 'Missing OIDC params', hasIss: !!iss, hasLoginHint: !!loginHint, hasClientId: !!clientId });
-      return res.redirect('/lti/debug?error=' + encodeURIComponent('Missing OIDC params'));
-    }
-    const expectedClientId = this.config.get<string>('LTI_CLIENT_ID');
-    if (expectedClientId && clientId !== expectedClientId) {
-      debugLog('login_error', { error: 'Invalid client_id', received: clientId, expected: expectedClientId });
-      return res.redirect('/lti/debug?error=' + encodeURIComponent('Invalid client_id'));
-    }
+    try {
+      const iss = qIss || req.body?.iss;
+      const loginHint = qLoginHint || req.body?.login_hint;
+      const targetLinkUri = qTargetLinkUri || req.body?.target_link_uri;
+      const clientId = qClientId || req.body?.client_id;
+      const ltiMessageHint = qLtiMessageHint || req.body?.lti_message_hint;
+      debugLog('login_received', { method: req.method, iss, loginHint: loginHint ? '[present]' : null, targetLinkUri: targetLinkUri || null, clientId, ltiMessageHint: ltiMessageHint ? '[present]' : null });
+      if (!iss || !loginHint || !clientId) {
+        debugLog('login_error', { error: 'Missing OIDC params', hasIss: !!iss, hasLoginHint: !!loginHint, hasClientId: !!clientId });
+        return res.redirect('/lti/debug?error=' + encodeURIComponent('Missing OIDC params'));
+      }
+      const expectedClientId = this.config.get<string>('LTI_CLIENT_ID');
+      if (expectedClientId && clientId !== expectedClientId) {
+        debugLog('login_error', { error: 'Invalid client_id', received: clientId, expected: expectedClientId });
+        return res.redirect('/lti/debug?error=' + encodeURIComponent('Invalid client_id'));
+      }
 
-    const state = randomBytes(16).toString('hex');
-    const nonce = randomBytes(16).toString('hex');
-    const target = targetLinkUri || this.config.get<string>('APP_URL') || '/';
-    setState(state, target, nonce);
+      const state = randomBytes(16).toString('hex');
+      const nonce = randomBytes(16).toString('hex');
+      const target = targetLinkUri || this.config.get<string>('APP_URL') || '/';
+      setState(state, target, nonce);
 
-    const authUrl = await this.platform.getOidcAuthUrl(iss);
-    const redirectUri =
-      (this.config.get<string>('APP_URL') || 'http://localhost:3000').replace(/\/$/, '') + '/lti/launch';
-    debugLog('login_redirect', { state: state.slice(0, 8) + '...', target, redirectUri });
-    const redirect =
-      `${authUrl}?scope=openid` +
-      `&response_type=id_token` +
-      `&client_id=${encodeURIComponent(clientId)}` +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&login_hint=${encodeURIComponent(loginHint)}` +
-      `&state=${encodeURIComponent(state)}` +
-      `&nonce=${encodeURIComponent(nonce)}` +
-      `&response_mode=form_post`;
-    return res.redirect(redirect);
+      const authUrl = await this.platform.getOidcAuthUrl(iss);
+      const redirectUri =
+        (this.config.get<string>('APP_URL') || 'http://localhost:3000').replace(/\/$/, '') + '/lti/launch';
+      debugLog('login_redirect', { state: state.slice(0, 8) + '...', target, redirectUri });
+      const params = new URLSearchParams({
+        scope: 'openid',
+        response_type: 'id_token',
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        login_hint: loginHint,
+        state,
+        nonce,
+        response_mode: 'form_post',
+        prompt: 'none',
+      });
+      if (ltiMessageHint) params.set('lti_message_hint', ltiMessageHint);
+      const redirect = `${authUrl}?${params.toString()}`;
+      return res.redirect(redirect);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      debugLog('login_error', { error: msg });
+      return res.redirect('/lti/debug?error=' + encodeURIComponent(msg));
+    }
   }
 
   @Post('launch')
@@ -155,12 +177,8 @@ export class LtiController {
           reject(err);
           return;
         }
-        res.redirect(
-          stored.target +
-            (stored.target.includes('?') ? '&' : '?') +
-            'courseId=' +
-            encodeURIComponent(courseId)
-        );
+        const returnPath = (stored.target || '/').replace(/\/$/, '') + '/?courseId=' + encodeURIComponent(courseId);
+        res.redirect('/oauth/canvas?returnUrl=' + encodeURIComponent(returnPath));
         resolve();
       });
     });

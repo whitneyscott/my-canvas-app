@@ -1,41 +1,61 @@
 # Lessons Learned
 
-## Keep Canvas and Apps in the Same Environment
+## Two Developer Keys Required (Critical)
 
-**Do not mix local and deployed.** Run Canvas and the Canvas Bulk Editor (or any LTI app) in the same environment—either both local or both online.
+You need **two** separate Developer Keys in Canvas:
 
-**Why:**
-- The OIDC flow sends an issuer (iss) from Canvas to the app.
-- The app fetches `{iss}/.well-known/openid-configuration` to find the OAuth auth URL.
-- If Canvas is local (iss: `http://localhost`) and the app is on Render, Render’s server tries to fetch `http://localhost`—which is Render’s own host, not your machine. The request fails or returns wrong data.
-- If Canvas is deployed and the app is local, the opposite mismatch can cause 401s or connection issues.
-- Redirect URIs and issuer must match the actual URLs each service can reach.
+| Key Type | Purpose | .env Variables | Scope Enforcement |
+|----------|---------|----------------|-------------------|
+| **LTI Key** | LTI 1.3 launch (login, launch, JWKS) | `LTI_CLIENT_ID` | Enforced—causes `invalid_scope` if used for OAuth |
+| **API Key** | OAuth to get Canvas API token | `CANVAS_OAUTH_CLIENT_ID`, `CANVAS_OAUTH_CLIENT_SECRET` | Off by default—required for OAuth flow |
 
----
+Create the **API Key** via Admin → Developer Keys → Add Developer Key → **Add API Key** (not LTI Key). Turn off "Enforce Scopes" on the API key. Add redirect URI `{APP_URL}/oauth/canvas/callback`. Put its Client ID and Secret in `.env`.
 
-## Other Lessons
+After changing `.env`, **restart the NestJS server** (not Canvas). The app loads env at startup.
 
-**LTI 1.3 issuer (iss)**
-- `iss` is the issuer: the URL of the Canvas instance starting the LTI flow.
-- The app uses `iss` as-is to fetch OIDC discovery and build redirect URLs.
-- In Canvas Open Source, `iss` is set in `config/security.yml` as `lti_iss`. Default is `https://canvas.instructure.com`; self-hosted instances must override with their own URL.
+## Canvas Setup
 
-**Canvas Open Source `lti_iss`**
-- File: `config/security.yml`
-- Update `lti_iss` to the Canvas instance URL (e.g. `http://localhost` for local).
-- Restart Canvas after changes: `docker-compose restart web`.
+- Use a stable branch (`git checkout stable/YYYY-MM-DD`), not master.
+- Run `sudo chmod -R 777 ~/canvas` before setup to prevent permission errors.
+- Canvas must be on the Linux filesystem (`~/canvas`), never on `/mnt/c/`.
+- Add `ports: - "80:80"` to the web service in `docker-compose.override.yml` or the browser can't reach Canvas.
 
-**Developer Key redirect URIs**
-- Two different URIs are needed, both in the Developer Key:
+## LTI 1.3 Developer Key
+
+- `scopes` must be an array `[]`, not an empty string `""`.
+- Client ID (e.g. `10000000000003`) is the Developer Key ID—it never changes.
+- Installing "By Client ID" creates a new deployment; that's normal.
+- Don't hardcode `client_id` validation in the app—Canvas generates new IDs per installation.
+- Two redirect URIs are required:
   1. LTI launch: `{APP_URL}/lti/launch`
   2. OAuth callback: `{APP_URL}/oauth/canvas/callback`
-- They serve different steps of the flow; both must be configured.
+- See "Two Developer Keys Required" above—LTI Key for launch, API Key for OAuth.
 
-**APP_URL**
-- Must be set correctly. Used for redirect URIs in OIDC and OAuth.
-- Local: `http://localhost:3000`
-- Production: `https://canvas-bulk-editor.onrender.com`
+## LTI 1.3 Architecture
 
-**Debug log with a shareable link**
+- Keep Canvas and the app in the same environment—both local or both deployed. Mixing them causes the app to fetch unreachable URLs (e.g. Render trying to hit `http://localhost`).
+- `iss` comes from Canvas's configured domain (`lti_iss` in `config/security.yml`), not from the launch JSON.
+- Deployment ID is dynamic—never hardcode it.
+- Test LTI tools locally first (`localhost:3000`), then migrate URLs to production.
+
+## Canvas Open Source Config
+
+- `lti_iss` in `config/security.yml` sets the issuer; default is `https://canvas.instructure.com`. Override for self-hosted (e.g. `http://localhost`).
+- Restart after changes: `docker-compose restart web`.
+
+## Development Workflow
+
+- Never put Node.js projects in OneDrive—move to `C:\Dev\` first.
+- Changing `.env`? Restart **NestJS** (`npm run start:dev`), not Canvas.
+- Build locally and confirm success before pushing to Render.
+- Test locally before deploying—local Canvas can't reach the public internet.
+- Git must be configured on a new machine before syncing.
+
+## APP_URL
+
+- Project configured for localhost: `http://localhost:3000`. Production: `https://canvas-bulk-editor.onrender.com`.
+
+## Debug Log
+
 - Available at `/lti/debug`. Shows login, launch, and OAuth steps.
-- Because it's a URL you can fetch, others (or tools) can inspect it directly instead of copying and pasting logs—saves time and reduces mistakes.
+- Shareable URL lets others (or tools) inspect it directly instead of copying logs—saves time and reduces mistakes.

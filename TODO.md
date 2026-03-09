@@ -49,9 +49,50 @@
 
 ---
 
+## 🔌 DISCONNECTED FUNCTIONS (Wire to endpoints)
+
+### Frontend → Backend path mismatches
+| Frontend (main.js) | Backend route | Fix | Status |
+|--------------------|---------------|-----|--------|
+| `discussion_topics` | `/canvas/courses/:id/discussions` | Use `discussions` in frontend config | ✅ Done |
+| `/canvas/courses/:id/folders` (GET, POST) | No folders route | Backend uses `/files`; add folders endpoint or update frontend | |
+| `/canvas/courses/:id/modules/:itemId/full-delete` | `DELETE .../modules/:moduleId/items/:itemId` | Fix path and body (type, content_id) | ✅ Done |
+| `/canvas/modules/:courseId/:moduleId/items` | `/canvas/courses/:courseId/modules/:moduleId/items` | Add `courses` segment to path | ✅ Done |
+
+### Backend endpoints not used by frontend
+| Endpoint | Notes |
+|----------|-------|
+| GET `courses/:id` (getCourseDetails) | Never called |
+| PUT `.../assignments/bulk`, `quizzes/bulk`, etc. | Frontend syncs one-by-one; could batch |
+| POST `.../content_exports` | No frontend call |
+| GET `.../custom_gradebook_columns` | Only in accommodation flow |
+| GET `.../bulk_user_tags` | No frontend call |
+
+### Tabs without data config
+| Tab | Fix |
+|-----|-----|
+| `ada_compliance` | Add FIELD_DEFINITIONS so loadTabData loads data |
+| `standards_sync` | Same |
+
+---
+
+## 📚 BACKLOG (from To Do)
+
+- Accommodations: LPI tool prompt, "Everyone else" workaround, FERPA (IDs only, custom column)
+- Assignment groups: show group name in Quizzes, Discussions, Assignments
+- Tabs: Module Items, Course management, Rubrics, Outcomes
+- "Adjust ALL dates" feature
+- V2: Course audit (alt tags, broken links, standards), duplicate file finder, app settings (themes, API key)
+
+---
+
 ## 💡 FUTURE OPTIMIZATION (Parked for later)
 
 - **Selective dual-ledger approach** for editable-only fields to reduce memory usage by 60-80%
-  - Only store editable fields in originalData
-  - Reduces memory footprint significantly
-  - Requires refactoring checkEditStatus to only compare editable fields
+- Distribution: Git + Heroku/Render + LTI (see merged To Do)
+
+---
+
+## 🔭 DISTANT FUTURE
+
+- **Account-level bulk editing** - Operate across all courses in an account (files, modules, etc.)
