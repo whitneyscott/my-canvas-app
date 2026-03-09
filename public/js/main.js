@@ -812,8 +812,8 @@ async function loadStandardsSyncTab() {
         if (outcomesEl) outcomesEl.innerHTML = '<p>Select a course to view outcomes.</p>';
         return;
     }
-    if (profileEl) profileEl.innerHTML = 'Loading...';
-    if (outcomesEl) outcomesEl.innerHTML = 'Loading...';
+    if (profileEl) profileEl.innerHTML = '<div class="acc-card-loading" style="padding: 2rem;"><div class="acc-card-spinner" style="width: 32px; height: 32px;"></div><span style="margin-left: 0.5rem;">Loading profile...</span></div>';
+    if (outcomesEl) outcomesEl.innerHTML = '<div class="acc-card-loading" style="padding: 2rem;"><div class="acc-card-spinner" style="width: 32px; height: 32px;"></div><span style="margin-left: 0.5rem;">Loading outcomes...</span></div>';
     const loadProfile = async () => {
         if (!profileEl) return;
         try {
@@ -823,27 +823,51 @@ async function loadStandardsSyncTab() {
             const states = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'];
             const stateOpts = states.map(s => '<option value="' + s + '"' + (profile.state === s ? ' selected' : '') + '>' + s + '</option>').join('');
             profileEl.innerHTML = '<div class="acc-profile-form">' +
-                '<div class="acc-form-row"><label>State</label><select id="accState">' +
+                '<div class="acc-form-row acc-row-state"><label>State</label><select id="accState">' +
                 '<option value="">Select state...</option>' + stateOpts + '</select></div>' +
-                '<div class="acc-form-row"><label>City</label><select id="accCity" disabled><option value="">Select state first</option></select></div>' +
-                '<div class="acc-form-row"><label>Institution</label><select id="accInstitution" disabled><option value="">Select city first</option></select></div>' +
-                '<div class="acc-form-row"><label>Program</label><select id="accProgram" disabled><option value="">Select institution first</option></select></div>' +
-                '<div class="acc-form-actions"><button type="button" class="primary-btn" onclick="saveAccreditationProfileForm()">Save Profile</button></div>' +
+                '<div class="acc-form-row acc-row-city"><label>City</label><div id="accCityWrap"><select id="accCity" disabled><option value="">Select state first</option></select></div></div>' +
+                '<div class="acc-form-row acc-row-institution"><label>Institution</label><div id="accInstWrap"><select id="accInstitution" disabled><option value="">Select city first</option></select></div></div>' +
+                '<div class="acc-form-row acc-row-program"><label>Program</label><div id="accProgWrap"><select id="accProgram" disabled><option value="">Select institution first</option></select></div></div>' +
+                '<div class="acc-form-row acc-row-focus" id="accProgramFocusRow"><label>Program Focus</label><div id="accProgramFocus" class="acc-program-focus">Select program first</div></div>' +
+                '<div class="acc-form-actions"><button type="button" id="accSaveProfileBtn" class="primary-btn" onclick="saveAccreditationProfileForm()">Save Profile</button></div>' +
                 '</div>';
             document.getElementById('accState').onchange = onAccStateChange;
             document.getElementById('accCity').onchange = onAccCityChange;
             document.getElementById('accInstitution').onchange = onAccInstitutionChange;
-            const hasSaved = profile.state && profile.city && (profile.institutionId || profile.institutionName) && profile.program;
+            document.getElementById('accProgram').onchange = onAccProgramChange;
+            const hasSaved = profile.state && profile.city && (profile.institutionId || profile.institutionName) && (profile.program || profile.programCip4);
             if (hasSaved) {
                 const cityEl = document.getElementById('accCity');
                 const instEl = document.getElementById('accInstitution');
                 const progEl = document.getElementById('accProgram');
+                const focusEl = document.getElementById('accProgramFocus');
                 cityEl.innerHTML = '<option value="' + escapeHtml(profile.city) + '" selected>' + escapeHtml(profile.city) + '</option>';
                 cityEl.disabled = false;
                 instEl.innerHTML = '<option value="' + String(profile.institutionId || '') + '" selected>' + escapeHtml(profile.institutionName || '') + '</option>';
                 instEl.disabled = false;
-                progEl.innerHTML = '<option value="' + escapeHtml(profile.program) + '" selected>' + escapeHtml(profile.program) + '</option>';
+                const progVal = profile.programCip4 || profile.program || '';
+                const progLabel = profile.programCip4 ? (profile.programCip4 + (profile.programTitle || profile.program ? ' - ' + (profile.programTitle || profile.program) : '')) : (profile.program || '');
+                progEl.innerHTML = '<option value="' + escapeHtml(progVal) + '" selected>' + escapeHtml(progLabel) + '</option>';
                 progEl.disabled = false;
+                if (profile.programCip4 && focusEl) {
+                    focusEl.innerHTML = accSpinnerHtml();
+                    fetch('/college-scorecard/cip6-options?cip4=' + encodeURIComponent(profile.programCip4))
+                        .then(r => r.json())
+                        .then(d => {
+                            const opts = (d && d.options) ? d.options : [];
+                            if (!opts.length) {
+                                focusEl.innerHTML = '<span class="acc-no-focus">No specializations for this program</span>';
+                            } else {
+                                focusEl.innerHTML = opts.map(o => {
+                                    const checked = Array.isArray(profile.programFocusCip6) && profile.programFocusCip6.includes(o.code) ? ' checked' : '';
+                                    return '<label class="acc-focus-check"><input type="checkbox" value="' + escapeHtml(o.code) + '"' + checked + '> ' + escapeHtml(o.code + ' - ' + (o.title || '')) + '</label>';
+                                }).join('');
+                            }
+                        })
+                        .catch(() => { focusEl.innerHTML = '<span class="acc-focus-err">Failed to load</span>'; });
+                } else if (focusEl) {
+                    focusEl.innerHTML = 'Select program first';
+                }
             } else if (profile.state) {
                 onAccStateChange().then(() => {
                     if (profile.city) {
@@ -852,7 +876,24 @@ async function loadStandardsSyncTab() {
                             if (profile.institutionId) {
                                 document.getElementById('accInstitution').value = String(profile.institutionId);
                                 onAccInstitutionChange().then(() => {
-                                    if (profile.program) document.getElementById('accProgram').value = profile.program;
+                                    const progEl = document.getElementById('accProgram');
+                                    const focusEl = document.getElementById('accProgramFocus');
+                                    const cip4 = profile.programCip4 || (profile.program && /^\d{2}\.\d{2}$/.test(String(profile.program).trim()) ? profile.program.trim() : null);
+                                    const matchByTitle = profile.program && !cip4 ? Array.from(progEl.options).find(o => o.value && (o.textContent || '').includes(String(profile.program))) : null;
+                                    const progVal = cip4 || (matchByTitle ? matchByTitle.value : profile.program);
+                                    if (progVal) {
+                                        progEl.value = progVal;
+                                        if (cip4 || matchByTitle) {
+                                            onAccProgramChange().then(() => {
+                                                const arr = profile.programFocusCip6;
+                                                if (Array.isArray(arr) && arr.length && focusEl) {
+                                                    focusEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                                                        if (arr.includes(cb.value)) cb.checked = true;
+                                                    });
+                                                }
+                                            });
+                                        }
+                                    }
                                 });
                             }
                         });
@@ -891,99 +932,140 @@ async function loadStandardsSyncTab() {
 
 async function onAccStateChange() {
     const stateEl = document.getElementById('accState');
-    const cityEl = document.getElementById('accCity');
+    const cityWrap = document.getElementById('accCityWrap');
+    const instWrap = document.getElementById('accInstWrap');
+    const progWrap = document.getElementById('accProgWrap');
+    const focusEl = document.getElementById('accProgramFocus');
+    if (!stateEl || !cityWrap) return;
+    cityWrap.innerHTML = accSpinnerHtml();
+    if (instWrap) instWrap.innerHTML = '<select id="accInstitution" disabled><option value="">Select city first</option></select>';
+    if (progWrap) progWrap.innerHTML = '<select id="accProgram" disabled><option value="">Select institution first</option></select>';
+    if (focusEl) focusEl.innerHTML = 'Select program first';
     const instEl = document.getElementById('accInstitution');
+    if (instEl) instEl.onchange = onAccInstitutionChange;
     const progEl = document.getElementById('accProgram');
-    if (!stateEl || !cityEl || !instEl || !progEl) return;
-    cityEl.innerHTML = '<option value="">Loading...</option>';
-    cityEl.value = '';
-    cityEl.disabled = false;
-    instEl.innerHTML = '<option value="">Select city first</option>';
-    instEl.value = '';
-    instEl.disabled = true;
-    progEl.innerHTML = '<option value="">Select institution first</option>';
-    progEl.value = '';
-    progEl.disabled = true;
+    if (progEl) progEl.onchange = onAccProgramChange;
     const state = stateEl.value;
-    if (!state) { cityEl.innerHTML = '<option value="">Select state first</option>'; cityEl.value = ''; return; }
+    if (!state) {
+        cityWrap.innerHTML = '<select id="accCity" disabled><option value="">Select state first</option></select>';
+        return;
+    }
     try {
         const url = '/college-scorecard/cities?state=' + encodeURIComponent(state);
         if (typeof debugLog === 'function') debugLog('[AccProfile] Fetching cities: ' + url);
         const res = await fetch(url);
         const data = await res.json();
-        if (typeof debugLog === 'function') debugLog('[AccProfile] Cities response: status=' + res.status + ' type=' + (Array.isArray(data) ? 'array len=' + data.length : typeof data) + (data?.error ? ' error=' + data.error : ''));
+        if (typeof debugLog === 'function') debugLog('[AccProfile] Cities response: status=' + res.status);
+        let html;
         if (data && data.error) {
-            cityEl.innerHTML = '<option value="">' + escapeHtml(data.error) + '</option>';
+            html = '<select id="accCity"><option value="">' + escapeHtml(data.error) + '</option></select>';
         } else if (Array.isArray(data)) {
-            cityEl.innerHTML = '<option value="">Select city...</option>' +
-                data.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('');
+            html = '<select id="accCity"><option value="">Select city...</option>' +
+                data.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('') + '</select>';
         } else {
-            cityEl.innerHTML = '<option value="">No cities found</option>';
+            html = '<select id="accCity"><option value="">No cities found</option></select>';
         }
-        cityEl.value = '';
+        cityWrap.innerHTML = html;
+        document.getElementById('accCity').onchange = onAccCityChange;
     } catch (e) {
         if (typeof debugLog === 'function') debugLog('[AccProfile] Cities fetch error: ' + e.message, 'error');
-        cityEl.innerHTML = '<option value="">Error: ' + escapeHtml(e.message || 'Request failed') + '</option>';
-        cityEl.value = '';
+        cityWrap.innerHTML = '<select id="accCity"><option value="">Error: ' + escapeHtml(e.message || 'Request failed') + '</option></select>';
+        document.getElementById('accCity').onchange = onAccCityChange;
     }
 }
 
 async function onAccCityChange() {
     const stateEl = document.getElementById('accState');
     const cityEl = document.getElementById('accCity');
-    const instEl = document.getElementById('accInstitution');
+    const instWrap = document.getElementById('accInstWrap');
+    const progWrap = document.getElementById('accProgWrap');
+    const focusEl = document.getElementById('accProgramFocus');
+    if (!stateEl || !cityEl || !instWrap) return;
+    instWrap.innerHTML = accSpinnerHtml();
+    if (progWrap) progWrap.innerHTML = '<select id="accProgram" disabled><option value="">Select institution first</option></select>';
+    if (focusEl) focusEl.innerHTML = 'Select program first';
     const progEl = document.getElementById('accProgram');
-    if (!stateEl || !cityEl || !instEl || !progEl) return;
-    instEl.innerHTML = '<option value="">Loading...</option>';
-    instEl.value = '';
-    instEl.disabled = false;
-    progEl.innerHTML = '<option value="">Select institution first</option>';
-    progEl.value = '';
-    progEl.disabled = true;
+    if (progEl) progEl.onchange = onAccProgramChange;
     const state = stateEl.value, city = cityEl.value;
-    if (!state || !city) { instEl.innerHTML = '<option value="">Select city first</option>'; instEl.value = ''; instEl.disabled = true; return; }
+    if (!state || !city) {
+        instWrap.innerHTML = '<select id="accInstitution" disabled><option value="">Select city first</option></select>';
+        document.getElementById('accInstitution').onchange = onAccInstitutionChange;
+        return;
+    }
     try {
         const res = await fetch('/college-scorecard/institutions?state=' + encodeURIComponent(state) + '&city=' + encodeURIComponent(city));
         const data = await res.json();
+        let html;
         if (data && data.error) {
-            instEl.innerHTML = '<option value="">' + escapeHtml(data.error) + '</option>';
+            html = '<select id="accInstitution"><option value="">' + escapeHtml(data.error) + '</option></select>';
         } else if (Array.isArray(data)) {
-            instEl.innerHTML = '<option value="">Select institution...</option>' +
-                data.map(i => '<option value="' + i.id + '">' + escapeHtml(i.name) + '</option>').join('');
+            html = '<select id="accInstitution"><option value="">Select institution...</option>' +
+                data.map(i => '<option value="' + i.id + '">' + escapeHtml(i.name) + '</option>').join('') + '</select>';
         } else {
-            instEl.innerHTML = '<option value="">No institutions found</option>';
+            html = '<select id="accInstitution"><option value="">No institutions found</option></select>';
         }
-        instEl.value = '';
+        instWrap.innerHTML = html;
+        document.getElementById('accInstitution').onchange = onAccInstitutionChange;
     } catch (e) {
-        instEl.innerHTML = '<option value="">Error: ' + escapeHtml(e.message || 'Request failed') + '</option>';
-        instEl.value = '';
+        instWrap.innerHTML = '<select id="accInstitution"><option value="">Error: ' + escapeHtml(e.message || 'Request failed') + '</option></select>';
+        document.getElementById('accInstitution').onchange = onAccInstitutionChange;
     }
 }
 
 async function onAccInstitutionChange() {
     const instEl = document.getElementById('accInstitution');
-    const progEl = document.getElementById('accProgram');
-    if (!instEl || !progEl) return;
-    progEl.innerHTML = '<option value="">Loading...</option>';
-    progEl.value = '';
-    progEl.disabled = false;
+    const progWrap = document.getElementById('accProgWrap');
+    const focusEl = document.getElementById('accProgramFocus');
+    if (!instEl || !progWrap) return;
+    progWrap.innerHTML = accSpinnerHtml();
+    if (focusEl) focusEl.innerHTML = 'Select program first';
     const schoolId = instEl.value;
-    if (!schoolId) { progEl.innerHTML = '<option value="">Select institution first</option>'; progEl.value = ''; progEl.disabled = true; return; }
+    if (!schoolId) {
+        progWrap.innerHTML = '<select id="accProgram" disabled><option value="">Select institution first</option></select>';
+        document.getElementById('accProgram').onchange = onAccProgramChange;
+        return;
+    }
     try {
-        const res = await fetch('/college-scorecard/programs?schoolId=' + encodeURIComponent(schoolId));
+        const res = await fetch('/college-scorecard/programs-cip4?schoolId=' + encodeURIComponent(schoolId));
         const data = await res.json();
+        let html;
         if (data && data.error) {
-            progEl.innerHTML = '<option value="">' + escapeHtml(data.error) + '</option>';
+            html = '<select id="accProgram"><option value="">' + escapeHtml(data.error) + '</option></select>';
         } else if (Array.isArray(data)) {
-            progEl.innerHTML = '<option value="">Select program...</option>' +
-                data.map(p => '<option value="' + escapeHtml(p) + '">' + escapeHtml(p) + '</option>').join('');
+            html = '<select id="accProgram"><option value="">Select program...</option>' +
+                data.map(p => '<option value="' + escapeHtml(p.cip4) + '">' + escapeHtml(p.cip4 + ' - ' + (p.title || '')) + '</option>').join('') + '</select>';
         } else {
-            progEl.innerHTML = '<option value="">No programs found</option>';
+            html = '<select id="accProgram"><option value="">No programs found</option></select>';
         }
-        progEl.value = '';
+        progWrap.innerHTML = html;
+        document.getElementById('accProgram').onchange = onAccProgramChange;
     } catch (e) {
-        progEl.innerHTML = '<option value="">Error: ' + escapeHtml(e.message || 'Request failed') + '</option>';
-        progEl.value = '';
+        progWrap.innerHTML = '<select id="accProgram"><option value="">Error: ' + escapeHtml(e.message || 'Request failed') + '</option></select>';
+        document.getElementById('accProgram').onchange = onAccProgramChange;
+    }
+}
+
+async function onAccProgramChange() {
+    const progEl = document.getElementById('accProgram');
+    const focusEl = document.getElementById('accProgramFocus');
+    if (!progEl || !focusEl) return;
+    const cip4 = (progEl.value || '').trim();
+    focusEl.innerHTML = accSpinnerHtml();
+    if (!cip4) {
+        focusEl.innerHTML = 'Select program first';
+        return;
+    }
+    try {
+        const res = await fetch('/college-scorecard/cip6-options?cip4=' + encodeURIComponent(cip4));
+        const data = await res.json();
+        const opts = data && data.options ? data.options : [];
+        if (!opts.length) {
+            focusEl.innerHTML = '<span class="acc-no-focus">No specializations for this program</span>';
+        } else {
+            focusEl.innerHTML = opts.map(o => '<label class="acc-focus-check"><input type="checkbox" value="' + escapeHtml(o.code) + '"> ' + escapeHtml(o.code + ' - ' + (o.title || '')) + '</label>').join('');
+        }
+    } catch (e) {
+        focusEl.innerHTML = '<span class="acc-focus-err">Error: ' + escapeHtml(e.message || 'Request failed') + '</span>';
     }
 }
 
@@ -993,7 +1075,14 @@ async function saveAccreditationProfileForm() {
     const cityEl = document.getElementById('accCity');
     const instEl = document.getElementById('accInstitution');
     const progEl = document.getElementById('accProgram');
+    const focusEl = document.getElementById('accProgramFocus');
     const instOpt = instEl?.options[instEl.selectedIndex];
+    const progOpt = progEl?.options[progEl.selectedIndex];
+    const progTitle = progOpt ? (progOpt.text || '').replace(/^\d{2}\.\d{2}\s*-\s*/, '') : '';
+    const programFocusCip6 = [];
+    if (focusEl) {
+        focusEl.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => { programFocusCip6.push(cb.value); });
+    }
     const profile = {
         v: 1,
         state: stateEl?.value || undefined,
@@ -1001,8 +1090,17 @@ async function saveAccreditationProfileForm() {
         institutionId: instEl?.value ? parseInt(instEl.value, 10) : undefined,
         institutionName: instOpt?.text || undefined,
         program: progEl?.value || undefined,
+        programCip4: progEl?.value || undefined,
+        programTitle: progTitle || undefined,
+        programFocusCip6: programFocusCip6.length ? programFocusCip6 : undefined,
         selectedStandards: undefined
     };
+    const btn = document.getElementById('accSaveProfileBtn');
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="acc-card-loading" style="display: inline-flex; align-items: center; gap: 0.35rem;"><span class="acc-card-spinner" style="width: 16px; height: 16px;"></span>Saving...</span>';
+    }
     try {
         const res = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`, {
             method: 'PUT',
@@ -1011,9 +1109,19 @@ async function saveAccreditationProfileForm() {
         });
         if (!res.ok) throw new Error(res.statusText);
         loadStandardsSyncTab();
+        if (typeof openModal === 'function') openModal('profileSavedModal');
     } catch (e) {
         alert('Save failed: ' + e.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml || 'Save Profile';
+        }
     }
+}
+
+function accSpinnerHtml() {
+    return '<div class="acc-card-loading"><div class="acc-card-spinner"></div><span>Loading...</span></div>';
 }
 
 function escapeHtml(s) {

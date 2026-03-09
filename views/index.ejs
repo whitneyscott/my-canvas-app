@@ -68,14 +68,20 @@
             
             <aside class="sidebar">
                 <nav class="tab-container" id="tabContainer">
-                    <button class="tab-btn active" onclick="switchTab('assignments')">Assignments</button>
-                    <button class="tab-btn" onclick="switchTab('modules')">Modules</button>
-                    <button class="tab-btn" onclick="switchTab('pages')">Pages</button>
-                    <button class="tab-btn" onclick="switchTab('quizzes')">Quizzes</button>
-                    <button class="tab-btn" onclick="switchTab('discussions')">Discussions</button>
-                    <button class="tab-btn" onclick="switchTab('files')">Files</button>
-                    <button class="tab-btn" onclick="switchTab('ada_compliance')">ADA Compliance Sync</button>
-                    <button class="tab-btn" onclick="switchTab('standards_sync')">Standards Sync</button>
+                    <div class="tab-card">
+                        <span class="tab-card-label">Canvas Objects</span>
+                        <button class="tab-btn active" onclick="switchTab('assignments')">Assignments</button>
+                        <button class="tab-btn" onclick="switchTab('modules')">Modules</button>
+                        <button class="tab-btn" onclick="switchTab('pages')">Pages</button>
+                        <button class="tab-btn" onclick="switchTab('quizzes')">Quizzes</button>
+                        <button class="tab-btn" onclick="switchTab('discussions')">Discussions</button>
+                        <button class="tab-btn" onclick="switchTab('files')">Files</button>
+                    </div>
+                    <div class="tab-card">
+                        <span class="tab-card-label">Review and Alignment</span>
+                        <button class="tab-btn" onclick="switchTab('ada_compliance')">ADA Compliance Sync</button>
+                        <button class="tab-btn" onclick="switchTab('standards_sync')">Standards Sync</button>
+                    </div>
                 </nav>
             </aside>
 

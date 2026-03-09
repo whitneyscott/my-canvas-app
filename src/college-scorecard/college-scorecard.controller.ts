@@ -27,4 +27,15 @@ export class CollegeScorecardController {
     const id = parseInt(schoolId || '0', 10);
     return this.service.getProgramsBySchoolId(id);
   }
+
+  @Get('programs-cip4')
+  async getProgramsCip4(@Query('schoolId') schoolId: string) {
+    const id = parseInt(schoolId || '0', 10);
+    return this.service.getProgramsCip4BySchoolId(id);
+  }
+
+  @Get('cip6-options')
+  getCip6Options(@Query('cip4') cip4: string) {
+    return this.service.getCip6OptionsForCip4(cip4 || '');
+  }
 }

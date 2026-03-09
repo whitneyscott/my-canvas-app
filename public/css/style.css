@@ -47,7 +47,29 @@ body, html {
 .tab-container {
     display: flex;
     flex-direction: column;
+    gap: 16px;
+}
+
+.tab-card {
+    display: flex;
+    flex-direction: column;
     gap: 8px;
+    border-top: 1px solid #7a8d9e;
+    border-bottom: 1px solid #7a8d9e;
+    border-left: 1px solid #7a8d9e;
+    border-right: none;
+    border-radius: 8px 0 0 8px;
+    background-color: #2c4a6e;
+    padding: 10px 0 14px 0;
+}
+
+.tab-card-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(255, 255, 255, 0.9);
+    padding: 4px 0 4px 20px;
 }
 
 .tab-btn {
@@ -788,6 +810,50 @@ input:checked + .slider:before {
 .standards-sync-panel .acc-profile-form select:disabled {
     opacity: 0.7;
     cursor: not-allowed;
+}
+
+.standards-sync-panel .acc-program-focus {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.standards-sync-panel .acc-focus-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.standards-sync-panel .acc-no-focus,
+.standards-sync-panel .acc-focus-err {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+.standards-sync-panel .acc-focus-err {
+    color: #c62828;
+}
+
+.standards-sync-panel .acc-card-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+}
+
+.standards-sync-panel .acc-card-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e0e0e0;
+    border-top-color: #3498db;
+    border-radius: 50%;
+    animation: acc-spin 0.8s linear infinite;
+}
+
+@keyframes acc-spin {
+    to { transform: rotate(360deg); }
 }
 
 .standards-sync-panel .acc-form-actions {

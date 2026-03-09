@@ -2183,6 +2183,9 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     { key: 'institutionName', label: 'Institution' },
     { key: 'institutionId', label: 'Institution ID' },
     { key: 'program', label: 'Program' },
+    { key: 'programCip4', label: 'Program CIP4' },
+    { key: 'programTitle', label: 'Program Title' },
+    { key: 'programFocusCip6', label: 'Program Focus CIP6' },
   ];
 
   private static parseAccreditationBlock(body: string): Record<string, unknown> | null {
@@ -2209,7 +2212,10 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       const label = m[1].trim();
       const value = m[2].trim();
       const def = CanvasService.PROFILE_KEYS.find(d => d.label === label);
-      if (def && value) profile[def.key] = def.key === 'institutionId' ? (parseInt(value, 10) || value) : value;
+      if (!def || !value) continue;
+      if (def.key === 'institutionId') profile[def.key] = parseInt(value, 10) || value;
+      else if (def.key === 'programFocusCip6') profile[def.key] = value.split(',').map((s: string) => s.trim()).filter(Boolean);
+      else profile[def.key] = value;
     }
     return profile;
   }
@@ -2217,7 +2223,10 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   private static buildAccreditationBlock(profile: Record<string, unknown>): string {
     const lines = CanvasService.PROFILE_KEYS.map(d => {
         const v = profile[d.key];
-        return v != null && String(v).trim() ? `${d.label}: ${String(v).trim()}` : null;
+        if (v == null) return null;
+        if (d.key === 'programFocusCip6' && Array.isArray(v)) return v.length ? `${d.label}: ${v.join(',')}` : null;
+        const s = String(v).trim();
+        return s ? `${d.label}: ${s}` : null;
       })
       .filter(Boolean) as string[];
     const inner = lines.length ? lines.join('\n') : 'No profile data yet. Use the Standards Sync tab to set State, City, Institution, and Program.';

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { getCip6Options } from './cip2020';
 
 const BASE = 'https://api.data.gov/ed/collegescorecard/v1/schools';
 
@@ -131,5 +132,45 @@ export class CollegeScorecardService {
       page++;
     }
     return Array.from(titles).sort();
+  }
+
+  async getProgramsCip4BySchoolId(schoolId: number): Promise<Array<{ cip4: string; title: string }> | { error: string }> {
+    if (!schoolId) return [];
+    const seen = new Map<string, string>();
+    let page = 0;
+    const perPage = 100;
+    let hasMore = true;
+    while (hasMore) {
+      if (page > 0) await new Promise(r => setTimeout(r, 150));
+      const data = await this.fetchApi({
+        id: String(schoolId),
+        fields: 'latest.programs.cip_4_digit',
+        page: String(page),
+        per_page: String(perPage),
+      });
+      if (data.error) return { error: data.error };
+      const results = data.results || [];
+      results.forEach((r: any) => {
+        const raw = r?.['latest.programs.cip_4_digit'] ?? r?.latest?.programs?.cip_4_digit;
+        const arr = Array.isArray(raw) ? raw : raw && typeof raw === 'object' ? [raw] : [];
+        arr.forEach((p: any) => {
+          const code = p?.code ?? p?.cip4 ?? p?.['cip4'];
+          const title = p?.title ?? p?.['title'];
+          if (code != null && title && typeof title === 'string') {
+            const cip4 = String(code).trim();
+            if (cip4 && !seen.has(cip4)) seen.set(cip4, String(title).trim());
+          }
+        });
+      });
+      hasMore = results.length >= perPage;
+      page++;
+    }
+    return Array.from(seen.entries())
+      .map(([cip4, title]) => ({ cip4, title }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  getCip6OptionsForCip4(cip4: string): { options: Array<{ code: string; title: string }> } {
+    return { options: getCip6Options(cip4) };
   }
 }
