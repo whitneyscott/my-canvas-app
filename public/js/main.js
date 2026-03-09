@@ -181,31 +181,8 @@ function setGridStatus(tabName, message, color = '#00ff00') {
 
 let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, selectedCourseId = null;
 
-class CustomHeader {
-    init(params) {
-        this.params = params;
-        this.eGui = document.createElement('div');
-        this.eGui.style.cssText = 'display: flex; align-items: center; justify-content: space-between; width: 100%;';
-
-        this.eGui.innerHTML = `
-            <span class="header-label" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${params.displayName}</span>
-            <span class="header-hide-btn" style="cursor: pointer; padding: 0 4px; font-size: 14px; font-weight: bold; color: #888; margin-left: 4px;">&times;</span>
-        `;
-
-        this.btnHide = this.eGui.querySelector('.header-hide-btn');
-        this.btnHide.onclick = (event) => {
-            event.stopPropagation();
-            const colId = this.params.column.getColId();
-            this.params.api.setColumnsVisible([colId], false);
-        };
-    }
-
-    getGui() {
-        return this.eGui;
-    }
-}
-
 const gridOptions = {
+    sortingOrder: ['asc', 'desc'],
     rowSelection: {
         mode: 'multiRow',
         selectAll: 'filtered',
@@ -220,37 +197,7 @@ const gridOptions = {
         sortable: true,
         resizable: true,
         editable: true,
-        unSortIcon: true,
-        singleClickEdit: true,
-        headerComponent: CustomHeader,
-        // Enable sorting and filtering for all columns
-        comparator: (valueA, valueB, nodeA, nodeB, isInverted) => {
-            // Handle null/undefined values
-            if (valueA == null && valueB == null) return 0;
-            if (valueA == null) return isInverted ? 1 : -1;
-            if (valueB == null) return isInverted ? -1 : 1;
-            
-            // Handle date sorting
-            if (typeof valueA === 'string' && typeof valueB === 'string') {
-                const dateA = new Date(valueA);
-                const dateB = new Date(valueB);
-                if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
-                    return isInverted ? dateB.getTime() - dateA.getTime() : dateA.getTime() - dateB.getTime();
-                }
-            }
-            
-            // Handle numeric sorting
-            const numA = parseFloat(valueA);
-            const numB = parseFloat(valueB);
-            if (!isNaN(numA) && !isNaN(numB)) {
-                return isInverted ? numB - numA : numA - numB;
-            }
-            
-            // Handle string sorting
-            const strA = String(valueA).toLowerCase();
-            const strB = String(valueB).toLowerCase();
-            return isInverted ? strB.localeCompare(strA) : strA.localeCompare(strB);
-        }
+        singleClickEdit: true
     },
     getRowId: (params) => {
         return String(params.data.id || params.data.url || Math.random());
@@ -265,29 +212,36 @@ const gridOptions = {
     },
     // Additional event handler to catch programmatic changes
     onRowDataUpdated: params => {
-        // This catches programmatic updates that bypass onCellValueChanged
-        if (gridApi) {
-            gridApi.forEachNode(node => {
-                const originalRow = originalData[currentTab]?.find(item => String(item.id || item.url) === String(node.data.id || node.data.url));
-                if (originalRow) {
-                    const hasChanges = Object.keys(node.data).some(key => {
-                        if (key === '_edit_status' || key === 'id' || key === 'url') return false;
-                        return JSON.stringify(node.data[key]) !== JSON.stringify(originalRow[key]);
-                    });
-                    if (hasChanges && node.data._edit_status !== 'modified') {
-                        node.setDataValue('_edit_status', 'modified');
-                        // Track changes for all modified fields
-                        Object.keys(node.data).forEach(key => {
-                            if (key !== '_edit_status' && key !== 'id' && key !== 'url') {
-                                if (JSON.stringify(node.data[key]) !== JSON.stringify(originalRow[key])) {
-                                    trackChange(currentTab, node.data.id || node.data.url, key, node.data[key]);
-                                }
-                            }
-                        });
+        if (!gridApi || currentTab === 'files') return;
+        let configKey = currentTab;
+        if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
+        const tabConfig = FIELD_DEFINITIONS[configKey];
+        const trackKeys = tabConfig?.fields?.map(f => f.key).filter(Boolean) || [];
+        const keysToCompare = trackKeys.filter(k => !['_edit_status', 'id', 'url'].includes(k));
+        if (!keysToCompare.length) return;
+
+        const valuesEqual = (a, b) => {
+            if (a === b) return true;
+            if (a == null && b == null) return true;
+            if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
+                try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
+            }
+            return false;
+        };
+
+        gridApi.forEachNode(node => {
+            const originalRow = originalData[currentTab]?.find(item => String(item.id || item.url) === String(node.data?.id || node.data?.url));
+            if (!originalRow) return;
+            const hasChanges = keysToCompare.some(key => !valuesEqual(node.data[key], originalRow[key]));
+            if (hasChanges && node.data._edit_status !== 'modified') {
+                node.setDataValue('_edit_status', 'modified');
+                keysToCompare.forEach(key => {
+                    if (!valuesEqual(node.data[key], originalRow[key])) {
+                        trackChange(currentTab, node.data.id || node.data.url, key, node.data[key]);
                     }
-                }
-            });
-        }
+                });
+            }
+        });
     },
     onGridReady: params => {
         window.gridApi = params.api;
@@ -316,6 +270,11 @@ const gridOptions = {
         '    <span class="ag-icon ag-icon-loading" style="font-size: 24px;"></span>' + 
         '    <span id="custom-loading-text" style="margin-left: 10px; font-weight: bold;">Loading...</span>' +
         '  </div>' +
+        '</div>',
+    overlayNoRowsTemplate:
+        '<div class="ag-overlay-no-rows-center" style="padding: 20px; text-align: center;">' +
+        '  <p style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">No course selected</p>' +
+        '  <p style="font-size: 14px; color: #666;">Use the Course Selection dropdown above to load course contents.</p>' +
         '</div>'
 };
 const NEEDS_TOKEN = Boolean('<%= needsToken %>' === 'true');
@@ -335,24 +294,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     await loadCourses();
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const courseId = LTI_COURSE_ID || urlParams.get('courseId') || urlParams.get('course_id');
-    
-    if (courseId && courseId !== '') {
-        const courseSelect = document.getElementById('courseSelect');
-        if (courseSelect) {
-            courseSelect.value = courseId;
-            selectedCourseId = courseId;
-            debugLog(`Course context detected: ${courseId}`, 'info');
-            
-            if (typeof onCourseSelected === 'function') {
-                onCourseSelected();
-            }
-        }
-    } else {
-        switchTab(currentTab || 'assignments');
-    }
+    if (!selectedCourseId && gridApi) gridApi.showNoRowsOverlay();
 });
 
 async function submitToken() {
@@ -385,7 +327,9 @@ async function submitToken() {
 
 function generateColumnDefs(tabName) {
     debugLog(`Generating column definitions for: ${tabName}`);
-    const tabConfig = FIELD_DEFINITIONS[tabName];
+    let configKey = tabName;
+    if (!FIELD_DEFINITIONS[configKey] && tabName === 'discussions') configKey = 'discussion_topics';
+    const tabConfig = FIELD_DEFINITIONS[configKey];
     if (!tabConfig) {
         debugLog(`ERROR: No config found for tab: ${tabName}`);
         return [];
@@ -398,6 +342,7 @@ function generateColumnDefs(tabName) {
         headerName: 'edit_status',
         field: '_edit_status',
         width: 120,
+        sortable: true,
         editable: false,
         cellRenderer: params => {
             if (params.value === 'modified') {
@@ -411,6 +356,7 @@ function generateColumnDefs(tabName) {
         const colDef = {
             headerName: field.label,
             field: field.key,
+            sortable: true,
             editable: field.editable !== false
         };
 
@@ -438,6 +384,11 @@ function generateColumnDefs(tabName) {
             };
         }
         else if (field.type === 'date') {
+            colDef.comparator = (a, b) => {
+                const dA = a ? new Date(a).getTime() : 0;
+                const dB = b ? new Date(b).getTime() : 0;
+                return isNaN(dA) && isNaN(dB) ? 0 : (isNaN(dA) ? 1 : isNaN(dB) ? -1 : dA - dB);
+            };
             colDef.cellEditor = 'agDateCellEditor';
             colDef.cellEditorParams = {
                 format: 'yyyy-MM-ddTHH:mm:ss',
@@ -507,10 +458,28 @@ function generateColumnDefs(tabName) {
         return colDef;
     });
 
+    if (tabName === 'files') {
+        mapping.unshift({
+            headerName: 'Type',
+            field: 'is_folder',
+            sortable: true,
+            editable: false,
+            width: 70,
+            valueGetter: params => params.data?.is_folder ? 'Folder' : 'File',
+            cellRenderer: params => {
+                const isFolder = params.data?.is_folder;
+                const icon = isFolder ? '📁' : '📄';
+                const label = isFolder ? 'Folder' : 'File';
+                return `<span title="${label}" style="font-size: 1.1em;">${icon} ${label}</span>`;
+            }
+        });
+    }
+
     const idCol = {
         headerName: 'ID',
         field: 'id',
         width: 100,
+        sortable: true,
         editable: false,
         hide: false,
         pinned: 'left'
@@ -524,6 +493,10 @@ function generateColumnDefs(tabName) {
 
 async function refreshCurrentTab() {
     if (!selectedCourseId) { alert('Select course first.'); return; }
+    if (currentTab === 'standards_sync') {
+        loadStandardsSyncTab();
+        return;
+    }
     delete originalData[currentTab];
     if (changes[currentTab]) changes[currentTab] = {};
     try {
@@ -569,7 +542,7 @@ async function loadCourses() {
             return;
         }
 
-        courseSelect.innerHTML = '<option value="">Loading courses...</option>';
+        courseSelect.innerHTML = '<option value="">Select a Course</option>';
         debugLog('Fetching courses from /canvas/courses');
 
         const response = await fetch('/canvas/courses');
@@ -583,7 +556,7 @@ async function loadCourses() {
 
         if (!response.ok) {
             debugLog(`ERROR: Failed to load courses: ${response.status} ${response.statusText}`, 'error');
-            courseSelect.innerHTML = '<option value="">Error loading courses</option>';
+            courseSelect.innerHTML = '<option value="">Select a Course</option>';
             return;
         }
 
@@ -592,15 +565,14 @@ async function loadCourses() {
         
         if (!Array.isArray(courseGroups)) {
             debugLog('ERROR: Expected array of course groups', 'error');
-            courseSelect.innerHTML = '<option value="">Error loading courses</option>';
+            courseSelect.innerHTML = '<option value="">Select a Course</option>';
             return;
         }
 
-        courseSelect.innerHTML = '<option value="">Select a course...</option>';
+        courseSelect.innerHTML = '<option value="">Select a Course</option>';
 
         if (courseGroups.length === 0) {
             debugLog('No courses available', 'warn');
-            courseSelect.innerHTML = '<option value="">No courses available</option>';
             return;
         }
 
@@ -625,14 +597,23 @@ async function loadCourses() {
         debugLog(`SUCCESS: Loaded ${totalCourses} courses successfully`, 'success');
 
         const urlParams = new URLSearchParams(window.location.search);
-        const autoCourseId = urlParams.get('courseId') || (window.SERVER_DATA && window.SERVER_DATA.courseId);
+        const autoCourseId = (typeof LTI_COURSE_ID !== 'undefined' ? LTI_COURSE_ID : null) || urlParams.get('courseId') || urlParams.get('course_id') || (window.SERVER_DATA && window.SERVER_DATA.courseId);
+        const validId = autoCourseId && autoCourseId !== 'null' && autoCourseId !== '' && autoCourseId !== 'undefined' && autoCourseId !== '<%= courseId %>';
+        const hasOption = validId && Array.from(courseSelect.options).some(opt => opt.value === String(autoCourseId));
 
-        if (autoCourseId && autoCourseId !== 'null' && autoCourseId !== '' && autoCourseId !== '<%= courseId %>') {
+        if (validId && hasOption) {
             debugLog(`Auto-selecting course context: ${autoCourseId}`);
             courseSelect.value = autoCourseId;
-            
-            if (typeof onCourseSelected === 'function') {
-                onCourseSelected();
+            if (typeof onCourseSelected === 'function') onCourseSelected();
+        } else {
+            const firstOpt = Array.from(courseSelect.options).find(opt => opt.value && opt.value !== '');
+            if (firstOpt) {
+                courseSelect.value = firstOpt.value;
+                debugLog(`Defaulting to first course: ${firstOpt.value}`);
+                if (typeof onCourseSelected === 'function') onCourseSelected();
+            } else {
+                courseSelect.value = '';
+                if (gridApi) gridApi.showNoRowsOverlay();
             }
         }
 
@@ -640,7 +621,7 @@ async function loadCourses() {
         debugLog(`ERROR in loadCourses: ${error.message}`, 'error');
         console.error('Error loading courses:', error);
         const courseSelect = document.getElementById('courseSelect');
-        if (courseSelect) courseSelect.innerHTML = '<option value="">Error loading courses</option>';
+        if (courseSelect) courseSelect.innerHTML = '<option value="">Select a Course</option>';
     }
 }
 
@@ -653,7 +634,10 @@ function onCourseSelected() {
     if (!courseId) {
         debugLog('No course ID, clearing data', 'warn');
         selectedCourseId = null;
-        if (gridApi) gridApi.setGridOption('rowData', []);
+        if (gridApi) {
+            gridApi.setGridOption('rowData', []);
+            gridApi.showNoRowsOverlay();
+        }
         return;
     }
     
@@ -675,7 +659,8 @@ function onCourseSelected() {
 
 function switchTab(tabName) {
     // Security Check: Enforce tab interception guard clause
-    if (tabInterceptionEnabled && tabName !== 'assignments') {
+    const allowedTabs = ['assignments', 'discussions', 'pages', 'quizzes', 'modules', 'files', 'standards_sync'];
+    if (tabInterceptionEnabled && !allowedTabs.includes(tabName)) {
         const message = 'Module Integration Pending: This feature is planned for a future development phase.';
         alert(message);
         debugLog(`Tab interception blocked: ${tabName}`, 'warn');
@@ -712,13 +697,23 @@ function switchTab(tabName) {
         currentTab = tabName;
         debugLog(`Switched to ${tabName} view`, 'info');
 
-        // Show/hide merge menu item based on tab
+        const gridEl = document.getElementById('myGrid');
+        const panelEl = document.getElementById('standardsSyncPanel');
+        if (tabName === 'standards_sync') {
+            if (gridEl) gridEl.style.display = 'none';
+            if (panelEl) panelEl.style.display = 'block';
+            loadStandardsSyncTab();
+        } else {
+            if (gridEl) gridEl.style.display = '';
+            if (panelEl) panelEl.style.display = 'none';
+        }
+
         const mergeMenuItem = document.getElementById('mergeMenuItem');
         if (mergeMenuItem) {
             mergeMenuItem.style.display = (tabName === 'modules') ? 'block' : 'none';
         }
 
-        if (typeof loadTabData === 'function') {
+        if (tabName !== 'standards_sync' && typeof loadTabData === 'function') {
             loadTabData(tabName);
         }
     }
@@ -731,11 +726,11 @@ function handleTabClick(event) {
     const tab = event.currentTarget;
     const tabName = tab.getAttribute('data-tab');
     
-    if (tabInterceptionEnabled && tabName !== 'assignments') {
+    const allowedTabs = ['assignments', 'discussions', 'pages', 'quizzes', 'modules', 'files', 'standards_sync'];
+    if (tabInterceptionEnabled && !allowedTabs.includes(tabName)) {
         event.preventDefault();
         event.stopPropagation();
         
-        // Show interception message
         const message = 'Module Integration Pending: This feature is planned for a future development phase.';
         alert(message);
         
@@ -809,6 +804,73 @@ document.addEventListener('DOMContentLoaded', function() {
     debugLog('Tab Interception System Initialized', 'info');
 });
 
+async function loadStandardsSyncTab() {
+    const profileEl = document.getElementById('accProfileContent');
+    const outcomesEl = document.getElementById('accOutcomesContent');
+    if (!selectedCourseId) {
+        if (profileEl) profileEl.innerHTML = '<p>Select a course to view the accreditation profile.</p>';
+        if (outcomesEl) outcomesEl.innerHTML = '<p>Select a course to view outcomes.</p>';
+        return;
+    }
+    if (profileEl) profileEl.innerHTML = 'Loading...';
+    if (outcomesEl) outcomesEl.innerHTML = 'Loading...';
+    const loadProfile = async () => {
+        if (!profileEl) return;
+        try {
+            const res = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`);
+            if (!res.ok) throw new Error(res.statusText);
+            const profile = await res.json();
+            const items = [];
+            if (profile.level) items.push({ label: 'Level', value: profile.level });
+            if (profile.mode) items.push({ label: 'Mode', value: profile.mode });
+            if (profile.discipline) items.push({ label: 'Discipline', value: profile.discipline });
+            if (profile.degreeProgram) items.push({ label: 'Degree Program', value: profile.degreeProgram });
+            if (profile.selectedStandards && Array.isArray(profile.selectedStandards) && profile.selectedStandards.length) {
+                items.push({ label: 'Selected Standards', value: profile.selectedStandards.join(', ') });
+            }
+            if (!items.length) {
+                profileEl.innerHTML = '<p>Profile not yet configured. Default (v1) — configure in a future phase.</p>';
+            } else {
+                profileEl.innerHTML = '<div class="acc-profile-grid">' +
+                    items.map(i => `<div class="acc-profile-item"><span class="label">${escapeHtml(i.label)}</span><span class="value">${escapeHtml(i.value)}</span></div>`).join('') +
+                    '</div>';
+            }
+        } catch (e) {
+            profileEl.innerHTML = '<p style="color:#c62828;">Failed to load profile: ' + escapeHtml(e.message) + '</p>';
+        }
+    };
+    const loadOutcomes = async () => {
+        if (!outcomesEl) return;
+        try {
+            const res = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/outcomes`);
+            if (!res.ok) throw new Error(res.statusText);
+            const outcomes = await res.json();
+            if (!Array.isArray(outcomes) || !outcomes.length) {
+                outcomesEl.innerHTML = '<p>No learning outcomes in this course.</p>';
+            } else {
+                outcomesEl.innerHTML = outcomes.map(o => {
+                        const stdStr = (o.standards || []).join(', ');
+                        return '<div class="acc-outcome-row" data-outcome-id="' + o.id + '">' +
+                            '<div class="acc-outcome-title">' + escapeHtml(o.title || 'Untitled') + '</div>' +
+                            '<div class="acc-outcome-standards">' +
+                            '<input type="text" class="acc-std-input" value="' + escapeHtml(stdStr) + '" placeholder="QM-2.1, ABET-1a" />' +
+                            '<button type="button" class="primary-btn acc-save-std" onclick="saveOutcomeStandards(' + o.id + ')">Save</button>' +
+                            '</div></div>';
+                }).join('');
+            }
+        } catch (e) {
+            outcomesEl.innerHTML = '<p style="color:#c62828;">Failed to load outcomes: ' + escapeHtml(e.message) + '</p>';
+        }
+    };
+    await Promise.all([loadProfile(), loadOutcomes()]);
+}
+
+function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+}
+
 async function loadTabData(tabName) {
     debugLog("loadTabData() called for: " + tabName);
     
@@ -876,7 +938,7 @@ async function loadTabData(tabName) {
         originalData[tabName] = dataWithStatus;
 
         if (currentTab === tabName && gridApi) {
-            if (tabName === 'assignments' || tabName === 'quizzes') {
+            if (['assignments', 'quizzes', 'discussions', 'pages', 'modules', 'files'].includes(tabName)) {
                 gridApi.setGridOption('columnDefs', generateColumnDefs(tabName));
             }
             gridApi.setGridOption('rowData', dataWithStatus);
@@ -907,7 +969,13 @@ async function syncChanges() {
     const endpoint = config.endpoint;
 
     for (const itemId in tabChanges) {
-        const updates = tabChanges[itemId];
+        const updates = { ...tabChanges[itemId] };
+        if (currentTab === 'files') {
+            gridApi.forEachNode(node => {
+                if (String(node.data?.id) === String(itemId) && node.data?.is_folder)
+                    updates.isFolder = true;
+            });
+        }
         const url = `/canvas/courses/${selectedCourseId}/${endpoint}/${itemId}`;
         try {
             const response = await fetch(url, {
@@ -947,43 +1015,190 @@ async function handleDeleteClick() {
     if (!selectedItems.length) { alert("Select at least one item."); return; }
 
     if (currentTab === 'modules') {
-        for (const module of selectedItems) {
-            try {
-                const response = await fetch(`/canvas/modules/${selectedCourseId}/${module.id}/items`);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error(`[Frontend] Failed to fetch items: ${response.status}`, errorText);
-                    module.items = [];
-                    continue;
-                }
-                const itemsList = await response.json();
-                module.items = Array.isArray(itemsList) ? itemsList : [];
-            } catch (error) {
-                console.error(`Error fetching items for module ${module.id}:`, error);
-                module.items = [];
-            }
-        }
-
-        const infoDiv = document.getElementById('moduleItemsList');
-        if (infoDiv) {
-            infoDiv.innerHTML = '';
-            selectedItems.forEach(module => {
-                const itemCount = Array.isArray(module.items) ? module.items.length : 0;
-                const div = document.createElement('div');
-                div.style.marginBottom = '8px';
-                div.style.padding = '6px';
-                div.style.background = itemCount > 0 ? '#e8f5e9' : '#fff3cd';
-                div.style.borderLeft = '3px solid ' + (itemCount > 0 ? '#4caf50' : '#ffc107');
-                div.innerHTML = `<strong>${module.name || 'Unnamed Module'}</strong>: <span style="font-weight: bold; color: ${itemCount > 0 ? '#2e7d32' : '#856404'}">${itemCount} item${itemCount !== 1 ? 's' : ''}</span>`;
-                infoDiv.appendChild(div);
-            });
-        }
-        openModal('deepPurgeModal');
-        document.getElementById('deepPurgeConfirmInput').value = '';
-        document.getElementById('purgeMethod').value = 'standard';
+        const count = selectedItems.length;
+        const plural = count !== 1 ? 's' : '';
+        const messageEl = document.getElementById('moduleDeleteMessage');
+        if (messageEl) messageEl.textContent = `You are about to delete ${count} module${plural}. Choose an option:`;
+        openModal('moduleDeleteOptionsModal');
     } else {
         openModal('deleteModal');
         document.getElementById('deleteConfirmInput').value = '';
+    }
+}
+
+function handleCloneClick() {
+    const selectedItems = getSelectedItems();
+    if (!selectedItems.length) { alert("Select at least one item."); return; }
+    if (currentTab === 'modules') {
+        const count = selectedItems.length;
+        const plural = count !== 1 ? 's' : '';
+        const messageEl = document.getElementById('moduleCloneMessage');
+        if (messageEl) messageEl.textContent = `Choose how to clone ${count} module${plural}:`;
+        const pref = document.getElementById('moduleClonePrefix');
+        const baseEl = document.getElementById('moduleCloneBaseName');
+        const suf = document.getElementById('moduleCloneSuffix');
+        const copiesEl = document.getElementById('moduleCloneCopies');
+        const autoIncEl = document.getElementById('moduleCloneAutoIncrement');
+        if (pref) pref.value = '';
+        if (baseEl) baseEl.value = selectedItems[0]?.name || selectedItems[0]?.title || '';
+        if (suf) suf.value = '';
+        if (copiesEl) copiesEl.value = '1';
+        if (autoIncEl) autoIncEl.checked = true;
+        const placementEl = document.getElementById('moduleClonePlacement');
+        if (placementEl) placementEl.value = 'bottom';
+        openModal('moduleCloneOptionsModal');
+    } else {
+        openModal('cloneModal');
+    }
+}
+
+async function executeModuleDelete(option) {
+    const selectedItems = getSelectedItems();
+    if (!selectedItems.length) { alert("No items selected."); return; }
+    const courseId = document.getElementById('courseSelect')?.value || selectedCourseId;
+    if (!courseId) { alert("No course selected."); return; }
+
+    closeActiveModal();
+
+    try {
+        for (const module of selectedItems) {
+            if (option === 'module-and-items') {
+                const itemsRes = await fetch(`/canvas/courses/${courseId}/modules/${module.id}/items`);
+                if (itemsRes.ok) {
+                    const items = await itemsRes.json();
+                    const deletable = ['Assignment', 'Quiz', 'Page', 'Discussion', 'File', 'Attachment'];
+                    for (const item of items) {
+                        if (!deletable.includes(item.type)) continue;
+                        const contentId = (item.type === 'Page') ? (item.page_url || item.url || item.content_id) : (item.content_id || item.id);
+                        if (!contentId) continue;
+                        try {
+                            await fetch(`/canvas/courses/${courseId}/modules/${module.id}/items/${item.id}`, {
+                                method: 'DELETE',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ type: item.type, content_id: contentId })
+                            });
+                        } catch (e) { console.warn('Delete item:', e); }
+                    }
+                }
+            }
+            await deleteCanvasItem('modules', courseId, module.id);
+            const rowNode = gridApi?.getRowNode(module.id?.toString());
+            if (rowNode) gridApi.applyTransaction({ remove: [rowNode.data] });
+        }
+
+        delete originalData[currentTab];
+        if (changes[currentTab]) changes[currentTab] = {};
+        await refreshCurrentTab();
+    } catch (error) {
+        console.error(error);
+        alert(`Error: ${error.message}`);
+    }
+}
+
+function formatNameWithCopyIndex(baseName, copyIndex, prefix, suffix, autoIncrement = true) {
+    const base = (baseName || 'Untitled').replace(/\s+\d+$/, '').trim();
+    const inc = autoIncrement ? ` ${copyIndex}` : '';
+    return `${prefix}${base}${inc}${suffix}`.trim();
+}
+
+function getClonePosition(placement, copyIndex, copies, selectedPos, maxPos) {
+    if (placement === 'bottom') return null;
+    if (placement === 'top') {
+        return 1;
+    }
+    if (placement === 'before' && selectedPos != null) {
+        return selectedPos;
+    }
+    if (placement === 'after' && selectedPos != null) {
+        return selectedPos + copyIndex;
+    }
+    return null;
+}
+
+async function executeModuleClone(option) {
+    const selectedItems = getSelectedItems();
+    if (!selectedItems.length) { alert("No items selected."); return; }
+    const courseId = document.getElementById('courseSelect')?.value || selectedCourseId;
+    if (!courseId) { alert("No course selected."); return; }
+    const prefix = (document.getElementById('moduleClonePrefix') || {}).value || '';
+    const baseName = (document.getElementById('moduleCloneBaseName') || {}).value || '';
+    const suffix = (document.getElementById('moduleCloneSuffix') || {}).value || '';
+    const copies = Math.max(1, parseInt((document.getElementById('moduleCloneCopies') || {}).value || '1', 10));
+    const placement = (document.getElementById('moduleClonePlacement') || {}).value || 'bottom';
+    const autoIncrement = (document.getElementById('moduleCloneAutoIncrement') || {}).checked !== false;
+
+    closeActiveModal();
+
+    try {
+        const allModulesRes = await fetch(`/canvas/courses/${courseId}/modules?per_page=100`);
+        const allModules = allModulesRes.ok ? await allModulesRes.json() : [];
+        const maxPos = allModules.length ? Math.max(...allModules.map(m => m.position || 0)) : 0;
+
+        if (option === 'deepCopy') {
+            for (const module of selectedItems) {
+                let items = module.items || [];
+                if (!items.length) {
+                    const itemsRes = await fetch(`/canvas/courses/${courseId}/modules/${module.id}/items`);
+                    if (itemsRes.ok) items = await itemsRes.json();
+                }
+                const selectedPos = module.position != null ? module.position : maxPos + 1;
+                const createOrder = (placement === 'top' || placement === 'before') && copies > 1
+                    ? Array.from({ length: copies }, (_, i) => copies - i)
+                    : Array.from({ length: copies }, (_, i) => i + 1);
+                for (const c of createOrder) {
+                    const pos = getClonePosition(placement, c, copies, selectedPos, maxPos);
+                    await performDeepCloneWithIndex({ ...module, items }, prefix, baseName || module.name, suffix, c, pos, allModules, autoIncrement);
+                }
+            }
+            await refreshCurrentTab();
+            return;
+        }
+
+        const existingNames = new Set(allModules.map(m => m.name));
+
+        for (const module of selectedItems) {
+            let items = [];
+            if (option === 'structureShared') {
+                items = module.items || [];
+                if (!items.length) {
+                    const itemsRes = await fetch(`/canvas/courses/${courseId}/modules/${module.id}/items`);
+                    if (itemsRes.ok) items = await itemsRes.json();
+                }
+            }
+            const selectedPos = module.position != null ? module.position : maxPos + 1;
+            const createOrder = (placement === 'top' || placement === 'before') && copies > 1
+                ? Array.from({ length: copies }, (_, i) => copies - i)
+                : Array.from({ length: copies }, (_, i) => i + 1);
+            for (const c of createOrder) {
+                const base = baseName || module.name || "Module";
+                const newModuleName = (copies > 1 && autoIncrement)
+                    ? formatNameWithCopyIndex(base, c, prefix, suffix, true)
+                    : getUniqueName(base, existingNames, prefix, suffix);
+                existingNames.add(newModuleName);
+                const pos = getClonePosition(placement, c, copies, selectedPos, maxPos);
+                const newModule = await createModules(courseId, newModuleName, pos);
+                if (!newModule) continue;
+                if (option === 'structureShared') {
+                    for (const item of items) {
+                        const skip = ['SubHeader', 'ExternalUrl', 'ExternalTool', 'ContextExternalTool'];
+                        if (skip.includes(item.type)) continue;
+                        const itemPayload = { type: item.type, position: item.position || 0, indent: item.indent || 0 };
+                        if (item.type === 'Page' || item.type === 'WikiPage') {
+                            itemPayload.page_url = item.page_url || item.url || item.content_id;
+                        } else if (item.content_id) {
+                            itemPayload.content_id = item.content_id;
+                        }
+                        try {
+                            await addModuleItem(courseId, newModule.id, itemPayload);
+                        } catch (e) { console.warn('Add item:', e); }
+                    }
+                }
+            }
+        }
+        await refreshCurrentTab();
+    } catch (error) {
+        console.error(error);
+        alert(`Error: ${error.message}`);
     }
 }
 
@@ -1343,26 +1558,44 @@ async function executeClone() {
     const prefix = document.getElementById('clonePrefix').value || '';
     const suffix = document.getElementById('cloneSuffix').value || '';
     if (currentTab === 'modules' && method === 'deep') {
-        for (const rowData of selectedRows) await performDeepClone(rowData, prefix, suffix);
-    } else if (method === 'deep') {
-        let configKey = currentTab;
-        if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
-        const tabConfig = FIELD_DEFINITIONS[configKey];
-        for (const rowData of selectedRows) {
-            const endpoint = tabConfig.endpoint;
-            const itemIdentifier = (currentTab === 'pages') ? (rowData.url || rowData.page_url) : rowData.id;
-            const response = await fetch(`/canvas/courses/${selectedCourseId}/${endpoint}/${itemIdentifier}`);
-            if (response.ok) {
-                const originalFullObject = await response.json();
-                const sanitizedCopy = sanitizeRowData(originalFullObject, endpoint, 'clone');
-                const newName = getUniqueName(originalFullObject.name || originalFullObject.title || originalFullObject.display_name || "Item", new Set(), prefix, suffix);
-                if (sanitizedCopy.name !== undefined) sanitizedCopy.name = newName;
-                if (sanitizedCopy.title !== undefined) sanitizedCopy.title = newName;
-                if (sanitizedCopy.display_name !== undefined) sanitizedCopy.display_name = newName;
-                await createDeepContent(currentTab.charAt(0).toUpperCase() + currentTab.slice(1, -1), sanitizedCopy);
+        try {
+            if (gridApi) {
+                gridApi.showLoadingOverlay();
+                var lt = document.getElementById('custom-loading-text');
+                if (lt) lt.textContent = 'Cloning modules...';
             }
+            for (const rowData of selectedRows) await performDeepClone(rowData, prefix, rowData.name || rowData.title, suffix);
+        } finally {
+            if (gridApi) gridApi.hideOverlay();
         }
-        await refreshCurrentTab();
+    } else if (method === 'deep') {
+        try {
+            if (gridApi) {
+                gridApi.showLoadingOverlay();
+                var lt2 = document.getElementById('custom-loading-text');
+                if (lt2) lt2.textContent = 'Cloning...';
+            }
+            let configKey = currentTab;
+            if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
+            const tabConfig = FIELD_DEFINITIONS[configKey];
+            for (const rowData of selectedRows) {
+                const endpoint = tabConfig.endpoint;
+                const itemIdentifier = (currentTab === 'pages') ? (rowData.url || rowData.page_url) : rowData.id;
+                const response = await fetch(`/canvas/courses/${selectedCourseId}/${endpoint}/${itemIdentifier}`);
+                if (response.ok) {
+                    const originalFullObject = await response.json();
+                    const sanitizedCopy = sanitizeRowData(originalFullObject, endpoint, 'clone');
+                    const newName = getUniqueName(originalFullObject.name || originalFullObject.title || originalFullObject.display_name || "Item", new Set(), prefix, suffix);
+                    if (sanitizedCopy.name !== undefined) sanitizedCopy.name = newName;
+                    if (sanitizedCopy.title !== undefined) sanitizedCopy.title = newName;
+                    if (sanitizedCopy.display_name !== undefined) sanitizedCopy.display_name = newName;
+                    await createDeepContent(currentTab.charAt(0).toUpperCase() + currentTab.slice(1, -1), sanitizedCopy);
+                }
+            }
+            await refreshCurrentTab();
+        } finally {
+            if (gridApi) gridApi.hideOverlay();
+        }
     } else {
         const newItems = selectedRows.map(rowData => {
             let clonedCopy = prepareUIClone(rowData, currentTab, prefix, suffix);
@@ -1391,7 +1624,8 @@ async function executeDelete() {
                 await deepPurgeModule(courseId, item);
             } else {
                 const identifier = (type === 'pages') ? (item.url || item.page_url) : item.id;
-                await deleteCanvasItem(type, courseId, identifier);
+                const extra = (type === 'files' && item.is_folder) ? { isFolder: true } : undefined;
+                await deleteCanvasItem(type, courseId, identifier, extra);
             }
         }
         closeActiveModal();
@@ -1598,10 +1832,16 @@ function sanitizeRowData(rowData, tabType, method = 'sync') {
 
     const systemRestrictedFields = ['id', 'uuid', 'created_at', 'updated_at', 'items_count', 'items', 'html_url', 'url', 'workflow_state', 'publish_at', 'course_id', 'context_type', 'context_id', 'lti_context_id', 'global_id', 'secure_params', 'original_lti_resource_link_id', 'items_url', 'locked_for_user', 'lock_info', 'lock_explanation', 'permissions', 'submission', 'overrides', 'all_dates', 'can_duplicate'];
     const specialIncludedIds = new Set(['assignment_group_id', 'grading_standard_id', 'prerequisite_module_ids']);
+    const cloneContentFields = new Set(['description', 'body', 'message']);
     const exclusionSet = new Set(systemRestrictedFields);
 
-    if (tabConfig.fields) {
+    if (tabConfig.fields && method !== 'clone') {
         tabConfig.fields.forEach(field => { if (field.editable === false) exclusionSet.add(field.key || field.name); });
+    } else if (tabConfig.fields && method === 'clone') {
+        tabConfig.fields.forEach(field => {
+            const key = field.key || field.name;
+            if (field.editable === false && !cloneContentFields.has(key)) exclusionSet.add(key);
+        });
     }
 
     const sanitizedObject = {};
@@ -1614,14 +1854,21 @@ function sanitizeRowData(rowData, tabType, method = 'sync') {
     return sanitizedObject;
 }
 
-async function performDeepClone(moduleRecord, prefix, suffix) {
+async function performDeepClone(moduleRecord, prefix, baseName, suffix) {
+    return performDeepCloneWithIndex(moduleRecord, prefix, baseName || moduleRecord.name, suffix, null, null, null, true);
+}
+
+async function performDeepCloneWithIndex(moduleRecord, prefix, baseName, suffix, copyIndex, position, allModulesCache, autoIncrement = true) {
     if (!selectedCourseId) { alert('No course.'); return; }
     try {
-        const response = await fetch(`/canvas/courses/${selectedCourseId}/modules?per_page=100`);
-        const allModules = response.ok ? await response.json() : [];
+        const allModules = allModulesCache || (await fetch(`/canvas/courses/${selectedCourseId}/modules?per_page=100`).then(r => r.ok ? r.json() : []));
         const existingNames = new Set(allModules.map(m => m.name));
-        const newModuleName = getUniqueName(moduleRecord.name || moduleRecord.title || "Module", existingNames, prefix, suffix);
-        const newModule = await createModules(selectedCourseId, newModuleName);
+        const base = baseName || moduleRecord.name || "Module";
+        const newModuleName = copyIndex != null && autoIncrement
+            ? formatNameWithCopyIndex(base, copyIndex, prefix, suffix, true)
+            : getUniqueName(base, existingNames, prefix, suffix);
+        existingNames.add(newModuleName);
+        const newModule = await createModules(selectedCourseId, newModuleName, position);
         const moduleItems = moduleRecord.items || [];
         for (const item of moduleItems) {
             const itemType = item.type;
@@ -1643,7 +1890,10 @@ async function performDeepClone(moduleRecord, prefix, suffix) {
                     if (contentResponse.ok) {
                         const originalFullObject = await contentResponse.json();
                         const sanitizedCopy = sanitizeRowData(originalFullObject, apiEndpoint, 'clone');
-                        const uniqueItemName = getUniqueName(originalFullObject.name || originalFullObject.title || "Item", new Set(), prefix, suffix);
+                        const itemBase = originalFullObject.name || originalFullObject.title || "Item";
+                        const uniqueItemName = copyIndex != null && autoIncrement
+                            ? formatNameWithCopyIndex(itemBase, copyIndex, prefix, suffix, true)
+                            : getUniqueName(itemBase, new Set(), prefix, suffix);
                         if (sanitizedCopy.name !== undefined) sanitizedCopy.name = uniqueItemName;
                         if (sanitizedCopy.title !== undefined) sanitizedCopy.title = uniqueItemName;
                         newContent = await createDeepContent(itemType, sanitizedCopy);
@@ -1656,7 +1906,7 @@ async function performDeepClone(moduleRecord, prefix, suffix) {
                 await addModuleItem(selectedCourseId, newModule.id, itemParams);
             }
         }
-        await refreshCurrentTab();
+        if (copyIndex == null) await refreshCurrentTab();
     } catch (error) { alert(`Cloning failed: ${error.message}`); }
 }
 
@@ -1723,7 +1973,7 @@ async function createPages(courseId, params) {
 }
 
 async function createDiscussions(courseId, params) {
-    const response = await fetch(`/canvas/courses/${courseId}/discussion_topics`, {
+    const response = await fetch(`/canvas/courses/${courseId}/discussions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
@@ -1740,11 +1990,13 @@ async function createFolders(courseId, params) {
     return response.ok ? await response.json() : null;
 }
 
-const createModules = async (courseId, moduleName) => {
+const createModules = async (courseId, moduleName, position) => {
+    const body = { module: { name: moduleName } };
+    if (position != null) body.module.position = position;
     const response = await fetch(`/canvas/courses/${courseId}/modules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ module: { name: moduleName } })
+        body: JSON.stringify(body)
     });
     if (!response.ok) throw new Error(`Failed: ${response.statusText}`);
     return await response.json();
@@ -1764,14 +2016,15 @@ function getSelectedItems() {
     return gridApi.getSelectedRows();
 }
 
-async function deleteCanvasItem(type, courseId, identifier) {
+async function deleteCanvasItem(type, courseId, identifier, extraBody) {
     let configKey = type;
     if (!FIELD_DEFINITIONS[configKey] && type === 'discussions') configKey = 'discussion_topics';
     const config = FIELD_DEFINITIONS[configKey];
     const endpoint = config ? config.endpoint : type;
     const response = await fetch(`/canvas/courses/${courseId}/${endpoint}/${identifier}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: extraBody ? JSON.stringify(extraBody) : undefined
     });
     if (!response.ok) {
         const errorText = await response.text();
@@ -1787,7 +2040,7 @@ async function deleteCanvasItem(type, courseId, identifier) {
 }
 
 async function deepPurgeModule(courseId, moduleItem) {
-    const response = await fetch(`/canvas/courses/${courseId}/modules/${moduleItem.id}/full-delete`, {
+    const response = await fetch(`/canvas/courses/${courseId}/modules/${moduleItem.id}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
     });

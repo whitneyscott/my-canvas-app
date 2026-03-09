@@ -646,6 +646,34 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     }
   }
 
+  async renameFolder(folderId: number, newName: string) {
+    try {
+      const { token, baseUrl } = await this.getAuthHeaders();
+      const url = `${baseUrl}/folders/${folderId}`;
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Canvas API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log(`[Service] Renamed folder ${folderId} to ${newName}`);
+      return result;
+    } catch (error: any) {
+      console.error(`[Service] Error renaming folder ${folderId}:`, error);
+      throw error;
+    }
+  }
+
   async getCourseAccommodations(courseId: number) {
     const { token, baseUrl } = await this.getAuthHeaders();
     
@@ -2142,5 +2170,134 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       console.error(`[Service] Error deleting module item ${item.type} ${item.content_id}:`, error);
       throw error;
     }
+  }
+
+  private static readonly ACCREDITATION_PROFILE_PAGE_URL = 'accreditation-profile';
+  private static readonly START_HERE_MODULE_NAME = 'Start Here';
+
+  private static parseAccreditationBlock(body: string): Record<string, unknown> | null {
+    const match = body?.match(/<!--\s*accreditation:(.+?)\s*-->/s);
+    if (!match) return null;
+    try {
+      const parsed = JSON.parse(match[1].trim());
+      return typeof parsed === 'object' && parsed !== null ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private static buildAccreditationBlock(profile: Record<string, unknown>): string {
+    return `<!-- accreditation:${JSON.stringify(profile)} -->`;
+  }
+
+  private static mergeAccreditationBlockInBody(body: string, profile: Record<string, unknown>): string {
+    const block = CanvasService.buildAccreditationBlock(profile);
+    if (/<!--\s*accreditation:.+?\s*-->/s.test(body ?? '')) {
+      return body.replace(/<!--\s*accreditation:.+?\s*-->/s, block);
+    }
+    return (body ?? '').trim() ? `${block}\n\n${body}` : block;
+  }
+
+  async ensureStartHereModule(courseId: number) {
+    const modules = await this.getCourseModules(courseId);
+    const existing = modules.find((m: { name?: string }) =>
+      (m.name ?? '').trim().toLowerCase() === CanvasService.START_HERE_MODULE_NAME.toLowerCase()
+    );
+    if (existing) return existing;
+    return this.createModule(courseId, { name: CanvasService.START_HERE_MODULE_NAME });
+  }
+
+  async getOrCreateAccreditationProfilePage(courseId: number) {
+    const startHere = await this.ensureStartHereModule(courseId);
+    const pages = await this.getCoursePages(courseId);
+    const existing = pages.find(
+      (p: { url?: string }) => (p.url ?? '').toLowerCase() === CanvasService.ACCREDITATION_PROFILE_PAGE_URL.toLowerCase()
+    );
+    if (existing) {
+      const items = await this.getModuleItems(courseId, startHere.id);
+      const inModule = items.some(
+        (i: { type?: string; page_url?: string }) =>
+          i.type === 'Page' && (i.page_url ?? '').toLowerCase() === CanvasService.ACCREDITATION_PROFILE_PAGE_URL.toLowerCase()
+      );
+      if (!inModule) {
+        await this.createModuleItem(courseId, startHere.id, {
+          type: 'Page',
+          page_url: existing.url || CanvasService.ACCREDITATION_PROFILE_PAGE_URL,
+        });
+      }
+      return { page: existing, module: startHere };
+    }
+    const initialBody = CanvasService.buildAccreditationBlock({ v: 1 });
+    const created = await this.createPage(courseId, {
+      wiki_page: { title: 'Accreditation Profile', body: initialBody },
+    });
+    const pageUrl = created.url ?? CanvasService.ACCREDITATION_PROFILE_PAGE_URL;
+    await this.createModuleItem(courseId, startHere.id, { type: 'Page', page_url: pageUrl });
+    return { page: created, module: startHere };
+  }
+
+  async getAccreditationProfile(courseId: number) {
+    const { page } = await this.getOrCreateAccreditationProfilePage(courseId);
+    const body = page.body ?? '';
+    const profile = CanvasService.parseAccreditationBlock(body);
+    return profile ?? { v: 1 };
+  }
+
+  async saveAccreditationProfile(courseId: number, profile: Record<string, unknown>) {
+    const { page } = await this.getOrCreateAccreditationProfilePage(courseId);
+    const pageUrl = page.url ?? CanvasService.ACCREDITATION_PROFILE_PAGE_URL;
+    const merged = CanvasService.mergeAccreditationBlockInBody(page.body ?? '', profile);
+    return this.updatePage(courseId, pageUrl, { wiki_page: { body: merged } });
+  }
+
+  private static readonly STANDARDS_PREFIX_REGEX = /\|STANDARDS:([^|]+)\|/;
+
+  private static parseStandardsFromDescription(description: string | null | undefined): string[] | null {
+    if (!description || typeof description !== 'string') return null;
+    const match = description.match(CanvasService.STANDARDS_PREFIX_REGEX);
+    if (!match) return null;
+    return match[1].split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  private static mergeStandardsIntoDescription(description: string | null | undefined, standards: string[]): string {
+    const base = (description ?? '').trim();
+    const block = standards.length ? `|STANDARDS:${standards.join(',')}|` : '';
+    if (!block) {
+      return base.replace(CanvasService.STANDARDS_PREFIX_REGEX, '').trim();
+    }
+    if (CanvasService.STANDARDS_PREFIX_REGEX.test(base)) {
+      return base.replace(CanvasService.STANDARDS_PREFIX_REGEX, block).trim();
+    }
+    return base ? `${block} ${base}` : block;
+  }
+
+  async getCourseOutcomeLinks(courseId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const url = `${baseUrl}/courses/${courseId}/outcome_group_links?outcome_style=full&per_page=100`;
+    const links = await this.fetchPaginatedData(url, token);
+    return links.map((link: { outcome?: { id: number; title?: string; description?: string }; outcome_group?: { title?: string } }) => ({
+      id: link.outcome?.id,
+      title: link.outcome?.title ?? '',
+      description: link.outcome?.description ?? '',
+      groupTitle: link.outcome_group?.title ?? null,
+      standards: CanvasService.parseStandardsFromDescription(link.outcome?.description) ?? [],
+    }));
+  }
+
+  async updateOutcomeStandards(outcomeId: number, standards: string[]) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const getRes = await fetch(`${baseUrl}/outcomes/${outcomeId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!getRes.ok) throw new Error(`Failed to fetch outcome: ${getRes.statusText}`);
+    const outcome = await getRes.json();
+    const merged = CanvasService.mergeStandardsIntoDescription(outcome.description, standards);
+    const putRes = await fetch(`${baseUrl}/outcomes/${outcomeId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: merged }),
+    });
+    if (!putRes.ok) throw new Error(`Failed to update outcome: ${putRes.statusText}`);
+    return putRes.json();
   }
 }

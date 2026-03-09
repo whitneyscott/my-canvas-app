@@ -1,6 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Param, ParseIntPipe, Body, HttpException, HttpStatus } from '@nestjs/common';
 import { CanvasService } from './canvas.service';
-
 @Controller('canvas')
 export class CanvasController {
   constructor(private readonly canvasService: CanvasService) {}
@@ -130,6 +129,32 @@ export class CanvasController {
   @Get('courses/:id/custom_gradebook_columns')
   async getCustomGradebookColumns(@Param('id', ParseIntPipe) id: number) {
     return this.canvasService.getCustomGradebookColumns(id);
+  }
+
+  @Get('courses/:id/accreditation/profile')
+  async getAccreditationProfile(@Param('id', ParseIntPipe) id: number) {
+    return this.canvasService.getAccreditationProfile(id);
+  }
+
+  @Put('courses/:id/accreditation/profile')
+  async saveAccreditationProfile(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { profile: Record<string, unknown> }
+  ) {
+    return this.canvasService.saveAccreditationProfile(id, body.profile);
+  }
+
+  @Get('courses/:id/accreditation/outcomes')
+  async getCourseOutcomeLinks(@Param('id', ParseIntPipe) id: number) {
+    return this.canvasService.getCourseOutcomeLinks(id);
+  }
+
+  @Put('outcomes/:outcomeId/standards')
+  async updateOutcomeStandards(
+    @Param('outcomeId', ParseIntPipe) outcomeId: number,
+    @Body() body: { standards: string[] }
+  ) {
+    return this.canvasService.updateOutcomeStandards(outcomeId, body.standards ?? []);
   }
 
   @Get('courses/:id/bulk_user_tags')
@@ -509,12 +534,27 @@ export class CanvasController {
     return this.canvasService.bulkDeleteFiles(courseId, body.fileIds, body.isFolders || []);
   }
 
+  @Delete('courses/:courseId/files/:fileId')
+  async deleteFileOrFolder(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('fileId', ParseIntPipe) fileId: number,
+    @Body() body: { isFolder?: boolean }
+  ) {
+    const results = await this.canvasService.bulkDeleteFiles(courseId, [fileId], [!!body?.isFolder]);
+    const r = results[0];
+    if (r && !r.success) throw new HttpException(r.error || 'Delete failed', HttpStatus.BAD_REQUEST);
+    return { success: true };
+  }
+
   @Put('courses/:id/files/:fileId')
-  async renameFile(
+  async updateFileOrFolder(
     @Param('id', ParseIntPipe) courseId: number,
     @Param('fileId', ParseIntPipe) fileId: number,
-    @Body() body: { name: string }
+    @Body() body: { name?: string; display_name?: string; isFolder?: boolean }
   ) {
-    return this.canvasService.renameFile(courseId, fileId, body.name);
+    const newName = body.name ?? body.display_name;
+    if (!newName) throw new HttpException('name or display_name required', HttpStatus.BAD_REQUEST);
+    if (body.isFolder) return this.canvasService.renameFolder(fileId, newName);
+    return this.canvasService.renameFile(courseId, fileId, newName);
   }
 }

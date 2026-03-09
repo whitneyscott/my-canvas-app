@@ -73,6 +73,7 @@
                     <button class="tab-btn" onclick="switchTab('pages')">Pages</button>
                     <button class="tab-btn" onclick="switchTab('quizzes')">Quizzes</button>
                     <button class="tab-btn" onclick="switchTab('discussions')">Discussions</button>
+                    <button class="tab-btn" onclick="switchTab('files')">Files</button>
                     <button class="tab-btn" onclick="switchTab('ada_compliance')">ADA Compliance Sync</button>
                     <button class="tab-btn" onclick="switchTab('standards_sync')">Standards Sync</button>
                 </nav>
@@ -92,9 +93,9 @@
                                 <div class="dropdown-item" onclick="openModal('searchReplaceModal'); closeDropdown('bulkActionsDropdown')">Search & Replace</div>
                                 <div class="dropdown-item" onclick="openModal('dateShiftModal'); closeDropdown('bulkActionsDropdown')">Date Shift</div>
                                 <div class="dropdown-item" onclick="openModal('pointsModal'); closeDropdown('bulkActionsDropdown')">Points</div>
-                                <div class="dropdown-item" onclick="openModal('cloneModal'); closeDropdown('bulkActionsDropdown')">Clone</div>
+                                <div class="dropdown-item" onclick="handleCloneClick(); closeDropdown('bulkActionsDropdown')">Clone</div>
                                 <div id="mergeMenuItem" class="dropdown-item" onclick="populateMergeSelector(); openModal('mergeModal'); closeDropdown('bulkActionsDropdown')" style="display: none;">Merge Modules</div>
-                                <div class="dropdown-item" onclick="openModal('deleteModal'); closeDropdown('bulkActionsDropdown')">Delete</div>
+                                <div class="dropdown-item" onclick="handleDeleteClick(); closeDropdown('bulkActionsDropdown')">Delete</div>
                             </div>
                         </div>
                         <button class="primary-btn" onclick="openModal('columnVisibilityModal')">Columns</button>
@@ -103,7 +104,23 @@
                     <button class="primary-btn" onclick="refreshCurrentTab()">Refresh</button>
                     <button class="primary-btn" onclick="openModal('modeSelectionModal')" title="Application Mode Settings">⚙️ Mode</button>
                 </header>
-                <div id="myGrid" class="ag-theme-quartz" style="height: 500px; width: 100%;"></div>
+                <div id="tabContentArea">
+                    <div id="myGrid" class="ag-theme-quartz" style="height: 500px; width: 100%;"></div>
+                    <div id="standardsSyncPanel" class="standards-sync-panel" style="display: none;">
+                        <section class="acc-section acc-profile">
+                            <h3>Accreditation Profile</h3>
+                            <div id="accProfileContent">Loading...</div>
+                        </section>
+                        <section class="acc-section acc-outcomes">
+                            <h3>Outcomes &amp; Standards</h3>
+                            <div id="accOutcomesContent">Loading...</div>
+                        </section>
+                        <section class="acc-section acc-placeholder">
+                            <h3>Content Alignment</h3>
+                            <p>View assignments and rubrics with standard IDs — coming in Phase 6.</p>
+                        </section>
+                    </div>
+                </div>
             </main>
         </div>
     </div>
