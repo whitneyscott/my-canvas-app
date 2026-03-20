@@ -1,6 +1,7 @@
 async function init() {
     debugLog("Initializing Application...");
-    const overlay = document.getElementById('token-overlay');
+    const tokenOverlay = document.getElementById('token-overlay');
+    const oauthOverlay = document.getElementById('oauth-overlay');
     const wrapper = document.getElementById('main-app-wrapper');
 
     try {
@@ -8,13 +9,20 @@ async function init() {
         const status = await response.json();
 
         if (status && status.needsToken === true) {
-            debugLog("Status: Token Required");
-            overlay.style.display = 'flex';
-            wrapper.style.display = 'none';
+            debugLog(status.needsOAuth ? "Status: Canvas OAuth required" : "Status: Manual token required");
+            if (wrapper) wrapper.style.display = 'none';
+            if (status.needsOAuth) {
+                if (oauthOverlay) oauthOverlay.style.display = 'flex';
+                if (tokenOverlay) tokenOverlay.style.display = 'none';
+            } else {
+                if (oauthOverlay) oauthOverlay.style.display = 'none';
+                if (tokenOverlay) tokenOverlay.style.display = 'flex';
+            }
         } else {
             debugLog("Status: Access Granted");
-            overlay.style.display = 'none';
-            wrapper.style.display = 'block'; // Reveals the pre-laid-out app
+            if (oauthOverlay) oauthOverlay.style.display = 'none';
+            if (tokenOverlay) tokenOverlay.style.display = 'none';
+            if (wrapper) wrapper.style.display = 'block';
             await loadCourses();
         }
     } catch (err) {
@@ -104,6 +112,45 @@ function toggleDebugPanel() {
     debugToggleBtn.textContent = debugPanel.classList.contains('collapsed') ? '▲' : '▼';
 }
 
+async function copyDebugLogToClipboard(ev) {
+    if (ev) {
+        ev.stopPropagation();
+        ev.preventDefault();
+    }
+    const debugContent = document.getElementById('debugContent');
+    if (!debugContent) return;
+    const lines = Array.from(debugContent.querySelectorAll('.debug-entry'))
+        .map((n) => (n.textContent || '').trim())
+        .filter(Boolean);
+    const text = lines.length ? lines.join('\n') : (debugContent.innerText || '').trim();
+    if (!text) {
+        alert('No debug log entries to copy.');
+        return;
+    }
+    try {
+        await navigator.clipboard.writeText(text);
+    } catch (_) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+            document.execCommand('copy');
+        } finally {
+            document.body.removeChild(ta);
+        }
+    }
+    const btn = document.querySelector('.debug-copy-btn');
+    if (btn) {
+        const prev = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(() => { btn.textContent = prev; }, 1500);
+    }
+}
+
 // Debug Panel Drag and Drop
 let isDragging = false;
 let currentX;
@@ -114,6 +161,7 @@ let xOffset = 0;
 let yOffset = 0;
 
 function dragStart(e) {
+    if (e.target.closest('.debug-copy-btn')) return;
     if (e.target.closest('.debug-panel-header')) {
         isDragging = true;
         initialX = e.clientX - xOffset;
@@ -552,13 +600,34 @@ async function loadCourses() {
         
         if (response.status === 401) {
             debugLog('Session expired or token invalid. Redirecting to auth.', 'warn');
-            const overlay = document.getElementById('token-overlay');
-            if (overlay) overlay.style.display = 'flex';
+            const tok = document.getElementById('token-overlay');
+            const oauth = document.getElementById('oauth-overlay');
+            const wrap = document.getElementById('main-app-wrapper');
+            if (wrap) wrap.style.display = 'none';
+            if (oauth) oauth.style.display = 'none';
+            if (tok) tok.style.display = 'flex';
+            let detail = '';
+            try {
+                const j = await response.clone().json();
+                if (j?.message) detail = String(j.message);
+            } catch (_) {}
+            if (detail) debugLog('ERROR: ' + detail, 'error');
             return;
         }
 
         if (!response.ok) {
-            debugLog(`ERROR: Failed to load courses: ${response.status} ${response.statusText}`, 'error');
+            let detail = '';
+            try {
+                const j = await response.clone().json();
+                if (j?.message) detail = String(j.message);
+            } catch (_) {
+                try {
+                    detail = (await response.clone().text()).slice(0, 300);
+                } catch (_) {}
+            }
+            const line = `ERROR: Failed to load courses: ${response.status} ${response.statusText}${detail ? ' — ' + detail : ''}`;
+            debugLog(line, 'error');
+            alert(`Could not load courses (${response.status}).\n\n${detail || response.statusText || 'See debug log for details.'}`);
             courseSelect.innerHTML = '<option value="">Select a Course</option>';
             return;
         }

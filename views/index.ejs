@@ -61,7 +61,10 @@
             <div class="debug-panel collapsed" id="debugPanel">
                 <div class="debug-panel-header" onclick="toggleDebugPanel()">
                     <span>System Debug Monitor</span>
-                    <span id="debugToggle">▲</span>
+                    <span class="debug-panel-header-right" onclick="event.stopPropagation()">
+                        <button type="button" class="debug-copy-btn" onclick="copyDebugLogToClipboard(event)" title="Copy all log lines">Copy</button>
+                        <span id="debugToggle">▲</span>
+                    </span>
                 </div>
                 <div class="debug-panel-content" id="debugContent"></div>
             </div>

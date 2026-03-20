@@ -34,7 +34,12 @@ export class CanvasService {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!response.ok) throw new Error(`Canvas API Error: ${response.statusText}`);
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        throw new Error(
+          `Canvas API ${response.status} ${response.statusText}${errBody ? `: ${errBody.slice(0, 500)}` : ''}`
+        );
+      }
 
       const chunk = (await response.json()) as CanvasCourse[];
       if (Array.isArray(chunk)) {

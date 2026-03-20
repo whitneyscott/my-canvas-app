@@ -6,7 +6,15 @@ export class CanvasController {
 
   @Get('courses')
   async getCourses() {
-    return this.canvasService.getCourses();
+    try {
+      return await this.canvasService.getCourses();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/no canvas token|unauthorized: no canvas/i.test(msg)) {
+        throw new HttpException(msg, HttpStatus.UNAUTHORIZED);
+      }
+      throw new HttpException(msg, HttpStatus.BAD_GATEWAY);
+    }
   }
 
   @Get('courses/:id')

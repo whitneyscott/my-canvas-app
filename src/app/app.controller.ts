@@ -37,6 +37,7 @@ export class AppController {
         deploymentMode: 'lti',
         ltiVerified: true,
         needsOAuth,
+        needsToken: true,
         courseId: req.session.courseId || courseId || null,
         modePassword: process.env.MODE_PASSWORD || 'dev2025'
       };
@@ -81,7 +82,7 @@ export class AppController {
     const hasToken = !!req.session?.canvasToken && !!req.session?.canvasUrl;
     const ltiLaunchType = req.session?.ltiLaunchType as '1.1' | '1.3' | undefined;
     const needsOAuth = ltiVerified && !hasToken && ltiLaunchType !== '1.1';
-    const needsToken = !ltiVerified && !hasToken;
+    const needsToken = !hasToken;
     const defaultUrl = req.session?.canvasApiDomain
       ? `${req.session.canvasApiDomain.replace(/\/api\/v1\/?$/, '')}/api/v1`
       : (process.env.CANVAS_BASE_URL || 'https://canvas.instructure.com/api/v1');
