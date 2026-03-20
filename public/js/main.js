@@ -514,6 +514,9 @@ async function refreshCurrentTab() {
         originalData[currentTab] = dataWithStatus;
 
         if (gridApi) {
+            if (['assignments', 'quizzes', 'discussions', 'announcements', 'pages', 'modules', 'files'].includes(currentTab)) {
+                gridApi.setGridOption('columnDefs', generateColumnDefs(currentTab));
+            }
             gridApi.setGridOption('rowData', dataWithStatus);
             gridApi.setGridOption('loading', false);
             gridApi.redrawRows();
@@ -659,7 +662,7 @@ function onCourseSelected() {
 
 function switchTab(tabName) {
     // Security Check: Enforce tab interception guard clause
-    const allowedTabs = ['assignments', 'discussions', 'pages', 'quizzes', 'modules', 'files', 'standards_sync'];
+    const allowedTabs = ['assignments', 'discussions', 'announcements', 'pages', 'quizzes', 'modules', 'files', 'standards_sync'];
     if (tabInterceptionEnabled && !allowedTabs.includes(tabName)) {
         const message = 'Module Integration Pending: This feature is planned for a future development phase.';
         alert(message);
@@ -726,7 +729,7 @@ function handleTabClick(event) {
     const tab = event.currentTarget;
     const tabName = tab.getAttribute('data-tab');
     
-    const allowedTabs = ['assignments', 'discussions', 'pages', 'quizzes', 'modules', 'files', 'standards_sync'];
+    const allowedTabs = ['assignments', 'discussions', 'announcements', 'pages', 'quizzes', 'modules', 'files', 'standards_sync'];
     if (tabInterceptionEnabled && !allowedTabs.includes(tabName)) {
         event.preventDefault();
         event.stopPropagation();
@@ -1306,7 +1309,7 @@ async function loadTabData(tabName) {
         originalData[tabName] = dataWithStatus;
 
         if (currentTab === tabName && gridApi) {
-            if (['assignments', 'quizzes', 'discussions', 'pages', 'modules', 'files'].includes(tabName)) {
+            if (['assignments', 'quizzes', 'discussions', 'announcements', 'pages', 'modules', 'files'].includes(tabName)) {
                 gridApi.setGridOption('columnDefs', generateColumnDefs(tabName));
             }
             gridApi.setGridOption('rowData', dataWithStatus);
@@ -2285,6 +2288,7 @@ async function createDeepContent(itemType, sanitizedParams) {
     if (itemType === 'Quiz') return await createQuizzes(selectedCourseId, sanitizedParams);
     if (itemType === 'Page') return await createPages(selectedCourseId, sanitizedParams);
     if (itemType === 'Discussion') return await createDiscussions(selectedCourseId, sanitizedParams);
+    if (itemType === 'Announcement') return await createAnnouncements(selectedCourseId, sanitizedParams);
     if (itemType === 'Folder') return await createFolders(selectedCourseId, sanitizedParams);
     return null;
 }
@@ -2342,6 +2346,15 @@ async function createPages(courseId, params) {
 
 async function createDiscussions(courseId, params) {
     const response = await fetch(`/canvas/courses/${courseId}/discussions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return response.ok ? await response.json() : null;
+}
+
+async function createAnnouncements(courseId, params) {
+    const response = await fetch(`/canvas/courses/${courseId}/announcements`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)

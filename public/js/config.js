@@ -62,7 +62,21 @@ const CANVAS_CONFIG = {
       endpoint: 'pages',
       fields: [
         { key: 'title', label: 'Page Title', editable: true, type: 'text' },
-        { key: 'body', label: 'Content', editable: false, type: 'html' },
+        { key: 'body', label: 'Content', editable: true, type: 'html' },
+        { key: 'published', label: 'Published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
+      ]
+    },
+    announcements: {
+      displayName: 'Announcements',
+      endpoint: 'announcements',
+      fields: [
+        { key: 'title', label: 'Title', editable: true, type: 'text' },
+        { key: 'message', label: 'Message', editable: true, type: 'html' },
+        { key: 'allow_rating', label: 'Allow Rating', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
+        { key: 'delayed_post_at', label: 'Delayed Post', editable: true, type: 'date' },
+        { key: 'lock_at', label: 'Lock Date', editable: true, type: 'date' },
+        { key: 'unlock_at', label: 'Unlock Date', editable: true, type: 'date' },
+        { key: 'due_at', label: 'Due Date', editable: true, type: 'date' },
         { key: 'published', label: 'Published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
       ]
     },

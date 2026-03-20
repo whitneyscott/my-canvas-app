@@ -458,11 +458,27 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   async getCourseAnnouncements(courseId: number) {
     const { token, baseUrl } = await this.getAuthHeaders();
-    // Use discussion_topics endpoint with only_announcements=true
-    // This is more reliable than the global announcements endpoint
     const url = `${baseUrl}/courses/${courseId}/discussion_topics?only_announcements=true&per_page=100`;
     console.log(`[Service] Fetching announcements for course ${courseId} from: ${url}`);
-    return await this.fetchPaginatedData(url, token);
+    const announcements = await this.fetchPaginatedData(url, token);
+
+    const withMessage = await Promise.all(
+      announcements.map(async (row: any) => {
+        if (!row?.id) return row;
+        try {
+          const full = await this.getDiscussion(courseId, row.id);
+          return {
+            ...row,
+            message: full.message ?? row.message,
+            title: full.title ?? row.title,
+          };
+        } catch {
+          return row;
+        }
+      }),
+    );
+
+    return withMessage;
   }
 
   async getCourseModules(courseId: number) {
@@ -1177,24 +1193,27 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   async updatePage(courseId: number, pageUrl: string, updates: Record<string, any>) {
     const { token, baseUrl } = await this.getAuthHeaders();
-    
-    // Clean up updates
+
     const cleanedUpdates: Record<string, any> = {};
     Object.keys(updates).forEach(key => {
       if (updates[key] !== null && updates[key] !== undefined && updates[key] !== '') {
         cleanedUpdates[key] = updates[key];
       }
     });
-    
-    console.log(`Updating page ${pageUrl} with:`, cleanedUpdates);
-    
+
+    const requestBody = cleanedUpdates.wiki_page
+      ? cleanedUpdates
+      : { wiki_page: cleanedUpdates };
+
+    console.log(`Updating page ${pageUrl} with:`, requestBody);
+
     const response = await fetch(`${baseUrl}/courses/${courseId}/pages/${encodeURIComponent(pageUrl)}`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(cleanedUpdates),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -1207,34 +1226,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   async updateAnnouncement(courseId: number, announcementId: number, updates: Record<string, any>) {
-    const { token, baseUrl } = await this.getAuthHeaders();
-    
-    // Clean up updates
-    const cleanedUpdates: Record<string, any> = {};
-    Object.keys(updates).forEach(key => {
-      if (updates[key] !== null && updates[key] !== undefined && updates[key] !== '') {
-        cleanedUpdates[key] = updates[key];
-      }
-    });
-    
-    console.log(`Updating announcement ${announcementId} with:`, cleanedUpdates);
-    
-    const response = await fetch(`${baseUrl}/announcements/${announcementId}`, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(cleanedUpdates),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Announcement update failed: ${response.status} ${response.statusText}`, errorText);
-      throw new Error(`Failed to update announcement: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    return await response.json();
+    return this.updateDiscussion(courseId, announcementId, updates);
   }
 
   async updateModule(courseId: number, moduleId: number, updates: Record<string, any>) {
@@ -1358,25 +1350,11 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   async bulkUpdatePages(courseId: number, itemIds: string[], updates: Record<string, any>) {
-    const { token, baseUrl } = await this.getAuthHeaders();
     const results: Array<{ id: string; success: boolean; data?: any; error?: string }> = [];
 
     for (const pageUrl of itemIds) {
       try {
-        const response = await fetch(`${baseUrl}/courses/${courseId}/pages/${encodeURIComponent(pageUrl)}`, {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(updates),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to update page ${pageUrl}: ${response.statusText}`);
-        }
-
-        const updated = await response.json();
+        const updated = await this.updatePage(courseId, pageUrl, updates);
         results.push({ id: pageUrl, success: true, data: updated });
       } catch (error: any) {
         results.push({ id: pageUrl, success: false, error: error.message });
@@ -1387,25 +1365,11 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   async bulkUpdateAnnouncements(courseId: number, itemIds: number[], updates: Record<string, any>) {
-    const { token, baseUrl } = await this.getAuthHeaders();
     const results: Array<{ id: number; success: boolean; data?: any; error?: string }> = [];
 
     for (const announcementId of itemIds) {
       try {
-        const response = await fetch(`${baseUrl}/announcements/${announcementId}`, {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(updates),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to update announcement ${announcementId}: ${response.statusText}`);
-        }
-
-        const updated = await response.json();
+        const updated = await this.updateDiscussion(courseId, announcementId, updates);
         results.push({ id: announcementId, success: true, data: updated });
       } catch (error: any) {
         results.push({ id: announcementId, success: false, error: error.message });
