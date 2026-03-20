@@ -1357,7 +1357,7 @@ async function loadTabData(tabName) {
             currentBatch++;
         }, 2000);
 
-        if (tabName === 'assignments' || tabName === 'quizzes') {
+        if (tabName === 'assignments' || tabName === 'quizzes' || tabName === 'new_quizzes') {
             try {
                 var agUrl = "/canvas/courses/" + selectedCourseId + "/assignment_groups";
                 var agResponse = await fetch(agUrl);
@@ -1833,6 +1833,77 @@ function populateNumericColumnSelector(selectId) {
     });
 }
 
+async function populateAssignmentGroupSelector() {
+    const selectEl = document.getElementById('assignmentGroupTarget');
+    const helpEl = document.getElementById('assignmentGroupHelp');
+    if (!selectEl) return;
+    selectEl.innerHTML = '<option value="">Loading...</option>';
+    let configKey = currentTab;
+    if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
+    const tabConfig = FIELD_DEFINITIONS[configKey];
+    const hasAgField = tabConfig && tabConfig.fields && tabConfig.fields.some(f => f.key === 'assignment_group_id');
+    if (!hasAgField) {
+        selectEl.innerHTML = '<option value="">This tab does not support assignment groups</option>';
+        if (helpEl) helpEl.textContent = 'Use Assignments, New Quizzes, or Quizzes tab.';
+        return;
+    }
+    if (!selectedCourseId) {
+        selectEl.innerHTML = '<option value="">Select a course first</option>';
+        if (helpEl) helpEl.textContent = '';
+        return;
+    }
+    let groups = assignmentGroupsCache[selectedCourseId] || {};
+    if (Object.keys(groups).length === 0) {
+        try {
+            const res = await fetch('/canvas/courses/' + selectedCourseId + '/assignment_groups');
+            if (res.ok) {
+                const agData = await res.json();
+                groups = {};
+                agData.forEach(g => { groups[g.id] = g.name; });
+                assignmentGroupsCache[selectedCourseId] = groups;
+            }
+        } catch (e) {}
+    }
+    selectEl.innerHTML = '';
+    const ids = Object.keys(groups).map(id => parseInt(id, 10)).filter(n => !isNaN(n)).sort((a, b) => a - b);
+    ids.forEach(id => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = groups[id] || 'Group ' + id;
+        selectEl.appendChild(opt);
+    });
+    if (helpEl) helpEl.textContent = 'Select a group, then click Apply. Selected rows will be moved. Use Sync Changes to save to Canvas.';
+}
+
+function executeMoveToAssignmentGroup() {
+    const selectEl = document.getElementById('assignmentGroupTarget');
+    const targetGroupId = selectEl ? parseInt(selectEl.value, 10) : NaN;
+    if (!selectEl || isNaN(targetGroupId)) return;
+    let configKey = currentTab;
+    if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
+    const tabConfig = FIELD_DEFINITIONS[configKey];
+    const hasAgField = tabConfig && tabConfig.fields && tabConfig.fields.some(f => f.key === 'assignment_group_id');
+    if (!hasAgField) return;
+    if (!gridApi) return;
+    let nodesToUpdate = gridApi.getSelectedRows();
+    if (!nodesToUpdate.length) {
+        nodesToUpdate = [];
+        gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data));
+    }
+    const fieldKey = 'assignment_group_id';
+    nodesToUpdate.forEach(rowData => {
+        gridApi.forEachNode(gridNode => {
+            if (gridNode.data === rowData) {
+                gridNode.setDataValue(fieldKey, targetGroupId);
+                gridNode.setDataValue('_edit_status', 'modified');
+                trackChange(currentTab, rowData.id || rowData.url, fieldKey, targetGroupId);
+            }
+        });
+    });
+    gridApi.redrawRows();
+    closeActiveModal();
+}
+
 function openModal(modalId) {
     const overlay = document.getElementById('modalOverlay');
     const targetModal = document.getElementById(modalId);
@@ -1845,6 +1916,7 @@ function openModal(modalId) {
     else if (modalId === 'columnVisibilityModal') populateColumnSelector();
     else if (modalId === 'dateShiftModal') populateDateColumnSelector();
     else if (modalId === 'pointsModal') populateNumericColumnSelector('pointsColumnTarget');
+    else if (modalId === 'assignmentGroupModal') populateAssignmentGroupSelector();
     else if (modalId === 'deleteModal') {
         const input = document.getElementById('deleteConfirmInput');
         if (input) {
