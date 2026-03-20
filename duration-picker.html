@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Duration Picker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f5f3;
+      margin: 0;
+      padding: 2rem;
+      color: #1a1a1a;
+    }
+
+    .card {
+      background: #fff;
+      border: 0.5px solid rgba(0,0,0,0.12);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      display: inline-block;
+    }
+
+    .label {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 10px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .seg {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .seg input[type="number"] {
+      width: 60px;
+      height: 36px;
+      border: 0.5px solid rgba(0,0,0,0.25);
+      border-radius: 8px;
+      background: #fff;
+      color: #1a1a1a;
+      font-size: 15px;
+      font-weight: 500;
+      text-align: center;
+      font-family: "SF Mono", "Fira Code", monospace;
+      padding: 0;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      -moz-appearance: textfield;
+    }
+
+    .seg input[type="number"]:focus {
+      border-color: #1d9e75;
+      box-shadow: 0 0 0 3px rgba(29,158,117,0.15);
+    }
+
+    .seg input[type="number"]::-webkit-inner-spin-button,
+    .seg input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
+
+    .seg-unit {
+      font-size: 12px;
+      color: #888;
+    }
+
+    .sep {
+      font-size: 18px;
+      color: #bbb;
+      font-weight: 500;
+      padding-bottom: 2px;
+      user-select: none;
+    }
+
+    .computed {
+      font-size: 12px;
+      color: #888;
+      margin-top: 10px;
+    }
+
+    .computed span {
+      color: #1a1a1a;
+      font-weight: 500;
+      font-family: "SF Mono", "Fira Code", monospace;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <div class="label">Time limit</div>
+    <div class="row">
+      <div class="seg">
+        <input type="number" id="hr" min="0" max="99" value="1" oninput="calc()">
+        <span class="seg-unit">hr</span>
+      </div>
+      <span class="sep">:</span>
+      <div class="seg">
+        <input type="number" id="mn" min="0" max="59" value="30" oninput="calc()">
+        <span class="seg-unit">min</span>
+      </div>
+    </div>
+    <div class="computed">Sends <span id="mins-out">90</span> minutes to Canvas API</div>
+  </div>
+
+  <script>
+    function calc() {
+      const h = parseInt(document.getElementById('hr').value) || 0;
+      const m = parseInt(document.getElementById('mn').value) || 0;
+      document.getElementById('mins-out').textContent = h * 60 + m;
+    }
+  </script>
+
+</body>
+</html>

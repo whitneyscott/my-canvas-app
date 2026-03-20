@@ -268,6 +268,26 @@ body, html {
     border-color: #ffcdd2;
 }
 
+/* Duration Picker (hours : minutes) - Canvas uses minutes, no seconds */
+.duration-picker { display: flex; align-items: center; gap: 8px; }
+.duration-picker .dp-seg { display: flex; align-items: center; gap: 6px; }
+.duration-picker .dp-seg input[type="number"] {
+    width: 52px; height: 32px; border: 1px solid rgba(0,0,0,0.25); border-radius: 6px;
+    background: #fff; color: #1a1a1a; font-size: 14px; font-weight: 500; text-align: center;
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace; padding: 0; outline: none;
+    -moz-appearance: textfield;
+}
+.duration-picker .dp-seg input[type="number"]:focus {
+    border-color: #1d9e75; box-shadow: 0 0 0 2px rgba(29,158,117,0.2);
+}
+.duration-picker .dp-seg input[type="number"]::-webkit-inner-spin-button,
+.duration-picker .dp-seg input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
+.duration-picker .dp-unit { font-size: 11px; color: #888; font-weight: 500; }
+.duration-picker .dp-sep { font-size: 16px; color: #bbb; font-weight: 500; user-select: none; }
+.duration-picker-label { font-size: 12px; color: #888; margin-bottom: 6px; display: block; }
+.duration-picker .dp-computed { font-size: 11px; color: #888; margin-top: 6px; }
+.duration-picker .dp-computed span { color: #1a1a1a; font-weight: 500; font-family: "SF Mono", "Fira Code", "Consolas", monospace; }
+
 /* Modals & Overlays */
 .modal-overlay {
     display: none;
