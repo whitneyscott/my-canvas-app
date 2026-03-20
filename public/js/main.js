@@ -2298,7 +2298,7 @@ function executeDateShift() {
     debugLog('[DateShift] Inputs: manualDate=' + (manualDate || '(empty)') + ' manualTime=' + (manualTime || '(empty)') + ' timeOverride=' + (timeOverride || '(empty)') + ' offsetDays=' + offsetDaysNum, 'info');
     debugLog('[DateShift] selectedDateColumns=' + JSON.stringify(selectedDateColumns), 'info');
     if (!selectedDateColumns.length) { alert('Select date columns.'); return; }
-    const isClearMode = !manualDate && !timeOverride && !manualTime && offsetDaysNum === 0;
+    const isClearMode = !manualDate && !timeOverride && offsetDaysNum === 0;
     let rowNodes = [];
     const selected = gridApi.getSelectedRows();
     if (selected.length) {
