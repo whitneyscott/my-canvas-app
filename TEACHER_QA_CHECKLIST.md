@@ -12,7 +12,7 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 
 - [x] **Course dropdown**: loads courses; switching course reloads the active tab.
 - [x] **Refresh**: reloads current tab data.
-- [ ] **Columns**: show/hide columns; grid updates.
+- [x] **Columns**: show/hide columns; grid updates.
 - [ ] **Sync Changes**: after editing cells, changes push to Canvas and row shows synced (no errors in UI).
 - [ ] **Bulk Actions → Search & Replace**: applies to **selected rows**, or if none selected, **all filtered rows**; only **string** columns; then Sync.
 - [ ] **Bulk Actions → Date Shift**: semester calculator / offset / fixed date / time override; pick date columns; then Sync.
