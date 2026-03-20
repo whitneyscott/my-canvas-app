@@ -239,6 +239,7 @@ const gridOptions = {
         enableClickSelection: false
     },
     defaultColDef: {
+        minWidth: 150,
         flex: 1,
         filter: 'agTextColumnFilter',
         floatingFilter: true,
@@ -390,6 +391,7 @@ function generateColumnDefs(tabName) {
         headerName: 'edit_status',
         field: '_edit_status',
         width: 120,
+        minWidth: 90,
         sortable: true,
         editable: false,
         cellRenderer: params => {
@@ -513,6 +515,7 @@ function generateColumnDefs(tabName) {
             sortable: true,
             editable: false,
             width: 70,
+            minWidth: 70,
             valueGetter: params => params.data?.is_folder ? 'Folder' : 'File',
             cellRenderer: params => {
                 const isFolder = params.data?.is_folder;
@@ -527,6 +530,7 @@ function generateColumnDefs(tabName) {
         headerName: 'ID',
         field: 'id',
         width: 100,
+        minWidth: 70,
         sortable: true,
         editable: false,
         hide: false,

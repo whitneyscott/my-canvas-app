@@ -241,6 +241,10 @@ body, html {
     --ag-font-size: 14px;
 }
 
+#myGrid.ag-theme-quartz .ag-body-horizontal-scroll-viewport {
+    overflow-x: auto !important;
+}
+
 /* Toggle Buttons (Inside Grid) */
 .btn-toggle {
     padding: 4px 12px;
