@@ -1441,24 +1441,93 @@ function trackChange(tabName, itemId, fieldName, value) {
     changes[tabName][itemId][fieldName] = value;
 }
 
+const CLONE_CREATE_TABS = ['assignments', 'quizzes', 'pages', 'discussions', 'announcements', 'modules'];
+
 async function syncChanges() {
     if (!selectedCourseId) return alert('Select course first.');
-    const tabChanges = changes[currentTab];
-    if (!tabChanges || !Object.keys(tabChanges).length) return alert('No changes.');
+    const tabChanges = changes[currentTab] || {};
+    const itemIds = Object.keys(tabChanges);
+    const newItemIds = itemIds.filter(id => String(id).startsWith('TEMP_'));
+    const updateItemIds = itemIds.filter(id => !String(id).startsWith('TEMP_'));
+    if (!itemIds.length) return alert('No changes.');
 
     let configKey = currentTab;
     if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
-
     const config = FIELD_DEFINITIONS[configKey];
     if (!config) return alert('Invalid tab.');
     const endpoint = config.endpoint;
 
-    const itemIds = Object.keys(tabChanges);
-    debugLog('[Sync] Request: ' + itemIds.length + ' item(s) - ' + itemIds.join(', '), 'info');
-
     const errors = [];
-    for (const itemId of itemIds) {
+    if (newItemIds.length && CLONE_CREATE_TABS.includes(currentTab)) {
+        debugLog('[Sync] Creating ' + newItemIds.length + ' new item(s)', 'info');
+        for (const itemId of newItemIds) {
+            let rowData = null;
+            gridApi.forEachNode(node => {
+                if (String(node.data?.id) === String(itemId)) rowData = node.data;
+            });
+            if (!rowData) {
+                delete changes[currentTab][itemId];
+                continue;
+            }
+            const createParams = { ...rowData };
+            delete createParams.id;
+            delete createParams.isNew;
+            delete createParams._edit_status;
+            delete createParams._isNew;
+            delete createParams._pristine;
+            Object.keys(createParams).filter(k => k.startsWith('_')).forEach(k => delete createParams[k]);
+            try {
+                let created = null;
+                if (currentTab === 'assignments') {
+                    created = await createAssignments(selectedCourseId, createParams);
+                } else if (currentTab === 'quizzes') {
+                    created = await createQuizzes(selectedCourseId, createParams);
+                } else if (currentTab === 'pages') {
+                    created = await createPages(selectedCourseId, createParams);
+                } else if (currentTab === 'discussions') {
+                    created = await createDiscussions(selectedCourseId, createParams);
+                } else if (currentTab === 'announcements') {
+                    created = await createAnnouncements(selectedCourseId, createParams);
+                } else if (currentTab === 'modules') {
+                    created = await createModules(selectedCourseId, createParams.name || 'Module', createParams.position);
+                }
+                if (created) {
+                    gridApi.forEachNode(node => {
+                        if (String(node.data?.id) === String(itemId)) {
+                            const realId = (currentTab === 'pages') ? (created.url || created.id) : (created.id || created.url);
+                            node.setDataValue('id', created.id != null ? created.id : realId);
+                            if (currentTab === 'pages') node.setDataValue('url', created.url || realId);
+                            node.setDataValue('_edit_status', 'synced');
+                            delete node.data.isNew;
+                            const syncedRow = { ...node.data };
+                            if (currentTab === 'pages') syncedRow.url = created.url || realId;
+                            syncedRow.id = created.id != null ? created.id : realId;
+                            syncedRow._edit_status = 'synced';
+                            if (originalData[currentTab]) originalData[currentTab].push(syncedRow);
+                        }
+                    });
+                    gridApi.redrawRows();
+                    delete changes[currentTab][itemId];
+                    debugLog('[Sync] Created: ' + (rowData.name || rowData.title || itemId), 'success');
+                } else {
+                    throw new Error('Create returned no data');
+                }
+            } catch (error) {
+                console.error(error);
+                debugLog('[Sync] Create FAILED - ' + (error.message || error), 'error');
+                errors.push({ itemId, label: rowData.name || rowData.title || itemId, message: error.message || String(error) });
+            }
+        }
+    } else if (newItemIds.length) {
+        for (const id of newItemIds) {
+            errors.push({ itemId: id, label: id, message: `Create not supported for ${currentTab} tab. Use Deep Clone for modules.` });
+        }
+        newItemIds.forEach(id => delete changes[currentTab][id]);
+    }
+
+    for (const itemId of updateItemIds) {
         const updates = { ...tabChanges[itemId] };
+        delete updates._isNew;
         if (currentTab === 'files') {
             gridApi.forEachNode(node => {
                 if (String(node.data?.id) === String(itemId) && node.data?.is_folder)
@@ -1514,7 +1583,7 @@ async function syncChanges() {
         alert(`Sync failed for ${errors.length} item(s):\n\n${errors.map(e => `• ${e.label}: ${e.message}`).join('\n')}`);
         return;
     }
-    debugLog('[Sync] Completed: all ' + itemIds.length + ' item(s) synced', 'success');
+    debugLog('[Sync] Completed', 'success');
     alert('Sync completed.');
 }
 async function handleDeleteClick() {
@@ -2201,11 +2270,18 @@ async function executeClone() {
             if (gridApi) gridApi.hideOverlay();
         }
     } else {
-        const newItems = selectedRows.map(rowData => {
-            let clonedCopy = prepareUIClone(rowData, currentTab, prefix, suffix);
-            if (currentTab === 'modules') clonedCopy.items = method === 'structural' ? [] : (rowData.items || []).map(item => ({ ...item }));
-            return clonedCopy;
-        });
+        const numCopies = Math.max(1, parseInt(document.getElementById('cloneNumCopies')?.value || '1', 10) || 1);
+        const serialize = document.getElementById('cloneSerialize')?.checked !== false;
+        const existingNames = new Set();
+        const newItems = [];
+        for (const rowData of selectedRows) {
+            for (let c = 0; c < numCopies; c++) {
+                let clonedCopy = prepareUIClone(rowData, currentTab, prefix, suffix, existingNames, serialize ? c : -1, serialize);
+                if (currentTab === 'modules') clonedCopy.items = method === 'structural' ? [] : (rowData.items || []).map(item => ({ ...item }));
+                newItems.push(clonedCopy);
+                trackChange(currentTab, clonedCopy.id, '_isNew', true);
+            }
+        }
         gridApi.applyTransaction({ add: newItems });
     }
     closeActiveModal();
@@ -2516,6 +2592,12 @@ async function performDeepCloneWithIndex(moduleRecord, prefix, baseName, suffix,
 
 const getNewName = (record, prefix, suffix, existingSet = new Set()) => getUniqueName(record.display_name || record.name || record.title || "Untitled", existingSet, prefix, suffix);
 
+function getSerializedName(baseName, copyIndex, prefix, suffix) {
+    const base = (baseName || "Untitled").trim();
+    const namePart = copyIndex >= 0 ? `${base} ${copyIndex + 1}` : base;
+    return `${prefix}${namePart}${suffix}`.trim() || "Untitled";
+}
+
 async function createDeepContent(itemType, sanitizedParams) {
     if (itemType === 'Assignment') return await createAssignments(selectedCourseId, sanitizedParams);
     if (itemType === 'Quiz') return await createQuizzes(selectedCourseId, sanitizedParams);
@@ -2526,16 +2608,19 @@ async function createDeepContent(itemType, sanitizedParams) {
     return null;
 }
 
-function prepareUIClone(row, type, prefix, suffix) {
+function prepareUIClone(row, type, prefix, suffix, existingSet, copyIndex = -1, serialize = false) {
     let rowCopy = JSON.parse(JSON.stringify(row));
-    let uniqueName = getNewName(rowCopy, prefix, suffix);
+    const baseName = rowCopy.display_name || rowCopy.name || rowCopy.title || "Untitled";
+    const uniqueName = serialize && copyIndex >= 0
+        ? getSerializedName(baseName, copyIndex, prefix, suffix)
+        : getNewName(rowCopy, prefix, suffix, existingSet || new Set());
+    if (existingSet && !serialize) existingSet.add(uniqueName);
     if (rowCopy.display_name !== undefined) rowCopy.display_name = uniqueName;
     if (rowCopy.name !== undefined) rowCopy.name = uniqueName;
     if (rowCopy.title !== undefined) rowCopy.title = uniqueName;
     let clonedContent = sanitizeRowData(rowCopy, type, 'clone');
     clonedContent.id = `TEMP_${Math.random().toString(36).substr(2, 9)}`;
     clonedContent.isNew = true;
-    clonedContent.syncStatus = 'New';
     clonedContent._edit_status = 'modified';
     return clonedContent;
 }

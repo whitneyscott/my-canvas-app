@@ -27,8 +27,8 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 - [x] **Assignment Group** (dropdown): change → Sync → verify.
 - [x] **Points possible**: edit → Sync → verify.
 - [x] **Due / Available From / Available Until**: edit → Sync → verify (dates).
-- [ ] **Published**: visible in grid; field is read-only for inline edit in config—verify expected behavior if you use a publish workflow elsewhere.
-- [ ] **Search & Replace** on name or description (string fields).
+- [x] **Published**: visible in grid; field is read-only for inline edit in config—verify expected behavior if you use a publish workflow elsewhere.
+- [x] **Search & Replace** on name or description (string fields).
 - [x] **Date Shift** on `due_at`, `unlock_at`, `lock_at`.
 - [x] **Points** on `points_possible`.
 - [ ] **Clone** (modal): standard / structural / deep as applicable → refresh → verify in Canvas for **deep**.
