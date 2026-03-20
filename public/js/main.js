@@ -329,6 +329,26 @@ const gridOptions = {
 const NEEDS_TOKEN = Boolean('<%= needsToken %>' === 'true');
 const LTI_COURSE_ID = '<%= courseId %>';
 
+function extractNumericCourseId(val) {
+    if (!val || typeof val !== 'string') return null;
+    const s = val.trim();
+    if (!s || s === 'null' || s === 'undefined') return null;
+    const numeric = /^\d+$/.test(s) ? s : (s.match(/\/(\d+)(?:\?|$)/) || s.match(/(\d+)$/))?.[1] || null;
+    return numeric;
+}
+
+function logCourseContextAtLoad() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const raw = {
+        LTI_COURSE_ID: typeof LTI_COURSE_ID !== 'undefined' ? String(LTI_COURSE_ID) : '(undefined)',
+        SERVER_DATA_courseId: (window.SERVER_DATA && window.SERVER_DATA.courseId) || '(none)',
+        url_courseId: urlParams.get('courseId') || '(none)',
+        url_course_id: urlParams.get('course_id') || '(none)',
+        url_context_id: urlParams.get('context_id') || '(none)'
+    };
+    debugLog('[Course Context] Detected at page load: ' + JSON.stringify(raw), 'info');
+}
+
 function initializeGrid() {
     const gridDiv = document.querySelector('#myGrid');
     if (gridDiv && !gridApi) {
@@ -600,6 +620,7 @@ document.addEventListener('change', event => {
 
 async function loadCourses() {
     debugLog('loadCourses() called');
+    logCourseContextAtLoad();
     try {
         const courseSelect = document.getElementById('courseSelect');
         if (!courseSelect) {
@@ -683,21 +704,33 @@ async function loadCourses() {
         debugLog(`SUCCESS: Loaded ${totalCourses} courses successfully`, 'success');
 
         const urlParams = new URLSearchParams(window.location.search);
-        const autoCourseId = (typeof LTI_COURSE_ID !== 'undefined' && LTI_COURSE_ID ? String(LTI_COURSE_ID) : null)
-            || urlParams.get('courseId') || urlParams.get('course_id') || urlParams.get('context_id')
-            || (window.SERVER_DATA && window.SERVER_DATA.courseId);
+        const rawLti = (typeof LTI_COURSE_ID !== 'undefined' && LTI_COURSE_ID) ? String(LTI_COURSE_ID) : null;
+        const rawUrlCourseId = urlParams.get('courseId') || urlParams.get('course_id') || urlParams.get('context_id');
+        const rawServer = (window.SERVER_DATA && window.SERVER_DATA.courseId) || null;
+        const rawAuto = rawLti || rawUrlCourseId || rawServer;
+        const autoCourseId = extractNumericCourseId(rawAuto) || (rawAuto && rawAuto !== 'null' && rawAuto !== 'undefined' ? String(rawAuto).trim() : null);
+
+        debugLog(`[Course Context] Raw sources: LTI="${rawLti || '(none)'}", URL="${rawUrlCourseId || '(none)'}", SERVER_DATA="${rawServer || '(none)'}"`, 'info');
+        debugLog(`[Course Context] Resolved autoCourseId: "${autoCourseId || '(none)'}" (from raw "${rawAuto || '(none)'}")`, autoCourseId ? 'success' : 'warn');
+
         const validId = autoCourseId && autoCourseId !== 'null' && autoCourseId !== '' && autoCourseId !== 'undefined';
-        const hasOption = validId && Array.from(courseSelect.options).some(opt => opt.value === String(autoCourseId));
+        const optionValues = Array.from(courseSelect.options).map(o => o.value).filter(Boolean);
+        const hasOption = validId && optionValues.includes(String(autoCourseId));
+
+        debugLog(`[Course Context] validId=${validId}, hasOption=${hasOption}, dropdown has ${optionValues.length} course(s)`, 'info');
+        if (validId && !hasOption) {
+            debugLog(`[Course Context] WARN: Context course ${autoCourseId} not in dropdown. Available: ${optionValues.slice(0, 5).join(', ')}${optionValues.length > 5 ? '...' : ''}`, 'warn');
+        }
 
         if (validId && hasOption) {
-            debugLog(`Auto-selecting course context: ${autoCourseId}`);
+            debugLog(`[Course Context] Auto-selecting LTI/referring course: ${autoCourseId}`, 'success');
             courseSelect.value = autoCourseId;
             if (typeof onCourseSelected === 'function') onCourseSelected();
         } else {
             const firstOpt = Array.from(courseSelect.options).find(opt => opt.value && opt.value !== '');
             if (firstOpt) {
                 courseSelect.value = firstOpt.value;
-                debugLog(`Defaulting to first course: ${firstOpt.value}`);
+                debugLog(`[Course Context] No context course detected or not in list — defaulting to first course: ${firstOpt.value}`, 'warn');
                 if (typeof onCourseSelected === 'function') onCourseSelected();
             } else {
                 courseSelect.value = '';

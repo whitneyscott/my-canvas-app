@@ -179,8 +179,9 @@ export class LtiController {
       (claims['https://purl.imsglobal.org/spec/lti/claim/custom'] as Record<string, string>) || {};
     const roles =
       (claims['https://purl.imsglobal.org/spec/lti/claim/roles'] as string[]) || [];
-    const courseId =
+    const rawCourseId =
       String(context?.id || custom.custom_canvas_course_id || custom.canvas_course_id || '');
+    const courseId = this.extractNumericCourseId(rawCourseId) || rawCourseId;
     const isInstructor =
       roles.some((r: string) =>
         /instructor|contentdeveloper|urn:lti:sysrole:ims\/lis\/teaching/i.test(r)
@@ -212,7 +213,12 @@ export class LtiController {
     sess.canvasApiDomain = rawDomain.startsWith('http')
       ? rawDomain
       : 'https://' + rawDomain.replace(/^\/+|\/+$/g, '');
-    debugLog('launch_success', { courseId, canvasApiDomain: sess.canvasApiDomain, ltiClientId: sess.ltiClientId });
+    debugLog('launch_success', {
+      courseId,
+      rawCourseId: rawCourseId !== courseId ? rawCourseId : undefined,
+      canvasApiDomain: sess.canvasApiDomain,
+      ltiClientId: sess.ltiClientId,
+    });
 
     return new Promise<void>((resolve, reject) => {
       (sess as import('express-session').Session).save((err) => {
@@ -225,6 +231,15 @@ export class LtiController {
         resolve();
       });
     });
+  }
+
+  private extractNumericCourseId(val: string): string | null {
+    if (!val || typeof val !== 'string') return null;
+    const s = val.trim();
+    if (!s) return null;
+    if (/^\d+$/.test(s)) return s;
+    const m = s.match(/\/(\d+)(?:\?|$)/) || s.match(/(\d+)$/);
+    return m ? m[1] : null;
   }
 
   private issToApiDomain(iss: string): string {
