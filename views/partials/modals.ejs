@@ -286,6 +286,30 @@
         </div>
     </div>
 
+    <div id="timeLimitModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Time Limit</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 10px;">Set time limit for selected quizzes:</p>
+            <label>Operation</label>
+            <select id="timeLimitOp">
+                <option value="set">Set to</option>
+                <option value="add">Add</option>
+                <option value="remove">Remove limit</option>
+            </select>
+            <div id="timeLimitValueRow" style="margin-top: 12px;">
+                <label>Minutes</label>
+                <input type="number" id="timeLimitValue" min="0" step="5" placeholder="e.g. 60">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="primary-btn" onclick="executeTimeLimitUpdate()">Apply</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
     <div id="pointsModal" class="modal-content-wrapper">
         <div class="modal-header">
             <h3>Points/Weighting</h3>

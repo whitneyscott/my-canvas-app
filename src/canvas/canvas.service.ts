@@ -14,6 +14,7 @@ interface CanvasCourse {
 }
 
 const CLEARABLE_CONTENT_KEYS = new Set(['description', 'message', 'body', 'instructions']);
+const NULLABLE_QUIZ_FIELDS = new Set(['time_limit']);
 
 @Injectable({ scope: Scope.REQUEST })
 export class CanvasService {
@@ -1316,6 +1317,10 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         if (value === undefined) return;
         if ((value === null || value === '') && CLEARABLE_CONTENT_KEYS.has(key)) {
           cleanedUpdates[key] = value === null ? null : '';
+          return;
+        }
+        if (value === null && NULLABLE_QUIZ_FIELDS.has(key)) {
+          cleanedUpdates[key] = null;
           return;
         }
         if (value === null || value === '') return;

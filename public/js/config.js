@@ -101,7 +101,7 @@ const CANVAS_CONFIG = {
         { key: 'title', label: 'Quiz Title', editable: true, type: 'text' },
         { key: 'description', label: 'Description', editable: true, type: 'html' },
         { key: 'assignment_group_id', label: 'Assignment Group', editable: true, type: 'assignment_group_dropdown' },
-        { key: 'time_limit', label: 'Time Limit (min)', editable: true, type: 'number' },
+        { key: 'time_limit', label: 'Time Limit', editable: true, type: 'time_limit' },
         { key: 'allowed_attempts', label: 'Allowed Attempts', editable: true, type: 'number' },
         { key: 'due_at', label: 'Due Date', editable: true, type: 'date' },
         { key: 'unlock_at', label: 'Available From', editable: true, type: 'date' },

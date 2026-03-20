@@ -85,7 +85,7 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 - [x] Grid loads quizzes.
 - [x] **Quiz Title**: edit → Sync → verify.
 - [x] **Description** (HTML): edit → Sync → verify in Canvas.
-- [ ] **Assignment Group**: change → Sync → verify.
+- [x] **Assignment Group**: change → Sync → verify.
 - [ ] **Time limit**, **Allowed attempts**: edit → Sync → verify.
 - [ ] **Due / Available From / Available Until**, **Show Answers At / Hide Answers At**: edit → Sync → verify (server may route `due_at` via assignment for graded quizzes).
 - [ ] **Points** (bulk) on `time_limit` or `allowed_attempts`.

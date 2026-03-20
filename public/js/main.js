@@ -488,6 +488,36 @@ function generateColumnDefs(tabName) {
                 };
                 return button;
             };
+        } else if (field.type === 'time_limit' || field.key === 'time_limit') {
+            colDef.cellEditor = 'agNumberCellEditor';
+            colDef.cellEditorParams = { min: 0, step: 5, showStepperButtons: true };
+            colDef.valueGetter = params => {
+                const v = params.data?.[field.key];
+                if (v === null || v === undefined || v === '') return null;
+                const n = Number(v);
+                return isNaN(n) ? null : Math.max(0, Math.floor(n));
+            };
+            colDef.valueFormatter = params => {
+                const v = params.value ?? params.data?.[field.key];
+                if (v === null || v === undefined || v === '') return 'No limit';
+                const n = Number(v);
+                if (isNaN(n) || n < 0) return 'No limit';
+                if (n === 0) return '0 min';
+                const h = Math.floor(n / 60);
+                const m = n % 60;
+                return h > 0 ? `${h}h ${m}m` : `${m} min`;
+            };
+            colDef.valueParser = params => {
+                const s = params.newValue != null ? String(params.newValue).trim() : '';
+                if (s === '') return null;
+                const n = parseInt(s, 10);
+                return isNaN(n) || n < 0 ? null : n;
+            };
+            colDef.comparator = (a, b) => {
+                const va = a != null ? Number(a) : -1;
+                const vb = b != null ? Number(b) : -1;
+                return (isNaN(va) ? -1 : va) - (isNaN(vb) ? -1 : vb);
+            };
         } else if (field.type === 'accommodations') {
             colDef.editable = false;
             colDef.autoHeight = true;
@@ -834,9 +864,9 @@ function switchTab(tabName) {
         }
 
         const mergeMenuItem = document.getElementById('mergeMenuItem');
-        if (mergeMenuItem) {
-            mergeMenuItem.style.display = (tabName === 'modules') ? 'block' : 'none';
-        }
+        if (mergeMenuItem) mergeMenuItem.style.display = (tabName === 'modules') ? 'block' : 'none';
+        const timeLimitMenuItem = document.getElementById('timeLimitMenuItem');
+        if (timeLimitMenuItem) timeLimitMenuItem.style.display = (tabName === 'quizzes') ? 'block' : 'none';
 
         if (tabName !== 'standards_sync' && typeof loadTabData === 'function') {
             loadTabData(tabName);
@@ -1934,7 +1964,7 @@ function populateNumericColumnSelector(selectId) {
     const tabConfig = FIELD_DEFINITIONS[configKey];
     if (!tabConfig) return;
     tabConfig.fields.forEach(field => {
-        if (field.type === 'number' || (field.key && field.key.toLowerCase().includes('points'))) {
+        if (field.type === 'number' || field.type === 'time_limit' || (field.key && field.key.toLowerCase().includes('points'))) {
             const option = document.createElement('option');
             option.value = field.key;
             option.textContent = field.label || field.key;
@@ -2063,6 +2093,15 @@ function openModal(modalId) {
     else if (modalId === 'columnVisibilityModal') populateColumnSelector();
     else if (modalId === 'dateShiftModal') populateDateColumnSelector();
     else if (modalId === 'pointsModal') populateNumericColumnSelector('pointsColumnTarget');
+    else if (modalId === 'timeLimitModal') {
+        const opSel = document.getElementById('timeLimitOp');
+        const valRow = document.getElementById('timeLimitValueRow');
+        const valInp = document.getElementById('timeLimitValue');
+        if (valInp) valInp.value = '';
+        const toggle = () => { if (valRow) valRow.style.display = (opSel?.value === 'remove') ? 'none' : 'block'; };
+        if (opSel) opSel.onchange = toggle;
+        toggle();
+    }
     else if (modalId === 'assignmentGroupModal') populateAssignmentGroupSelector();
     else if (modalId === 'deleteModal') {
         const input = document.getElementById('deleteConfirmInput');
@@ -2246,6 +2285,48 @@ function executeDateShift() {
             }
         });
     });
+    gridApi.redrawRows();
+    closeActiveModal();
+}
+
+function executeTimeLimitUpdate() {
+    const op = document.getElementById('timeLimitOp')?.value;
+    const valInp = document.getElementById('timeLimitValue');
+    const val = valInp ? parseInt(valInp.value, 10) : NaN;
+    if (!gridApi) return;
+    let nodesToUpdate = gridApi.getSelectedRows();
+    if (!nodesToUpdate.length) {
+        nodesToUpdate = [];
+        gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data));
+    }
+    if (!nodesToUpdate.length) { alert('Select rows or filter to target.'); return; }
+    if (op === 'remove') {
+        nodesToUpdate.forEach(rowData => {
+            gridApi.forEachNode(gridNode => {
+                if (gridNode.data === rowData) {
+                    gridNode.setDataValue('time_limit', null);
+                    gridNode.setDataValue('_edit_status', 'modified');
+                    trackChange(currentTab, rowData.id || rowData.url, 'time_limit', null);
+                }
+            });
+        });
+    } else {
+        if (op === 'set' && (isNaN(val) || val < 0)) { alert('Enter valid minutes (0 or more).'); return; }
+        if (op === 'add' && isNaN(val)) { alert('Enter valid number of minutes to add.'); return; }
+        nodesToUpdate.forEach(rowData => {
+            const current = rowData.time_limit;
+            const curNum = (current != null && current !== '') ? Math.max(0, parseInt(Number(current), 10) || 0) : 0;
+            let newVal = op === 'set' ? val : curNum + val;
+            if (newVal < 0) newVal = 0;
+            gridApi.forEachNode(gridNode => {
+                if (gridNode.data === rowData) {
+                    gridNode.setDataValue('time_limit', newVal);
+                    gridNode.setDataValue('_edit_status', 'modified');
+                    trackChange(currentTab, rowData.id || rowData.url, 'time_limit', newVal);
+                }
+            });
+        });
+    }
     gridApi.redrawRows();
     closeActiveModal();
 }
