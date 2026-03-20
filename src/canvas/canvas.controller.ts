@@ -54,6 +54,18 @@ export class CanvasController {
     return this.canvasService.getCourseAssignments(id);
   }
 
+  @Get('courses/:id/new_quizzes')
+  async getCourseNewQuizzes(@Param('id', ParseIntPipe) id: number) {
+    try {
+      return await this.canvasService.getCourseNewQuizzes(id);
+    } catch (error: any) {
+      throw new HttpException(
+        { message: error.message || 'Failed to load New Quizzes', error: String(error?.message || error) },
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+  }
+
   @Get('courses/:id/assignment_groups')
   async getCourseAssignmentGroups(@Param('id', ParseIntPipe) id: number) {
     return this.canvasService.getCourseAssignmentGroups(id);
@@ -229,6 +241,22 @@ export class CanvasController {
   }
 
   // Individual update endpoints (for inline editing)
+  @Put('courses/:courseId/new_quizzes/:id')
+  async updateNewQuiz(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updates: Record<string, any>,
+  ) {
+    try {
+      return await this.canvasService.updateNewQuizRow(courseId, id, updates);
+    } catch (error: any) {
+      throw new HttpException(
+        { message: error.message || 'Failed to update New Quiz', error: String(error?.message || error) },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   @Put('courses/:courseId/assignments/:id')
   async updateAssignment(
     @Param('courseId', ParseIntPipe) courseId: number,

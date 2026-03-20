@@ -80,6 +80,20 @@ const CANVAS_CONFIG = {
         { key: 'published', label: 'Published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
       ]
     },
+    new_quizzes: {
+      displayName: 'New Quizzes',
+      endpoint: 'new_quizzes',
+      fields: [
+        { key: 'name', label: 'Name', editable: true, type: 'text' },
+        { key: 'description', label: 'Instructions', editable: true, type: 'html' },
+        { key: 'assignment_group_id', label: 'Assignment Group', editable: true, type: 'assignment_group_dropdown' },
+        { key: 'points_possible', label: 'Points Possible', editable: true, type: 'number' },
+        { key: 'due_at', label: 'Due Date', editable: true, type: 'date' },
+        { key: 'unlock_at', label: 'Available From', editable: true, type: 'date' },
+        { key: 'lock_at', label: 'Available Until', editable: true, type: 'date' },
+        { key: 'published', label: 'Published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
+      ]
+    },
     quizzes: {
       displayName: 'Quizzes',
       endpoint: 'quizzes',

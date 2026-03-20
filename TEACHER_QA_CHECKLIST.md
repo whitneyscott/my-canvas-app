@@ -21,7 +21,7 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 
 ## Assignments — `GET/PUT /canvas/courses/:id/assignments`
 
-- [ ] Grid loads with assignment list.
+- [x] Grid loads with assignment list.
 - [ ] **Name** (text): edit → Sync → verify in Canvas.
 - [ ] **Description** (HTML): edit → Sync → verify in Canvas.
 - [ ] **Assignment Group** (dropdown): change → Sync → verify.
@@ -33,6 +33,22 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 - [ ] **Points** on `points_possible`.
 - [ ] **Clone** (modal): standard / structural / deep as applicable → refresh → verify in Canvas for **deep**.
 - [ ] **Delete** (confirm DELETE) → item removed in Canvas.
+
+---
+
+## New Quizzes — `GET/PUT /canvas/courses/:id/new_quizzes` (Canvas New Quizzes API)
+
+- [ ] Grid loads with New Quiz list (Name and Instructions populated).
+- [ ] **Name** (text): edit → Sync → verify in Canvas New Quiz.
+- [ ] **Instructions** (HTML): edit → Sync → verify in Canvas New Quiz.
+- [ ] **Assignment Group** (dropdown): change → Sync → verify.
+- [ ] **Points possible**: edit → Sync → verify.
+- [ ] **Due / Available From / Available Until**: edit → Sync → verify (dates).
+- [ ] **Published**: visible in grid; field is read-only in config.
+- [ ] **Search & Replace** on name or instructions (string fields).
+- [ ] **Date Shift** on `due_at`, `unlock_at`, `lock_at`.
+- [ ] **Points** on `points_possible`.
+- [ ] **Clone** / **Delete**: verify behavior if implemented; otherwise skip or note.
 
 ---
 
@@ -164,6 +180,7 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 | Tab           | Primary list endpoint   |
 |---------------|-------------------------|
 | Assignments   | `…/assignments`         |
+| New Quizzes   | `…/new_quizzes`         |
 | Modules       | `…/modules`             |
 | Pages         | `…/pages`               |
 | Quizzes       | `…/quizzes`             |

@@ -177,18 +177,136 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return false;
   }
 
-  private async getNewQuizByAssignment(
+  private isQuizLinkedAssignment(assignment: any): boolean {
+    if (!assignment || typeof assignment !== 'object') return false;
+    if (assignment.is_quiz_assignment === true) return true;
+    if (assignment.quiz_lti === true) return true;
+    const submissionTypes = Array.isArray(assignment.submission_types) ? assignment.submission_types : [];
+    if (submissionTypes.includes('external_tool') && assignment.quiz_id) return true;
+    return false;
+  }
+
+  private extractNewQuizInstructionsFromPayload(q: any): string {
+    if (!q || typeof q !== 'object') return '';
+    const tryString = (v: unknown): string | null => this.nonEmptyBodyString(v);
+    for (const key of ['instructions', 'instructions_html', 'description', 'body', 'general_instructions']) {
+      const s = tryString(q[key]);
+      if (s) return s;
+    }
+    const instr = q.instructions;
+    if (instr && typeof instr === 'object') {
+      const fromBlocks = this.extractTextFromBlockEditorBlocks(instr);
+      if (fromBlocks) return fromBlocks;
+    }
+    const ed = q.editor_display;
+    if (ed && typeof ed === 'object') {
+      for (const k of ['blocks', 'content', 'html']) {
+        if (ed[k] != null) {
+          const s = typeof ed[k] === 'string' ? tryString(ed[k]) : null;
+          if (s) return s;
+          const t = this.extractTextFromBlockEditorBlocks(ed[k]);
+          if (t) return t;
+        }
+      }
+    }
+    const rootBlocks = q.instructions_blocks ?? q.content_blocks;
+    if (rootBlocks != null) {
+      const t = this.extractTextFromBlockEditorBlocks(rootBlocks);
+      if (t) return t;
+    }
+    return '';
+  }
+
+  private normalizeNewQuizListItem(q: any): any | null {
+    const assignmentId = q.assignment_id ?? q.assignmentId ?? q.id;
+    const idNum = assignmentId != null ? Number(assignmentId) : NaN;
+    if (!Number.isFinite(idNum)) return null;
+    const title = q.title ?? q.name ?? '';
+    const description = this.extractNewQuizInstructionsFromPayload(q);
+    return {
+      id: idNum,
+      name: typeof title === 'string' ? title : String(title),
+      description,
+      assignment_group_id: q.assignment_group_id ?? q.assignment_group?.id,
+      points_possible: q.points_possible,
+      due_at: q.due_at,
+      unlock_at: q.unlock_at,
+      lock_at: q.lock_at,
+      published: q.published,
+    };
+  }
+
+  private async fetchPaginatedNewQuizQuizzes(courseId: number, token: string, canvasApiV1Base: string): Promise<any[]> {
+    const quizBase = this.quizApiV1Base(canvasApiV1Base);
+    let all: any[] = [];
+    let url: string | null = `${quizBase}/courses/${courseId}/quizzes?per_page=100`;
+    while (url) {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`New Quizzes API ${res.status}: ${text.slice(0, 400)}`);
+      }
+      const chunk = await res.json().catch(() => null);
+      let items: any[] = [];
+      if (Array.isArray(chunk)) {
+        items = chunk;
+      } else if (chunk && typeof chunk === 'object') {
+        items = (chunk as any).quizzes ?? (chunk as any).data ?? (chunk as any).items ?? [];
+        if (!Array.isArray(items) && (chunk as any).quiz) {
+          items = [(chunk as any).quiz];
+        }
+      }
+      if (Array.isArray(items)) {
+        all.push(...items);
+      }
+      url = this.getNextUrl(res.headers.get('link'));
+    }
+    return all;
+  }
+
+  private async enrichNewQuizRowsFromDetail(
     courseId: number,
-    assignmentId: number,
+    rows: any[],
     token: string,
     canvasApiV1Base: string,
-  ): Promise<{ title?: string; instructions?: string } | null> {
+  ): Promise<void> {
     const quizBase = this.quizApiV1Base(canvasApiV1Base);
-    const url = `${quizBase}/courses/${courseId}/quizzes/${assignmentId}`;
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) return null;
-    const data = await res.json().catch(() => null);
-    return data ? { title: data.title, instructions: data.instructions } : null;
+    const needDetail = rows.filter((r) => !r.description || String(r.description).trim() === '');
+    const batch = 10;
+    for (let i = 0; i < needDetail.length; i += batch) {
+      const slice = needDetail.slice(i, i + batch);
+      await Promise.all(
+        slice.map(async (row) => {
+          const url = `${quizBase}/courses/${courseId}/quizzes/${row.id}`;
+          const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+          if (!res.ok) return;
+          const q = await res.json().catch(() => null);
+          if (!q || typeof q !== 'object') return;
+          const d = this.extractNewQuizInstructionsFromPayload(q);
+          if (d) row.description = d;
+          const t = q.title ?? q.name;
+          if (t != null && String(t).trim() !== '') {
+            row.name = String(t);
+          }
+        }),
+      );
+    }
+  }
+
+  async getCourseNewQuizzes(courseId: number): Promise<any[]> {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const raw = await this.fetchPaginatedNewQuizQuizzes(courseId, token, baseUrl);
+    const rows: any[] = [];
+    for (const q of raw) {
+      const row = this.normalizeNewQuizListItem(q);
+      if (row) rows.push(row);
+    }
+    await this.enrichNewQuizRowsFromDetail(courseId, rows, token, baseUrl);
+    return rows;
+  }
+
+  async updateNewQuizRow(courseId: number, assignmentId: number, updates: Record<string, any>) {
+    return this.updateAssignment(courseId, assignmentId, updates);
   }
 
   private async patchNewQuizByAssignment(
@@ -392,41 +510,12 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     }
   }
 
-  async getCourseAssignments(courseId: number): Promise<{ items: any[]; debug: string[] }> {
-    const debug: string[] = [];
+  async getCourseAssignments(courseId: number): Promise<any[]> {
     const { token, baseUrl } = await this.getAuthHeaders();
     const url = `${baseUrl}/courses/${courseId}/assignments?per_page=100&include[]=submission`;
     const assignments = await this.fetchPaginatedData(url, token);
-    debug.push(`[Assignments] Retrieved ${assignments.length} assignments`);
-
-    const newQuizIds = assignments
-      .filter((a: any) => this.isLikelyNewQuizAssignment(a))
-      .map((a: any) => a.id);
-    debug.push(`[NewQuiz] Detected ${newQuizIds.length} New Quiz assignments: ${newQuizIds.join(', ') || 'none'}`);
-
-    const quizPromises = newQuizIds.map(async (assignmentId: number) => {
-      const assignment = assignments.find((a: any) => a.id === assignmentId);
-      const title = assignment?.name ?? assignmentId;
-      debug.push(`[NewQuiz] Title retrieval: assignment ${assignmentId} "${String(title).slice(0, 50)}"`);
-      const quiz = await this.getNewQuizByAssignment(courseId, assignmentId, token, baseUrl);
-      return { assignmentId, quiz, title };
-    });
-
-    const results = await Promise.all(quizPromises);
-
-    for (const { assignmentId, quiz, title } of results) {
-      const assignment = assignments.find((a: any) => a.id === assignmentId);
-      if (!assignment) continue;
-      if (quiz) {
-        const len = quiz.instructions ? String(quiz.instructions).length : 0;
-        debug.push(`[NewQuiz] Instruction retrieval: assignment ${assignmentId} "${title}" -> ${len} chars`);
-        assignment.description = quiz.instructions ?? assignment.description ?? '';
-      } else {
-        debug.push(`[NewQuiz] Instruction retrieval FAILED: assignment ${assignmentId} "${title}" (API returned null)`);
-      }
-    }
-
-    return { items: assignments, debug };
+    const pure = assignments.filter((a: any) => !this.isQuizLinkedAssignment(a));
+    return pure;
   }
 
   async getCourseAssignmentGroups(courseId: number) {
@@ -901,7 +990,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   async getCourseAccommodations(courseId: number) {
     const { token, baseUrl } = await this.getAuthHeaders();
-    const { items: assignments } = await this.getCourseAssignments(courseId);
+    const assignUrl = `${baseUrl}/courses/${courseId}/assignments?per_page=100&include[]=submission`;
+    const assignments = await this.fetchPaginatedData(assignUrl, token);
     const allOverrides: any[] = [];
 
     // Get overrides for each assignment

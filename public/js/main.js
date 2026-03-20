@@ -543,7 +543,7 @@ function generateColumnDefs(tabName) {
     return allColumns;
 }
 
-const GRID_DATA_TABS = ['assignments', 'quizzes', 'discussions', 'announcements', 'pages', 'modules', 'files'];
+const GRID_DATA_TABS = ['assignments', 'new_quizzes', 'quizzes', 'discussions', 'announcements', 'pages', 'modules', 'files'];
 
 function setGridColumnDefsForTab(tabName) {
     if (!gridApi || !GRID_DATA_TABS.includes(tabName)) return;
@@ -744,7 +744,7 @@ function onCourseSelected() {
 
 function switchTab(tabName) {
     // Security Check: Enforce tab interception guard clause
-    const allowedTabs = ['assignments', 'discussions', 'announcements', 'pages', 'quizzes', 'modules', 'files', 'standards_sync'];
+    const allowedTabs = ['assignments', 'discussions', 'announcements', 'pages', 'quizzes', 'new_quizzes', 'modules', 'files', 'standards_sync'];
     if (tabInterceptionEnabled && !allowedTabs.includes(tabName)) {
         const message = 'Module Integration Pending: This feature is planned for a future development phase.';
         alert(message);
@@ -811,7 +811,7 @@ function handleTabClick(event) {
     const tab = event.currentTarget;
     const tabName = tab.getAttribute('data-tab');
     
-    const allowedTabs = ['assignments', 'discussions', 'announcements', 'pages', 'quizzes', 'modules', 'files', 'standards_sync'];
+    const allowedTabs = ['assignments', 'discussions', 'announcements', 'pages', 'quizzes', 'new_quizzes', 'modules', 'files', 'standards_sync'];
     if (tabInterceptionEnabled && !allowedTabs.includes(tabName)) {
         event.preventDefault();
         event.stopPropagation();
@@ -1384,9 +1384,9 @@ async function loadTabData(tabName) {
         }
 
         var data = await response.json();
-        if (tabName === 'assignments' && data && !Array.isArray(data) && Array.isArray(data.items)) {
-            (data.debug || []).forEach(function(msg) { debugLog(msg, 'info'); });
-            data = data.items;
+        if (!Array.isArray(data)) {
+            if (gridApi) gridApi.hideOverlay();
+            return;
         }
         var dataWithStatus = data.map(function(item) { 
             return Object.assign({}, item, { _edit_status: 'synced' }); 
