@@ -510,7 +510,7 @@ function generateColumnDefs(tabName) {
                 if (/Z$|[+-]\d{2}:\d{2}$/.test(value)) return value;
                 const date = new Date(value);
                 if (isNaN(date.getTime())) return value;
-                return date.toISOString().slice(0, 17) + ':00Z';
+                return date.toISOString().slice(0, 19) + 'Z';
             };
         } else if (field.type === 'boolean') {
             colDef.editable = false;
@@ -2329,21 +2329,21 @@ function executeDateShift() {
                 const timeStr = manualTime || timeOverride;
                 if (timeStr) { const [hours, mins] = timeStr.split(':'); dateObj.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
                 else dateObj.setHours(23, 59, 0, 0);
-                newDateValue = dateObj.toISOString().slice(0, 17) + ':00Z';
+                newDateValue = dateObj.toISOString().slice(0, 19) + 'Z';
             } else if (currentValue) {
                 const currentDate = new Date(currentValue);
                 if (!isNaN(currentDate.getTime())) {
                     const shiftedDate = new Date(currentDate);
                     shiftedDate.setDate(shiftedDate.getDate() + offsetDaysNum);
                     if (timeOverride) { const [hours, mins] = timeOverride.split(':'); shiftedDate.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
-                    newDateValue = shiftedDate.toISOString().slice(0, 17) + ':00Z';
+                    newDateValue = shiftedDate.toISOString().slice(0, 19) + 'Z';
                 }
             } else if (offsetDaysNum !== 0) {
                 const baseDate = new Date();
                 baseDate.setDate(baseDate.getDate() + offsetDaysNum);
                 if (timeOverride) { const [hours, mins] = timeOverride.split(':'); baseDate.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
                 else baseDate.setHours(23, 59, 0, 0);
-                newDateValue = baseDate.toISOString().slice(0, 17) + ':00Z';
+                newDateValue = baseDate.toISOString().slice(0, 19) + 'Z';
             }
             if (isClearMode || newDateValue !== null) {
                 gridNode.setDataValue(field, newDateValue);
