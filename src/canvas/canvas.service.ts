@@ -452,10 +452,18 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       );
       const quizMap = new Map(quizData.map(({ assignmentId, quiz }) => [assignmentId, quiz || listMap.get(assignmentId) || null]));
       assignments.forEach((a: any) => {
-        const q = quizMap.get(a.id);
-        const instructions = typeof q?.instructions === 'string' ? q.instructions : null;
-        if (instructions && instructions.trim().length > 0) a.description = instructions;
-        if (q?.title != null) a.name = q.title;
+        const q: any = quizMap.get(a.id);
+        const instructions =
+          (typeof q?.instructions === 'string' ? q.instructions : undefined) ??
+          (typeof q?.quiz?.instructions === 'string' ? q.quiz.instructions : undefined) ??
+          (typeof q?.description === 'string' ? q.description : undefined) ??
+          (typeof q?.quiz?.description === 'string' ? q.quiz.description : undefined) ??
+          '';
+        a.description = instructions;
+        const title =
+          (typeof q?.title === 'string' ? q.title : undefined) ??
+          (typeof q?.quiz?.title === 'string' ? q.quiz.title : undefined);
+        if (title != null) a.name = title;
       });
     }
     return assignments;
