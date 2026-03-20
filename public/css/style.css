@@ -43,6 +43,14 @@ body, html {
     overflow: hidden;
 }
 
+#tabContentArea {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
 /* Navigation Tabs */
 .tab-container {
     display: flex;
@@ -818,6 +826,7 @@ input:checked + .slider:before {
     gap: 0.4rem;
 }
 
+
 .standards-sync-panel .acc-focus-check {
     display: flex;
     align-items: flex-start;
@@ -858,6 +867,33 @@ input:checked + .slider:before {
 
 .standards-sync-panel .acc-form-actions {
     margin: 1rem 0;
+}
+
+.standards-sync-panel .acc-standards-block {
+    margin-bottom: 0.5rem;
+}
+
+.standards-sync-panel .acc-standards-heading,
+.standards-sync-panel .acc-outcomes-heading {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin: 0 0 0.5rem 0;
+}
+
+.standards-sync-panel .acc-standards-hint {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin: 0 0 0.5rem 0;
+}
+
+.standards-sync-panel .acc-source-notice {
+    font-size: 0.9rem;
+    color: #2e7d32;
+    background: #e8f5e9;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 0.75rem;
 }
 
 .standards-sync-panel .acc-outcome-row {

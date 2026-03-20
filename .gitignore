@@ -70,3 +70,9 @@ prisma/dev.db-journal
 
 # Backups
 /Backups
+
+# Windows shortcuts
+*.lnk
+
+# Accreditation proposed mappings (generated)
+services/accreditation-lookup/proposed-cip6-mappings.json

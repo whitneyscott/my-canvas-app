@@ -2,3 +2,5 @@ node_modules
 dist
 .env
 *.log
+proposed-chea-changes.json
+proposed-cip-mappings.json

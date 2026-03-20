@@ -1,4 +1,5 @@
 import { Injectable, Scope, Inject } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { REQUEST } from '@nestjs/core';
 
 interface CanvasCourse {
@@ -14,7 +15,10 @@ interface CanvasCourse {
 
 @Injectable({ scope: Scope.REQUEST })
 export class CanvasService {
-  constructor(@Inject(REQUEST) private readonly req: any) {}
+  constructor(
+    @Inject(REQUEST) private readonly req: any,
+    private config: ConfigService,
+  ) {}
   
   
   async getCourses() {
@@ -2186,6 +2190,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     { key: 'programCip4', label: 'Program CIP4' },
     { key: 'programTitle', label: 'Program Title' },
     { key: 'programFocusCip6', label: 'Program Focus CIP6' },
+    { key: 'selectedStandards', label: 'Selected Standards' },
   ];
 
   private static parseAccreditationBlock(body: string): Record<string, unknown> | null {
@@ -2214,7 +2219,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       const def = CanvasService.PROFILE_KEYS.find(d => d.label === label);
       if (!def || !value) continue;
       if (def.key === 'institutionId') profile[def.key] = parseInt(value, 10) || value;
-      else if (def.key === 'programFocusCip6') profile[def.key] = value.split(',').map((s: string) => s.trim()).filter(Boolean);
+      else if (def.key === 'programFocusCip6' || def.key === 'selectedStandards') profile[def.key] = value.split(',').map((s: string) => s.trim()).filter(Boolean);
       else profile[def.key] = value;
     }
     return profile;
@@ -2224,7 +2229,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const lines = CanvasService.PROFILE_KEYS.map(d => {
         const v = profile[d.key];
         if (v == null) return null;
-        if (d.key === 'programFocusCip6' && Array.isArray(v)) return v.length ? `${d.label}: ${v.join(',')}` : null;
+        if ((d.key === 'programFocusCip6' || d.key === 'selectedStandards') && Array.isArray(v)) return v.length ? `${d.label}: ${v.join(',')}` : null;
         const s = String(v).trim();
         return s ? `${d.label}: ${s}` : null;
       })
@@ -2300,6 +2305,81 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const page = await this.getPage(courseId, pageUrl);
     const merged = CanvasService.mergeAccreditationBlockInBody(page?.body ?? '', profile);
     return this.updatePage(courseId, pageUrl, { wiki_page: { body: merged } });
+  }
+
+  private static readonly GENERAL_ACCREDITORS: Array<{ id: string; name: string; abbreviation?: string }> = [
+    { id: 'QM', abbreviation: 'QM', name: 'Quality Matters' },
+    { id: 'SACSCOC', abbreviation: 'SACSCOC', name: 'Southern Association of Colleges and Schools Commission on Colleges' },
+  ];
+
+  private static readonly STUB_ACCREDITORS_BY_CIP: Record<string, Array<{ id: string; name: string; abbreviation?: string }>> = {
+    '16.16': [
+      { id: 'ACTFL', abbreviation: 'ACTFL', name: 'American Council on the Teaching of Foreign Languages' },
+      { id: 'ASLTA', abbreviation: 'ASLTA', name: 'American Sign Language Teachers Association / NCIEC' },
+      { id: 'CCIE', abbreviation: 'CCIE', name: 'Commission on Collegiate Interpreter Education' },
+      { id: 'CED', abbreviation: 'CED', name: 'Council on Education of the Deaf' },
+      { id: 'CEC', abbreviation: 'CEC', name: 'Council for Exceptional Children' },
+      { id: 'BEI', abbreviation: 'BEI', name: 'Board for Evaluation of Interpreters (Texas)' },
+      { id: 'RID', abbreviation: 'RID', name: 'Registry of Interpreters for the Deaf' },
+    ],
+  };
+
+  private static mergeWithGeneralAccreditors(list: Array<{ id: string; name: string; abbreviation?: string }>): Array<{ id: string; name: string; abbreviation?: string }> {
+    const ids = new Set(list.map(a => a.id));
+    const general = CanvasService.GENERAL_ACCREDITORS.filter(a => !ids.has(a.id));
+    return [...general, ...list];
+  }
+
+  async getAccreditorsForCourse(
+    courseId: number,
+    cip?: string,
+    degreeLevel?: string
+  ): Promise<{ accreditors: Array<{ id: string; name: string; abbreviation?: string }>; source: 'lookup_service' | 'stub' }> {
+    let cipParam = (cip || '').trim();
+    if (!cipParam) {
+      const profile = await this.getAccreditationProfile(courseId);
+      const p = profile as Record<string, unknown>;
+      cipParam = (p?.programCip4 as string) || (p?.program as string) || '';
+      console.log('[Accreditation] cip from profile fallback:', { cipParam, programCip4: p?.programCip4, program: p?.program, programFocusCip6: p?.programFocusCip6 });
+    } else {
+      console.log('[Accreditation] cip from query param:', cipParam);
+    }
+    if (!cipParam) {
+      const general = CanvasService.mergeWithGeneralAccreditors([]);
+      return { accreditors: general, source: 'stub' };
+    }
+    const cipKey = cipParam.includes('.') ? cipParam : cipParam.replace(/^(\d{2})(\d{2})$/, '$1.$2');
+    const base = (this.config.get<string>('ACCREDITATION_LOOKUP_URL') || '').replace(/\/$/, '');
+    console.log('[Accreditation] Lookup config:', { base: base ? base + ' (set)' : '(not set)', cipParam, cipKey });
+    if (base) {
+      const params = new URLSearchParams({ cip: cipParam });
+      const deg = (degreeLevel || '').trim();
+      if (deg) params.set('degree_level', deg);
+      const url = `${base}/accreditors?${params}`;
+      try {
+        console.log('[Accreditation] Fetching lookup service:', url);
+        const res = await fetch(url);
+        const data = (await res.json()) as { accreditors?: Array<{ id: string; name: string; abbreviation?: string }> };
+        const list = Array.isArray(data?.accreditors) ? data.accreditors : [];
+        console.log('[Accreditation] Lookup response:', { status: res.status, ok: res.ok, count: list.length, accreditors: list });
+        if (res.ok && list.length) {
+          const merged = CanvasService.mergeWithGeneralAccreditors(list);
+          return { accreditors: merged, source: 'lookup_service' };
+        }
+        if (res.ok && list.length === 0) {
+          console.log('[Accreditation] Lookup returned empty, falling back to stub');
+        }
+      } catch (e) {
+        console.warn('[Accreditation] Lookup service fetch failed:', e);
+      }
+    } else {
+      console.log('[Accreditation] ACCREDITATION_LOOKUP_URL not set, using stub');
+    }
+    const cip4Key = cipKey.includes('.') ? cipKey.slice(0, 5) : cipKey;
+    const stub = CanvasService.STUB_ACCREDITORS_BY_CIP[cipKey] ?? CanvasService.STUB_ACCREDITORS_BY_CIP[cip4Key] ?? [];
+    const merged = CanvasService.mergeWithGeneralAccreditors(stub);
+    console.log('[Accreditation] Using stub:', { cipKey, cip4Key, stubCount: stub.length });
+    return { accreditors: merged, source: 'stub' };
   }
 
   private static readonly STANDARDS_PREFIX_REGEX = /\|STANDARDS:([^|]+)\|/;

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, ParseIntPipe, Body, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, ParseIntPipe, Body, Query, HttpException, HttpStatus } from '@nestjs/common';
 import { CanvasService } from './canvas.service';
 @Controller('canvas')
 export class CanvasController {
@@ -142,6 +142,15 @@ export class CanvasController {
     @Body() body: { profile: Record<string, unknown> }
   ) {
     return this.canvasService.saveAccreditationProfile(id, body.profile);
+  }
+
+  @Get('courses/:id/accreditation/accreditors')
+  async getAccreditors(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('cip') cip: string,
+    @Query('degree_level') degreeLevel: string,
+  ) {
+    return this.canvasService.getAccreditorsForCourse(id, cip || undefined, degreeLevel || undefined);
   }
 
   @Get('courses/:id/accreditation/outcomes')
