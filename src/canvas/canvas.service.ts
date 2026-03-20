@@ -168,32 +168,51 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return `${trimmed}/api/quiz/v1`;
   }
 
-  private async patchNewQuizInstructions(
+  private isLikelyNewQuizAssignment(assignment: any): boolean {
+    if (!assignment || typeof assignment !== 'object') return false;
+    if (assignment.is_quiz_assignment === true) return true;
+    if (assignment.quiz_lti === true) return true;
+    const submissionTypes = Array.isArray(assignment.submission_types) ? assignment.submission_types : [];
+    if (submissionTypes.includes('external_tool') && assignment.quiz_id) return true;
+    return false;
+  }
+
+  private async patchNewQuizByAssignment(
     courseId: number,
     assignmentId: number,
-    instructions: string,
+    quizUpdates: { instructions?: string; title?: string },
     token: string,
     canvasApiV1Base: string,
-  ): Promise<void> {
+  ): Promise<any> {
     const quizBase = this.quizApiV1Base(canvasApiV1Base);
     const url = `${quizBase}/courses/${courseId}/quizzes/${assignmentId}`;
-
+    const params = new URLSearchParams();
+    if (Object.prototype.hasOwnProperty.call(quizUpdates, 'instructions')) {
+      params.append('quiz[instructions]', quizUpdates.instructions ?? '');
+    }
+    if (Object.prototype.hasOwnProperty.call(quizUpdates, 'title')) {
+      params.append('quiz[title]', quizUpdates.title ?? '');
+    }
+    const formBody = params.toString();
+    const jsonBody = JSON.stringify({ quiz: quizUpdates });
     const tryRequest = async (contentType: string, body: string) => {
+      console.log(`[Service][NewQuiz] PATCH ${url}`);
+      console.log(`[Service][NewQuiz] Request Content-Type: ${contentType}`);
+      console.log(`[Service][NewQuiz] Request Body: ${body}`);
       const res = await fetch(url, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType },
         body,
       });
-      return { ok: res.ok, status: res.status, text: await res.text() };
+      const text = await res.text();
+      console.log(`[Service][NewQuiz] Response Status: ${res.status} ${res.statusText}`);
+      console.log(`[Service][NewQuiz] Response Body: ${text}`);
+      return { ok: res.ok, status: res.status, text };
     };
-
-    let result = await tryRequest('application/json', JSON.stringify({ quiz: { instructions } }));
-    if (!result.ok && result.status === 415) {
-      const params = new URLSearchParams();
-      params.append('quiz[instructions]', instructions);
-      result = await tryRequest('application/x-www-form-urlencoded', params.toString());
+    let result = await tryRequest('application/x-www-form-urlencoded', formBody);
+    if (!result.ok && (result.status === 400 || result.status === 415 || result.status === 422)) {
+      result = await tryRequest('application/json', jsonBody);
     }
-
     if (!result.ok) {
       let errMsg: string;
       try {
@@ -203,6 +222,11 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         errMsg = result.text || `${result.status}`;
       }
       throw new Error(`New Quizzes API: ${errMsg}`);
+    }
+    try {
+      return JSON.parse(result.text);
+    } catch {
+      return { ok: true };
     }
   }
 
@@ -363,9 +387,17 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     try {
       const quizBase = this.quizApiV1Base(canvasApiV1Base);
       const url = `${quizBase}/courses/${courseId}/quizzes/${assignmentId}`;
+      console.log(`[Service][NewQuiz] GET ${url}`);
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const text = await res.text();
+      console.log(`[Service][NewQuiz] GET status: ${res.status} ${res.statusText}`);
+      console.log(`[Service][NewQuiz] GET body: ${text}`);
       if (!res.ok) return null;
-      return await res.json();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return null;
+      }
     } catch {
       return null;
     }
@@ -375,8 +407,11 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const { token, baseUrl } = await this.getAuthHeaders();
     const url = `${baseUrl}/courses/${courseId}/assignments?per_page=100&include[]=submission`;
     const assignments = await this.fetchPaginatedData(url, token);
-    const newQuizIds = assignments.filter((a: any) => a.is_quiz_assignment === true).map((a: any) => a.id);
+    const newQuizIds = assignments
+      .filter((a: any) => this.isLikelyNewQuizAssignment(a))
+      .map((a: any) => a.id);
     if (newQuizIds.length) {
+      console.log(`[Service][NewQuiz] Enriching ${newQuizIds.length} assignment row(s) from New Quizzes API`);
       const quizData = await Promise.all(
         newQuizIds.map((aid: number) =>
           this.getNewQuizByAssignment(courseId, aid, token, baseUrl).then((q) => ({ assignmentId: aid, quiz: q })),
@@ -386,7 +421,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       assignments.forEach((a: any) => {
         const q = quizMap.get(a.id);
         if (q?.instructions != null) a.description = q.instructions;
-        if (q?.title != null && !a.name) a.name = q.title;
+        if (q?.title != null) a.name = q.title;
       });
     }
     return assignments;
@@ -996,13 +1031,34 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       const { token, baseUrl } = await this.getAuthHeaders();
       const pending: Record<string, any> = { ...updates };
 
-      if (Object.prototype.hasOwnProperty.call(pending, 'description')) {
+      const needsNewQuizRoute =
+        Object.prototype.hasOwnProperty.call(pending, 'description') ||
+        Object.prototype.hasOwnProperty.call(pending, 'name');
+      if (needsNewQuizRoute) {
         const snapshot = await this.getAssignment(courseId, assignmentId);
-        if (snapshot.is_quiz_assignment === true) {
-          const rawDesc = pending.description;
-          const instructions = rawDesc === null || rawDesc === undefined ? '' : String(rawDesc);
-          await this.patchNewQuizInstructions(courseId, assignmentId, instructions, token, baseUrl);
-          delete pending.description;
+        const isNewQuiz = this.isLikelyNewQuizAssignment(snapshot);
+        console.log(`[Service][NewQuiz] Assignment ${assignmentId} detection:`, {
+          isNewQuizAssignment: snapshot?.is_quiz_assignment,
+          quizLti: snapshot?.quiz_lti,
+          quizId: snapshot?.quiz_id,
+          submissionTypes: snapshot?.submission_types,
+          resolvedAsNewQuiz: isNewQuiz,
+        });
+        if (isNewQuiz) {
+          const quizUpdates: { instructions?: string; title?: string } = {};
+          if (Object.prototype.hasOwnProperty.call(pending, 'description')) {
+            const rawDesc = pending.description;
+            quizUpdates.instructions = rawDesc === null || rawDesc === undefined ? '' : String(rawDesc);
+            delete pending.description;
+          }
+          if (Object.prototype.hasOwnProperty.call(pending, 'name')) {
+            const rawTitle = pending.name;
+            quizUpdates.title = rawTitle === null || rawTitle === undefined ? '' : String(rawTitle);
+            delete pending.name;
+          }
+          if (Object.keys(quizUpdates).length > 0) {
+            await this.patchNewQuizByAssignment(courseId, assignmentId, quizUpdates, token, baseUrl);
+          }
         }
       }
 
