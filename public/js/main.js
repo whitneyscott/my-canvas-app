@@ -1415,6 +1415,7 @@ async function syncChanges() {
     if (!config) return alert('Invalid tab.');
     const endpoint = config.endpoint;
 
+    const errors = [];
     for (const itemId in tabChanges) {
         const updates = { ...tabChanges[itemId] };
         if (currentTab === 'files') {
@@ -1431,29 +1432,44 @@ async function syncChanges() {
                 body: JSON.stringify(updates)
             });
 
-            if (response.ok) {
-                const rowNodes = [];
-                gridApi.forEachNode(node => {
-                    const nodeId = node.data.id || node.data.url;
-                    if (String(nodeId) === String(itemId)) {
-                        node.setDataValue('_edit_status', 'synced');
-                        rowNodes.push(node);
-                        if (originalData[currentTab]) {
-                            const originalRow = originalData[currentTab].find(item => String(item.id || item.url) === String(itemId));
-                            if (originalRow) {
-                                Object.keys(updates).forEach(fieldKey => originalRow[fieldKey] = updates[fieldKey]);
-                            }
+            if (!response.ok) {
+                let errMsg = response.statusText;
+                try {
+                    const errBody = await response.json();
+                    errMsg = errBody.message || errBody.error || errMsg;
+                } catch (_) {
+                    const text = await response.text();
+                    if (text) errMsg = text.slice(0, 300);
+                }
+                throw new Error(errMsg);
+            }
+
+            const rowNodes = [];
+            gridApi.forEachNode(node => {
+                const nodeId = node.data.id || node.data.url;
+                if (String(nodeId) === String(itemId)) {
+                    node.setDataValue('_edit_status', 'synced');
+                    rowNodes.push(node);
+                    if (originalData[currentTab]) {
+                        const originalRow = originalData[currentTab].find(item => String(item.id || item.url) === String(itemId));
+                        if (originalRow) {
+                            Object.keys(updates).forEach(fieldKey => originalRow[fieldKey] = updates[fieldKey]);
                         }
                     }
-                });
-                if (rowNodes.length) {
-                    gridApi.redrawRows({ rowNodes: rowNodes });
                 }
-                delete changes[currentTab][itemId];
-            }
-        } catch (error) { 
-            console.error(error); 
+            });
+            if (rowNodes.length) gridApi.redrawRows({ rowNodes });
+            delete changes[currentTab][itemId];
+        } catch (error) {
+            console.error(error);
+            const label = (gridApi.getRowNode(String(itemId))?.data?.name ?? gridApi.getRowNode(String(itemId))?.data?.title ?? itemId) || itemId;
+            errors.push({ itemId, label, message: error.message || String(error) });
         }
+    }
+
+    if (errors.length) {
+        alert(`Sync failed for ${errors.length} item(s):\n\n${errors.map(e => `• ${e.label}: ${e.message}`).join('\n')}`);
+        return;
     }
     alert('Sync completed.');
 }

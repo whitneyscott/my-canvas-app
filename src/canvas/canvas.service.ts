@@ -177,19 +177,32 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   ): Promise<void> {
     const quizBase = this.quizApiV1Base(canvasApiV1Base);
     const url = `${quizBase}/courses/${courseId}/quizzes/${assignmentId}`;
-    const params = new URLSearchParams();
-    params.append('quiz[instructions]', instructions);
-    const response = await fetch(url, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: params.toString(),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`New Quizzes API error: ${response.status} ${response.statusText} - ${text}`);
+
+    const tryRequest = async (contentType: string, body: string) => {
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType },
+        body,
+      });
+      return { ok: res.ok, status: res.status, text: await res.text() };
+    };
+
+    let result = await tryRequest('application/json', JSON.stringify({ quiz: { instructions } }));
+    if (!result.ok && result.status === 415) {
+      const params = new URLSearchParams();
+      params.append('quiz[instructions]', instructions);
+      result = await tryRequest('application/x-www-form-urlencoded', params.toString());
+    }
+
+    if (!result.ok) {
+      let errMsg: string;
+      try {
+        const j = JSON.parse(result.text);
+        errMsg = j.message || j.error || result.text;
+      } catch {
+        errMsg = result.text || `${result.status}`;
+      }
+      throw new Error(`New Quizzes API: ${errMsg}`);
     }
   }
 
@@ -341,10 +354,42 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     }
   }
 
+  private async getNewQuizByAssignment(
+    courseId: number,
+    assignmentId: number,
+    token: string,
+    canvasApiV1Base: string,
+  ): Promise<{ instructions?: string; title?: string } | null> {
+    try {
+      const quizBase = this.quizApiV1Base(canvasApiV1Base);
+      const url = `${quizBase}/courses/${courseId}/quizzes/${assignmentId}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
   async getCourseAssignments(courseId: number) {
     const { token, baseUrl } = await this.getAuthHeaders();
     const url = `${baseUrl}/courses/${courseId}/assignments?per_page=100&include[]=submission`;
-    return await this.fetchPaginatedData(url, token);
+    const assignments = await this.fetchPaginatedData(url, token);
+    const newQuizIds = assignments.filter((a: any) => a.is_quiz_assignment === true).map((a: any) => a.id);
+    if (newQuizIds.length) {
+      const quizData = await Promise.all(
+        newQuizIds.map((aid: number) =>
+          this.getNewQuizByAssignment(courseId, aid, token, baseUrl).then((q) => ({ assignmentId: aid, quiz: q })),
+        ),
+      );
+      const quizMap = new Map(quizData.map(({ assignmentId, quiz }) => [assignmentId, quiz]));
+      assignments.forEach((a: any) => {
+        const q = quizMap.get(a.id);
+        if (q?.instructions != null) a.description = q.instructions;
+        if (q?.title != null && !a.name) a.name = q.title;
+      });
+    }
+    return assignments;
   }
 
   async getCourseAssignmentGroups(courseId: number) {
