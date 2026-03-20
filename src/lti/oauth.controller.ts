@@ -22,6 +22,7 @@ export class OAuthController {
       ltiVerified?: boolean;
       canvasApiDomain?: string;
       ltiClientId?: string;
+      ltiLaunchType?: '1.1' | '1.3';
     };
     if (!sess.ltiVerified || !sess.canvasApiDomain) {
       debugLog('oauth_error', { error: 'Launch via LTI first' });
@@ -29,10 +30,25 @@ export class OAuthController {
     }
 
     const apiKeyClientId = this.config.get<string>('CANVAS_OAUTH_CLIENT_ID');
-    const clientId =
-      (apiKeyClientId && apiKeyClientId !== 'your_canvas_oauth_client_id' ? apiKeyClientId : null) ||
-      sess.ltiClientId ||
-      this.config.get<string>('LTI_CLIENT_ID');
+    const apiKeyValid = apiKeyClientId && apiKeyClientId !== 'your_canvas_oauth_client_id';
+
+    let clientId: string | null;
+    if (sess.ltiLaunchType === '1.1') {
+      if (!apiKeyValid) {
+        debugLog('oauth_error', { error: 'LTI 1.1 requires CANVAS_OAUTH_CLIENT_ID (API key) for OAuth' });
+        return res.redirect(
+          '/lti/debug?error=' +
+            encodeURIComponent('LTI 1.1 requires CANVAS_OAUTH_CLIENT_ID and CANVAS_OAUTH_CLIENT_SECRET on Render. Use an API Developer Key, not the LTI key.')
+        );
+      }
+      clientId = apiKeyClientId;
+    } else {
+      clientId =
+        (apiKeyValid ? apiKeyClientId : null) ||
+        sess.ltiClientId ||
+        this.config.get<string>('LTI_CLIENT_ID') ||
+        null;
+    }
     const appUrl = this.config.get<string>('APP_URL') || 'http://localhost:3000';
     if (!clientId) {
       debugLog('oauth_error', { error: 'OAuth client ID not configured' });
@@ -45,7 +61,7 @@ export class OAuthController {
 
     const base = String(sess.canvasApiDomain).replace(/\/$/, '').replace(/\/api\/v1\/?$/, '');
     const redirectUri = `${appUrl.replace(/\/$/, '')}/oauth/canvas/callback`;
-    debugLog('oauth_redirect', { clientId, source: apiKeyClientId && apiKeyClientId !== 'your_canvas_oauth_client_id' ? 'API_KEY' : 'LTI', canvasBase: base, redirectUri });
+    debugLog('oauth_redirect', { clientId, ltiLaunchType: sess.ltiLaunchType, canvasBase: base, redirectUri });
     const forceConsent = req.query.retry === '1';
     const authUrl =
       `${base}/login/oauth2/auth` +
@@ -89,6 +105,7 @@ export class OAuthController {
       canvasToken?: string;
       canvasUrl?: string;
       ltiClientId?: string;
+      ltiLaunchType?: '1.1' | '1.3';
     };
     if (!sess.canvasApiDomain) {
       debugLog('oauth_error', { error: 'Session expired' });
@@ -96,10 +113,18 @@ export class OAuthController {
     }
 
     const apiKeyClientId = this.config.get<string>('CANVAS_OAUTH_CLIENT_ID');
-    const clientId =
-      (apiKeyClientId && apiKeyClientId !== 'your_canvas_oauth_client_id' ? apiKeyClientId : null) ||
-      sess.ltiClientId ||
-      this.config.get<string>('LTI_CLIENT_ID');
+    const apiKeyValid = apiKeyClientId && apiKeyClientId !== 'your_canvas_oauth_client_id';
+
+    let clientId: string | null;
+    if (sess.ltiLaunchType === '1.1') {
+      clientId = apiKeyValid ? apiKeyClientId : null;
+    } else {
+      clientId =
+        (apiKeyValid ? apiKeyClientId : null) ||
+        sess.ltiClientId ||
+        this.config.get<string>('LTI_CLIENT_ID') ||
+        null;
+    }
     const secretsJson = this.config.get<string>('CANVAS_OAUTH_CLIENT_SECRETS');
     const secretsMap = secretsJson ? (() => { try { return JSON.parse(secretsJson) as Record<string, string>; } catch { return null; } })() : null;
     const clientSecret = (secretsMap && clientId && secretsMap[clientId]) || this.config.get<string>('CANVAS_OAUTH_CLIENT_SECRET');

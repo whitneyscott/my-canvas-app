@@ -106,24 +106,51 @@ export class Lti11LaunchVerifyService {
     return out;
   }
 
+  private envTrim(key: string): string | undefined {
+    const v = this.config.get<string>(key) ?? process.env[key];
+    if (v == null) return undefined;
+    const t = String(v).trim().replace(/^\uFEFF/, '');
+    return t === '' ? undefined : t;
+  }
+
   private resolveSecret(consumerKey: string): string {
-    const mapJson = this.config.get<string>('LTI11_SECRETS_JSON');
+    const mapJsonRaw = this.config.get<string>('LTI11_SECRETS_JSON') ?? process.env['LTI11_SECRETS_JSON'];
+    const mapJson = mapJsonRaw?.trim();
     if (mapJson) {
+      let map: Record<string, string>;
       try {
-        const map = JSON.parse(mapJson) as Record<string, string>;
-        const s = map[consumerKey];
-        if (s) return s;
+        map = JSON.parse(mapJson) as Record<string, string>;
       } catch {
         throw new Error('LTI11_SECRETS_JSON is not valid JSON');
       }
+      const s = map[consumerKey];
+      if (s != null && String(s).trim() !== '') {
+        return String(s).trim().replace(/^\uFEFF/, '');
+      }
+      throw new Error(
+        `LTI11_SECRETS_JSON has no entry for oauth_consumer_key "${consumerKey}". ` +
+          `Add {"${consumerKey}":"<shared-secret>"} or remove LTI11_SECRETS_JSON and set LTI11_SHARED_SECRET instead.`,
+      );
     }
 
-    const single = this.config.get<string>('LTI11_SHARED_SECRET');
+    const single =
+      this.envTrim('LTI11_SHARED_SECRET') ??
+      this.envTrim('LTI_1_1_SHARED_SECRET') ??
+      this.envTrim('LTI1_SHARED_SECRET') ??
+      this.envTrim('LTI_SHARED_SECRET');
     if (!single) {
-      throw new Error('LTI 1.1 not configured: set LTI11_SHARED_SECRET or LTI11_SECRETS_JSON');
+      throw new Error(
+        'No LTI 1.1 shared secret found. Set LTI11_SHARED_SECRET (preferred), LTI_1_1_SHARED_SECRET, LTI1_SHARED_SECRET, or LTI_SHARED_SECRET ' +
+          'to the Canvas tool Shared Secret. If you use LTI11_SECRETS_JSON it must include this consumer key. ' +
+          `Canvas sent oauth_consumer_key="${consumerKey}".`,
+      );
     }
 
-    const expectedKey = this.config.get<string>('LTI11_CONSUMER_KEY');
+    const expectedKey =
+      this.envTrim('LTI11_CONSUMER_KEY') ??
+      this.envTrim('LTI_1_1_CONSUMER_KEY') ??
+      this.envTrim('LTI1_CONSUMER_KEY') ??
+      this.envTrim('LTI_CONSUMER_KEY');
     if (expectedKey && expectedKey !== consumerKey) {
       throw new Error('oauth_consumer_key does not match LTI11_CONSUMER_KEY');
     }

@@ -8,6 +8,7 @@ declare module 'express-session' {
     courseId?: string;
     canvasApiDomain?: string;
     ltiClientId?: string;
+    ltiLaunchType?: '1.1' | '1.3';
     ltiSub?: string;
     returnUrl?: string;
   }

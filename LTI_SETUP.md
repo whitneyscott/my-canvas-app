@@ -74,6 +74,13 @@ Optional:
 
 After a valid 1.1 launch, the flow matches 1.3 for API access: session is set, then **Canvas OAuth** (`/oauth/canvas`) runs using your **API Developer Key** (`CANVAS_OAUTH_*`).
 
+### Troubleshooting: “No LTI 1.1 shared secret found” on Render
+
+1. **Env key names (any one):** `LTI11_SHARED_SECRET` (preferred), `LTI_1_1_SHARED_SECRET`, `LTI1_SHARED_SECRET`, or `LTI_SHARED_SECRET`.
+2. **Same service:** The variable must be on the **production Web Service** that serves `canvas-bulk-editor…` (not only a database or a preview instance).
+3. **`LTI11_SECRETS_JSON`:** If this env var is set at all, it must be valid JSON **and** include an entry whose key exactly matches **`oauth_consumer_key`** from Canvas (e.g. `{"Canvas_Bulk_Edit_123":"your-secret"}`). An empty `{}` or missing key will fail; either fix the JSON or **delete** `LTI11_SECRETS_JSON` and use only `LTI11_SHARED_SECRET`.
+4. **Redeploy** after changing env vars so the running process picks them up.
+
 ## Local Development
 
 - Set `APP_URL=http://localhost:3000` in `.env`

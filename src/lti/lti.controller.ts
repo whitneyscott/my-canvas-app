@@ -194,6 +194,7 @@ export class LtiController {
       ltiClientId?: string;
     };
     sess.ltiVerified = true;
+    sess.ltiLaunchType = '1.3';
     sess.courseId = courseId;
     sess.ltiSub = String(claims.sub || '');
     const aud = claims.aud;
@@ -289,6 +290,7 @@ export class LtiController {
       ltiClientId?: string;
     };
     sess.ltiVerified = true;
+    sess.ltiLaunchType = '1.1';
     sess.courseId = extracted.courseId;
     sess.ltiSub = extracted.ltiSub || '';
     delete sess.ltiClientId;
