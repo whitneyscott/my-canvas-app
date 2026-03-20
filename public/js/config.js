@@ -19,7 +19,7 @@ const CANVAS_CONFIG = {
       endpoint: 'discussions',
       fields: [
         { key: 'title', label: 'Title', editable: true, type: 'text' },
-        { key: 'message', label: 'Message', editable: false, type: 'html' },
+        { key: 'message', label: 'Message', editable: true, type: 'html' },
         { key: 'allow_rating', label: 'Allow Rating', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
         { key: 'delayed_post_at', label: 'Delayed Post', editable: true, type: 'date' },
         { key: 'lock_at', label: 'Lock Date', editable: true, type: 'date' },
@@ -99,7 +99,7 @@ const CANVAS_CONFIG = {
       endpoint: 'quizzes',
       fields: [
         { key: 'title', label: 'Quiz Title', editable: true, type: 'text' },
-        { key: 'description', label: 'Description', editable: false, type: 'html' },
+        { key: 'description', label: 'Description', editable: true, type: 'html' },
         { key: 'assignment_group_id', label: 'Assignment Group', editable: true, type: 'assignment_group_dropdown' },
         { key: 'time_limit', label: 'Time Limit (min)', editable: true, type: 'number' },
         { key: 'allowed_attempts', label: 'Allowed Attempts', editable: true, type: 'number' },

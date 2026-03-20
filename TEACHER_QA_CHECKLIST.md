@@ -14,6 +14,7 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 - [x] **Refresh**: reloads current tab data.
 - [x] **Columns**: show/hide columns; grid updates.
 - [x] **Sync Changes**: after editing cells, changes push to Canvas and row shows synced (no errors in UI).
+- [ ] **Undo**: CTRL+Z reverts last edit(s) before Sync; works for cell edits, bulk actions, Date Shift, etc.
 
 **Bulk Actions reminder:** Search & Replace uses **selected rows**, or if none selected, **all filtered rows** (string columns only). Date Shift uses checked date fields in the modal. Points requires **row selection**. Each is verified under the relevant endpoint section.
 
@@ -31,8 +32,8 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 - [x] **Search & Replace** on name or description (string fields).
 - [x] **Date Shift** on `due_at`, `unlock_at`, `lock_at`.
 - [x] **Points** on `points_possible`.
-- [ ] **Clone** (modal): standard / structural / deep as applicable → refresh → verify in Canvas for **deep**.
-- [ ] **Delete** (confirm DELETE) → item removed in Canvas.
+- [x] **Clone** (modal): standard / structural / deep as applicable → refresh → verify in Canvas for **deep**.
+- [x] **Delete** (confirm DELETE) → item removed in Canvas.
 
 ---
 
@@ -81,15 +82,15 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 
 ## Quizzes — `GET/PUT …/quizzes`
 
-- [ ] Grid loads quizzes.
-- [ ] **Quiz Title**: edit → Sync → verify.
-- [ ] **Description**: read-only in UI; confirm you cannot rely on inline description edit.
+- [x] Grid loads quizzes.
+- [x] **Quiz Title**: edit → Sync → verify.
+- [ ] **Description** (HTML): edit → Sync → verify in Canvas.
 - [ ] **Assignment Group**: change → Sync → verify.
 - [ ] **Time limit**, **Allowed attempts**: edit → Sync → verify.
 - [ ] **Due / Available From / Available Until**, **Show Answers At / Hide Answers At**: edit → Sync → verify (server may route `due_at` via assignment for graded quizzes).
 - [ ] **Points** (bulk) on `time_limit` or `allowed_attempts`.
 - [ ] **Date Shift** on quiz date fields.
-- [ ] **Search & Replace** on title.
+- [x] **Search & Replace** on title.
 - [ ] **Clone** deep: fetches quiz + creates copy → verify.
 - [ ] **Delete** → verify.
 
@@ -99,10 +100,10 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 
 - [ ] Grid loads topics.
 - [ ] **Title**: edit → Sync → verify.
-- [ ] **Message**: read-only in config (no inline body sync from grid).
+- [ ] **Message** (HTML): edit → Sync → verify in Canvas.
 - [ ] **Allow Rating**: toggle → Sync → verify.
 - [ ] **Delayed Post**, **Lock / Unlock**, **Due**: edit → Sync → verify.
-- [ ] **Search & Replace** on title.
+- [ ] **Search & Replace** on title or message (string fields).
 - [ ] **Date Shift** on discussion date fields.
 - [ ] **Points**: N/A (no points column on discussions grid).
 - [ ] **Clone** deep → verify.
