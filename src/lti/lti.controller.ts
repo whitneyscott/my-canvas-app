@@ -6,7 +6,6 @@ import {
   Query,
   Req,
   Res,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { JwksService } from './jwks.service';
 import { ConfigService } from '@nestjs/config';
@@ -15,6 +14,7 @@ import { randomBytes } from 'crypto';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { LaunchVerifyService } from './launch.verify.service';
+import { Lti11LaunchVerifyService } from './lti11-launch.verify.service';
 import { PlatformService } from './platform.service';
 import { getState, setState } from './state.store';
 import { log as debugLog, getLog } from './lti.debug';
@@ -24,6 +24,7 @@ export class LtiController {
   constructor(
     private config: ConfigService,
     private launchVerify: LaunchVerifyService,
+    private lti11Verify: Lti11LaunchVerifyService,
     private platform: PlatformService,
     private jwksService: JwksService
   ) {}
@@ -105,16 +106,50 @@ export class LtiController {
 
   @Post('launch')
   async launch(@Req() req: Request, @Res() res: Response) {
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<
+      string,
+      unknown
+    >;
     const idToken =
-      (typeof req.body?.id_token === 'string' && req.body.id_token) || null;
-    const state =
-      (typeof req.body?.state === 'string' && req.body.state) || null;
-    debugLog('launch_received', { hasIdToken: !!idToken, hasState: !!state, statePreview: state ? state.slice(0, 8) + '...' : null });
-    if (!idToken || !state) {
-      debugLog('launch_error', { error: 'Missing id_token or state' });
-      return res.redirect('/lti/debug?error=' + encodeURIComponent('Missing id_token or state'));
+      (typeof body.id_token === 'string' && body.id_token) || null;
+    const state = (typeof body.state === 'string' && body.state) || null;
+    const oauthSig =
+      (typeof body.oauth_signature === 'string' && body.oauth_signature) || null;
+    const oauthKey =
+      (typeof body.oauth_consumer_key === 'string' && body.oauth_consumer_key) || null;
+
+    debugLog('launch_received', {
+      hasIdToken: !!idToken,
+      hasState: !!state,
+      statePreview: state ? state.slice(0, 8) + '...' : null,
+      lti11: !!(oauthKey && oauthSig),
+    });
+
+    if (idToken && state) {
+      return this.handleLti13Launch(req, res, idToken, state);
     }
 
+    if (oauthKey && oauthSig) {
+      return this.handleLti11Launch(req, res, body);
+    }
+
+    debugLog('launch_error', {
+      error: 'Not LTI 1.3 (missing id_token/state) and not LTI 1.1 (missing OAuth 1.0a fields)',
+    });
+    return res.redirect(
+      '/lti/debug?error=' +
+        encodeURIComponent(
+          'Unknown launch: need LTI 1.3 id_token+state or LTI 1.1 oauth_consumer_key+oauth_signature'
+        )
+    );
+  }
+
+  private async handleLti13Launch(
+    req: Request,
+    res: Response,
+    idToken: string,
+    state: string
+  ): Promise<void> {
     const stored = getState(state);
     if (!stored) {
       debugLog('launch_error', { error: 'Invalid or expired state', statePreview: state.slice(0, 8) + '...' });
@@ -156,6 +191,7 @@ export class LtiController {
       courseId?: string;
       canvasApiDomain?: string;
       ltiSub?: string;
+      ltiClientId?: string;
     };
     sess.ltiVerified = true;
     sess.courseId = courseId;
@@ -188,5 +224,98 @@ export class LtiController {
     const u = iss.replace(/\/$/, '');
     if (u.includes('canvas.instructure.com')) return 'https://canvas.instructure.com';
     return u;
+  }
+
+  private buildLaunchUrl(req: Request): string {
+    const forwardedProto = req.get('x-forwarded-proto')?.split(',')[0]?.trim();
+    const proto = forwardedProto || req.protocol || 'https';
+    const host = (req.get('x-forwarded-host') || req.get('host') || '').split(',')[0]?.trim();
+    if (!host) {
+      const app = (this.config.get<string>('APP_URL') || '').replace(/\/$/, '');
+      if (app.startsWith('http')) {
+        return `${app}/lti/launch`;
+      }
+      throw new Error('Cannot determine launch URL host');
+    }
+    return `${proto}://${host}/lti/launch`;
+  }
+
+  private lti11RolesAllowInstructor(roles: string): boolean {
+    const parts = roles
+      .split(/[,;]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return parts.some((r) =>
+      /instructor|contentdeveloper|faculty|administrator|TeachingAssistant|teachingassistant|urn:lti:instrole:ims\/lis\/instructor|urn:lti:role:ims\/lis\/instructor|urn:lti:sysrole:ims\/lis\/teaching|urn:lti:role:ims\/lis\/TeachingAssistant/i.test(
+        r
+      )
+    );
+  }
+
+  private async handleLti11Launch(
+    req: Request,
+    res: Response,
+    body: Record<string, unknown>
+  ): Promise<void> {
+    let launchUrl: string;
+    try {
+      launchUrl = this.buildLaunchUrl(req);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      debugLog('launch_error', { error: msg, path: 'lti11' });
+      return res.redirect('/lti/debug?error=' + encodeURIComponent(msg));
+    }
+
+    let extracted;
+    try {
+      extracted = this.lti11Verify.verifyAndExtract(body, launchUrl);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      debugLog('launch_error', { error: msg, path: 'lti11' });
+      return res.redirect('/lti/debug?error=' + encodeURIComponent(msg));
+    }
+
+    if (!this.lti11RolesAllowInstructor(extracted.roles)) {
+      return res.redirect(
+        '/?error=' + encodeURIComponent('Access Denied: Only instructors can use this tool.')
+      );
+    }
+
+    const sess = req.session as import('express-session').Session & {
+      ltiVerified?: boolean;
+      courseId?: string;
+      canvasApiDomain?: string;
+      ltiSub?: string;
+      ltiClientId?: string;
+    };
+    sess.ltiVerified = true;
+    sess.courseId = extracted.courseId;
+    sess.ltiSub = extracted.ltiSub || '';
+    delete sess.ltiClientId;
+    sess.canvasApiDomain = extracted.canvasApiDomain;
+
+    debugLog('launch_success', {
+      path: 'lti11',
+      courseId: extracted.courseId,
+      canvasApiDomain: sess.canvasApiDomain,
+      consumerKey: extracted.consumerKey,
+    });
+
+    const appBase = (this.config.get<string>('APP_URL') || '').replace(/\/$/, '') || '';
+    const returnPath =
+      (appBase ? `${appBase}/` : '/') +
+      '?courseId=' +
+      encodeURIComponent(extracted.courseId || '');
+
+    return new Promise<void>((resolve, reject) => {
+      (sess as import('express-session').Session).save((err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        res.redirect('/oauth/canvas?returnUrl=' + encodeURIComponent(returnPath));
+        resolve();
+      });
+    });
   }
 }

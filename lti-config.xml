@@ -7,20 +7,16 @@
     xsi:schemaLocation="http://www.imsglobal.org/xsd/imslticc_v1p0 http://www.imsglobal.org/xsd/lti/ltiv1p0/imslticc_v1p0.xsd">
   <blti:title>Canvas Bulk Edit</blti:title>
   <blti:description>Bulk edit tool for Canvas assignments.</blti:description>
-  <!-- <blti:launch_url>https://canvas-bulk-editor.onrender.com/lti/launch</blti:launch_url> -->
-  <blti:launch_url>http://localhost:3000/lti/launch</blti:launch_url>
+  <blti:launch_url>https://canvas-bulk-editor.onrender.com/lti/launch</blti:launch_url>
 
   <blti:extensions platform="canvas.instructure.com">
     <lticm:property name="tool_id">canvas_bulk_edit</lticm:property>
     <lticm:property name="privacy_level">private</lticm:property>
-    <!-- <lticm:property name="domain">canvas-bulk-editor.onrender.com</lticm:property> -->
-    <lticm:property name="domain">localhost</lticm:property>
-    
+    <lticm:property name="domain">canvas-bulk-editor.onrender.com</lticm:property>
     <lticm:property name="consumer_key">Canvas_Bulk_Edit_123</lticm:property>
 
     <lticm:options name="course_navigation">
-      <!-- <lticm:property name="url">https://canvas-bulk-editor.onrender.com/lti/launch</lticm:property> -->
-      <lticm:property name="url">http://localhost:3000/lti/launch</lticm:property>
+      <lticm:property name="url">https://canvas-bulk-editor.onrender.com/lti/launch</lticm:property>
       <lticm:property name="text">Canvas Bulk Edit</lticm:property>
       <lticm:property name="visibility">admins</lticm:property>
       <lticm:property name="default">enabled</lticm:property>
@@ -31,7 +27,6 @@
     <lticm:property name="canvas_course_id">$Canvas.course.id</lticm:property>
     <lticm:property name="canvas_api_base_url">$Canvas.api.baseUrl</lticm:property>
     <lticm:property name="canvas_domain">$Canvas.api.domain</lticm:property>
-    
     <lticm:property name="canvas_roles">$Canvas.membership.roles</lticm:property>
     <lticm:property name="canvas_enrollment_type">$Canvas.enrollment.type</lticm:property>
   </blti:custom>

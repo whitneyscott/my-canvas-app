@@ -422,26 +422,111 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return await this.fetchPaginatedData(url, token);
   }
 
+  private extractTextFromBlockEditorBlocks(blocks: unknown): string {
+    if (blocks == null) return '';
+    if (typeof blocks === 'string') {
+      const t = blocks.trim();
+      if (!t) return '';
+      try {
+        return this.extractTextFromBlockEditorBlocks(JSON.parse(blocks));
+      } catch {
+        return t;
+      }
+    }
+    if (typeof blocks === 'number' || typeof blocks === 'boolean') {
+      return String(blocks);
+    }
+    if (Array.isArray(blocks)) {
+      return blocks
+        .map((x) => this.extractTextFromBlockEditorBlocks(x))
+        .filter((s) => s.length > 0)
+        .join(' ');
+    }
+    if (typeof blocks === 'object') {
+      const o = blocks as Record<string, unknown>;
+      if (typeof o.text === 'string' && o.text.trim()) return o.text.trim();
+      const nestedKeys = ['content', 'children', 'blocks', 'nodes', 'items'];
+      const parts: string[] = [];
+      for (const k of nestedKeys) {
+        if (o[k] != null) {
+          const p = this.extractTextFromBlockEditorBlocks(o[k]);
+          if (p) parts.push(p);
+        }
+      }
+      return parts.join(' ');
+    }
+    return '';
+  }
+
+  private nonEmptyBodyString(value: unknown): string | null {
+    if (value == null) return null;
+    const s = typeof value === 'string' ? value : String(value);
+    return s.trim() === '' ? null : s;
+  }
+
+  private async resolveWikiPageBodyForGrid(
+    courseId: number,
+    pageUrlSlug: string,
+    pageDetails: Record<string, any>,
+    token: string,
+    baseUrl: string,
+  ): Promise<string | null> {
+    const fromTop = this.nonEmptyBodyString(pageDetails.body);
+    if (fromTop) return fromTop;
+
+    const fromWiki = this.nonEmptyBodyString(
+      pageDetails.wiki_page?.body ?? pageDetails.wiki_page?.['body'],
+    );
+    if (fromWiki) return fromWiki;
+
+    const fromBlocks = this.extractTextFromBlockEditorBlocks(
+      pageDetails.block_editor_attributes?.blocks,
+    ).trim();
+    if (fromBlocks) return fromBlocks;
+
+    try {
+      const revUrl = `${baseUrl}/courses/${courseId}/pages/${encodeURIComponent(pageUrlSlug)}/revisions/latest`;
+      const revRes = await fetch(revUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (revRes.ok) {
+        const rev = await revRes.json();
+        const fromRev = this.nonEmptyBodyString(rev.body);
+        if (fromRev) return fromRev;
+      }
+    } catch (_) {}
+
+    return typeof pageDetails.body === 'string' ? pageDetails.body : null;
+  }
+
   async getCoursePages(courseId: number) {
     const { token, baseUrl } = await this.getAuthHeaders();
     const url = `${baseUrl}/courses/${courseId}/pages?per_page=100`;
     const pages = await this.fetchPaginatedData(url, token);
     
-    // Fetch body content for each page (Canvas list endpoint doesn't include body)
     const pagesWithBody = await Promise.all(
       pages.map(async (page) => {
         if (page.url) {
           try {
-            const pageUrl = `${baseUrl}/courses/${courseId}/pages/${encodeURIComponent(page.url)}`;
+            const pageUrl =
+              `${baseUrl}/courses/${courseId}/pages/${encodeURIComponent(page.url)}` +
+              '?include[]=body&include[]=block_editor_attributes';
             const pageResponse = await fetch(pageUrl, {
               headers: { Authorization: `Bearer ${token}` },
             });
             
             if (pageResponse.ok) {
               const pageDetails = await pageResponse.json();
+              const body = await this.resolveWikiPageBodyForGrid(
+                courseId,
+                page.url,
+                pageDetails,
+                token,
+                baseUrl,
+              );
               return {
                 ...page,
-                body: pageDetails.body || null,
+                body: body ?? null,
                 html_url: pageDetails.html_url || page.html_url || null,
               };
             }

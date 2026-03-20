@@ -57,6 +57,23 @@ CANVAS_OAUTH_CLIENT_SECRET=<from-step-3>
 2. Use the Client ID from step 2
 3. Add the tool to your course(s).
 
+## 6. LTI 1.1 (XML / legacy external tool) on the same `/lti/launch` URL
+
+Canvas can POST an **OAuth 1.0a** launch (consumer key + signature) to the same `POST /lti/launch` route. The app verifies the signature with a **shared secret** from the environment (the secret is **not** in the XML).
+
+Add to `.env` / Render:
+
+```env
+LTI11_SHARED_SECRET=<paste Shared Secret from the Canvas external tool>
+```
+
+Optional:
+
+- `LTI11_CONSUMER_KEY` — if set, must match `oauth_consumer_key` from Canvas (e.g. same value as in your XML `consumer_key`).
+- `LTI11_SECRETS_JSON` — JSON map of consumer key to secret if you run multiple 1.1 tools, e.g. `{"Canvas_Bulk_Edit_123":"secret-here"}` (when set, keys in the map take precedence over `LTI11_SHARED_SECRET`).
+
+After a valid 1.1 launch, the flow matches 1.3 for API access: session is set, then **Canvas OAuth** (`/oauth/canvas`) runs using your **API Developer Key** (`CANVAS_OAUTH_*`).
+
 ## Local Development
 
 - Set `APP_URL=http://localhost:3000` in `.env`

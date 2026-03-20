@@ -1,10 +1,10 @@
 {
   "title": "Canvas Bulk Editor",
   "description": "Bulk editor for Canvas course content",
-  "target_link_uri": "http://localhost:3000/",
-  "oidc_initiation_url": "http://localhost:3000/lti/login",
+  "target_link_uri": "https://canvas-bulk-editor.onrender.com/lti/launch",
+  "oidc_initiation_url": "https://canvas-bulk-editor.onrender.com/lti/login",
   "oidc_initiation_urls": {},
-  "public_jwk_url": "http://localhost:3000/lti/jwks",
+  "public_jwk_url": "https://canvas-bulk-editor.onrender.com/lti/jwks",
   "public_jwk": null,
   "custom_fields": {
     "canvas_course_id": "$Canvas.course.id",
@@ -33,7 +33,7 @@
   ],
   "extensions": [
     {
-      "domain": "localhost",
+      "domain": "canvas-bulk-editor.onrender.com",
       "tool_id": "canvas_bulk_edit",
       "privacy_level": "private",
       "platform": "canvas.instructure.com",
@@ -45,7 +45,7 @@
             "text": "Canvas Bulk Editor",
             "placement": "course_navigation",
             "message_type": "LtiResourceLinkRequest",
-            "target_link_uri": "http://localhost:3000/"
+            "target_link_uri": "https://canvas-bulk-editor.onrender.com/lti/launch"
           }
         ]
       }
