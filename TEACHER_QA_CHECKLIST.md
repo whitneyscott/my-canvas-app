@@ -1,6 +1,6 @@
 # Teacher QA Checklist — Canvas Bulk Editor
 
-Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/...`). Field definitions live in `public/js/config.js`; bulk actions and sync in `public/js/main.js`. The **FlowStateASL / Render** section is for the sibling project’s deploy health (separate repo).
+Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/...`). Field definitions live in `public/js/config.js`; sync and grid logic in `public/js/main.js`. **Bulk Actions** (Search & Replace, Date Shift, Points) are checked **per endpoint** in each tab section below—not in Global. The **FlowStateASL / Render** section is for the sibling project’s deploy health (separate repo).
 
 ## Before you start
 
@@ -14,9 +14,8 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 - [x] **Refresh**: reloads current tab data.
 - [x] **Columns**: show/hide columns; grid updates.
 - [x] **Sync Changes**: after editing cells, changes push to Canvas and row shows synced (no errors in UI).
-- [ ] **Bulk Actions → Search & Replace**: applies to **selected rows**, or if none selected, **all filtered rows**; only **string** columns; then Sync.
-- [ ] **Bulk Actions → Date Shift**: semester calculator / offset / fixed date / time override; pick date columns; then Sync.
-- [ ] **Bulk Actions → Points**: **requires row selection**; set / scale / add on a numeric column; then Sync (meaningful on tabs that have points fields).
+
+**Bulk Actions reminder:** Search & Replace uses **selected rows**, or if none selected, **all filtered rows** (string columns only). Date Shift uses checked date fields in the modal. Points requires **row selection**. Each is verified under the relevant endpoint section.
 
 ---
 
@@ -47,6 +46,7 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 - [ ] **Delete**: **module only** vs **module and items** → verify in Canvas.
 - [ ] **Date Shift** on `unlock_at` if present on rows.
 - [ ] **Search & Replace** on name (string).
+- [ ] **Points** on `position` (numeric).
 
 ---
 
@@ -57,6 +57,7 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 - [ ] **Content (body)**: edit → Sync → verify in Canvas page body.
 - [ ] **Published** (read-only in grid config).
 - [ ] **Search & Replace** on title or body (body must be string in grid).
+- [ ] **Date Shift** / **Points**: N/A for this tab (`pages` has no date or points columns in `config.js`).
 - [ ] **Clone**: deep clone fetches full page then creates new → verify; UI-only clone adds local row only until you confirm expected behavior.
 - [ ] **Delete** by page slug/url → verify.
 
@@ -70,7 +71,7 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 - [ ] **Assignment Group**: change → Sync → verify.
 - [ ] **Time limit**, **Allowed attempts**: edit → Sync → verify.
 - [ ] **Due / Available From / Available Until**, **Show Answers At / Hide Answers At**: edit → Sync → verify (server may route `due_at` via assignment for graded quizzes).
-- [ ] **Points** on `time_limit` or `allowed_attempts` only if you intentionally test those numeric fields.
+- [ ] **Points** (bulk) on `time_limit` or `allowed_attempts`.
 - [ ] **Date Shift** on quiz date fields.
 - [ ] **Search & Replace** on title.
 - [ ] **Clone** deep: fetches quiz + creates copy → verify.
@@ -87,6 +88,7 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 - [ ] **Delayed Post**, **Lock / Unlock**, **Due**: edit → Sync → verify.
 - [ ] **Search & Replace** on title.
 - [ ] **Date Shift** on discussion date fields.
+- [ ] **Points**: N/A (no points column on discussions grid).
 - [ ] **Clone** deep → verify.
 - [ ] **Delete** → verify.
 
@@ -99,6 +101,7 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 - [ ] **Allow Rating**, **Delayed Post**, **Lock / Unlock**, **Due**: edit → Sync → verify.
 - [ ] **Search & Replace** on title / message.
 - [ ] **Date Shift** on date fields.
+- [ ] **Points**: N/A (no points column on announcements grid).
 - [ ] **Clone** deep → verify.
 - [ ] **Delete** → verify.
 
@@ -112,7 +115,9 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 - [ ] **Locked** display (read-only).
 - [ ] **Delete** selected file vs folder (confirm Canvas behavior).
 - [ ] **Search & Replace** on `display_name` (strings only).
-- [ ] **Clone / Merge / Points / Date Shift**: only where it still makes sense for your workflow (many are N/A for files).
+- [ ] **Date Shift** on folder `unlock_at` / `lock_at` when those columns apply (folder rows).
+- [ ] **Points** (bulk) on `parent_folder_id` only if you use that workflow; otherwise skip.
+- [ ] **Clone / Merge**: N/A or tab-specific—confirm UI matches expectations for files.
 
 ---
 
