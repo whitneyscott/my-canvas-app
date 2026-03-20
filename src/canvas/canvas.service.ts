@@ -179,10 +179,14 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   private isQuizLinkedAssignment(assignment: any): boolean {
     if (!assignment || typeof assignment !== 'object') return false;
-    if (assignment.is_quiz_assignment === true) return true;
-    if (assignment.quiz_lti === true) return true;
-    const submissionTypes = Array.isArray(assignment.submission_types) ? assignment.submission_types : [];
-    if (submissionTypes.includes('external_tool') && assignment.quiz_id) return true;
+    if (assignment.is_quiz_assignment === true || (assignment as any).isQuizAssignment === true) return true;
+    if (assignment.quiz_lti === true || (assignment as any).quizLti === true) return true;
+    const quizId = assignment.quiz_id ?? (assignment as any).quizId;
+    if (quizId != null) return true;
+    const st = assignment.submission_types ?? (assignment as any).submissionTypes;
+    const submissionTypes = Array.isArray(st) ? st : [];
+    if (submissionTypes.includes('online_quiz')) return true;
+    if (submissionTypes.includes('external_tool')) return true;
     return false;
   }
 
