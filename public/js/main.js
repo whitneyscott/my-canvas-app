@@ -772,6 +772,14 @@ function onCourseSelected() {
     switchTab(currentTab);
 }
 
+function getTabNameFromButton(tabEl) {
+    const dataTab = tabEl?.getAttribute('data-tab');
+    if (dataTab) return dataTab;
+    const onclick = tabEl?.getAttribute('onclick') || '';
+    const match = onclick.match(/switchTab\('([^']+)'\)/);
+    return match ? match[1] : '';
+}
+
 function switchTab(tabName) {
     // Security Check: Enforce tab interception guard clause
     const allowedTabs = ['assignments', 'discussions', 'announcements', 'pages', 'quizzes', 'new_quizzes', 'modules', 'files', 'standards_sync'];
@@ -793,7 +801,8 @@ function switchTab(tabName) {
         // Re-activate the previous tab
         const allTabs = document.querySelectorAll('.tab-btn');
         allTabs.forEach(tab => {
-            const isTarget = tab.getAttribute('onclick').includes(previousTab);
+            const btnTab = getTabNameFromButton(tab);
+            const isTarget = btnTab === previousTab;
             tab.classList.toggle('active', isTarget);
             tab.setAttribute('aria-selected', isTarget ? 'true' : 'false');
         });
@@ -804,7 +813,8 @@ function switchTab(tabName) {
         const allTabs = document.querySelectorAll('.tab-btn');
         
         allTabs.forEach(tab => {
-            const isTarget = tab.getAttribute('onclick').includes(tabName);
+            const btnTab = getTabNameFromButton(tab);
+            const isTarget = btnTab === tabName;
             tab.classList.toggle('active', isTarget);
             tab.setAttribute('aria-selected', isTarget ? 'true' : 'false');
         });
@@ -865,7 +875,8 @@ function handleTabClick(event) {
         // Re-activate the previous tab
         const allTabs = document.querySelectorAll('.tab-btn');
         allTabs.forEach(tab => {
-            const isTarget = tab.getAttribute('onclick').includes(previousTab);
+            const btnTab = getTabNameFromButton(tab);
+            const isTarget = btnTab === previousTab;
             tab.classList.toggle('active', isTarget);
             tab.setAttribute('aria-selected', isTarget ? 'true' : 'false');
         });
