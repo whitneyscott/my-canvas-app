@@ -2,6 +2,8 @@ const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
 
+const isProd = process.env.NODE_ENV === 'production' || process.env.RENDER;
+
 function toWslPath(p) {
   return p.replace(/^([a-zA-Z]):/, (_, d) => `/mnt/${d.toLowerCase()}`).replace(/\\/g, '/');
 }
@@ -11,11 +13,16 @@ function dockerUp() {
     const isWin = process.platform === 'win32';
     const cwd = path.resolve(__dirname, '..', 'services', 'accreditation-lookup');
     let proc;
-    if (isWin) {
-      proc = spawn('wsl', ['-e', 'bash', '-c', `cd "${toWslPath(cwd)}" && docker compose up --build -d`], { stdio: 'inherit' });
-    } else {
-      proc = spawn('docker', ['compose', 'up', '--build', '-d'], { cwd, stdio: 'inherit' });
+    try {
+      if (isWin) {
+        proc = spawn('wsl', ['-e', 'bash', '-c', `cd "${toWslPath(cwd)}" && docker compose up --build -d`], { stdio: 'inherit' });
+      } else {
+        proc = spawn('docker', ['compose', 'up', '--build', '-d'], { cwd, stdio: 'inherit' });
+      }
+    } catch (e) {
+      return reject(e);
     }
+    proc.on('error', (e) => reject(e));
     proc.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`docker compose exited ${code}`))));
   });
 }
@@ -41,15 +48,28 @@ async function waitForService(maxAttempts = 60) {
 }
 
 async function main() {
+  if (isProd) {
+    console.log('[Start] Production mode, starting app only');
+    const app = spawn('node', ['dist/main'], {
+      cwd: path.join(__dirname, '..'),
+      stdio: 'inherit',
+    });
+    app.on('close', (code) => process.exit(code || 0));
+    return;
+  }
   console.log('[Start] Database + services...');
   try {
     await dockerUp();
   } catch (e) {
-    console.warn('[Start] Docker up failed (may already be running):', e.message);
+    if (e.code === 'ENOENT') {
+      console.warn('[Start] Docker not available, skipping (accreditation will use stub)');
+    } else {
+      console.warn('[Start] Docker up failed (may already be running):', e.message);
+    }
   }
   console.log('[Start] Waiting for services...');
   if (!(await waitForService())) {
-    console.error('[Start] Services did not become ready.');
+    console.warn('[Start] Services not ready (accreditation will use stub)');
   } else {
     console.log('[Start] Services ready.');
   }
