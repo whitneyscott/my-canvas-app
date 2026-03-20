@@ -1384,6 +1384,10 @@ async function loadTabData(tabName) {
         }
 
         var data = await response.json();
+        if (tabName === 'assignments' && data && !Array.isArray(data) && Array.isArray(data.items)) {
+            (data.debug || []).forEach(function(msg) { debugLog(msg, 'info'); });
+            data = data.items;
+        }
         var dataWithStatus = data.map(function(item) { 
             return Object.assign({}, item, { _edit_status: 'synced' }); 
         });
@@ -1419,8 +1423,11 @@ async function syncChanges() {
     if (!config) return alert('Invalid tab.');
     const endpoint = config.endpoint;
 
+    const itemIds = Object.keys(tabChanges);
+    debugLog('[Sync] Request: ' + itemIds.length + ' item(s) - ' + itemIds.join(', '), 'info');
+
     const errors = [];
-    for (const itemId in tabChanges) {
+    for (const itemId of itemIds) {
         const updates = { ...tabChanges[itemId] };
         if (currentTab === 'files') {
             gridApi.forEachNode(node => {
@@ -1464,8 +1471,10 @@ async function syncChanges() {
             });
             if (rowNodes.length) gridApi.redrawRows({ rowNodes });
             delete changes[currentTab][itemId];
+            debugLog('[Sync] Return: ' + itemId + ' OK', 'success');
         } catch (error) {
             console.error(error);
+            debugLog('[Sync] Return: ' + itemId + ' FAILED - ' + (error.message || error), 'error');
             const label = (gridApi.getRowNode(String(itemId))?.data?.name ?? gridApi.getRowNode(String(itemId))?.data?.title ?? itemId) || itemId;
             errors.push({ itemId, label, message: error.message || String(error) });
         }
@@ -1475,6 +1484,7 @@ async function syncChanges() {
         alert(`Sync failed for ${errors.length} item(s):\n\n${errors.map(e => `• ${e.label}: ${e.message}`).join('\n')}`);
         return;
     }
+    debugLog('[Sync] Completed: all ' + itemIds.length + ' item(s) synced', 'success');
     alert('Sync completed.');
 }
 async function handleDeleteClick() {

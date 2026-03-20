@@ -177,6 +177,20 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return false;
   }
 
+  private async getNewQuizByAssignment(
+    courseId: number,
+    assignmentId: number,
+    token: string,
+    canvasApiV1Base: string,
+  ): Promise<{ title?: string; instructions?: string } | null> {
+    const quizBase = this.quizApiV1Base(canvasApiV1Base);
+    const url = `${quizBase}/courses/${courseId}/quizzes/${assignmentId}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return data ? { title: data.title, instructions: data.instructions } : null;
+  }
+
   private async patchNewQuizByAssignment(
     courseId: number,
     assignmentId: number,
@@ -378,10 +392,41 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     }
   }
 
-  async getCourseAssignments(courseId: number) {
+  async getCourseAssignments(courseId: number): Promise<{ items: any[]; debug: string[] }> {
+    const debug: string[] = [];
     const { token, baseUrl } = await this.getAuthHeaders();
     const url = `${baseUrl}/courses/${courseId}/assignments?per_page=100&include[]=submission`;
-    return await this.fetchPaginatedData(url, token);
+    const assignments = await this.fetchPaginatedData(url, token);
+    debug.push(`[Assignments] Retrieved ${assignments.length} assignments`);
+
+    const newQuizIds = assignments
+      .filter((a: any) => this.isLikelyNewQuizAssignment(a))
+      .map((a: any) => a.id);
+    debug.push(`[NewQuiz] Detected ${newQuizIds.length} New Quiz assignments: ${newQuizIds.join(', ') || 'none'}`);
+
+    const quizPromises = newQuizIds.map(async (assignmentId: number) => {
+      const assignment = assignments.find((a: any) => a.id === assignmentId);
+      const title = assignment?.name ?? assignmentId;
+      debug.push(`[NewQuiz] Title retrieval: assignment ${assignmentId} "${String(title).slice(0, 50)}"`);
+      const quiz = await this.getNewQuizByAssignment(courseId, assignmentId, token, baseUrl);
+      return { assignmentId, quiz, title };
+    });
+
+    const results = await Promise.all(quizPromises);
+
+    for (const { assignmentId, quiz, title } of results) {
+      const assignment = assignments.find((a: any) => a.id === assignmentId);
+      if (!assignment) continue;
+      if (quiz) {
+        const len = quiz.instructions ? String(quiz.instructions).length : 0;
+        debug.push(`[NewQuiz] Instruction retrieval: assignment ${assignmentId} "${title}" -> ${len} chars`);
+        assignment.description = quiz.instructions ?? assignment.description ?? '';
+      } else {
+        debug.push(`[NewQuiz] Instruction retrieval FAILED: assignment ${assignmentId} "${title}" (API returned null)`);
+      }
+    }
+
+    return { items: assignments, debug };
   }
 
   async getCourseAssignmentGroups(courseId: number) {
@@ -856,9 +901,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   async getCourseAccommodations(courseId: number) {
     const { token, baseUrl } = await this.getAuthHeaders();
-    
-    // Fetch assignment overrides (accommodations/extensions)
-    const assignments = await this.getCourseAssignments(courseId);
+    const { items: assignments } = await this.getCourseAssignments(courseId);
     const allOverrides: any[] = [];
 
     // Get overrides for each assignment
