@@ -403,6 +403,31 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     }
   }
 
+  private async getNewQuizzesForCourse(
+    courseId: number,
+    token: string,
+    canvasApiV1Base: string,
+  ): Promise<Array<{ id?: number; assignment_id?: number; instructions?: string; title?: string }>> {
+    try {
+      const quizBase = this.quizApiV1Base(canvasApiV1Base);
+      const url = `${quizBase}/courses/${courseId}/quizzes`;
+      console.log(`[Service][NewQuiz] LIST ${url}`);
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const text = await res.text();
+      console.log(`[Service][NewQuiz] LIST status: ${res.status} ${res.statusText}`);
+      console.log(`[Service][NewQuiz] LIST body: ${text}`);
+      if (!res.ok) return [];
+      try {
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    } catch {
+      return [];
+    }
+  }
+
   async getCourseAssignments(courseId: number) {
     const { token, baseUrl } = await this.getAuthHeaders();
     const url = `${baseUrl}/courses/${courseId}/assignments?per_page=100&include[]=submission`;
@@ -412,15 +437,24 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       .map((a: any) => a.id);
     if (newQuizIds.length) {
       console.log(`[Service][NewQuiz] Enriching ${newQuizIds.length} assignment row(s) from New Quizzes API`);
+      const list = await this.getNewQuizzesForCourse(courseId, token, baseUrl);
+      const listMap = new Map<number, { instructions?: string; title?: string }>();
+      list.forEach((q: any) => {
+        const byAssignmentId = Number(q?.assignment_id);
+        const byId = Number(q?.id);
+        if (Number.isFinite(byAssignmentId) && byAssignmentId > 0) listMap.set(byAssignmentId, q);
+        else if (Number.isFinite(byId) && byId > 0) listMap.set(byId, q);
+      });
       const quizData = await Promise.all(
         newQuizIds.map((aid: number) =>
           this.getNewQuizByAssignment(courseId, aid, token, baseUrl).then((q) => ({ assignmentId: aid, quiz: q })),
         ),
       );
-      const quizMap = new Map(quizData.map(({ assignmentId, quiz }) => [assignmentId, quiz]));
+      const quizMap = new Map(quizData.map(({ assignmentId, quiz }) => [assignmentId, quiz || listMap.get(assignmentId) || null]));
       assignments.forEach((a: any) => {
         const q = quizMap.get(a.id);
-        if (q?.instructions != null) a.description = q.instructions;
+        const instructions = typeof q?.instructions === 'string' ? q.instructions : null;
+        if (instructions && instructions.trim().length > 0) a.description = instructions;
         if (q?.title != null) a.name = q.title;
       });
     }

@@ -5,7 +5,7 @@ const CANVAS_CONFIG = {
       endpoint: 'assignments',
       fields: [
         { key: 'name', label: 'Name', editable: true, type: 'text' },
-        { key: 'description', label: 'Description', editable: true, type: 'html' },
+        { key: 'description', label: 'Description/Instructions', editable: true, type: 'html' },
         { key: 'assignment_group_id', label: 'Assignment Group', editable: true, type: 'assignment_group_dropdown' },
         { key: 'points_possible', label: 'Points Possible', editable: true, type: 'number' },
         { key: 'due_at', label: 'Due Date', editable: true, type: 'date' },
