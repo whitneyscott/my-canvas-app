@@ -30,6 +30,7 @@
             <button class="close-x" onclick="closeActiveModal()">&times;</button>
         </div>
         <div class="modal-body" style="max-height: 400px; overflow-y: auto; padding-bottom: 0;">
+            <p style="margin: 0 0 10px 0; font-size: 13px; color: #555;">Checked columns use Hide/Show below; unchecked columns get the opposite.</p>
             <div id="columnListContainer"></div>
         </div>
         <div class="modal-footer" style="display: flex; flex-direction: column; gap: 15px; border-top: 1px solid #eee;">
@@ -43,15 +44,7 @@
             </div>
             
             <div style="display: flex; justify-content: flex-end; gap: 10px; width: 100%;">
-                <button class="primary-btn" onclick="(() => {
-                    const checkboxes = Array.from(document.querySelectorAll('.col-toggle-input'));
-                    const selectedIds = checkboxes.filter(cb => cb.checked).map(cb => cb.value);
-                    const isVisible = document.getElementById('visibilityToggle').checked;
-                    if (selectedIds.length > 0) {
-                        updateColumnVisibility(selectedIds, isVisible);
-                    }
-                    closeActiveModal();
-                })()">Apply</button>
+                <button class="primary-btn" onclick="applyColumnVisibilityFromModal()">Apply</button>
                 <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
             </div>
         </div>

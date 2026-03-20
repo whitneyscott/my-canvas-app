@@ -5,13 +5,13 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 ## Before you start
 
 - [x] Use **Production** or **Developer** mode (⚙️ Mode). **Demo** mode only allows a subset of tabs.
-- [ ] Authenticated (LTI + token or manual token); **course selected** from dropdown.
+- [x] Authenticated (LTI + token or manual token); **course selected** from dropdown.
 - [x] Use a **sandbox / test course** for delete/clone tests.
 
 ## Global (all grid tabs)
 
-- [ ] **Course dropdown**: loads courses; switching course reloads the active tab.
-- [ ] **Refresh**: reloads current tab data.
+- [x] **Course dropdown**: loads courses; switching course reloads the active tab.
+- [x] **Refresh**: reloads current tab data.
 - [ ] **Columns**: show/hide columns; grid updates.
 - [ ] **Sync Changes**: after editing cells, changes push to Canvas and row shows synced (no errors in UI).
 - [ ] **Bulk Actions → Search & Replace**: applies to **selected rows**, or if none selected, **all filtered rows**; only **string** columns; then Sync.

@@ -2538,6 +2538,23 @@ function updateColumnVisibility(columnIds, isVisible) {
     gridApi.applyColumnState({ state: stateUpdates, applyOrder: false });
 }
 
+function applyColumnVisibilityFromModal() {
+    if (!gridApi) return;
+    const checkboxes = Array.from(document.querySelectorAll('#columnListContainer .col-toggle-input'));
+    if (!checkboxes.length) {
+        closeActiveModal();
+        return;
+    }
+    const primaryVisible = !!document.getElementById('visibilityToggle')?.checked;
+    const stateUpdates = checkboxes.map((cb) => {
+        const id = cb.value;
+        const visible = cb.checked ? primaryVisible : !primaryVisible;
+        return { colId: id, hide: !visible };
+    });
+    gridApi.applyColumnState({ state: stateUpdates, applyOrder: false });
+    closeActiveModal();
+}
+
 // Dropdown Functions
 function toggleDropdown(dropdownId) {
     const dropdown = document.getElementById(dropdownId);
