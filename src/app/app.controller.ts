@@ -18,6 +18,7 @@ export class AppController {
   root(@Query('courseId') courseId?: string, @Query('error') error?: string, @Req() req?: any) {
     const ltiVerified = !!req?.session?.ltiVerified;
     const hasToken = !!req?.session?.canvasToken && !!req?.session?.canvasUrl;
+    const ltiLaunchType = req?.session?.ltiLaunchType as '1.1' | '1.3' | undefined;
     const isProduction = process.env.NODE_ENV === 'production';
 
     if (error) {
@@ -31,10 +32,11 @@ export class AppController {
     }
 
     if (ltiVerified && !hasToken) {
+      const needsOAuth = ltiLaunchType !== '1.1';
       return {
         deploymentMode: 'lti',
         ltiVerified: true,
-        needsOAuth: true,
+        needsOAuth,
         courseId: req.session.courseId || courseId || null,
         modePassword: process.env.MODE_PASSWORD || 'dev2025'
       };
@@ -77,7 +79,8 @@ export class AppController {
   getStatus(@Req() req: any) {
     const ltiVerified = !!req.session?.ltiVerified;
     const hasToken = !!req.session?.canvasToken && !!req.session?.canvasUrl;
-    const needsOAuth = ltiVerified && !hasToken;
+    const ltiLaunchType = req.session?.ltiLaunchType as '1.1' | '1.3' | undefined;
+    const needsOAuth = ltiVerified && !hasToken && ltiLaunchType !== '1.1';
     const needsToken = !ltiVerified && !hasToken;
     const defaultUrl = req.session?.canvasApiDomain
       ? `${req.session.canvasApiDomain.replace(/\/api\/v1\/?$/, '')}/api/v1`

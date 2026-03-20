@@ -328,7 +328,7 @@ export class LtiController {
           reject(err);
           return;
         }
-        res.redirect('/oauth/canvas?returnUrl=' + encodeURIComponent(returnPath));
+        res.redirect(returnPath);
         resolve();
       });
     });

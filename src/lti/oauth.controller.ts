@@ -36,6 +36,12 @@ export class OAuthController {
       canvasApiDomain: sess.canvasApiDomain ?? '(undefined)',
     });
 
+    if (sess.ltiLaunchType === '1.1') {
+      const returnUrl = (req.query.returnUrl as string) || '/';
+      debugLog('oauth_skipped', { reason: 'LTI_1.1 uses manual token flow', returnUrl });
+      return res.redirect(returnUrl);
+    }
+
     const apiKeyClientId = this.config.get<string>('CANVAS_OAUTH_CLIENT_ID');
     const apiKeyValid = apiKeyClientId && apiKeyClientId !== 'your_canvas_oauth_client_id';
 
