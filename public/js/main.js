@@ -682,8 +682,10 @@ async function loadCourses() {
         debugLog(`SUCCESS: Loaded ${totalCourses} courses successfully`, 'success');
 
         const urlParams = new URLSearchParams(window.location.search);
-        const autoCourseId = (typeof LTI_COURSE_ID !== 'undefined' ? LTI_COURSE_ID : null) || urlParams.get('courseId') || urlParams.get('course_id') || (window.SERVER_DATA && window.SERVER_DATA.courseId);
-        const validId = autoCourseId && autoCourseId !== 'null' && autoCourseId !== '' && autoCourseId !== 'undefined' && autoCourseId !== '<%= courseId %>';
+        const autoCourseId = (typeof LTI_COURSE_ID !== 'undefined' && LTI_COURSE_ID ? String(LTI_COURSE_ID) : null)
+            || urlParams.get('courseId') || urlParams.get('course_id') || urlParams.get('context_id')
+            || (window.SERVER_DATA && window.SERVER_DATA.courseId);
+        const validId = autoCourseId && autoCourseId !== 'null' && autoCourseId !== '' && autoCourseId !== 'undefined';
         const hasOption = validId && Array.from(courseSelect.options).some(opt => opt.value === String(autoCourseId));
 
         if (validId && hasOption) {
