@@ -109,12 +109,11 @@ function showApp() {
     if (overlay) overlay.style.display = 'none';
     if (wrapper) wrapper.style.display = 'block';
     
-    // Initialize the main application
-    if (typeof initializeGrid === 'function') {
-        initializeGrid();
-    }
+    if (typeof initializeGrid === 'function') initializeGrid();
     if (typeof loadCourses === 'function') {
-        loadCourses();
+        loadCourses().then(() => {
+            if (typeof gridApi !== 'undefined' && gridApi && !selectedCourseId) gridApi.showNoRowsOverlay();
+        });
     }
 }
 

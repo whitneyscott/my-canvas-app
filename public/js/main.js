@@ -329,6 +329,13 @@ const gridOptions = {
 const NEEDS_TOKEN = Boolean('<%= needsToken %>' === 'true');
 const LTI_COURSE_ID = '<%= courseId %>';
 
+function initializeGrid() {
+    const gridDiv = document.querySelector('#myGrid');
+    if (gridDiv && !gridApi) {
+        gridApi = agGrid.createGrid(gridDiv, gridOptions);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     debugLog('=== Canvas Manager Initializing ===');
 
@@ -336,14 +343,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         debugLog('Authentication required. Showing overlay.', 'warn');
         return;
     }
-    
-    const gridDiv = document.querySelector('#myGrid');
-    if (gridDiv) {
-        gridApi = agGrid.createGrid(gridDiv, gridOptions);
-    }
 
-    await loadCourses();
-    if (!selectedCourseId && gridApi) gridApi.showNoRowsOverlay();
+    initializeGrid();
 });
 
 async function submitToken() {
