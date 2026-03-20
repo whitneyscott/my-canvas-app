@@ -229,37 +229,6 @@ function setGridStatus(tabName, message, color = '#00ff00') {
 
 let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, selectedCourseId = null, lastGridColumnTab = null;
 
-function DateTimeCellEditor() {}
-DateTimeCellEditor.prototype.init = function(params) {
-    const v = params.value;
-    let localStr = '';
-    if (v) {
-        const d = new Date(v);
-        if (!isNaN(d.getTime())) {
-            const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
-            const h = d.getHours() === 0 && d.getMinutes() === 0 ? 23 : d.getHours();
-            const min = d.getHours() === 0 && d.getMinutes() === 0 ? 59 : d.getMinutes();
-            localStr = `${y}-${m}-${day}T${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
-        }
-    }
-    this.gui = document.createElement('div');
-    this.gui.style.padding = '4px';
-    this.gui.innerHTML = '<input type="datetime-local" step="60" style="width:100%;box-sizing:border-box;padding:6px;">';
-    this.gui.querySelector('input').value = localStr;
-};
-DateTimeCellEditor.prototype.getGui = function() { return this.gui; };
-DateTimeCellEditor.prototype.getValue = function() {
-    const inp = this.gui.querySelector('input');
-    const v = inp?.value;
-    if (!v) return null;
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 17) + ':00Z';
-};
-DateTimeCellEditor.prototype.afterGuiAttached = function() {
-    const inp = this.gui.querySelector('input');
-    if (inp) { inp.focus(); inp.select && inp.select(); }
-};
-
 function DurationPickerCellEditor() {}
 DurationPickerCellEditor.prototype.init = function(params) {
     const total = params.value != null && params.value !== '' ? Math.max(0, parseInt(Number(params.value), 10) || 0) : 0;
@@ -291,7 +260,7 @@ function createDurationPickerDOM(initialMinutes) {
 }
 
 const gridOptions = {
-    components: { durationPickerCellEditor: DurationPickerCellEditor, dateTimeCellEditor: DateTimeCellEditor },
+    components: { durationPickerCellEditor: DurationPickerCellEditor },
     sortingOrder: ['asc', 'desc'],
     rowSelection: {
         mode: 'multiRow',
@@ -515,7 +484,9 @@ function generateColumnDefs(tabName) {
             };
         }
         else if (field.type === 'date') {
-            colDef.cellEditor = 'dateTimeCellEditor';
+            colDef.cellDataType = false;
+            colDef.cellEditor = 'agDateStringCellEditor';
+            colDef.cellEditorParams = { min: '1900-01-01', includeTime: true };
             colDef.comparator = (a, b) => {
                 const dA = a ? new Date(a).getTime() : 0;
                 const dB = b ? new Date(b).getTime() : 0;
@@ -531,7 +502,8 @@ function generateColumnDefs(tabName) {
                 if (!params.newValue) return null;
                 const date = new Date(params.newValue);
                 if (isNaN(date.getTime())) return params.newValue;
-                if (date.getHours() === 0 && date.getMinutes() === 0) date.setHours(23, 59, 0, 0);
+                const wasEmpty = params.oldValue == null || params.oldValue === '';
+                if (wasEmpty && date.getHours() === 0 && date.getMinutes() === 0) date.setHours(23, 59, 0, 0);
                 return date.toISOString().slice(0, 17) + ':00Z';
             };
         } else if (field.type === 'boolean') {
@@ -2334,7 +2306,7 @@ function executeDateShift() {
                     const shiftedDate = new Date(currentDate);
                     shiftedDate.setDate(shiftedDate.getDate() + offsetDaysNum);
                     if (timeOverride) { const [hours, mins] = timeOverride.split(':'); shiftedDate.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
-                    else if (shiftedDate.getHours() === 0 && shiftedDate.getMinutes() === 0) shiftedDate.setHours(23, 59, 0, 0);
+                    else shiftedDate.setHours(23, 59, 0, 0);
                     newDateValue = shiftedDate.toISOString().slice(0, 17) + ':00Z';
                 }
             } else if (offsetDaysNum !== 0) {
