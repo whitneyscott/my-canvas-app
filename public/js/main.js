@@ -2292,9 +2292,19 @@ function executeDateShift() {
     const selectedDateColumns = Array.from(document.querySelectorAll('.date-col-checkbox:checked')).map(checkbox => checkbox.value);
     if (!selectedDateColumns.length) { alert('Select date columns.'); return; }
     const isClearMode = !manualDate && !timeOverride && !manualTime && offsetDaysNum === 0;
-    let nodesToUpdate = gridApi.getSelectedRows();
-    if (!nodesToUpdate.length) { nodesToUpdate = []; gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data)); }
-    nodesToUpdate.forEach(rowData => {
+    let rowNodes = [];
+    const selected = gridApi.getSelectedRows();
+    if (selected.length) {
+        selected.forEach(rowData => {
+            const node = gridApi.getRowNode(String(rowData.id || rowData.url));
+            if (node) rowNodes.push(node);
+        });
+    } else {
+        gridApi.forEachNodeAfterFilter(node => rowNodes.push(node));
+    }
+    rowNodes.forEach(gridNode => {
+        const rowData = gridNode.data;
+        if (!rowData) return;
         selectedDateColumns.forEach(field => {
             const currentValue = rowData[field];
             let newDateValue = null;
@@ -2322,13 +2332,9 @@ function executeDateShift() {
                 newDateValue = baseDate.toISOString().slice(0, 17) + ':00Z';
             }
             if (isClearMode || newDateValue !== null) {
-                gridApi.forEachNode(gridNode => {
-                    if (gridNode.data === rowData) {
-                        gridNode.setDataValue(field, newDateValue);
-                        gridNode.setDataValue('_edit_status', 'modified');
-                        trackChange(currentTab, rowData.id || rowData.url, field, newDateValue);
-                    }
-                });
+                gridNode.setDataValue(field, newDateValue);
+                gridNode.setDataValue('_edit_status', 'modified');
+                trackChange(currentTab, rowData.id || rowData.url, field, newDateValue);
             }
         });
     });
