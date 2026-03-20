@@ -227,7 +227,7 @@ function setGridStatus(tabName, message, color = '#00ff00') {
     gridApi.showLoadingOverlay();
 }
 
-let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, selectedCourseId = null;
+let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, selectedCourseId = null, lastGridColumnTab = null;
 
 const gridOptions = {
     sortingOrder: ['asc', 'desc'],
@@ -539,6 +539,17 @@ function generateColumnDefs(tabName) {
     return allColumns;
 }
 
+const GRID_DATA_TABS = ['assignments', 'quizzes', 'discussions', 'announcements', 'pages', 'modules', 'files'];
+
+function setGridColumnDefsForTab(tabName) {
+    if (!gridApi || !GRID_DATA_TABS.includes(tabName)) return;
+    gridApi.setGridOption('columnDefs', generateColumnDefs(tabName));
+    if (lastGridColumnTab !== tabName) {
+        if (typeof gridApi.resetColumnState === 'function') gridApi.resetColumnState();
+        lastGridColumnTab = tabName;
+    }
+}
+
 async function refreshCurrentTab() {
     if (!selectedCourseId) { alert('Select course first.'); return; }
     if (currentTab === 'standards_sync') {
@@ -562,9 +573,7 @@ async function refreshCurrentTab() {
         originalData[currentTab] = dataWithStatus;
 
         if (gridApi) {
-            if (['assignments', 'quizzes', 'discussions', 'announcements', 'pages', 'modules', 'files'].includes(currentTab)) {
-                gridApi.setGridOption('columnDefs', generateColumnDefs(currentTab));
-            }
+            setGridColumnDefsForTab(currentTab);
             gridApi.setGridOption('rowData', dataWithStatus);
             gridApi.setGridOption('loading', false);
             gridApi.redrawRows();
@@ -1378,9 +1387,7 @@ async function loadTabData(tabName) {
         originalData[tabName] = dataWithStatus;
 
         if (currentTab === tabName && gridApi) {
-            if (['assignments', 'quizzes', 'discussions', 'announcements', 'pages', 'modules', 'files'].includes(tabName)) {
-                gridApi.setGridOption('columnDefs', generateColumnDefs(tabName));
-            }
+            setGridColumnDefsForTab(tabName);
             gridApi.setGridOption('rowData', dataWithStatus);
             gridApi.hideOverlay();
         }
@@ -1650,7 +1657,15 @@ function populateColumnSelector() {
     const container = document.getElementById('columnListContainer');
     if (!container || !gridApi) return;
     container.innerHTML = '';
-    const columnDefinitions = gridApi.getColumnDefs();
+    const allDefs = generateColumnDefs(currentTab);
+    const columnDefinitions = allDefs.filter((colDef) => {
+        const id = colDef.colId || colDef.field;
+        return id && id !== '_edit_status' && id !== 'id';
+    });
+    if (!columnDefinitions.length) {
+        container.innerHTML = '<p style="padding:12px;color:#666">No columns for this tab.</p>';
+        return;
+    }
 
     const selectAllRow = document.createElement('div');
     selectAllRow.className = 'checkbox-group';
@@ -1662,13 +1677,16 @@ function populateColumnSelector() {
 
     const selectAllCheckbox = document.createElement('input');
     selectAllCheckbox.type = 'checkbox';
-    selectAllCheckbox.checked = columnDefinitions.every(colDef => {
-        const column = gridApi.getColumn(colDef.colId || colDef.field);
+    selectAllCheckbox.checked = columnDefinitions.every((colDef) => {
+        const id = colDef.colId || colDef.field;
+        const column = gridApi.getColumn(id);
         return column ? column.isVisible() : true;
     });
 
     selectAllCheckbox.onchange = (event) => {
-        container.querySelectorAll('.col-toggle-input').forEach(checkbox => checkbox.checked = event.target.checked);
+        container.querySelectorAll('.col-toggle-input').forEach((checkbox) => {
+            checkbox.checked = event.target.checked;
+        });
     };
 
     selectAllRow.append(selectAllLabel, selectAllCheckbox);
@@ -1676,7 +1694,6 @@ function populateColumnSelector() {
 
     columnDefinitions.forEach((colDef) => {
         const id = colDef.colId || colDef.field;
-        if (id === '_edit_status' || id === 'id') return;
         const row = document.createElement('div');
         row.className = 'checkbox-group';
         row.style.cssText = 'flex-direction:row;justify-content:space-between;padding:8px 12px;margin-bottom:5px';
@@ -1696,17 +1713,26 @@ function populateColumnSelector() {
 
 function populateColumnDropdown(selectId) {
     const selectElement = document.getElementById(selectId);
-    if (!selectElement || !gridApi) return;
+    if (!selectElement) return;
     selectElement.innerHTML = '';
-    gridApi.getColumnDefs().forEach(colDef => {
-        const id = colDef.colId || colDef.field;
-        if (colDef.headerName && id && id !== '_edit_status' && id !== 'id') {
-            const option = document.createElement('option');
-            option.value = id;
-            option.innerText = colDef.headerName;
-            selectElement.appendChild(option);
-        }
+    let configKey = currentTab;
+    if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
+    const tabConfig = FIELD_DEFINITIONS[configKey];
+    if (!tabConfig?.fields) return;
+    tabConfig.fields.forEach((field) => {
+        const id = field.key;
+        if (!id) return;
+        const option = document.createElement('option');
+        option.value = id;
+        option.innerText = field.label || id;
+        selectElement.appendChild(option);
     });
+    if (currentTab === 'files') {
+        const typeOpt = document.createElement('option');
+        typeOpt.value = 'is_folder';
+        typeOpt.innerText = 'Type';
+        selectElement.insertBefore(typeOpt, selectElement.firstChild);
+    }
 }
 
 function populateMergeSelector() {
