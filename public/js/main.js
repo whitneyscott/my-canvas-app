@@ -483,7 +483,7 @@ function generateColumnDefs(tabName) {
                 return parseInt(params.newValue);
             };
         }
-        else if (field.type === 'date') {
+        else if (field.type === 'date' || field.type === 'datetime') {
             colDef.cellDataType = false;
             colDef.cellEditor = 'agDateStringCellEditor';
             colDef.cellEditorParams = { min: '1900-01-01', includeTime: true };
@@ -502,8 +502,6 @@ function generateColumnDefs(tabName) {
                 if (!params.newValue) return null;
                 const date = new Date(params.newValue);
                 if (isNaN(date.getTime())) return params.newValue;
-                const wasEmpty = params.oldValue == null || params.oldValue === '';
-                if (wasEmpty && date.getHours() === 0 && date.getMinutes() === 0) date.setHours(23, 59, 0, 0);
                 return date.toISOString().slice(0, 17) + ':00Z';
             };
         } else if (field.type === 'boolean') {
@@ -1969,7 +1967,7 @@ function populateDateColumnSelector() {
     }
     let matchCount = 0;
     tabConfig.fields.forEach(field => {
-        if (field.type === 'date' && field.editable === true) {
+        if ((field.type === 'date' || field.type === 'datetime') && field.editable === true) {
             matchCount++;
             const row = document.createElement('div');
             const label = document.createElement('label');
@@ -2306,7 +2304,6 @@ function executeDateShift() {
                     const shiftedDate = new Date(currentDate);
                     shiftedDate.setDate(shiftedDate.getDate() + offsetDaysNum);
                     if (timeOverride) { const [hours, mins] = timeOverride.split(':'); shiftedDate.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
-                    else shiftedDate.setHours(23, 59, 0, 0);
                     newDateValue = shiftedDate.toISOString().slice(0, 17) + ':00Z';
                 }
             } else if (offsetDaysNum !== 0) {
