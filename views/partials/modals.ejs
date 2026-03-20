@@ -372,8 +372,11 @@
             <hr style="width: 100%; border: 0; border-top: 1px solid #eee; margin: 15px 0;">
     
             <label>Fixed Date Override (ignores offset)</label>
-            <input type="date" id="manualFixedDate">
-            <p style="font-size: 0.85em; color: #666; margin-top: -5px;">Set all dates to this specific date (overrides offset calculation)</p>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="date" id="manualFixedDate" style="flex: 1;">
+                <input type="time" id="manualFixedTime" step="60" style="flex: 1;">
+            </div>
+            <p style="font-size: 0.85em; color: #666; margin-top: -5px;">Set all dates to this specific date and time (overrides offset). Leave all fields empty and Apply to clear selected date columns.</p>
         </div>
         <div class="modal-footer">
             <button class="primary-btn" onclick="executeDateShift()">Apply Changes</button>

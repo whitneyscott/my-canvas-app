@@ -453,15 +453,12 @@ function generateColumnDefs(tabName) {
             };
         }
         else if (field.type === 'date') {
+            colDef.cellEditor = 'agDateStringCellEditor';
+            colDef.cellEditorParams = { min: '1900-01-01', includeTime: true };
             colDef.comparator = (a, b) => {
                 const dA = a ? new Date(a).getTime() : 0;
                 const dB = b ? new Date(b).getTime() : 0;
                 return isNaN(dA) && isNaN(dB) ? 0 : (isNaN(dA) ? 1 : isNaN(dB) ? -1 : dA - dB);
-            };
-            colDef.cellEditor = 'agDateCellEditor';
-            colDef.cellEditorParams = {
-                format: 'yyyy-MM-ddTHH:mm:ss',
-                min: new Date(1900, 0, 1),
             };
             colDef.valueFormatter = params => {
                 if (!params.value) return '';
@@ -2086,36 +2083,42 @@ function executePublishStatus() {
 
 function executeDateShift() {
     if (!gridApi) return;
-    const offsetDays = parseInt(document.getElementById('dateOffsetDays').value) || 0;
-    const timeOverride = document.getElementById('timeOverride').value;
-    const manualDate = document.getElementById('manualFixedDate').value;
+    const offsetDays = parseInt(document.getElementById('dateOffsetDays').value, 10);
+    const offsetDaysNum = (offsetDays === 0 || isNaN(offsetDays)) ? 0 : offsetDays;
+    const timeOverride = (document.getElementById('timeOverride') || {}).value || '';
+    const manualDate = (document.getElementById('manualFixedDate') || {}).value || '';
+    const manualTime = (document.getElementById('manualFixedTime') || {}).value || '';
     const selectedDateColumns = Array.from(document.querySelectorAll('.date-col-checkbox:checked')).map(checkbox => checkbox.value);
     if (!selectedDateColumns.length) { alert('Select date columns.'); return; }
+    const isClearMode = !manualDate && !timeOverride && !manualTime && offsetDaysNum === 0;
     let nodesToUpdate = gridApi.getSelectedRows();
     if (!nodesToUpdate.length) { nodesToUpdate = []; gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data)); }
     nodesToUpdate.forEach(rowData => {
         selectedDateColumns.forEach(field => {
             const currentValue = rowData[field];
             let newDateValue = null;
-            if (manualDate) {
+            if (isClearMode) {
+                newDateValue = null;
+            } else if (manualDate) {
                 const dateObj = new Date(manualDate);
-                if (timeOverride) { const [hours, mins] = timeOverride.split(':'); dateObj.setHours(parseInt(hours), parseInt(mins), 0, 0); }
+                const timeStr = manualTime || timeOverride;
+                if (timeStr) { const [hours, mins] = timeStr.split(':'); dateObj.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
                 newDateValue = dateObj.toISOString();
             } else if (currentValue) {
                 const currentDate = new Date(currentValue);
                 if (!isNaN(currentDate.getTime())) {
                     const shiftedDate = new Date(currentDate);
-                    shiftedDate.setDate(shiftedDate.getDate() + offsetDays);
-                    if (timeOverride) { const [hours, mins] = timeOverride.split(':'); shiftedDate.setHours(parseInt(hours), parseInt(mins), 0, 0); }
+                    shiftedDate.setDate(shiftedDate.getDate() + offsetDaysNum);
+                    if (timeOverride) { const [hours, mins] = timeOverride.split(':'); shiftedDate.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
                     newDateValue = shiftedDate.toISOString();
                 }
-            } else if (offsetDays !== 0) {
+            } else if (offsetDaysNum !== 0) {
                 const baseDate = new Date();
-                baseDate.setDate(baseDate.getDate() + offsetDays);
-                if (timeOverride) { const [hours, mins] = timeOverride.split(':'); baseDate.setHours(parseInt(hours), parseInt(mins), 0, 0); }
+                baseDate.setDate(baseDate.getDate() + offsetDaysNum);
+                if (timeOverride) { const [hours, mins] = timeOverride.split(':'); baseDate.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
                 newDateValue = baseDate.toISOString();
             }
-            if (newDateValue !== null) {
+            if (isClearMode || newDateValue !== null) {
                 gridApi.forEachNode(gridNode => {
                     if (gridNode.data === rowData) {
                         gridNode.setDataValue(field, newDateValue);
