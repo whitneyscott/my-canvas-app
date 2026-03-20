@@ -286,7 +286,8 @@ const gridOptions = {
     onCellValueChanged: params => {
         if (params.colDef.field !== '_edit_status') {
             params.node.setDataValue('_edit_status', 'modified');
-            trackChange(currentTab, params.data.id || params.data.url, params.colDef.field, params.newValue);
+            const committedValue = params.data?.[params.colDef.field];
+            trackChange(currentTab, params.data.id || params.data.url, params.colDef.field, committedValue);
             params.api.redrawRows({ rowNodes: [params.node] });
         }
     },
@@ -484,7 +485,7 @@ function generateColumnDefs(tabName) {
             };
         }
         else if (field.type === 'date' || field.type === 'datetime') {
-            colDef.cellDataType = false;
+            colDef.cellDataType = 'dateTimeString';
             colDef.cellEditor = 'agDateStringCellEditor';
             colDef.cellEditorParams = { min: '1900-01-01', includeTime: true };
             colDef.comparator = (a, b) => {
@@ -500,8 +501,15 @@ function generateColumnDefs(tabName) {
             };
             colDef.valueParser = params => {
                 if (!params.newValue) return null;
-                const date = new Date(params.newValue);
-                if (isNaN(date.getTime())) return params.newValue;
+                const value = String(params.newValue).trim();
+                if (!value) return null;
+                if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T23:59:00Z`;
+                if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return `${value}:00Z`;
+                if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(value)) return `${value.replace(' ', 'T')}:00Z`;
+                if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value)) return `${value}Z`;
+                if (/Z$|[+-]\d{2}:\d{2}$/.test(value)) return value;
+                const date = new Date(value);
+                if (isNaN(date.getTime())) return value;
                 return date.toISOString().slice(0, 17) + ':00Z';
             };
         } else if (field.type === 'boolean') {
