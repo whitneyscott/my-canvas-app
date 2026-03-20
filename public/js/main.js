@@ -327,7 +327,6 @@ const gridOptions = {
         '</div>'
 };
 const NEEDS_TOKEN = Boolean('<%= needsToken %>' === 'true');
-const LTI_COURSE_ID = '<%= courseId %>';
 
 function extractNumericCourseId(val) {
     if (!val || typeof val !== 'string') return null;
@@ -340,7 +339,6 @@ function extractNumericCourseId(val) {
 function logCourseContextAtLoad() {
     const urlParams = new URLSearchParams(window.location.search);
     const raw = {
-        LTI_COURSE_ID: typeof LTI_COURSE_ID !== 'undefined' ? String(LTI_COURSE_ID) : '(undefined)',
         SERVER_DATA_courseId: (window.SERVER_DATA && window.SERVER_DATA.courseId) || '(none)',
         url_courseId: urlParams.get('courseId') || '(none)',
         url_course_id: urlParams.get('course_id') || '(none)',
@@ -704,13 +702,12 @@ async function loadCourses() {
         debugLog(`SUCCESS: Loaded ${totalCourses} courses successfully`, 'success');
 
         const urlParams = new URLSearchParams(window.location.search);
-        const rawLti = (typeof LTI_COURSE_ID !== 'undefined' && LTI_COURSE_ID) ? String(LTI_COURSE_ID) : null;
-        const rawUrlCourseId = urlParams.get('courseId') || urlParams.get('course_id') || urlParams.get('context_id');
         const rawServer = (window.SERVER_DATA && window.SERVER_DATA.courseId) || null;
-        const rawAuto = rawLti || rawUrlCourseId || rawServer;
+        const rawUrlCourseId = urlParams.get('courseId') || urlParams.get('course_id') || urlParams.get('context_id');
+        const rawAuto = rawServer || rawUrlCourseId;
         const autoCourseId = extractNumericCourseId(rawAuto) || (rawAuto && rawAuto !== 'null' && rawAuto !== 'undefined' ? String(rawAuto).trim() : null);
 
-        debugLog(`[Course Context] Raw sources: LTI="${rawLti || '(none)'}", URL="${rawUrlCourseId || '(none)'}", SERVER_DATA="${rawServer || '(none)'}"`, 'info');
+        debugLog(`[Course Context] Raw sources: SERVER_DATA="${rawServer || '(none)'}", URL="${rawUrlCourseId || '(none)'}"`, 'info');
         debugLog(`[Course Context] Resolved autoCourseId: "${autoCourseId || '(none)'}" (from raw "${rawAuto || '(none)'}")`, autoCourseId ? 'success' : 'warn');
 
         const validId = autoCourseId && autoCourseId !== 'null' && autoCourseId !== '' && autoCourseId !== 'undefined';
