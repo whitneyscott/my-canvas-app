@@ -1367,8 +1367,15 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
           cleanedUpdates[key] = value;
         }
       });
+
+      const showAt = cleanedUpdates.show_correct_answers_at;
+      const hideAt = cleanedUpdates.hide_correct_answers_at;
+      if (showAt && hideAt && showAt === hideAt) {
+        const d = new Date(showAt);
+        d.setDate(d.getDate() + 1);
+        cleanedUpdates.hide_correct_answers_at = d.toISOString().slice(0, 19) + 'Z';
+      }
       
-      // Check if we have any updates to send
       if (Object.keys(cleanedUpdates).length === 0) {
         throw new Error('No valid updates to send to Canvas API');
       }
