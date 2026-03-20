@@ -2545,7 +2545,10 @@ function applyColumnVisibilityFromModal() {
         closeActiveModal();
         return;
     }
-    const primaryVisible = !!document.getElementById('visibilityToggle')?.checked;
+    const hideChecked =
+        document.getElementById('columnVisibilityModal')?.querySelector('input[name="colVisApplyMode"]:checked')?.value ===
+        'hide';
+    const primaryVisible = !hideChecked;
     const stateUpdates = checkboxes.map((cb) => {
         const id = cb.value;
         const visible = cb.checked ? primaryVisible : !primaryVisible;
