@@ -22,15 +22,15 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 ## Assignments — `GET/PUT /canvas/courses/:id/assignments`
 
 - [x] Grid loads with assignment list.
-- [ ] **Name** (text): edit → Sync → verify in Canvas.
-- [ ] **Description** (HTML): edit → Sync → verify in Canvas.
-- [ ] **Assignment Group** (dropdown): change → Sync → verify.
-- [ ] **Points possible**: edit → Sync → verify.
-- [ ] **Due / Available From / Available Until**: edit → Sync → verify (dates).
+- [x] **Name** (text): edit → Sync → verify in Canvas.
+- [x] **Description** (HTML): edit → Sync → verify in Canvas.
+- [x] **Assignment Group** (dropdown): change → Sync → verify.
+- [x] **Points possible**: edit → Sync → verify.
+- [x] **Due / Available From / Available Until**: edit → Sync → verify (dates).
 - [ ] **Published**: visible in grid; field is read-only for inline edit in config—verify expected behavior if you use a publish workflow elsewhere.
 - [ ] **Search & Replace** on name or description (string fields).
-- [ ] **Date Shift** on `due_at`, `unlock_at`, `lock_at`.
-- [ ] **Points** on `points_possible`.
+- [x] **Date Shift** on `due_at`, `unlock_at`, `lock_at`.
+- [x] **Points** on `points_possible`.
 - [ ] **Clone** (modal): standard / structural / deep as applicable → refresh → verify in Canvas for **deep**.
 - [ ] **Delete** (confirm DELETE) → item removed in Canvas.
 
