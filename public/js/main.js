@@ -1526,6 +1526,7 @@ const CLONE_CREATE_TABS = ['assignments', 'quizzes', 'pages', 'discussions', 'an
 
 async function syncChanges() {
     if (!selectedCourseId) return alert('Select course first.');
+    debugLog('[Sync] syncChanges() called - sends tracked changes to backend', 'info');
     const tabChanges = changes[currentTab] || {};
     const itemIds = Object.keys(tabChanges);
     const newItemIds = itemIds.filter(id => String(id).startsWith('TEMP_'));
@@ -1537,6 +1538,7 @@ async function syncChanges() {
     const config = FIELD_DEFINITIONS[configKey];
     if (!config) return alert('Invalid tab.');
     const endpoint = config.endpoint;
+    debugLog('[Sync] Tab=' + currentTab + ' endpoint=' + endpoint + ' updateItemIds=' + updateItemIds.length, 'info');
 
     const errors = [];
     if (newItemIds.length && CLONE_CREATE_TABS.includes(currentTab)) {
@@ -1616,6 +1618,8 @@ async function syncChanges() {
             });
         }
         const url = `/canvas/courses/${selectedCourseId}/${endpoint}/${itemId}`;
+        const svcMap = { assignments: 'updateAssignment', quizzes: 'updateQuiz', discussions: 'updateDiscussion', pages: 'updatePage', announcements: 'updateAnnouncement', modules: 'updateModule' };
+        debugLog('[Sync] PUT ' + url + ' -> canvasService.' + (svcMap[endpoint] || 'update') + '() body=' + JSON.stringify(updates), 'info');
         try {
             const response = await fetch(url, {
                 method: 'PUT',
@@ -2284,27 +2288,37 @@ function executePublishStatus() {
 
 function executeDateShift() {
     if (!gridApi) return;
+    debugLog('[DateShift] executeDateShift() called', 'info');
     const offsetDays = parseInt(document.getElementById('dateOffsetDays').value, 10);
     const offsetDaysNum = (offsetDays === 0 || isNaN(offsetDays)) ? 0 : offsetDays;
     const timeOverride = (document.getElementById('timeOverride') || {}).value || '';
     const manualDate = (document.getElementById('manualFixedDate') || {}).value || '';
     const manualTime = (document.getElementById('manualFixedTime') || {}).value || '';
     const selectedDateColumns = Array.from(document.querySelectorAll('.date-col-checkbox:checked')).map(checkbox => checkbox.value);
+    debugLog('[DateShift] Inputs: manualDate=' + (manualDate || '(empty)') + ' manualTime=' + (manualTime || '(empty)') + ' timeOverride=' + (timeOverride || '(empty)') + ' offsetDays=' + offsetDaysNum, 'info');
+    debugLog('[DateShift] selectedDateColumns=' + JSON.stringify(selectedDateColumns), 'info');
     if (!selectedDateColumns.length) { alert('Select date columns.'); return; }
     const isClearMode = !manualDate && !timeOverride && !manualTime && offsetDaysNum === 0;
     let rowNodes = [];
     const selected = gridApi.getSelectedRows();
     if (selected.length) {
+        debugLog('[DateShift] Using getSelectedRows(): ' + selected.length + ' rows selected', 'info');
         selected.forEach(rowData => {
-            const node = gridApi.getRowNode(String(rowData.id || rowData.url));
+            const rowId = String(rowData.id || rowData.url);
+            const node = gridApi.getRowNode(rowId);
             if (node) rowNodes.push(node);
+            else debugLog('[DateShift] getRowNode("' + rowId + '") returned null for row "' + (rowData.name || rowData.title || rowId) + '"', 'warn');
         });
     } else {
+        debugLog('[DateShift] No selection - using forEachNodeAfterFilter (all visible rows)', 'info');
         gridApi.forEachNodeAfterFilter(node => rowNodes.push(node));
     }
+    debugLog('[DateShift] Resolved ' + rowNodes.length + ' rowNodes to update', 'info');
+    const refreshedNodes = [];
     rowNodes.forEach(gridNode => {
         const rowData = gridNode.data;
         if (!rowData) return;
+        const rowId = rowData.id || rowData.url;
         selectedDateColumns.forEach(field => {
             const currentValue = rowData[field];
             let newDateValue = null;
@@ -2334,11 +2348,20 @@ function executeDateShift() {
             if (isClearMode || newDateValue !== null) {
                 gridNode.setDataValue(field, newDateValue);
                 gridNode.setDataValue('_edit_status', 'modified');
-                trackChange(currentTab, rowData.id || rowData.url, field, newDateValue);
+                trackChange(currentTab, rowId, field, newDateValue);
+                const readBack = gridNode.data[field];
+                debugLog('[DateShift] setDataValue rowId=' + rowId + ' field=' + field + ' newDateValue=' + (newDateValue || 'null') + ' readBack=' + (readBack || 'null'), readBack === newDateValue ? 'success' : 'warn');
+                refreshedNodes.push({ node: gridNode, field });
             }
         });
     });
+    if (refreshedNodes.length && gridApi.refreshCells) {
+        const nodesToRefresh = [...new Set(refreshedNodes.map(r => r.node))];
+        const fieldsToRefresh = [...new Set(refreshedNodes.map(r => r.field))];
+        gridApi.refreshCells({ rowNodes: nodesToRefresh, columns: fieldsToRefresh, force: true });
+    }
     gridApi.redrawRows();
+    debugLog('[DateShift] Done. Data stored in grid + changes dict. Sync Changes sends to backend.', 'info');
     closeActiveModal();
 }
 
