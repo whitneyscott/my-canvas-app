@@ -16,6 +16,42 @@ interface CanvasCourse {
 const CLEARABLE_CONTENT_KEYS = new Set(['description', 'message', 'body', 'instructions']);
 const NULLABLE_QUIZ_FIELDS = new Set(['time_limit']);
 
+function processDateField(key: string, value: any): any {
+  if (!key.includes('_at') && !key.includes('date')) return undefined;
+  if (value === null) return null;
+  if (value === undefined || value === '') return undefined;
+  try {
+    const d = new Date(value);
+    return !isNaN(d.getTime()) ? d.toISOString().slice(0, 19) + 'Z' : undefined;
+  } catch { return undefined; }
+}
+
+function cleanContentUpdates(
+  updates: Record<string, any>,
+  options: { clearableTextFields: boolean },
+): Record<string, any> {
+  const cleanedUpdates: Record<string, any> = {};
+  Object.keys(updates).forEach(key => {
+    const v = updates[key];
+    if (v === undefined) return;
+    const dateVal = processDateField(key, v);
+    if (dateVal !== undefined) {
+      cleanedUpdates[key] = dateVal;
+      return;
+    }
+    if (
+      options.clearableTextFields &&
+      (v === null || v === '') &&
+      CLEARABLE_CONTENT_KEYS.has(key)
+    ) {
+      cleanedUpdates[key] = v === null ? null : '';
+    } else if (v !== null && v !== undefined && v !== '') {
+      cleanedUpdates[key] = v;
+    }
+  });
+  return cleanedUpdates;
+}
+
 @Injectable({ scope: Scope.REQUEST })
 export class CanvasService {
   constructor(
@@ -1162,28 +1198,11 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       const cleanedUpdates: Record<string, any> = {};
       Object.keys(pending).forEach(key => {
         const value = pending[key];
-        
-        // Handle dates first - allow null to delete dates (Canvas API accepts null to clear dates)
-        if (key.includes('_at') || key.includes('date')) {
-          if (value === null) {
-            // null is a valid value to send to Canvas to delete/clear a date field
-            cleanedUpdates[key] = null;
-          } else if (value !== undefined && value !== '') {
-            try {
-              const date = new Date(value);
-              if (!isNaN(date.getTime())) {
-                const iso = date.toISOString();
-                cleanedUpdates[key] = iso.slice(0, 19) + 'Z';
-              } else {
-                console.warn(`[Service] Invalid date for ${key}: ${value}`);
-              }
-            } catch (e) {
-              console.warn(`[Service] Error parsing date for ${key}:`, value, e);
-            }
-          }
-          return; // Date fields are handled, skip to next field
+        const dateVal = processDateField(key, value);
+        if (dateVal !== undefined) {
+          cleanedUpdates[key] = dateVal;
+          return;
         }
-        
         if (value === undefined) return;
         if ((value === null || value === '') && CLEARABLE_CONTENT_KEYS.has(key)) {
           cleanedUpdates[key] = value === null ? null : '';
@@ -1311,11 +1330,15 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       }
       console.log(`[Service] Got auth headers, baseUrl: ${baseUrl}`);
       
-      // Clean up updates - Canvas API is picky about data types
       const cleanedUpdates: Record<string, any> = {};
       Object.keys(updates).forEach(key => {
         const value = updates[key];
         if (value === undefined) return;
+        const dateVal = processDateField(key, value);
+        if (dateVal !== undefined) {
+          cleanedUpdates[key] = dateVal;
+          return;
+        }
         if ((value === null || value === '') && CLEARABLE_CONTENT_KEYS.has(key)) {
           cleanedUpdates[key] = value === null ? null : '';
           return;
@@ -1335,25 +1358,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         }
         if (value === null || value === '') return;
 
-        // Handle boolean values - Canvas expects true/false, not strings
         if (typeof value === 'boolean') {
           cleanedUpdates[key] = value;
-        }
-        // Handle dates - ensure they're in ISO format
-        else if (key.includes('_at') || key.includes('date')) {
-          if (value) {
-            try {
-              const date = new Date(value);
-              if (!isNaN(date.getTime())) {
-                const iso = date.toISOString();
-                cleanedUpdates[key] = iso.slice(0, 19) + 'Z';
-              } else {
-                console.warn(`[Service] Invalid date for ${key}: ${value}`);
-              }
-            } catch (e) {
-              console.warn(`[Service] Error parsing date for ${key}:`, value, e);
-            }
-          }
         }
         // Handle numbers
         else if (typeof value === 'number') {
@@ -1464,9 +1470,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         }
       });
       
-      // For graded quizzes, the due date is stored on the associated assignment, not the quiz
-      // If we updated due_at and the quiz has an assignment_id, also update the assignment
-      if (cleanedUpdates.due_at && result.assignment_id) {
+      if (Object.prototype.hasOwnProperty.call(cleanedUpdates, 'due_at') && result.assignment_id) {
         console.log(`[Service] Quiz has assignment_id ${result.assignment_id}, updating assignment due date as well`);
         console.log(`[Service] Updating assignment ${result.assignment_id} with due_at: ${cleanedUpdates.due_at}`);
         try {
@@ -1479,12 +1483,11 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
           // Don't throw - the quiz update succeeded, this is just a warning
           console.warn(`[Service] ⚠️  Quiz due date updated, but assignment due date update failed. The quiz due date may not display correctly in Canvas.`);
         }
-      } else if (cleanedUpdates.due_at && !result.assignment_id) {
+      } else if (Object.prototype.hasOwnProperty.call(cleanedUpdates, 'due_at') && !result.assignment_id) {
         console.log(`[Service] Quiz does not have an assignment_id (likely a practice quiz or ungraded survey)`);
       }
       
-      // Check if due_at was actually updated in the response
-      if (cleanedUpdates.due_at) {
+      if (Object.prototype.hasOwnProperty.call(cleanedUpdates, 'due_at') && cleanedUpdates.due_at) {
         if (result.due_at) {
           console.log(`[Service] Due date comparison:`);
           console.log(`[Service]   Request: ${cleanedUpdates.due_at}`);
@@ -1518,17 +1521,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   async updateDiscussion(courseId: number, discussionId: number, updates: Record<string, any>) {
     const { token, baseUrl } = await this.getAuthHeaders();
-    const cleanedUpdates: Record<string, any> = {};
-    Object.keys(updates).forEach(key => {
-      const v = updates[key];
-      if (v === undefined) return;
-      if ((v === null || v === '') && CLEARABLE_CONTENT_KEYS.has(key)) {
-        cleanedUpdates[key] = v === null ? null : '';
-      } else if (v !== null && v !== undefined && v !== '') {
-        cleanedUpdates[key] = v;
-      }
-    });
-    
+    const cleanedUpdates = cleanContentUpdates(updates, { clearableTextFields: true });
     console.log(`Updating discussion ${discussionId} with:`, cleanedUpdates);
     
     const response = await fetch(`${baseUrl}/courses/${courseId}/discussion_topics/${discussionId}`, {
@@ -1551,16 +1544,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   async updatePage(courseId: number, pageUrl: string, updates: Record<string, any>) {
     const { token, baseUrl } = await this.getAuthHeaders();
-    const cleanedUpdates: Record<string, any> = {};
-    Object.keys(updates).forEach(key => {
-      const v = updates[key];
-      if (v === undefined) return;
-      if ((v === null || v === '') && CLEARABLE_CONTENT_KEYS.has(key)) {
-        cleanedUpdates[key] = v === null ? null : '';
-      } else if (v !== null && v !== undefined && v !== '') {
-        cleanedUpdates[key] = v;
-      }
-    });
+    const cleanedUpdates = cleanContentUpdates(updates, { clearableTextFields: true });
 
     const requestBody = cleanedUpdates.wiki_page
       ? cleanedUpdates
@@ -1592,15 +1576,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   async updateModule(courseId: number, moduleId: number, updates: Record<string, any>) {
     const { token, baseUrl } = await this.getAuthHeaders();
-    
-    // Clean up updates
-    const cleanedUpdates: Record<string, any> = {};
-    Object.keys(updates).forEach(key => {
-      if (updates[key] !== null && updates[key] !== undefined && updates[key] !== '') {
-        cleanedUpdates[key] = updates[key];
-      }
-    });
-    
+    const cleanedUpdates = cleanContentUpdates(updates, { clearableTextFields: false });
     console.log(`Updating module ${moduleId} with:`, cleanedUpdates);
     
     const requestBody = { module: cleanedUpdates };
@@ -1639,60 +1615,28 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   async bulkUpdateQuizzes(courseId: number, itemIds: number[], updates: Record<string, any>) {
-    const { token, baseUrl } = await this.getAuthHeaders();
     const results: Array<{ id: number; success: boolean; data?: any; error?: string }> = [];
-
     for (const quizId of itemIds) {
       try {
-        const response = await fetch(`${baseUrl}/courses/${courseId}/quizzes/${quizId}`, {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(updates),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to update quiz ${quizId}: ${response.statusText}`);
-        }
-
-        const updated = await response.json();
-        results.push({ id: quizId, success: true, data: updated });
+        const data = await this.updateQuiz(courseId, quizId, { ...updates });
+        results.push({ id: quizId, success: true, data });
       } catch (error: any) {
         results.push({ id: quizId, success: false, error: error.message });
       }
     }
-
     return results;
   }
 
   async bulkUpdateDiscussions(courseId: number, itemIds: number[], updates: Record<string, any>) {
-    const { token, baseUrl } = await this.getAuthHeaders();
     const results: Array<{ id: number; success: boolean; data?: any; error?: string }> = [];
-
     for (const discussionId of itemIds) {
       try {
-        const response = await fetch(`${baseUrl}/courses/${courseId}/discussion_topics/${discussionId}`, {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(updates),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to update discussion ${discussionId}: ${response.statusText}`);
-        }
-
-        const updated = await response.json();
-        results.push({ id: discussionId, success: true, data: updated });
+        const data = await this.updateDiscussion(courseId, discussionId, { ...updates });
+        results.push({ id: discussionId, success: true, data });
       } catch (error: any) {
         results.push({ id: discussionId, success: false, error: error.message });
       }
     }
-
     return results;
   }
 
@@ -1727,31 +1671,15 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   async bulkUpdateModules(courseId: number, itemIds: number[], updates: Record<string, any>) {
-    const { token, baseUrl } = await this.getAuthHeaders();
     const results: Array<{ id: number; success: boolean; data?: any; error?: string }> = [];
-
     for (const moduleId of itemIds) {
       try {
-        const response = await fetch(`${baseUrl}/courses/${courseId}/modules/${moduleId}`, {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(updates),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to update module ${moduleId}: ${response.statusText}`);
-        }
-
-        const updated = await response.json();
-        results.push({ id: moduleId, success: true, data: updated });
+        const data = await this.updateModule(courseId, moduleId, { ...updates });
+        results.push({ id: moduleId, success: true, data });
       } catch (error: any) {
         results.push({ id: moduleId, success: false, error: error.message });
       }
     }
-
     return results;
   }
 

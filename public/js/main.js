@@ -1522,6 +1522,34 @@ function trackChange(tabName, itemId, fieldName, value) {
     changes[tabName][itemId][fieldName] = value;
 }
 
+function getBulkTargetRowData(fillVisibleWhenEmpty) {
+    if (!gridApi) return [];
+    const rows = gridApi.getSelectedRows();
+    if (!rows.length && fillVisibleWhenEmpty) {
+        const out = [];
+        gridApi.forEachNodeAfterFilter(node => out.push(node.data));
+        return out;
+    }
+    return rows;
+}
+
+function applyGridCellChange(rowData, field, value) {
+    if (!gridApi) return;
+    gridApi.forEachNode(gridNode => {
+        if (gridNode.data === rowData) {
+            gridNode.setDataValue(field, value);
+            gridNode.setDataValue('_edit_status', 'modified');
+            trackChange(currentTab, rowData.id || rowData.url, field, value);
+        }
+    });
+}
+
+function applyGridCellChangeToNode(gridNode, field, value) {
+    gridNode.setDataValue(field, value);
+    gridNode.setDataValue('_edit_status', 'modified');
+    trackChange(currentTab, gridNode.data.id || gridNode.data.url, field, value);
+}
+
 const CLONE_CREATE_TABS = ['assignments', 'quizzes', 'pages', 'discussions', 'announcements', 'modules'];
 
 async function syncChanges() {
@@ -2106,21 +2134,8 @@ async function executeMoveToAssignmentGroup() {
     const hasAgField = tabConfig && tabConfig.fields && tabConfig.fields.some(f => f.key === 'assignment_group_id');
     if (!hasAgField) return;
     if (!gridApi) return;
-    let nodesToUpdate = gridApi.getSelectedRows();
-    if (!nodesToUpdate.length) {
-        nodesToUpdate = [];
-        gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data));
-    }
     const fieldKey = 'assignment_group_id';
-    nodesToUpdate.forEach(rowData => {
-        gridApi.forEachNode(gridNode => {
-            if (gridNode.data === rowData) {
-                gridNode.setDataValue(fieldKey, targetGroupId);
-                gridNode.setDataValue('_edit_status', 'modified');
-                trackChange(currentTab, rowData.id || rowData.url, fieldKey, targetGroupId);
-            }
-        });
-    });
+    getBulkTargetRowData(true).forEach(rowData => applyGridCellChange(rowData, fieldKey, targetGroupId));
     gridApi.redrawRows();
     closeActiveModal();
 }
@@ -2184,17 +2199,7 @@ function executeBulkEdit() {
     const targetColumn = document.getElementById('beColumnTarget').value;
     const newValue = document.getElementById('beValueInput').value;
     if (!gridApi) return;
-    let nodesToUpdate = gridApi.getSelectedRows();
-    if (!nodesToUpdate.length) { nodesToUpdate = []; gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data)); }
-    nodesToUpdate.forEach(rowData => {
-        gridApi.forEachNode(gridNode => {
-            if (gridNode.data === rowData) {
-                gridNode.setDataValue(targetColumn, newValue);
-                gridNode.setDataValue('_edit_status', 'modified');
-                trackChange(currentTab, rowData.id || rowData.url, targetColumn, newValue);
-            }
-        });
-    });
+    getBulkTargetRowData(true).forEach(rowData => applyGridCellChange(rowData, targetColumn, newValue));
     gridApi.redrawRows();
     closeActiveModal();
 }
@@ -2205,9 +2210,7 @@ function executeSearchReplace() {
     const replaceText = document.getElementById('srReplaceInput').value;
     const useRegex = document.getElementById('srUseRegex').checked;
     if (!searchText || !gridApi) return;
-    let nodesToUpdate = gridApi.getSelectedRows();
-    if (!nodesToUpdate.length) { nodesToUpdate = []; gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data)); }
-    nodesToUpdate.forEach(rowData => {
+    getBulkTargetRowData(true).forEach(rowData => {
         const currentValue = rowData[targetColumn];
         if (currentValue && typeof currentValue === 'string') {
             let updatedValue;
@@ -2215,21 +2218,9 @@ function executeSearchReplace() {
                 try { updatedValue = currentValue.replace(new RegExp(searchText, 'g'), replaceText); }
                 catch { return; }
             } else updatedValue = currentValue.split(searchText).join(replaceText);
-            if (updatedValue !== currentValue) {
-                gridApi.forEachNode(gridNode => {
-                    if (gridNode.data === rowData) {
-                        // Use startEditing to trigger onCellValueChanged event
-                        gridNode.setDataValue(targetColumn, updatedValue);
-                        // Manually trigger edit status update since setDataValue might not trigger onCellValueChanged
-                        gridNode.setDataValue('_edit_status', 'modified');
-                        // Track the change
-                        trackChange(currentTab, rowData.id || rowData.url, targetColumn, updatedValue);
-                    }
-                });
-            }
+            if (updatedValue !== currentValue) applyGridCellChange(rowData, targetColumn, updatedValue);
         }
     });
-    // Force redraw to show updated edit status
     gridApi.redrawRows();
     closeActiveModal();
 }
@@ -2240,9 +2231,7 @@ function executeInsertPaste() {
     const position = document.querySelector('input[name="ipPosition"]:checked')?.value;
     const marker = document.getElementById('ipMarkerInput').value;
     if (!gridApi) return;
-    let nodesToUpdate = gridApi.getSelectedRows();
-    if (!nodesToUpdate.length) { nodesToUpdate = []; gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data)); }
-    nodesToUpdate.forEach(rowData => {
+    getBulkTargetRowData(true).forEach(rowData => {
         const currentValue = rowData[targetColumn] || "";
         let updatedValue = currentValue;
         if (position === 'start') updatedValue = textToInsert + currentValue;
@@ -2251,15 +2240,7 @@ function executeInsertPaste() {
             const parts = currentValue.split(marker);
             updatedValue = position === 'beforeMarker' ? (parts[0] + textToInsert + marker + parts.slice(1).join(marker)) : (parts[0] + marker + textToInsert + parts.slice(1).join(marker));
         }
-        if (updatedValue !== currentValue) {
-            gridApi.forEachNode(gridNode => {
-                if (gridNode.data === rowData) {
-                    gridNode.setDataValue(targetColumn, updatedValue);
-                    gridNode.setDataValue('_edit_status', 'modified');
-                    trackChange(currentTab, rowData.id || rowData.url, targetColumn, updatedValue);
-                }
-            });
-        }
+        if (updatedValue !== currentValue) applyGridCellChange(rowData, targetColumn, updatedValue);
     });
     gridApi.redrawRows();
     closeActiveModal();
@@ -2270,18 +2251,9 @@ function executePublishStatus() {
     const selectedStatus = document.querySelector('input[name="pubStatus"]:checked')?.value;
     if (!selectedStatus) return;
     const publishValue = selectedStatus === 'true';
-    let nodesToUpdate = gridApi.getSelectedRows();
-    if (!nodesToUpdate.length) { nodesToUpdate = []; gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data)); }
+    const nodesToUpdate = getBulkTargetRowData(true);
     if (!nodesToUpdate.length) { alert('No rows.'); return; }
-    nodesToUpdate.forEach(rowData => {
-        gridApi.forEachNode(gridNode => {
-            if (gridNode.data === rowData) {
-                gridNode.setDataValue('published', publishValue);
-                gridNode.setDataValue('_edit_status', 'modified');
-                trackChange(currentTab, rowData.id || rowData.url, 'published', publishValue);
-            }
-        });
-    });
+    nodesToUpdate.forEach(rowData => applyGridCellChange(rowData, 'published', publishValue));
     gridApi.redrawRows();
     closeActiveModal();
 }
@@ -2346,9 +2318,7 @@ function executeDateShift() {
                 newDateValue = baseDate.toISOString().slice(0, 19) + 'Z';
             }
             if (isClearMode || newDateValue !== null) {
-                gridNode.setDataValue(field, newDateValue);
-                gridNode.setDataValue('_edit_status', 'modified');
-                trackChange(currentTab, rowId, field, newDateValue);
+                applyGridCellChangeToNode(gridNode, field, newDateValue);
                 const readBack = gridNode.data[field];
                 debugLog('[DateShift] setDataValue rowId=' + rowId + ' field=' + field + ' newDateValue=' + (newDateValue || 'null') + ' readBack=' + (readBack || 'null'), readBack === newDateValue ? 'success' : 'warn');
                 refreshedNodes.push({ node: gridNode, field });
@@ -2369,23 +2339,11 @@ function executeTimeLimitUpdate() {
     const op = document.getElementById('timeLimitOp')?.value;
     const picker = window._timeLimitPicker;
     if (!gridApi) return;
-    let nodesToUpdate = gridApi.getSelectedRows();
-    if (!nodesToUpdate.length) {
-        nodesToUpdate = [];
-        gridApi.forEachNodeAfterFilter(node => nodesToUpdate.push(node.data));
-    }
+    const nodesToUpdate = getBulkTargetRowData(true);
     if (!nodesToUpdate.length) { alert('Select rows or filter to target.'); return; }
     const val = picker ? picker.getMinutes() : 0;
     if (op === 'remove') {
-        nodesToUpdate.forEach(rowData => {
-            gridApi.forEachNode(gridNode => {
-                if (gridNode.data === rowData) {
-                    gridNode.setDataValue('time_limit', null);
-                    gridNode.setDataValue('_edit_status', 'modified');
-                    trackChange(currentTab, rowData.id || rowData.url, 'time_limit', null);
-                }
-            });
-        });
+        nodesToUpdate.forEach(rowData => applyGridCellChange(rowData, 'time_limit', null));
     } else {
         if (op === 'set' && (isNaN(val) || val < 0)) { alert('Enter valid duration (hours and minutes).'); return; }
         if (op === 'add' && (isNaN(val) || val < 0)) { alert('Enter valid duration to add.'); return; }
@@ -2395,13 +2353,7 @@ function executeTimeLimitUpdate() {
             let newVal = op === 'set' ? val : curNum + val;
             if (newVal < 0) newVal = 0;
             if (op === 'set' && newVal === 0) newVal = null;
-            gridApi.forEachNode(gridNode => {
-                if (gridNode.data === rowData) {
-                    gridNode.setDataValue('time_limit', newVal);
-                    gridNode.setDataValue('_edit_status', 'modified');
-                    trackChange(currentTab, rowData.id || rowData.url, 'time_limit', newVal);
-                }
-            });
+            applyGridCellChange(rowData, 'time_limit', newVal);
         });
     }
     gridApi.redrawRows();
@@ -2412,20 +2364,14 @@ function executePointsUpdate() {
     const targetField = document.getElementById('pointsColumnTarget').value;
     const operation = document.getElementById('pointsOp').value;
     const pointsValue = parseFloat(document.getElementById('pointsValue').value);
-    const selectedRows = gridApi.getSelectedRows();
+    const selectedRows = getBulkTargetRowData(false);
     if (!selectedRows.length) { alert("Select rows."); return; }
     if (isNaN(pointsValue)) { alert("Enter valid number."); return; }
     selectedRows.forEach(rowData => {
         const currentValue = parseFloat(rowData[targetField]) || 0;
         let finalValue = operation === 'set' ? pointsValue : operation === 'scale' ? currentValue * pointsValue : currentValue + pointsValue;
         const pointsResult = Number(finalValue.toFixed(2));
-        gridApi.forEachNode(gridNode => {
-            if (gridNode.data === rowData) {
-                gridNode.setDataValue(targetField, pointsResult);
-                gridNode.setDataValue('_edit_status', 'modified');
-                trackChange(currentTab, rowData.id || rowData.url, targetField, pointsResult);
-            }
-        });
+        applyGridCellChange(rowData, targetField, pointsResult);
     });
     gridApi.redrawRows();
     closeActiveModal();
