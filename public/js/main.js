@@ -1975,6 +1975,10 @@ async function populateAssignmentGroupSelector() {
         } catch (e) {}
     }
     selectEl.innerHTML = '';
+    const createOpt = document.createElement('option');
+    createOpt.value = '__create_new__';
+    createOpt.textContent = '+ Create New...';
+    selectEl.appendChild(createOpt);
     const ids = Object.keys(groups).map(id => parseInt(id, 10)).filter(n => !isNaN(n)).sort((a, b) => a - b);
     ids.forEach(id => {
         const opt = document.createElement('option');
@@ -1982,13 +1986,46 @@ async function populateAssignmentGroupSelector() {
         opt.textContent = groups[id] || 'Group ' + id;
         selectEl.appendChild(opt);
     });
-    if (helpEl) helpEl.textContent = 'Select a group, then click Apply. Selected rows will be moved. Use Sync Changes to save to Canvas.';
+    const createRow = document.getElementById('assignmentGroupCreateNewRow');
+    const nameInput = document.getElementById('assignmentGroupNewName');
+    selectEl.onchange = () => {
+        const show = selectEl.value === '__create_new__';
+        if (createRow) createRow.style.display = show ? 'block' : 'none';
+        if (nameInput) { nameInput.value = ''; nameInput.placeholder = 'Enter name...'; }
+    };
+    if (createRow) createRow.style.display = selectEl.value === '__create_new__' ? 'block' : 'none';
+    if (helpEl) helpEl.textContent = 'Select a group or Create New, then click Apply. Selected rows will be moved. Use Sync Changes to save to Canvas.';
 }
 
-function executeMoveToAssignmentGroup() {
+async function executeMoveToAssignmentGroup() {
     const selectEl = document.getElementById('assignmentGroupTarget');
-    const targetGroupId = selectEl ? parseInt(selectEl.value, 10) : NaN;
-    if (!selectEl || isNaN(targetGroupId)) return;
+    let targetGroupId = selectEl ? parseInt(selectEl.value, 10) : NaN;
+    if (!selectEl) return;
+    if (selectEl.value === '__create_new__') {
+        const nameInput = document.getElementById('assignmentGroupNewName');
+        const name = nameInput ? nameInput.value.trim() : '';
+        if (!name) {
+            if (nameInput) nameInput.placeholder = 'Enter a name for the new group';
+            return;
+        }
+        if (!selectedCourseId) return;
+        try {
+            const res = await fetch(`/canvas/courses/${selectedCourseId}/assignment_groups`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const created = await res.json();
+            targetGroupId = created.id;
+            assignmentGroupsCache[selectedCourseId] = assignmentGroupsCache[selectedCourseId] || {};
+            assignmentGroupsCache[selectedCourseId][created.id] = created.name || name;
+        } catch (e) {
+            alert('Failed to create assignment group: ' + (e.message || e));
+            return;
+        }
+    }
+    if (isNaN(targetGroupId)) return;
     let configKey = currentTab;
     if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
     const tabConfig = FIELD_DEFINITIONS[configKey];
