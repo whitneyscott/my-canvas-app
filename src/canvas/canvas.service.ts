@@ -1172,7 +1172,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
             try {
               const date = new Date(value);
               if (!isNaN(date.getTime())) {
-                cleanedUpdates[key] = date.toISOString();
+                const iso = date.toISOString();
+                cleanedUpdates[key] = iso.slice(0, 17) + ':00Z';
               } else {
                 console.warn(`[Service] Invalid date for ${key}: ${value}`);
               }
@@ -1344,7 +1345,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
             try {
               const date = new Date(value);
               if (!isNaN(date.getTime())) {
-                cleanedUpdates[key] = date.toISOString();
+                const iso = date.toISOString();
+                cleanedUpdates[key] = iso.slice(0, 17) + ':00Z';
               } else {
                 console.warn(`[Service] Invalid date for ${key}: ${value}`);
               }
