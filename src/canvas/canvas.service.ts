@@ -1323,6 +1323,15 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
           cleanedUpdates[key] = null;
           return;
         }
+        if (key === 'time_limit') {
+          const n = typeof value === 'number' ? value : parseInt(String(value), 10);
+          if (isNaN(n) || n < 0) {
+            cleanedUpdates[key] = null;
+          } else {
+            cleanedUpdates[key] = Math.floor(n);
+          }
+          return;
+        }
         if (value === null || value === '') return;
 
         // Handle boolean values - Canvas expects true/false, not strings

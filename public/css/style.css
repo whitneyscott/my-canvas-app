@@ -268,7 +268,7 @@ body, html {
     border-color: #ffcdd2;
 }
 
-/* Duration Picker (hours : minutes) - Canvas uses minutes, no seconds */
+/* Duration Picker (minutes only) - Canvas uses minutes, no seconds */
 .duration-picker { display: flex; align-items: center; gap: 8px; }
 .duration-picker .dp-seg { display: flex; align-items: center; gap: 6px; }
 .duration-picker .dp-seg input[type="number"] {

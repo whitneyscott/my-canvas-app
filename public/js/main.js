@@ -232,38 +232,30 @@ let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, select
 function DurationPickerCellEditor() {}
 DurationPickerCellEditor.prototype.init = function(params) {
     const total = params.value != null && params.value !== '' ? Math.max(0, parseInt(Number(params.value), 10) || 0) : 0;
-    const h = Math.floor(total / 60);
-    const m = total % 60;
     this.gui = document.createElement('div');
     this.gui.className = 'duration-picker';
-    this.gui.innerHTML = '<div class="row" style="display:flex;align-items:center;gap:8px;"><div class="dp-seg"><input type="number" id="dp-hr" min="0" max="99" value="' + h + '"><span class="dp-unit">hr</span></div><span class="dp-sep">:</span><div class="dp-seg"><input type="number" id="dp-mn" min="0" max="59" value="' + m + '"><span class="dp-unit">min</span></div></div>';
+    this.gui.innerHTML = '<div class="row" style="display:flex;align-items:center;gap:8px;"><div class="dp-seg"><input type="number" id="dp-min" min="0" step="1" value="' + total + '"><span class="dp-unit">min</span></div></div>';
 };
 DurationPickerCellEditor.prototype.getGui = function() { return this.gui; };
 DurationPickerCellEditor.prototype.getValue = function() {
-    const hr = this.gui.querySelector('#dp-hr');
-    const mn = this.gui.querySelector('#dp-mn');
-    const h = parseInt(hr?.value, 10) || 0;
-    const m = parseInt(mn?.value, 10) || 0;
-    const total = h * 60 + m;
+    const inp = this.gui.querySelector('#dp-min');
+    const total = parseInt(inp?.value, 10);
+    if (isNaN(total) || total < 0) return null;
     return total === 0 ? null : total;
 };
 DurationPickerCellEditor.prototype.afterGuiAttached = function() {
-    const mn = this.gui.querySelector('#dp-mn');
-    if (mn) { mn.focus(); mn.select(); }
+    const inp = this.gui.querySelector('#dp-min');
+    if (inp) { inp.focus(); inp.select(); }
 };
 
 function createDurationPickerDOM(initialMinutes) {
     const total = initialMinutes != null && initialMinutes !== '' ? Math.max(0, parseInt(Number(initialMinutes), 10) || 0) : 0;
-    const h = Math.floor(total / 60);
-    const m = total % 60;
     const wrap = document.createElement('div');
     wrap.className = 'duration-picker';
-    wrap.innerHTML = '<div class="row" style="display:flex;align-items:center;gap:8px;"><div class="dp-seg"><input type="number" min="0" max="99" value="' + h + '"><span class="dp-unit">hr</span></div><span class="dp-sep">:</span><div class="dp-seg"><input type="number" min="0" max="59" value="' + m + '"><span class="dp-unit">min</span></div></div>';
-    const inputs = wrap.querySelectorAll('input[type="number"]');
-    const hrInp = inputs[0];
-    const mnInp = inputs[1];
-    wrap.getMinutes = () => { const h = parseInt(hrInp.value, 10) || 0; const m = parseInt(mnInp.value, 10) || 0; return h * 60 + m; };
-    wrap.setMinutes = (mins) => { const v = Math.max(0, parseInt(mins, 10) || 0); hrInp.value = Math.floor(v / 60); mnInp.value = v % 60; };
+    wrap.innerHTML = '<div class="row" style="display:flex;align-items:center;gap:8px;"><div class="dp-seg"><input type="number" id="tl-min" min="0" step="1" value="' + total + '"><span class="dp-unit">min</span></div></div>';
+    const inp = wrap.querySelector('#tl-min');
+    wrap.getMinutes = () => { const v = parseInt(inp?.value, 10); return isNaN(v) || v < 0 ? 0 : v; };
+    wrap.setMinutes = (mins) => { if (inp) inp.value = Math.max(0, parseInt(mins, 10) || 0); };
     return wrap;
 }
 
@@ -529,7 +521,7 @@ function generateColumnDefs(tabName) {
             };
         } else if (field.type === 'time_limit' || field.key === 'time_limit') {
             colDef.cellEditor = 'durationPickerCellEditor';
-            colDef.minWidth = 180;
+            colDef.minWidth = 120;
             colDef.valueGetter = params => {
                 const v = params.data?.[field.key];
                 if (v === null || v === undefined || v === '') return null;

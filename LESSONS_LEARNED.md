@@ -13,6 +13,11 @@ Create the **API Key** via Admin → Developer Keys → Add Developer Key → **
 
 After changing `.env`, **restart the NestJS server** (not Canvas). The app loads env at startup.
 
+## Canvas API / Data
+
+- Canvas discards seconds—don't include them in any dates or time settings (e.g. quiz time limits, date fields).
+- Classic Quiz time limit: set `time_limit` to an integer (minutes) to enable; set to `null` to disable. There is no separate "enable" field in the API—the GUI checkbox maps to whether `time_limit` is a number or null.
+
 ## Canvas Setup
 
 - Use a stable branch (`git checkout stable/YYYY-MM-DD`), not master.
