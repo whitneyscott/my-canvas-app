@@ -160,6 +160,39 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return { token, baseUrl };
   }
 
+  private quizApiV1Base(apiV1BaseUrl: string): string {
+    const trimmed = apiV1BaseUrl.replace(/\/$/, '');
+    if (trimmed.endsWith('/api/v1')) {
+      return `${trimmed.slice(0, -'/api/v1'.length)}/api/quiz/v1`;
+    }
+    return `${trimmed}/api/quiz/v1`;
+  }
+
+  private async patchNewQuizInstructions(
+    courseId: number,
+    assignmentId: number,
+    instructions: string,
+    token: string,
+    canvasApiV1Base: string,
+  ): Promise<void> {
+    const quizBase = this.quizApiV1Base(canvasApiV1Base);
+    const url = `${quizBase}/courses/${courseId}/quizzes/${assignmentId}`;
+    const params = new URLSearchParams();
+    params.append('quiz[instructions]', instructions);
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params.toString(),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`New Quizzes API error: ${response.status} ${response.statusText} - ${text}`);
+    }
+  }
+
   async getCourseDetails(courseId: number) {
     const { token, baseUrl } = await this.getAuthHeaders();
 
@@ -916,11 +949,21 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       console.log(`[Service] Raw updates:`, JSON.stringify(updates, null, 2));
       
       const { token, baseUrl } = await this.getAuthHeaders();
-      
-      // Clean up updates - Canvas API is picky about data types
+      const pending: Record<string, any> = { ...updates };
+
+      if (Object.prototype.hasOwnProperty.call(pending, 'description')) {
+        const snapshot = await this.getAssignment(courseId, assignmentId);
+        if (snapshot.is_quiz_assignment === true) {
+          const rawDesc = pending.description;
+          const instructions = rawDesc === null || rawDesc === undefined ? '' : String(rawDesc);
+          await this.patchNewQuizInstructions(courseId, assignmentId, instructions, token, baseUrl);
+          delete pending.description;
+        }
+      }
+
       const cleanedUpdates: Record<string, any> = {};
-      Object.keys(updates).forEach(key => {
-        const value = updates[key];
+      Object.keys(pending).forEach(key => {
+        const value = pending[key];
         
         // Handle dates first - allow null to delete dates (Canvas API accepts null to clear dates)
         if (key.includes('_at') || key.includes('date')) {
@@ -964,9 +1007,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         }
       });
       
-      // Check if we have any updates to send
       if (Object.keys(cleanedUpdates).length === 0) {
-        throw new Error('No valid updates to send to Canvas API');
+        return await this.getAssignment(courseId, assignmentId);
       }
       
       console.log(`[Service] Updating assignment ${assignmentId} in course ${courseId}`);
@@ -1353,26 +1395,12 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   async bulkUpdateAssignments(courseId: number, itemIds: number[], updates: Record<string, any>) {
-    const { token, baseUrl } = await this.getAuthHeaders();
     const results: Array<{ id: number; success: boolean; data?: any; error?: string }> = [];
 
     for (const assignmentId of itemIds) {
       try {
-        const response = await fetch(`${baseUrl}/courses/${courseId}/assignments/${assignmentId}`, {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(updates),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to update assignment ${assignmentId}: ${response.statusText}`);
-        }
-
-        const updated = await response.json();
-        results.push({ id: assignmentId, success: true, data: updated });
+        const data = await this.updateAssignment(courseId, assignmentId, { ...updates });
+        results.push({ id: assignmentId, success: true, data });
       } catch (error: any) {
         results.push({ id: assignmentId, success: false, error: error.message });
       }
