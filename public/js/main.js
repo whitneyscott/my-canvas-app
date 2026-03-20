@@ -2514,7 +2514,7 @@ function sanitizeRowData(rowData, tabType, method = 'sync') {
         dataFields.forEach(field => {
             const key = field.key;
             const value = rowData[key];
-            if (value !== undefined && value !== null && value !== '' && JSON.stringify(value) !== JSON.stringify(pristineData[key])) {
+            if (JSON.stringify(value) !== JSON.stringify(pristineData[key])) {
                 changedData[key] = value;
             }
         });

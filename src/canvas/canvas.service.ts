@@ -13,6 +13,8 @@ interface CanvasCourse {
   created_at?: string;
 }
 
+const CLEARABLE_CONTENT_KEYS = new Set(['description', 'message', 'body', 'instructions']);
+
 @Injectable({ scope: Scope.REQUEST })
 export class CanvasService {
   constructor(
@@ -1180,11 +1182,13 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
           return; // Date fields are handled, skip to next field
         }
         
-        // Skip null, undefined, and empty strings for non-date fields
-        if (value === null || value === undefined || value === '') {
+        if (value === undefined) return;
+        if ((value === null || value === '') && CLEARABLE_CONTENT_KEYS.has(key)) {
+          cleanedUpdates[key] = value === null ? null : '';
           return;
         }
-        
+        if (value === null || value === '') return;
+
         // Handle boolean values
         if (typeof value === 'boolean') {
           cleanedUpdates[key] = value;
@@ -1309,11 +1313,13 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       const cleanedUpdates: Record<string, any> = {};
       Object.keys(updates).forEach(key => {
         const value = updates[key];
-        // Skip null, undefined, and empty strings
-        if (value === null || value === undefined || value === '') {
+        if (value === undefined) return;
+        if ((value === null || value === '') && CLEARABLE_CONTENT_KEYS.has(key)) {
+          cleanedUpdates[key] = value === null ? null : '';
           return;
         }
-        
+        if (value === null || value === '') return;
+
         // Handle boolean values - Canvas expects true/false, not strings
         if (typeof value === 'boolean') {
           cleanedUpdates[key] = value;
@@ -1489,12 +1495,14 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   async updateDiscussion(courseId: number, discussionId: number, updates: Record<string, any>) {
     const { token, baseUrl } = await this.getAuthHeaders();
-    
-    // Clean up updates
     const cleanedUpdates: Record<string, any> = {};
     Object.keys(updates).forEach(key => {
-      if (updates[key] !== null && updates[key] !== undefined && updates[key] !== '') {
-        cleanedUpdates[key] = updates[key];
+      const v = updates[key];
+      if (v === undefined) return;
+      if ((v === null || v === '') && CLEARABLE_CONTENT_KEYS.has(key)) {
+        cleanedUpdates[key] = v === null ? null : '';
+      } else if (v !== null && v !== undefined && v !== '') {
+        cleanedUpdates[key] = v;
       }
     });
     
@@ -1520,11 +1528,14 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   async updatePage(courseId: number, pageUrl: string, updates: Record<string, any>) {
     const { token, baseUrl } = await this.getAuthHeaders();
-
     const cleanedUpdates: Record<string, any> = {};
     Object.keys(updates).forEach(key => {
-      if (updates[key] !== null && updates[key] !== undefined && updates[key] !== '') {
-        cleanedUpdates[key] = updates[key];
+      const v = updates[key];
+      if (v === undefined) return;
+      if ((v === null || v === '') && CLEARABLE_CONTENT_KEYS.has(key)) {
+        cleanedUpdates[key] = v === null ? null : '';
+      } else if (v !== null && v !== undefined && v !== '') {
+        cleanedUpdates[key] = v;
       }
     });
 
