@@ -378,95 +378,10 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     }
   }
 
-  private async getNewQuizByAssignment(
-    courseId: number,
-    assignmentId: number,
-    token: string,
-    canvasApiV1Base: string,
-  ): Promise<{ instructions?: string; title?: string } | null> {
-    try {
-      const quizBase = this.quizApiV1Base(canvasApiV1Base);
-      const url = `${quizBase}/courses/${courseId}/quizzes/${assignmentId}`;
-      console.log(`[Service][NewQuiz] GET ${url}`);
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      const text = await res.text();
-      console.log(`[Service][NewQuiz] GET status: ${res.status} ${res.statusText}`);
-      console.log(`[Service][NewQuiz] GET body: ${text}`);
-      if (!res.ok) return null;
-      try {
-        return JSON.parse(text);
-      } catch {
-        return null;
-      }
-    } catch {
-      return null;
-    }
-  }
-
-  private async getNewQuizzesForCourse(
-    courseId: number,
-    token: string,
-    canvasApiV1Base: string,
-  ): Promise<Array<{ id?: number; assignment_id?: number; instructions?: string; title?: string }>> {
-    try {
-      const quizBase = this.quizApiV1Base(canvasApiV1Base);
-      const url = `${quizBase}/courses/${courseId}/quizzes`;
-      console.log(`[Service][NewQuiz] LIST ${url}`);
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      const text = await res.text();
-      console.log(`[Service][NewQuiz] LIST status: ${res.status} ${res.statusText}`);
-      console.log(`[Service][NewQuiz] LIST body: ${text}`);
-      if (!res.ok) return [];
-      try {
-        const parsed = JSON.parse(text);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    } catch {
-      return [];
-    }
-  }
-
   async getCourseAssignments(courseId: number) {
     const { token, baseUrl } = await this.getAuthHeaders();
     const url = `${baseUrl}/courses/${courseId}/assignments?per_page=100&include[]=submission`;
-    const assignments = await this.fetchPaginatedData(url, token);
-    const newQuizIds = assignments
-      .filter((a: any) => this.isLikelyNewQuizAssignment(a))
-      .map((a: any) => a.id);
-    if (newQuizIds.length) {
-      console.log(`[Service][NewQuiz] Enriching ${newQuizIds.length} assignment row(s) from New Quizzes API`);
-      const list = await this.getNewQuizzesForCourse(courseId, token, baseUrl);
-      const listMap = new Map<number, { instructions?: string; title?: string }>();
-      list.forEach((q: any) => {
-        const byAssignmentId = Number(q?.assignment_id);
-        const byId = Number(q?.id);
-        if (Number.isFinite(byAssignmentId) && byAssignmentId > 0) listMap.set(byAssignmentId, q);
-        else if (Number.isFinite(byId) && byId > 0) listMap.set(byId, q);
-      });
-      const quizData = await Promise.all(
-        newQuizIds.map((aid: number) =>
-          this.getNewQuizByAssignment(courseId, aid, token, baseUrl).then((q) => ({ assignmentId: aid, quiz: q })),
-        ),
-      );
-      const quizMap = new Map(quizData.map(({ assignmentId, quiz }) => [assignmentId, quiz || listMap.get(assignmentId) || null]));
-      assignments.forEach((a: any) => {
-        const q: any = quizMap.get(a.id);
-        const instructions =
-          (typeof q?.instructions === 'string' ? q.instructions : undefined) ??
-          (typeof q?.quiz?.instructions === 'string' ? q.quiz.instructions : undefined) ??
-          (typeof q?.description === 'string' ? q.description : undefined) ??
-          (typeof q?.quiz?.description === 'string' ? q.quiz.description : undefined) ??
-          '';
-        a.description = instructions;
-        const title =
-          (typeof q?.title === 'string' ? q.title : undefined) ??
-          (typeof q?.quiz?.title === 'string' ? q.quiz.title : undefined);
-        if (title != null) a.name = title;
-      });
-    }
-    return assignments;
+    return await this.fetchPaginatedData(url, token);
   }
 
   async getCourseAssignmentGroups(courseId: number) {
