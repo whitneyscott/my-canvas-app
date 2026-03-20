@@ -126,10 +126,16 @@ export class LtiController {
     });
 
     if (idToken && state) {
+      debugLog('lti_launch_branch', { chosen: '1.3', reason: 'id_token+state present' });
       return this.handleLti13Launch(req, res, idToken, state);
     }
 
     if (oauthKey && oauthSig) {
+      debugLog('lti_launch_branch', {
+        chosen: '1.1',
+        reason: 'oauth_consumer_key+oauth_signature present',
+        consumerKey: oauthKey,
+      });
       return this.handleLti11Launch(req, res, body);
     }
 
@@ -296,6 +302,13 @@ export class LtiController {
     delete sess.ltiClientId;
     sess.canvasApiDomain = extracted.canvasApiDomain;
 
+    debugLog('lti11_session_set', {
+      ltiLaunchType: '1.1',
+      courseId: extracted.courseId,
+      canvasApiDomain: sess.canvasApiDomain,
+      consumerKey: extracted.consumerKey,
+      ltiClientId_deleted: true,
+    });
     debugLog('launch_success', {
       path: 'lti11',
       courseId: extracted.courseId,
