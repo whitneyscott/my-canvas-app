@@ -907,6 +907,8 @@ function switchTab(tabName) {
         if (mergeMenuItem) mergeMenuItem.style.display = (tabName === 'modules') ? 'block' : 'none';
         const timeLimitMenuItem = document.getElementById('timeLimitMenuItem');
         if (timeLimitMenuItem) timeLimitMenuItem.style.display = (tabName === 'quizzes') ? 'block' : 'none';
+        const allowedAttemptsMenuItem = document.getElementById('allowedAttemptsMenuItem');
+        if (allowedAttemptsMenuItem) allowedAttemptsMenuItem.style.display = (tabName === 'quizzes') ? 'block' : 'none';
 
         if (tabName !== 'standards_sync' && typeof loadTabData === 'function') {
             loadTabData(tabName);
@@ -2166,6 +2168,13 @@ function openModal(modalId) {
         if (opSel) opSel.onchange = toggle;
         toggle();
     }
+    else if (modalId === 'allowedAttemptsModal') {
+        const opSel = document.getElementById('allowedAttemptsOp');
+        const valRow = document.getElementById('allowedAttemptsValueRow');
+        const toggle = () => { if (valRow) valRow.style.display = (opSel?.value === 'unlimited') ? 'none' : 'block'; };
+        if (opSel) opSel.onchange = toggle;
+        toggle();
+    }
     else if (modalId === 'assignmentGroupModal') populateAssignmentGroupSelector();
     else if (modalId === 'deleteModal') {
         const input = document.getElementById('deleteConfirmInput');
@@ -2373,6 +2382,31 @@ function executePointsUpdate() {
         const pointsResult = Number(finalValue.toFixed(2));
         applyGridCellChange(rowData, targetField, pointsResult);
     });
+    gridApi.redrawRows();
+    closeActiveModal();
+}
+
+function executeAllowedAttemptsUpdate() {
+    const op = document.getElementById('allowedAttemptsOp')?.value;
+    const valueInput = document.getElementById('allowedAttemptsValue');
+    if (!gridApi) return;
+    const nodesToUpdate = getBulkTargetRowData(true);
+    if (!nodesToUpdate.length) { alert('Select rows or filter to target.'); return; }
+    if (op === 'unlimited') {
+        nodesToUpdate.forEach(rowData => applyGridCellChange(rowData, 'allowed_attempts', -1));
+    } else {
+        const val = valueInput ? parseInt(valueInput.value, 10) : 0;
+        if (op === 'set' && (isNaN(val) || val < -1)) { alert('Enter valid number of attempts (-1 for unlimited, or positive number).'); return; }
+        if (op === 'add' && isNaN(val)) { alert('Enter valid number to add.'); return; }
+        nodesToUpdate.forEach(rowData => {
+            const current = rowData.allowed_attempts;
+            const curNum = (current != null && current !== '') ? parseInt(Number(current), 10) : 1;
+            let newVal = op === 'set' ? val : curNum + val;
+            if (newVal < -1) newVal = -1;
+            if (newVal === 0) newVal = 1;
+            applyGridCellChange(rowData, 'allowed_attempts', newVal);
+        });
+    }
     gridApi.redrawRows();
     closeActiveModal();
 }
