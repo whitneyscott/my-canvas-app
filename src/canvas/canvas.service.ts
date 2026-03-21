@@ -1129,7 +1129,6 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   async getCourseAnnouncements(courseId: number) {
     const { token, baseUrl } = await this.getAuthHeaders();
     const url = `${baseUrl}/courses/${courseId}/discussion_topics?only_announcements=true&per_page=100`;
-    console.log(`[Service] Fetching announcements for course ${courseId} from: ${url}`);
     const announcements = await this.fetchPaginatedData(url, token);
 
     const withMessage = await Promise.all(
@@ -1918,8 +1917,6 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   async updateDiscussion(courseId: number, discussionId: number, updates: Record<string, any>) {
-    console.log(`[Service] updateDiscussion called for discussion ${discussionId} in course ${courseId}`);
-    console.log(`[Service] Raw discussion updates:`, JSON.stringify(updates, null, 2));
     const { token, baseUrl } = await this.getAuthHeaders();
     const pending: Record<string, any> = { ...updates };
     if (Object.prototype.hasOwnProperty.call(pending, 'expand')) {
@@ -1957,14 +1954,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       const topic = await this.getDiscussion(courseId, discussionId);
       assignmentId = topic?.assignment_id ?? null;
       isAnnouncement = Boolean(topic?.is_announcement);
-      console.log(`[Service] Discussion ${discussionId} assignment_id:`, assignmentId);
-      console.log(`[Service] Discussion ${discussionId} is_announcement:`, isAnnouncement);
-      console.log(`[Service] Discussion ${discussionId} current podcast state:`, {
-        podcast_enabled: topic?.podcast_enabled,
-        podcast_has_student_posts: topic?.podcast_has_student_posts,
-      });
     } catch (e: any) {
-      console.warn(`[Service] Could not fetch discussion ${discussionId} before update:`, e?.message || e);
       assignmentId = null;
       isAnnouncement = false;
     }
@@ -2002,11 +1992,6 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       let lastAttempt: { name: string; contentType: string; body: string } | null = null;
       let out: any = null;
       for (const attempt of attempts) {
-        console.log(`[Service] Discussion ${discussionId} PUT attempt`, {
-          format: attempt.name,
-          contentType: attempt.contentType,
-          body: attempt.body?.slice(0, 1000) || '',
-        });
         const response = await fetch(topicUrl, {
           method: 'PUT',
           headers: {
@@ -2016,11 +2001,6 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
           body: attempt.body,
         });
         const text = await response.text();
-        console.log(`[Service] Discussion ${discussionId} PUT response`, {
-          status: response.status,
-          statusText: response.statusText,
-          body: text?.slice(0, 1000) || '',
-        });
         if (response.ok) {
           if (text) {
             try {
@@ -2061,12 +2041,6 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         body: JSON.stringify(payload),
       });
       const text = await response.text();
-      console.log(`[Service] Discussion ${discussionId} date_details response`, {
-        status: response.status,
-        statusText: response.statusText,
-        body: text?.slice(0, 1000) || '',
-        payload,
-      });
       if (!response.ok) {
         throw new Error(
           `Failed to update discussion date_details ${discussionId}: ${response.status} - ${text || response.statusText}. ` +
@@ -2145,23 +2119,12 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     ) {
       throw new Error('Cannot set due_at on an ungraded discussion. Enable Graded first.');
     }
-    console.log(`[Service] Discussion ${discussionId} routed updates`, {
-      isAnnouncement,
-      discussionUpdates,
-      assignmentUpdates,
-      dateDetailsUpdates,
-      assignmentId,
-      gradedSelection,
-      rubricSelection,
-    });
 
     if (Object.keys(dateDetailsUpdates).length > 0) {
-      console.log(`[Service] Discussion ${discussionId} date routing: date_details endpoint`);
       await sendDiscussionDateDetailsUpdate(dateDetailsUpdates);
     }
 
     if (Object.keys(discussionUpdates).length > 0) {
-      console.log(`[Service] Discussion ${discussionId} topic routing: discussion_topics endpoint`);
       topicResult = await sendDiscussionUpdate(discussionUpdates);
     }
 
@@ -2169,7 +2132,6 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       if (!assignmentId) {
         throw new Error('Cannot set grading fields on an ungraded discussion. Enable Graded first.');
       }
-      console.log(`[Service] Discussion ${discussionId} updating assignment ${assignmentId} with`, assignmentUpdates);
       await this.updateAssignment(courseId, assignmentId, assignmentUpdates);
     }
 
@@ -2188,16 +2150,6 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       const hasPodcastStudentPosts = Object.prototype.hasOwnProperty.call(finalTopic || {}, 'podcast_has_student_posts');
       const actualPodcastEnabled = hasPodcastEnabled ? Boolean(finalTopic?.podcast_enabled) : undefined;
       const actualPodcastStudentPosts = hasPodcastStudentPosts ? Boolean(finalTopic?.podcast_has_student_posts) : undefined;
-      console.log(`[Service] Discussion ${discussionId} podcast readback`, {
-        expectedPodcastEnabled,
-        expectedPodcastStudentPosts,
-        podcastUrl: podcastUrl || null,
-        actualPodcastEnabledByUrl,
-        hasPodcastEnabled,
-        hasPodcastStudentPosts,
-        actualPodcastEnabled,
-        actualPodcastStudentPosts,
-      });
       if (
         (expectedPodcastEnabled !== undefined && actualPodcastEnabledByUrl !== expectedPodcastEnabled) ||
         (expectedPodcastStudentPosts !== undefined && hasPodcastStudentPosts && actualPodcastStudentPosts !== expectedPodcastStudentPosts)
@@ -2244,8 +2196,6 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   async updateAnnouncement(courseId: number, announcementId: number, updates: Record<string, any>) {
-    console.log(`[Service] updateAnnouncement called for announcement ${announcementId} in course ${courseId}`);
-    console.log(`[Service] Raw announcement updates:`, JSON.stringify(updates, null, 2));
     return this.updateDiscussion(courseId, announcementId, updates);
   }
 

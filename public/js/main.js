@@ -69,6 +69,44 @@ function showFlashError(message) {
 
 // Run the function as soon as the window loads
 window.onload = init;
+let authFailureHandled = false;
+function showTokenOverlayForAuthFailure(detailMessage) {
+    if (authFailureHandled) return;
+    authFailureHandled = true;
+    const tok = document.getElementById('token-overlay');
+    const oauth = document.getElementById('oauth-overlay');
+    const wrap = document.getElementById('main-app-wrapper');
+    if (wrap) wrap.style.display = 'none';
+    if (oauth) oauth.style.display = 'none';
+    if (tok) tok.style.display = 'flex';
+    debugLog('Session expired or token invalid. Please re-enter Canvas URL and token.', 'warn');
+    if (detailMessage) debugLog('ERROR: ' + detailMessage, 'error');
+}
+
+const nativeFetch = window.fetch.bind(window);
+window.fetch = async (...args) => {
+    const response = await nativeFetch(...args);
+    try {
+        const requestUrl = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
+        const isAuthRoute = requestUrl.includes('/auth/status') || requestUrl.includes('/auth/set-token');
+        if (response.status === 401 && !isAuthRoute) {
+            let detail = '';
+            try {
+                const raw = await response.clone().text();
+                if (raw) {
+                    try {
+                        const body = JSON.parse(raw);
+                        detail = String(body?.message || body?.error || raw);
+                    } catch {
+                        detail = raw;
+                    }
+                }
+            } catch (_) {}
+            showTokenOverlayForAuthFailure(detail);
+        }
+    } catch (_) {}
+    return response;
+};
 let assignmentGroupsCache = {};
 let rubricsCache = {};
 
@@ -964,6 +1002,16 @@ function getTabNameFromButton(tabEl) {
     return match ? match[1] : '';
 }
 
+function updatePointsUiLabels(tabName) {
+    const isModules = tabName === 'modules';
+    const menuItem = document.getElementById('pointsMenuItem');
+    if (menuItem) menuItem.textContent = isModules ? 'Position' : 'Points';
+    const title = document.getElementById('pointsModalTitle');
+    if (title) title.textContent = isModules ? 'Position' : 'Points/Weighting';
+    const actionBtn = document.getElementById('pointsActionBtn');
+    if (actionBtn) actionBtn.textContent = isModules ? 'Update Position' : 'Update Points';
+}
+
 function switchTab(tabName) {
     // Security Check: Enforce tab interception guard clause
     const allowedTabs = ['assignments', 'discussions', 'announcements', 'pages', 'quizzes', 'new_quizzes', 'modules', 'files', 'standards_sync'];
@@ -1023,6 +1071,7 @@ function switchTab(tabName) {
         if (allowedAttemptsMenuItem) allowedAttemptsMenuItem.style.display = (tabName === 'quizzes') ? 'block' : 'none';
         const allowRatingMenuItem = document.getElementById('allowRatingMenuItem');
         if (allowRatingMenuItem) allowRatingMenuItem.style.display = (tabName === 'discussions') ? 'block' : 'none';
+        updatePointsUiLabels(tabName);
 
         if (tabName !== 'standards_sync' && typeof loadTabData === 'function') {
             loadTabData(tabName);
@@ -3050,7 +3099,21 @@ const createModules = async (courseId, moduleName, position) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
     });
-    if (!response.ok) throw new Error(`Failed: ${response.statusText}`);
+    if (!response.ok) {
+        let msg = response.statusText;
+        try {
+            const text = await response.text();
+            if (text) {
+                try {
+                    const j = JSON.parse(text);
+                    msg = j.message || j.errors?.[0]?.message || text;
+                } catch (_) {
+                    msg = text;
+                }
+            }
+        } catch (_) {}
+        throw new Error(msg || 'Failed to create module');
+    }
     return await response.json();
 };
 
@@ -3118,14 +3181,9 @@ async function handleDeepPurge() {
     try {
         for (const item of selectedItems) await deepPurgeModule(courseId, item);
         closeActiveModal();
-        delete originalData['assignments'];
-        if (changes['assignments']) changes['assignments'] = {};
+        delete originalData['modules'];
+        if (changes['modules']) changes['modules'] = {};
         await refreshCurrentTab();
-        if (currentTab !== 'assignments') {
-            const response = await fetch(`/canvas/courses/${selectedCourseId}/${FIELD_DEFINITIONS['assignments'].endpoint}`);
-            const data = await response.json();
-            originalData['assignments'] = data.map(record => ({ ...record, _edit_status: 'synced' }));
-        }
         alert('Deep purge complete.');
     } catch (error) {
         console.error('Purge error:', error);
