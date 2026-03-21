@@ -1914,6 +1914,14 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     console.log(`[Service] Raw discussion updates:`, JSON.stringify(updates, null, 2));
     const { token, baseUrl } = await this.getAuthHeaders();
     const pending: Record<string, any> = { ...updates };
+    if (Object.prototype.hasOwnProperty.call(pending, 'expand')) {
+      pending.expanded = pending.expand;
+      delete pending.expand;
+    }
+    if (Object.prototype.hasOwnProperty.call(pending, 'expand_locked')) {
+      pending.expanded_locked = pending.expand_locked;
+      delete pending.expand_locked;
+    }
     let gradedSelection: boolean | undefined = undefined;
     if (Object.prototype.hasOwnProperty.call(pending, 'graded')) {
       gradedSelection = Boolean(pending.graded);

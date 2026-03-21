@@ -30,8 +30,8 @@ const DISCUSSION_FIELDS = [
     { value: 'desc', label: 'Descending' }
   ] },
   { key: 'sort_order_locked', label: 'Sort Locked', editable: true, type: 'boolean', activeLabel: 'Locked', inactiveLabel: 'User Selectable' },
-  { key: 'expand', label: 'Expand Threads', editable: true, type: 'boolean', activeLabel: 'Expanded', inactiveLabel: 'Collapsed' },
-  { key: 'expand_locked', label: 'Expand Locked', editable: true, type: 'boolean', activeLabel: 'Locked', inactiveLabel: 'User Selectable' },
+  { key: 'expanded', label: 'Expand Threads', editable: true, type: 'boolean', activeLabel: 'Expanded', inactiveLabel: 'Collapsed' },
+  { key: 'expanded_locked', label: 'Expand Locked', editable: true, type: 'boolean', activeLabel: 'Locked', inactiveLabel: 'User Selectable' },
   { key: 'only_graders_can_rate', label: 'Only Graders Can Rate', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
   { key: 'pinned', label: 'Pinned', editable: true, type: 'boolean', activeLabel: 'Pinned', inactiveLabel: 'Not Pinned' },
   { key: 'lock_comment', label: 'Lock Comments', editable: true, type: 'boolean', activeLabel: 'Locked', inactiveLabel: 'Open' },
