@@ -1976,17 +1976,23 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         return String(value);
       };
       const form = new URLSearchParams();
+      const wrappedForm = new URLSearchParams();
       Object.entries(payload).forEach(([k, v]) => {
         if (v === undefined || v === null) return;
         if (typeof v === 'object' && !Array.isArray(v)) {
           Object.entries(v).forEach(([subK, subV]) => {
-            if (subV !== undefined && subV !== null) form.append(`${k}[${subK}]`, toFormValue(subV));
+            if (subV !== undefined && subV !== null) {
+              form.append(`${k}[${subK}]`, toFormValue(subV));
+              wrappedForm.append(`discussion_topic[${k}][${subK}]`, toFormValue(subV));
+            }
           });
         } else {
           form.append(k, toFormValue(v));
+          wrappedForm.append(`discussion_topic[${k}]`, toFormValue(v));
         }
       });
       const attempts: Array<{ name: string; contentType: string; body: string }> = [
+        { name: 'form_urlencoded_wrapped', contentType: 'application/x-www-form-urlencoded', body: wrappedForm.toString() },
         { name: 'form_urlencoded', contentType: 'application/x-www-form-urlencoded', body: form.toString() },
         { name: 'json_wrapped', contentType: 'application/json', body: JSON.stringify({ discussion_topic: payload }) },
         { name: 'json_raw', contentType: 'application/json', body: JSON.stringify(payload) },
@@ -2089,6 +2095,13 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     }
 
     const cleanedUpdates = cleanContentUpdates(pending, { clearableTextFields: true });
+    if (
+      Object.prototype.hasOwnProperty.call(cleanedUpdates, 'podcast_enabled') &&
+      cleanedUpdates.podcast_enabled === true &&
+      !Object.prototype.hasOwnProperty.call(cleanedUpdates, 'podcast_has_student_posts')
+    ) {
+      cleanedUpdates.podcast_has_student_posts = false;
+    }
     const podcastRequested =
       Object.prototype.hasOwnProperty.call(cleanedUpdates, 'podcast_enabled') ||
       Object.prototype.hasOwnProperty.call(cleanedUpdates, 'podcast_has_student_posts');
@@ -2169,17 +2182,21 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
     const finalTopic = await this.getDiscussion(courseId, discussionId);
     if (podcastRequested) {
-      const actualPodcastEnabled = Boolean(finalTopic?.podcast_enabled);
-      const actualPodcastStudentPosts = Boolean(finalTopic?.podcast_has_student_posts);
+      const hasPodcastEnabled = Object.prototype.hasOwnProperty.call(finalTopic || {}, 'podcast_enabled');
+      const hasPodcastStudentPosts = Object.prototype.hasOwnProperty.call(finalTopic || {}, 'podcast_has_student_posts');
+      const actualPodcastEnabled = hasPodcastEnabled ? Boolean(finalTopic?.podcast_enabled) : undefined;
+      const actualPodcastStudentPosts = hasPodcastStudentPosts ? Boolean(finalTopic?.podcast_has_student_posts) : undefined;
       console.log(`[Service] Discussion ${discussionId} podcast readback`, {
         expectedPodcastEnabled,
         expectedPodcastStudentPosts,
+        hasPodcastEnabled,
+        hasPodcastStudentPosts,
         actualPodcastEnabled,
         actualPodcastStudentPosts,
       });
       if (
-        (expectedPodcastEnabled !== undefined && actualPodcastEnabled !== expectedPodcastEnabled) ||
-        (expectedPodcastStudentPosts !== undefined && actualPodcastStudentPosts !== expectedPodcastStudentPosts)
+        (expectedPodcastEnabled !== undefined && hasPodcastEnabled && actualPodcastEnabled !== expectedPodcastEnabled) ||
+        (expectedPodcastStudentPosts !== undefined && hasPodcastStudentPosts && actualPodcastStudentPosts !== expectedPodcastStudentPosts)
       ) {
         throw new Error(
           `Podcast setting did not persist on discussion ${discussionId}. Requested podcast_enabled=${expectedPodcastEnabled}, ` +
