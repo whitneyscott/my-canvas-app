@@ -1720,7 +1720,7 @@ function applyGridCellChangeToNode(gridNode, field, value) {
     trackChange(currentTab, gridNode.data.id || gridNode.data.url, field, value);
 }
 
-const CLONE_CREATE_TABS = ['assignments', 'quizzes', 'new_quizzes', 'pages', 'discussions', 'announcements', 'modules'];
+const CLONE_CREATE_TABS = ['assignments', 'quizzes', 'new_quizzes', 'pages', 'discussions', 'announcements', 'modules', 'files'];
 
 const CREATE_HANDLERS = {
     assignments: (courseId, p) => createAssignments(courseId, p),
@@ -1729,7 +1729,8 @@ const CREATE_HANDLERS = {
     pages: (courseId, p) => createPages(courseId, p),
     discussions: (courseId, p) => createDiscussions(courseId, p),
     announcements: (courseId, p) => createAnnouncements(courseId, p),
-    modules: (courseId, p) => createModules(courseId, p.name || 'Module', p.position)
+    modules: (courseId, p) => createModules(courseId, p.name || 'Module', p.position),
+    files: (courseId, p) => createFiles(courseId, p)
 };
 
 const ITEM_TYPE_TO_CREATE = {
@@ -1806,7 +1807,13 @@ async function syncChanges() {
                 delete changes[currentTab][itemId];
                 continue;
             }
-            const createParams = buildCreateParams(rowData, currentTab);
+            const createParams = currentTab === 'files'
+                ? {
+                    source_file_id: rowData._source_file_id,
+                    parent_folder_id: rowData.folder_id ?? rowData._source_folder_id ?? null,
+                    display_name: rowData.display_name || rowData.filename || rowData.name
+                }
+                : buildCreateParams(rowData, currentTab);
             try {
                 const handler = CREATE_HANDLERS[currentTab];
                 const created = handler ? await handler(selectedCourseId, createParams) : null;
@@ -1847,6 +1854,7 @@ async function syncChanges() {
             ? 'Use Deep Clone for modules.'
             : `Create not supported for ${currentTab} tab.`;
         for (const id of newItemIds) {
+            debugLog('[Sync] Create FAILED - item=' + id + ' tab=' + currentTab + ' message=' + msg, 'error');
             errors.push({ itemId: id, label: id, message: msg });
         }
         newItemIds.forEach(id => delete changes[currentTab][id]);
@@ -1924,6 +1932,7 @@ async function syncChanges() {
     if (redrawNodes.length) gridApi.redrawRows({ rowNodes: redrawNodes });
 
     if (errors.length) {
+        debugLog('[Sync] Summary FAILED count=' + errors.length + ' details=' + JSON.stringify(errors).slice(0, 3000), 'error');
         alert(`Sync failed for ${errors.length} item(s):\n\n${errors.map(e => `• ${e.label}: ${e.message}`).join('\n')}`);
         return;
     }
@@ -3030,6 +3039,11 @@ function prepareUIClone(row, type, prefix, suffix, existingSet, copyIndex = -1, 
     if (rowCopy.name !== undefined) rowCopy.name = uniqueName;
     if (rowCopy.title !== undefined) rowCopy.title = uniqueName;
     let clonedContent = sanitizeRowData(rowCopy, type, 'clone');
+    if (type === 'files') {
+        clonedContent._source_file_id = row.id;
+        clonedContent._source_folder_id = row.folder_id ?? null;
+        clonedContent.folder_id = row.folder_id ?? null;
+    }
     clonedContent.id = `TEMP_${Math.random().toString(36).substr(2, 9)}`;
     clonedContent.isNew = true;
     clonedContent._edit_status = 'modified';
@@ -3118,6 +3132,27 @@ async function createFolders(courseId, params) {
         body: JSON.stringify(params)
     });
     return response.ok ? await response.json() : null;
+}
+
+async function createFiles(courseId, params) {
+    if (!params?.source_file_id) throw new Error('Missing source file id for file clone');
+    const response = await fetch(`/canvas/courses/${courseId}/files/copy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    if (!response.ok) {
+        const raw = await response.text().catch(() => '');
+        let msg = response.statusText || 'Failed to clone file';
+        try {
+            const j = raw ? JSON.parse(raw) : {};
+            msg = j.message || j.error || raw || msg;
+        } catch (_) {
+            if (raw) msg = raw;
+        }
+        throw new Error(msg);
+    }
+    return await response.json();
 }
 
 const createModules = async (courseId, moduleName, position) => {

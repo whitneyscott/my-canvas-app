@@ -605,6 +605,22 @@ export class CanvasController {
     return this.canvasService.bulkDeleteFiles(courseId, body.fileIds, body.isFolders || []);
   }
 
+  @Post('courses/:courseId/files/copy')
+  async copyFile(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Body() body: { source_file_id: number; parent_folder_id?: number; display_name?: string }
+  ) {
+    if (!body?.source_file_id) {
+      throw new HttpException('source_file_id required', HttpStatus.BAD_REQUEST);
+    }
+    return this.canvasService.copyFileToFolder(
+      courseId,
+      Number(body.source_file_id),
+      body.parent_folder_id != null ? Number(body.parent_folder_id) : null,
+      body.display_name,
+    );
+  }
+
   @Delete('courses/:courseId/files/:fileId')
   async deleteFileOrFolder(
     @Param('courseId', ParseIntPipe) courseId: number,

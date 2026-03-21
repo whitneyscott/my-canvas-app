@@ -1201,6 +1201,64 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return [...filesWithMeta, ...foldersWithCounts];
   }
 
+  private async getCourseRootFolderId(courseId: number, token: string, baseUrl: string): Promise<number> {
+    const res = await fetch(`${baseUrl}/courses/${courseId}/folders/root`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      throw new Error(`Failed to resolve root folder: ${res.status} ${res.statusText}${t ? ` - ${t}` : ''}`);
+    }
+    const folder = await res.json();
+    const id = Number(folder?.id);
+    if (!Number.isFinite(id)) throw new Error('Invalid root folder id returned by Canvas');
+    return id;
+  }
+
+  async copyFileToFolder(
+    courseId: number,
+    sourceFileId: number,
+    destFolderId?: number | null,
+    displayName?: string,
+  ) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const targetFolderId = Number.isFinite(Number(destFolderId))
+      ? Number(destFolderId)
+      : await this.getCourseRootFolderId(courseId, token, baseUrl);
+
+    const body = new URLSearchParams();
+    body.set('source_file_id', String(sourceFileId));
+    body.set('on_duplicate', 'rename');
+
+    const copyRes = await fetch(`${baseUrl}/folders/${targetFolderId}/copy_file`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    });
+    const copyText = await copyRes.text();
+    if (!copyRes.ok) {
+      throw new Error(`Canvas API error: ${copyRes.status} ${copyRes.statusText} - ${copyText}`);
+    }
+    let copied: any = {};
+    if (copyText) {
+      try {
+        copied = JSON.parse(copyText);
+      } catch {
+        copied = {};
+      }
+    }
+
+    const desiredName = (displayName || '').trim();
+    const currentName = String(copied?.display_name || copied?.filename || copied?.name || '').trim();
+    if (desiredName && copied?.id && desiredName !== currentName) {
+      return this.updateFile(courseId, Number(copied.id), { name: desiredName });
+    }
+    return copied;
+  }
+
   private async getFileUsage(courseId: number, fileId: number): Promise<Array<{ type: string; id: number; title: string }>> {
     const { token, baseUrl } = await this.getAuthHeaders();
     const usage: Array<{ type: string; id: number; title: string }> = [];
