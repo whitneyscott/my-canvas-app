@@ -1980,7 +1980,7 @@ function handleCloneClick() {
     }
 }
 
-async function executeFilesFolderClone(cloneMode, selectedRows, prefix, suffix) {
+async function executeFilesFolderClone(cloneMode, selectedRows, prefix, suffix, numCopies = 1, serialize = true) {
     if (!selectedCourseId) throw new Error('No course selected.');
     const folders = selectedRows.filter(r => r?.is_folder);
     if (!folders.length) throw new Error('Select at least one folder for folder cloning.');
@@ -1988,26 +1988,31 @@ async function executeFilesFolderClone(cloneMode, selectedRows, prefix, suffix) 
     const existingNames = new Set((originalData.files || []).map(r => r?.display_name || r?.name).filter(Boolean));
     for (const folder of folders) {
         const base = folder.display_name || folder.name || `Folder ${folder.id}`;
-        const newName = getUniqueName(base, existingNames, prefix, suffix);
-        const payload = {
-            source_folder_id: folder.id,
-            parent_folder_id: folder.folder_id ?? null,
-            name: newName,
-        };
-        const url = cloneMode === 'deep'
-            ? `/canvas/courses/${selectedCourseId}/folders/copy`
-            : `/canvas/courses/${selectedCourseId}/folders`;
-        const body = cloneMode === 'deep'
-            ? payload
-            : { name: newName, parent_folder_id: folder.folder_id ?? null };
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-        });
-        if (!response.ok) {
-            const raw = await response.text().catch(() => '');
-            throw new Error(raw || response.statusText || 'Folder clone failed');
+        for (let c = 0; c < numCopies; c++) {
+            const requestedName = serialize
+                ? getSerializedName(base, c, prefix, suffix)
+                : `${prefix}${base}${suffix}`.trim();
+            const newName = getUniqueName(requestedName || base, existingNames, '', '');
+            const payload = {
+                source_folder_id: folder.id,
+                parent_folder_id: folder.folder_id ?? null,
+                name: newName,
+            };
+            const url = cloneMode === 'deep'
+                ? `/canvas/courses/${selectedCourseId}/folders/copy`
+                : `/canvas/courses/${selectedCourseId}/folders`;
+            const body = cloneMode === 'deep'
+                ? payload
+                : { name: newName, parent_folder_id: folder.folder_id ?? null };
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!response.ok) {
+                const raw = await response.text().catch(() => '');
+                throw new Error(raw || response.statusText || 'Folder clone failed');
+            }
         }
     }
 }
@@ -2681,6 +2686,8 @@ async function executeClone() {
     const method = document.getElementById('cloneMethod').value;
     const prefix = document.getElementById('clonePrefix').value || '';
     const suffix = document.getElementById('cloneSuffix').value || '';
+    const numCopies = Math.max(1, parseInt(document.getElementById('cloneNumCopies')?.value || '1', 10) || 1);
+    const serialize = document.getElementById('cloneSerialize')?.checked !== false;
     if (currentTab === 'files' && (method === 'surface' || method === 'deep')) {
         try {
             if (gridApi) {
@@ -2688,7 +2695,7 @@ async function executeClone() {
                 var ltf = document.getElementById('custom-loading-text');
                 if (ltf) ltf.textContent = (method === 'deep') ? 'Deep cloning folders...' : 'Cloning folder shells...';
             }
-            await executeFilesFolderClone(method, selectedRows, prefix, suffix);
+            await executeFilesFolderClone(method, selectedRows, prefix, suffix, numCopies, serialize);
             await refreshCurrentTab();
         } finally {
             if (gridApi) gridApi.hideOverlay();
@@ -2733,8 +2740,6 @@ async function executeClone() {
             if (gridApi) gridApi.hideOverlay();
         }
     } else {
-        const numCopies = Math.max(1, parseInt(document.getElementById('cloneNumCopies')?.value || '1', 10) || 1);
-        const serialize = document.getElementById('cloneSerialize')?.checked !== false;
         const existingNames = new Set();
         const newItems = [];
         for (const rowData of selectedRows) {
