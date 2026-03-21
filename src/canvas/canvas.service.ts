@@ -2182,6 +2182,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
     const finalTopic = await this.getDiscussion(courseId, discussionId);
     if (podcastRequested) {
+      const podcastUrl = typeof finalTopic?.podcast_url === 'string' ? finalTopic.podcast_url.trim() : '';
+      const actualPodcastEnabledByUrl = podcastUrl.length > 0;
       const hasPodcastEnabled = Object.prototype.hasOwnProperty.call(finalTopic || {}, 'podcast_enabled');
       const hasPodcastStudentPosts = Object.prototype.hasOwnProperty.call(finalTopic || {}, 'podcast_has_student_posts');
       const actualPodcastEnabled = hasPodcastEnabled ? Boolean(finalTopic?.podcast_enabled) : undefined;
@@ -2189,19 +2191,21 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       console.log(`[Service] Discussion ${discussionId} podcast readback`, {
         expectedPodcastEnabled,
         expectedPodcastStudentPosts,
+        podcastUrl: podcastUrl || null,
+        actualPodcastEnabledByUrl,
         hasPodcastEnabled,
         hasPodcastStudentPosts,
         actualPodcastEnabled,
         actualPodcastStudentPosts,
       });
       if (
-        (expectedPodcastEnabled !== undefined && hasPodcastEnabled && actualPodcastEnabled !== expectedPodcastEnabled) ||
+        (expectedPodcastEnabled !== undefined && actualPodcastEnabledByUrl !== expectedPodcastEnabled) ||
         (expectedPodcastStudentPosts !== undefined && hasPodcastStudentPosts && actualPodcastStudentPosts !== expectedPodcastStudentPosts)
       ) {
         throw new Error(
           `Podcast setting did not persist on discussion ${discussionId}. Requested podcast_enabled=${expectedPodcastEnabled}, ` +
-          `podcast_has_student_posts=${expectedPodcastStudentPosts}; Canvas returned podcast_enabled=${actualPodcastEnabled}, ` +
-          `podcast_has_student_posts=${actualPodcastStudentPosts}. This can be blocked by Canvas role/account settings.`
+          `podcast_has_student_posts=${expectedPodcastStudentPosts}; Canvas returned podcast_url=${podcastUrl || 'null'}, ` +
+          `podcast_enabled=${actualPodcastEnabled}, podcast_has_student_posts=${actualPodcastStudentPosts}.`
         );
       }
     }
