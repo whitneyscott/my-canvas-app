@@ -76,3 +76,6 @@ prisma/dev.db-journal
 
 # Accreditation proposed mappings (generated)
 services/accreditation-lookup/proposed-cip6-mappings.json
+
+# Local teacher QA checklist (discussion only)
+TEACHER_QA_CHECKLIST.md

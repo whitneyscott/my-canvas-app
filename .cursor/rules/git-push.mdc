@@ -5,11 +5,9 @@ alwaysApply: true
 
 # Git Push
 
-**Every time** you complete an editing session, **push to git** for code and product docs:
+**Every time** you complete an editing session, **push to git**:
 
-1. Run `git status` - if there are uncommitted changes, stage and commit them (see exclusion below)
+1. Run `git status` - if there are uncommitted changes, stage and commit them
 2. Run `git push`
 
-**Do not** commit or push `TEACHER_QA_CHECKLIST.md` (or similar teacher QA checklists) unless the user explicitly asks. That file is for local / discussion only.
-
-Do not end an editing session without pushing **eligible** changes. If the only changes are checklist-only, skip commit and push unless the user asked to include them.
+Do not end an editing session without pushing. The user has stated this explicitly; do not skip it or wait to be asked.
