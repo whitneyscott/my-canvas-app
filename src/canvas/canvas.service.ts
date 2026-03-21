@@ -963,7 +963,12 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       const rubric = Number.isFinite(assignmentId) ? rubricLookup.get(assignmentId) : null;
       return {
         ...topic,
+        graded: Boolean(assignment),
         points_possible: assignment?.points_possible ?? null,
+        assignment_group_id: assignment?.assignment_group_id ?? topic?.assignment_group_id ?? null,
+        due_at: assignment?.due_at ?? topic?.due_at ?? null,
+        unlock_at: assignment?.unlock_at ?? topic?.unlock_at ?? null,
+        lock_at: assignment?.lock_at ?? topic?.lock_at ?? null,
         rubric_id: rubric?.rubric_id ?? null,
         rubric_summary: rubric?.rubric_summary ?? null,
         rubric_url: rubric?.rubric_url ?? null,
@@ -1877,6 +1882,11 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   async updateDiscussion(courseId: number, discussionId: number, updates: Record<string, any>) {
     const { token, baseUrl } = await this.getAuthHeaders();
     const pending: Record<string, any> = { ...updates };
+    let gradedSelection: boolean | undefined = undefined;
+    if (Object.prototype.hasOwnProperty.call(pending, 'graded')) {
+      gradedSelection = Boolean(pending.graded);
+      delete pending.graded;
+    }
     let rubricSelection: number | null | undefined = undefined;
     if (Object.prototype.hasOwnProperty.call(pending, 'rubric_id')) {
       const rawRubric = pending.rubric_id;
@@ -1891,11 +1901,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     delete pending.rubric_summary;
     delete pending.rubric_url;
     delete pending.rubric_association_id;
-    const cleanedUpdates = cleanContentUpdates(pending, { clearableTextFields: true });
-    const topicUrl = `${baseUrl}/courses/${courseId}/discussion_topics/${discussionId}`;
-    const discussionUpdates: Record<string, any> = { ...cleanedUpdates };
-    const assignmentDateUpdates: Record<string, any> = {};
 
+    const topicUrl = `${baseUrl}/courses/${courseId}/discussion_topics/${discussionId}`;
     let assignmentId: number | null = null;
     try {
       const topic = await this.getDiscussion(courseId, discussionId);
@@ -1904,32 +1911,27 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       assignmentId = null;
     }
 
-    ['due_at', 'unlock_at', 'lock_at'].forEach((k) => {
-      if (
-        assignmentId &&
-        Object.prototype.hasOwnProperty.call(discussionUpdates, k)
-      ) {
-        assignmentDateUpdates[k] = discussionUpdates[k];
-      }
-    });
-
-    delete discussionUpdates.due_at;
-    delete discussionUpdates.unlock_at;
-
-    let topicResult: any = null;
-    if (Object.keys(discussionUpdates).length > 0) {
+    const sendDiscussionUpdate = async (payload: Record<string, any>): Promise<any> => {
+      if (!payload || Object.keys(payload).length === 0) return null;
       const form = new URLSearchParams();
-      Object.entries(discussionUpdates).forEach(([k, v]) => {
-        if (v !== undefined && v !== null) form.append(k, String(v));
+      Object.entries(payload).forEach(([k, v]) => {
+        if (v === undefined || v === null) return;
+        if (typeof v === 'object' && !Array.isArray(v)) {
+          Object.entries(v).forEach(([subK, subV]) => {
+            if (subV !== undefined && subV !== null) form.append(`${k}[${subK}]`, String(subV));
+          });
+        } else {
+          form.append(k, String(v));
+        }
       });
       const attempts: Array<{ contentType: string; body: string }> = [
-        { contentType: 'application/json', body: JSON.stringify(discussionUpdates) },
-        { contentType: 'application/json', body: JSON.stringify({ discussion_topic: discussionUpdates }) },
+        { contentType: 'application/json', body: JSON.stringify(payload) },
+        { contentType: 'application/json', body: JSON.stringify({ discussion_topic: payload }) },
         { contentType: 'application/x-www-form-urlencoded', body: form.toString() },
       ];
-
       let lastStatus = 0;
       let lastText = '';
+      let out: any = null;
       for (const attempt of attempts) {
         const response = await fetch(topicUrl, {
           method: 'PUT',
@@ -1943,12 +1945,12 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         if (response.ok) {
           if (text) {
             try {
-              topicResult = JSON.parse(text);
+              out = JSON.parse(text);
             } catch {
-              topicResult = {};
+              out = {};
             }
           } else {
-            topicResult = {};
+            out = {};
           }
           lastStatus = 0;
           lastText = '';
@@ -1958,14 +1960,47 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         lastText = text || response.statusText;
         if (![400, 415, 422].includes(response.status)) break;
       }
-
       if (lastStatus) {
         throw new Error(`Failed to update discussion: ${lastStatus} - ${lastText}`);
       }
+      return out;
+    };
+
+    let topicResult: any = null;
+    if (gradedSelection !== undefined) {
+      if (gradedSelection && !assignmentId) {
+        const pointsSeedRaw = pending.points_possible;
+        const pointsSeedNum = Number(pointsSeedRaw);
+        const pointsSeed = Number.isFinite(pointsSeedNum) ? pointsSeedNum : 0;
+        topicResult = await sendDiscussionUpdate({ assignment: { points_possible: pointsSeed } });
+        const refreshed = await this.getDiscussion(courseId, discussionId);
+        assignmentId = refreshed?.assignment_id ?? null;
+      }
+      if (!gradedSelection && assignmentId) {
+        topicResult = await sendDiscussionUpdate({ assignment: { set_assignment: false } });
+        assignmentId = null;
+      }
     }
 
-    if (assignmentId && Object.keys(assignmentDateUpdates).length > 0) {
-      await this.updateAssignment(courseId, assignmentId, assignmentDateUpdates);
+    const cleanedUpdates = cleanContentUpdates(pending, { clearableTextFields: true });
+    const discussionUpdates: Record<string, any> = { ...cleanedUpdates };
+    const assignmentUpdates: Record<string, any> = {};
+    ['due_at', 'unlock_at', 'lock_at', 'points_possible', 'assignment_group_id'].forEach((k) => {
+      if (Object.prototype.hasOwnProperty.call(discussionUpdates, k)) {
+        assignmentUpdates[k] = discussionUpdates[k];
+        delete discussionUpdates[k];
+      }
+    });
+
+    if (Object.keys(discussionUpdates).length > 0) {
+      topicResult = await sendDiscussionUpdate(discussionUpdates);
+    }
+
+    if (Object.keys(assignmentUpdates).length > 0) {
+      if (!assignmentId) {
+        throw new Error('Cannot set grading fields on an ungraded discussion. Enable Graded first.');
+      }
+      await this.updateAssignment(courseId, assignmentId, assignmentUpdates);
     }
 
     if (rubricSelection !== undefined) {

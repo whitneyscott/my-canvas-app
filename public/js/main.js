@@ -588,7 +588,7 @@ function generateColumnDefs(tabName) {
         else if (field.type === 'rubric_dropdown') {
             const rubrics = rubricsCache[selectedCourseId] || {};
             const rubricIds = Object.keys(rubrics).map(id => parseInt(id, 10)).filter(n => !isNaN(n));
-            const values = [...rubricIds, '__create_new__'];
+            const values = ['', ...rubricIds, '__create_new__'];
             colDef.valueFormatter = params => {
                 const v = params.value;
                 if (v === '__create_new__') return '+ Create New...';
@@ -600,6 +600,7 @@ function generateColumnDefs(tabName) {
             colDef.cellEditorParams = {
                 values,
                 formatValue: (value) => {
+                    if (value === '') return '(None / Clear)';
                     if (value === '__create_new__') return '+ Create New...';
                     const r = rubrics[value];
                     return r?.title || `Rubric ${value}`;
@@ -612,6 +613,21 @@ function generateColumnDefs(tabName) {
                 if (params.newValue === '' || params.newValue == null) return null;
                 const n = parseInt(params.newValue, 10);
                 return isNaN(n) ? null : n;
+            };
+        }
+        else if (field.type === 'discussion_points') {
+            colDef.cellDataType = 'number';
+            colDef.valueParser = params => {
+                if (params.newValue === '' || params.newValue == null) return null;
+                const n = Number(params.newValue);
+                return isNaN(n) ? null : n;
+            };
+            colDef.editable = (params) => Boolean(params?.data?.graded);
+            colDef.valueFormatter = params => {
+                const v = params.value;
+                if (v == null || v === '') return '';
+                const n = Number(v);
+                return isNaN(n) ? '' : String(n);
             };
         }
         else if (field.type === 'date' || field.type === 'datetime') {
@@ -1691,6 +1707,7 @@ function buildCreateParams(rowData, tab) {
     const cfg = FIELD_DEFINITIONS[getConfigKey(tab)];
     const fieldKeys = new Set((cfg?.fields || []).map(f => f.key));
     (CREATE_EXTRAS[tab] || []).forEach(k => fieldKeys.add(k));
+    ['graded', 'rubric_id', 'rubric_summary', 'rubric_url', 'rubric_association_id'].forEach(k => fieldKeys.delete(k));
     const out = {};
     for (const k of Object.keys(rowData)) {
         if (k.startsWith('_') || ['id', 'isNew', '_edit_status', '_isNew', '_pristine'].includes(k)) continue;

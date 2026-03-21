@@ -11,7 +11,32 @@ const DISCUSSION_LIKE_FIELDS = [
 
 const DISCUSSION_FIELDS = [
   ...DISCUSSION_LIKE_FIELDS,
-  { key: 'points_possible', label: 'Points Possible', editable: false, type: 'number' },
+  { key: 'graded', label: 'Graded', editable: true, type: 'boolean', activeLabel: 'Graded', inactiveLabel: 'Ungraded' },
+  { key: 'points_possible', label: 'Points Possible', editable: true, type: 'discussion_points' },
+  { key: 'discussion_type', label: 'Discussion Type', editable: true, type: 'select', options: [
+    { value: 'threaded', label: 'Threaded' },
+    { value: 'side_comment', label: 'Side Comment' },
+    { value: 'not_threaded', label: 'Not Threaded' }
+  ] },
+  { key: 'require_initial_post', label: 'Require Initial Post', editable: true, type: 'boolean', activeLabel: 'Required', inactiveLabel: 'Not Required' },
+  { key: 'anonymous_state', label: 'Anonymous Mode', editable: true, type: 'select', options: [
+    { value: 'off', label: 'Off' },
+    { value: 'partial_anonymity', label: 'Partial' },
+    { value: 'full_anonymity', label: 'Full' }
+  ] },
+  { key: 'is_anonymous_author', label: 'Anonymous Author', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
+  { key: 'sort_order', label: 'Sort Order', editable: true, type: 'select', options: [
+    { value: 'asc', label: 'Ascending' },
+    { value: 'desc', label: 'Descending' }
+  ] },
+  { key: 'sort_order_locked', label: 'Sort Locked', editable: true, type: 'boolean', activeLabel: 'Locked', inactiveLabel: 'User Selectable' },
+  { key: 'expand', label: 'Expand Threads', editable: true, type: 'boolean', activeLabel: 'Expanded', inactiveLabel: 'Collapsed' },
+  { key: 'expand_locked', label: 'Expand Locked', editable: true, type: 'boolean', activeLabel: 'Locked', inactiveLabel: 'User Selectable' },
+  { key: 'only_graders_can_rate', label: 'Only Graders Can Rate', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
+  { key: 'pinned', label: 'Pinned', editable: true, type: 'boolean', activeLabel: 'Pinned', inactiveLabel: 'Not Pinned' },
+  { key: 'lock_comment', label: 'Lock Comments', editable: true, type: 'boolean', activeLabel: 'Locked', inactiveLabel: 'Open' },
+  { key: 'podcast_enabled', label: 'Podcast Enabled', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
+  { key: 'podcast_has_student_posts', label: 'Podcast Includes Student Posts', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
   { key: 'rubric_id', label: 'Rubric', editable: true, type: 'rubric_dropdown' }
 ];
 
