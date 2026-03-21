@@ -30,7 +30,8 @@ function validateDateOrder(updates: Record<string, any>, itemLabel = 'Item'): vo
   const due = updates.due_at != null ? new Date(updates.due_at).getTime() : NaN;
   const unlock = updates.unlock_at != null ? new Date(updates.unlock_at).getTime() : NaN;
   const lock = updates.lock_at != null ? new Date(updates.lock_at).getTime() : NaN;
-  if (!Number.isFinite(due) && !Number.isFinite(unlock) && !Number.isFinite(lock)) return;
+  const delayed = updates.delayed_post_at != null ? new Date(updates.delayed_post_at).getTime() : NaN;
+  if (!Number.isFinite(due) && !Number.isFinite(unlock) && !Number.isFinite(lock) && !Number.isFinite(delayed)) return;
   if (Number.isFinite(unlock) && Number.isFinite(due) && unlock >= due) {
     throw new Error(`${itemLabel}: unlock_at must be before due_at (Canvas requirement)`);
   }
@@ -39,6 +40,9 @@ function validateDateOrder(updates: Record<string, any>, itemLabel = 'Item'): vo
   }
   if (Number.isFinite(unlock) && Number.isFinite(lock) && !Number.isFinite(due) && unlock >= lock) {
     throw new Error(`${itemLabel}: unlock_at must be before lock_at (Canvas requirement)`);
+  }
+  if (Number.isFinite(delayed) && Number.isFinite(lock) && delayed >= lock) {
+    throw new Error(`${itemLabel}: delayed_post_at must be before lock_at (Canvas requirement)`);
   }
 }
 
@@ -1948,13 +1952,17 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
     const topicUrl = `${baseUrl}/courses/${courseId}/discussion_topics/${discussionId}`;
     let assignmentId: number | null = null;
+    let isAnnouncement = false;
     try {
       const topic = await this.getDiscussion(courseId, discussionId);
       assignmentId = topic?.assignment_id ?? null;
+      isAnnouncement = Boolean(topic?.is_announcement);
       console.log(`[Service] Discussion ${discussionId} assignment_id:`, assignmentId);
+      console.log(`[Service] Discussion ${discussionId} is_announcement:`, isAnnouncement);
     } catch (e: any) {
       console.warn(`[Service] Could not fetch discussion ${discussionId} before update:`, e?.message || e);
       assignmentId = null;
+      isAnnouncement = false;
     }
 
     const sendDiscussionUpdate = async (payload: Record<string, any>): Promise<any> => {
@@ -2082,7 +2090,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     });
 
     const dateDetailsUpdates: Record<string, any> = {};
-    ['due_at', 'unlock_at', 'lock_at'].forEach((k) => {
+    const dateDetailKeys = isAnnouncement ? ['due_at', 'unlock_at'] : ['due_at', 'unlock_at', 'lock_at'];
+    dateDetailKeys.forEach((k) => {
       if (Object.prototype.hasOwnProperty.call(discussionUpdates, k)) {
         dateDetailsUpdates[k] = discussionUpdates[k];
         delete discussionUpdates[k];
@@ -2093,7 +2102,9 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       }
     });
 
-    const mergedDates = { ...dateDetailsUpdates };
+    const mergedDates = isAnnouncement
+      ? { delayed_post_at: discussionUpdates.delayed_post_at, lock_at: discussionUpdates.lock_at }
+      : { ...dateDetailsUpdates };
     if (Object.keys(mergedDates).length > 0) {
       validateDateOrder(mergedDates, `Discussion ${discussionId}`);
     }
@@ -2104,6 +2115,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       throw new Error('Cannot set due_at on an ungraded discussion. Enable Graded first.');
     }
     console.log(`[Service] Discussion ${discussionId} routed updates`, {
+      isAnnouncement,
       discussionUpdates,
       assignmentUpdates,
       dateDetailsUpdates,
@@ -2113,10 +2125,12 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     });
 
     if (Object.keys(dateDetailsUpdates).length > 0) {
+      console.log(`[Service] Discussion ${discussionId} date routing: date_details endpoint`);
       await sendDiscussionDateDetailsUpdate(dateDetailsUpdates);
     }
 
     if (Object.keys(discussionUpdates).length > 0) {
+      console.log(`[Service] Discussion ${discussionId} topic routing: discussion_topics endpoint`);
       topicResult = await sendDiscussionUpdate(discussionUpdates);
     }
 
@@ -2169,6 +2183,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   async updateAnnouncement(courseId: number, announcementId: number, updates: Record<string, any>) {
+    console.log(`[Service] updateAnnouncement called for announcement ${announcementId} in course ${courseId}`);
+    console.log(`[Service] Raw announcement updates:`, JSON.stringify(updates, null, 2));
     return this.updateDiscussion(courseId, announcementId, updates);
   }
 

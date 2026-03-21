@@ -345,7 +345,18 @@ export class CanvasController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updates: Record<string, any>
   ) {
-    return this.canvasService.updateAnnouncement(courseId, id, updates);
+    try {
+      return await this.canvasService.updateAnnouncement(courseId, id, updates);
+    } catch (error: any) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: `Failed to update announcement ${id}: ${error?.message || 'Unknown error'}`,
+          error: error?.message || 'Internal server error'
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
 
   @Put('courses/:courseId/modules/:id')
