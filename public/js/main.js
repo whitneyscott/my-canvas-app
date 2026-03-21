@@ -2432,6 +2432,8 @@ function executeDateShift() {
                 const timeStr = manualTime || timeOverride;
                 if (timeStr) { const [hours, mins] = timeStr.split(':'); dateObj.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
                 else dateObj.setHours(23, 59, 0, 0);
+                if (field === 'unlock_at') dateObj.setHours(dateObj.getHours() - 1, dateObj.getMinutes(), 0, 0);
+                else if (field === 'lock_at') dateObj.setHours(dateObj.getHours() + 1, dateObj.getMinutes(), 0, 0);
                 newDateValue = DateUtils.formatForCanvas(dateObj);
             } else if (currentValue) {
                 const currentDate = new Date(currentValue);
@@ -2446,6 +2448,8 @@ function executeDateShift() {
                 baseDate.setDate(baseDate.getDate() + offsetDaysNum);
                 if (timeOverride) { const [hours, mins] = timeOverride.split(':'); baseDate.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
                 else baseDate.setHours(23, 59, 0, 0);
+                if (field === 'unlock_at') baseDate.setHours(baseDate.getHours() - 1, baseDate.getMinutes(), 0, 0);
+                else if (field === 'lock_at') baseDate.setHours(baseDate.getHours() + 1, baseDate.getMinutes(), 0, 0);
                 newDateValue = DateUtils.formatForCanvas(baseDate);
             }
             if (isClearMode || newDateValue !== null) {

@@ -26,6 +26,22 @@ function processDateField(key: string, value: any): any {
   } catch { return undefined; }
 }
 
+function validateDateOrder(updates: Record<string, any>, itemLabel = 'Item'): void {
+  const due = updates.due_at != null ? new Date(updates.due_at).getTime() : NaN;
+  const unlock = updates.unlock_at != null ? new Date(updates.unlock_at).getTime() : NaN;
+  const lock = updates.lock_at != null ? new Date(updates.lock_at).getTime() : NaN;
+  if (!Number.isFinite(due) && !Number.isFinite(unlock) && !Number.isFinite(lock)) return;
+  if (Number.isFinite(unlock) && Number.isFinite(due) && unlock >= due) {
+    throw new Error(`${itemLabel}: unlock_at must be before due_at (Canvas requirement)`);
+  }
+  if (Number.isFinite(due) && Number.isFinite(lock) && lock <= due) {
+    throw new Error(`${itemLabel}: lock_at must be after due_at (Canvas requirement)`);
+  }
+  if (Number.isFinite(unlock) && Number.isFinite(lock) && !Number.isFinite(due) && unlock >= lock) {
+    throw new Error(`${itemLabel}: unlock_at must be before lock_at (Canvas requirement)`);
+  }
+}
+
 function cleanContentUpdates(
   updates: Record<string, any>,
   options: { clearableTextFields: boolean },
@@ -1560,6 +1576,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         }
         return await this.getAssignment(courseId, assignmentId);
       }
+
+      validateDateOrder(cleanedUpdates, `Assignment ${assignmentId}`);
       
       console.log(`[Service] Updating assignment ${assignmentId} in course ${courseId}`);
       console.log(`[Service] Cleaned updates:`, JSON.stringify(cleanedUpdates, null, 2));
@@ -1746,6 +1764,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         await this.upsertAssignmentRubricAssociation(courseId, assignmentId, rubricSelection, token, baseUrl);
         return await this.getQuiz(courseId, quizId);
       }
+
+      validateDateOrder(cleanedUpdates, `Quiz ${quizId}`);
       
       console.log(`[Service] Updating quiz ${quizId} in course ${courseId}`);
       console.log(`[Service] Cleaned updates:`, JSON.stringify(cleanedUpdates, null, 2));
@@ -2005,6 +2025,11 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       }
     });
 
+    const mergedDates = { ...discussionUpdates, ...assignmentUpdates };
+    if (Object.keys(mergedDates).length > 0) {
+      validateDateOrder(mergedDates, `Discussion ${discussionId}`);
+    }
+
     if (Object.keys(discussionUpdates).length > 0) {
       topicResult = await sendDiscussionUpdate(discussionUpdates);
     }
@@ -2029,6 +2054,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   async updatePage(courseId: number, pageUrl: string, updates: Record<string, any>) {
     const { token, baseUrl } = await this.getAuthHeaders();
     const cleanedUpdates = cleanContentUpdates(updates, { clearableTextFields: true });
+
+    validateDateOrder(cleanedUpdates, `Page ${pageUrl}`);
 
     const requestBody = cleanedUpdates.wiki_page
       ? cleanedUpdates
