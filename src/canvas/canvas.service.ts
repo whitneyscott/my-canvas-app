@@ -1259,6 +1259,72 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return copied;
   }
 
+  async createFolder(courseId: number, name: string, parentFolderId?: number | null) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const body = new URLSearchParams();
+    body.set('name', name);
+    if (parentFolderId != null && Number.isFinite(Number(parentFolderId))) {
+      body.set('parent_folder_id', String(parentFolderId));
+    }
+    const res = await fetch(`${baseUrl}/courses/${courseId}/folders`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`Canvas API error: ${res.status} ${res.statusText} - ${text}`);
+    try {
+      return JSON.parse(text);
+    } catch {
+      return {};
+    }
+  }
+
+  async copyFolderToFolder(
+    courseId: number,
+    sourceFolderId: number,
+    destFolderId?: number | null,
+    name?: string,
+  ) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const targetFolderId = Number.isFinite(Number(destFolderId))
+      ? Number(destFolderId)
+      : await this.getCourseRootFolderId(courseId, token, baseUrl);
+
+    const body = new URLSearchParams();
+    body.set('source_folder_id', String(sourceFolderId));
+    const copyRes = await fetch(`${baseUrl}/folders/${targetFolderId}/copy_folder`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    });
+    const copyText = await copyRes.text();
+    if (!copyRes.ok) {
+      throw new Error(`Canvas API error: ${copyRes.status} ${copyRes.statusText} - ${copyText}`);
+    }
+    let copied: any = {};
+    if (copyText) {
+      try {
+        copied = JSON.parse(copyText);
+      } catch {
+        copied = {};
+      }
+    }
+
+    const desiredName = (name || '').trim();
+    const currentName = String(copied?.name || copied?.full_name || '').trim();
+    if (desiredName && copied?.id && desiredName !== currentName) {
+      return this.updateFolder(Number(copied.id), { name: desiredName });
+    }
+    return copied;
+  }
+
   private async getFileUsage(courseId: number, fileId: number): Promise<Array<{ type: string; id: number; title: string }>> {
     const { token, baseUrl } = await this.getAuthHeaders();
     const usage: Array<{ type: string; id: number; title: string }> = [];

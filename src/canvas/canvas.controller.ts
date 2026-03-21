@@ -621,6 +621,31 @@ export class CanvasController {
     );
   }
 
+  @Post('courses/:courseId/folders')
+  async createFolder(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Body() body: { name: string; parent_folder_id?: number }
+  ) {
+    if (!body?.name) throw new HttpException('name required', HttpStatus.BAD_REQUEST);
+    return this.canvasService.createFolder(courseId, body.name, body.parent_folder_id);
+  }
+
+  @Post('courses/:courseId/folders/copy')
+  async copyFolder(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Body() body: { source_folder_id: number; parent_folder_id?: number; name?: string }
+  ) {
+    if (!body?.source_folder_id) {
+      throw new HttpException('source_folder_id required', HttpStatus.BAD_REQUEST);
+    }
+    return this.canvasService.copyFolderToFolder(
+      courseId,
+      Number(body.source_folder_id),
+      body.parent_folder_id != null ? Number(body.parent_folder_id) : null,
+      body.name,
+    );
+  }
+
   @Delete('courses/:courseId/files/:fileId')
   async deleteFileOrFolder(
     @Param('courseId', ParseIntPipe) courseId: number,

@@ -1980,6 +1980,38 @@ function handleCloneClick() {
     }
 }
 
+async function executeFilesFolderClone(cloneMode, selectedRows, prefix, suffix) {
+    if (!selectedCourseId) throw new Error('No course selected.');
+    const folders = selectedRows.filter(r => r?.is_folder);
+    if (!folders.length) throw new Error('Select at least one folder for folder cloning.');
+
+    const existingNames = new Set((originalData.files || []).map(r => r?.display_name || r?.name).filter(Boolean));
+    for (const folder of folders) {
+        const base = folder.display_name || folder.name || `Folder ${folder.id}`;
+        const newName = getUniqueName(base, existingNames, prefix, suffix);
+        const payload = {
+            source_folder_id: folder.id,
+            parent_folder_id: folder.folder_id ?? null,
+            name: newName,
+        };
+        const url = cloneMode === 'deep'
+            ? `/canvas/courses/${selectedCourseId}/folders/copy`
+            : `/canvas/courses/${selectedCourseId}/folders`;
+        const body = cloneMode === 'deep'
+            ? payload
+            : { name: newName, parent_folder_id: folder.folder_id ?? null };
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (!response.ok) {
+            const raw = await response.text().catch(() => '');
+            throw new Error(raw || response.statusText || 'Folder clone failed');
+        }
+    }
+}
+
 async function executeModuleDelete(option) {
     const selectedItems = getSelectedItems();
     if (!selectedItems.length) { alert("No items selected."); return; }
@@ -2405,10 +2437,16 @@ function openModal(modalId) {
     } else if (modalId === 'cloneModal') {
         const methodSelect = document.getElementById('cloneMethod');
         const isModuleTab = (currentTab === 'modules');
+        const isFilesTab = (currentTab === 'files');
+        const selectedRows = getSelectedItems();
+        const hasFolderSelected = isFilesTab && selectedRows.some(r => r?.is_folder);
         if (methodSelect) {
             if (isModuleTab) {
                 methodSelect.innerHTML = '<option value="structural">Structural Clone (Empty Shell)</option><option value="deep">Deep Clone (Modules only)</option>';
                 methodSelect.value = 'structural';
+            } else if (hasFolderSelected) {
+                methodSelect.innerHTML = '<option value="surface">Surface Clone (Folder shell only)</option><option value="deep">Deep Clone (Folder + contents)</option><option value="item">Add to Grid (then Sync to Canvas)</option>';
+                methodSelect.value = 'surface';
             } else {
                 methodSelect.innerHTML = '<option value="item">Add to Grid (then Sync to Canvas)</option>';
                 methodSelect.value = 'item';
@@ -2643,7 +2681,19 @@ async function executeClone() {
     const method = document.getElementById('cloneMethod').value;
     const prefix = document.getElementById('clonePrefix').value || '';
     const suffix = document.getElementById('cloneSuffix').value || '';
-    if (currentTab === 'modules' && method === 'deep') {
+    if (currentTab === 'files' && (method === 'surface' || method === 'deep')) {
+        try {
+            if (gridApi) {
+                gridApi.showLoadingOverlay();
+                var ltf = document.getElementById('custom-loading-text');
+                if (ltf) ltf.textContent = (method === 'deep') ? 'Deep cloning folders...' : 'Cloning folder shells...';
+            }
+            await executeFilesFolderClone(method, selectedRows, prefix, suffix);
+            await refreshCurrentTab();
+        } finally {
+            if (gridApi) gridApi.hideOverlay();
+        }
+    } else if (currentTab === 'modules' && method === 'deep') {
         try {
             if (gridApi) {
                 gridApi.showLoadingOverlay();
