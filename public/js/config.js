@@ -40,6 +40,16 @@ const DISCUSSION_FIELDS = [
   { key: 'rubric_id', label: 'Rubric', editable: true, type: 'rubric_dropdown' }
 ];
 
+const ANNOUNCEMENT_FIELDS = [
+  { key: 'title', label: 'Title', editable: true, type: 'text' },
+  { key: 'message', label: 'Message', editable: true, type: 'html' },
+  { key: 'allow_rating', label: 'Allow Rating', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
+  { key: 'unlock_at', label: 'Available From', editable: true, type: 'date' },
+  { key: 'lock_at', label: 'Available Until', editable: true, type: 'date' },
+  { key: 'podcast_enabled', label: 'Podcast Enabled', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
+  { key: 'published', label: 'Published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
+];
+
 const CANVAS_CONFIG = {
   FIELD_DEFINITIONS: {
     assignments: {
@@ -104,7 +114,7 @@ const CANVAS_CONFIG = {
     announcements: {
       displayName: 'Announcements',
       endpoint: 'announcements',
-      fields: DISCUSSION_LIKE_FIELDS
+      fields: ANNOUNCEMENT_FIELDS
     },
     new_quizzes: {
       displayName: 'New Quizzes',
