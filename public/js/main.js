@@ -1808,7 +1808,10 @@ async function syncChanges() {
             let errMsg = response.statusText;
             try {
                 const errBody = rawText ? JSON.parse(rawText) : {};
-                errMsg = errBody.message || errBody.error || rawText || errMsg;
+                const msg = errBody.message ?? errBody.error;
+                if (typeof msg === 'string') errMsg = msg;
+                else if (msg != null) errMsg = JSON.stringify(msg);
+                else errMsg = rawText || errMsg;
             } catch (_) {
                 if (rawText) errMsg = rawText.slice(0, 1000);
             }

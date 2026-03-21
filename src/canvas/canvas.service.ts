@@ -1959,6 +1959,10 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       isAnnouncement = Boolean(topic?.is_announcement);
       console.log(`[Service] Discussion ${discussionId} assignment_id:`, assignmentId);
       console.log(`[Service] Discussion ${discussionId} is_announcement:`, isAnnouncement);
+      console.log(`[Service] Discussion ${discussionId} current podcast state:`, {
+        podcast_enabled: topic?.podcast_enabled,
+        podcast_has_student_posts: topic?.podcast_has_student_posts,
+      });
     } catch (e: any) {
       console.warn(`[Service] Could not fetch discussion ${discussionId} before update:`, e?.message || e);
       assignmentId = null;
@@ -1967,30 +1971,35 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
     const sendDiscussionUpdate = async (payload: Record<string, any>): Promise<any> => {
       if (!payload || Object.keys(payload).length === 0) return null;
+      const toFormValue = (value: any): string => {
+        if (typeof value === 'boolean') return value ? '1' : '0';
+        return String(value);
+      };
       const form = new URLSearchParams();
       Object.entries(payload).forEach(([k, v]) => {
         if (v === undefined || v === null) return;
         if (typeof v === 'object' && !Array.isArray(v)) {
           Object.entries(v).forEach(([subK, subV]) => {
-            if (subV !== undefined && subV !== null) form.append(`${k}[${subK}]`, String(subV));
+            if (subV !== undefined && subV !== null) form.append(`${k}[${subK}]`, toFormValue(subV));
           });
         } else {
-          form.append(k, String(v));
+          form.append(k, toFormValue(v));
         }
       });
-      const attempts: Array<{ contentType: string; body: string }> = [
-        { contentType: 'application/json', body: JSON.stringify(payload) },
-        { contentType: 'application/json', body: JSON.stringify({ discussion_topic: payload }) },
-        { contentType: 'application/x-www-form-urlencoded', body: form.toString() },
+      const attempts: Array<{ name: string; contentType: string; body: string }> = [
+        { name: 'form_urlencoded', contentType: 'application/x-www-form-urlencoded', body: form.toString() },
+        { name: 'json_wrapped', contentType: 'application/json', body: JSON.stringify({ discussion_topic: payload }) },
+        { name: 'json_raw', contentType: 'application/json', body: JSON.stringify(payload) },
       ];
       let lastStatus = 0;
       let lastText = '';
-      let lastAttempt: { contentType: string; body: string } | null = null;
+      let lastAttempt: { name: string; contentType: string; body: string } | null = null;
       let out: any = null;
       for (const attempt of attempts) {
         console.log(`[Service] Discussion ${discussionId} PUT attempt`, {
+          format: attempt.name,
           contentType: attempt.contentType,
-          body: attempt.body,
+          body: attempt.body?.slice(0, 1000) || '',
         });
         const response = await fetch(topicUrl, {
           method: 'PUT',
@@ -2028,7 +2037,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       if (lastStatus) {
         throw new Error(
           `Failed to update discussion ${discussionId}: ${lastStatus} - ${lastText}. Endpoint: ${topicUrl}. ` +
-          `Payload: ${(lastAttempt?.body || '').slice(0, 1000)}`
+          `Format: ${lastAttempt?.name || 'unknown'}. Payload: ${(lastAttempt?.body || '').slice(0, 1000)}`
         );
       }
       return out;
@@ -2080,6 +2089,15 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     }
 
     const cleanedUpdates = cleanContentUpdates(pending, { clearableTextFields: true });
+    const podcastRequested =
+      Object.prototype.hasOwnProperty.call(cleanedUpdates, 'podcast_enabled') ||
+      Object.prototype.hasOwnProperty.call(cleanedUpdates, 'podcast_has_student_posts');
+    const expectedPodcastEnabled = Object.prototype.hasOwnProperty.call(cleanedUpdates, 'podcast_enabled')
+      ? Boolean(cleanedUpdates.podcast_enabled)
+      : undefined;
+    const expectedPodcastStudentPosts = Object.prototype.hasOwnProperty.call(cleanedUpdates, 'podcast_has_student_posts')
+      ? Boolean(cleanedUpdates.podcast_has_student_posts)
+      : undefined;
     const discussionUpdates: Record<string, any> = { ...cleanedUpdates };
     const assignmentUpdates: Record<string, any> = {};
     ['due_at', 'unlock_at', 'points_possible', 'assignment_group_id'].forEach((k) => {
@@ -2149,7 +2167,29 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       await this.upsertAssignmentRubricAssociation(courseId, assignmentId, rubricSelection, token, baseUrl);
     }
 
-    return topicResult || this.getDiscussion(courseId, discussionId);
+    const finalTopic = await this.getDiscussion(courseId, discussionId);
+    if (podcastRequested) {
+      const actualPodcastEnabled = Boolean(finalTopic?.podcast_enabled);
+      const actualPodcastStudentPosts = Boolean(finalTopic?.podcast_has_student_posts);
+      console.log(`[Service] Discussion ${discussionId} podcast readback`, {
+        expectedPodcastEnabled,
+        expectedPodcastStudentPosts,
+        actualPodcastEnabled,
+        actualPodcastStudentPosts,
+      });
+      if (
+        (expectedPodcastEnabled !== undefined && actualPodcastEnabled !== expectedPodcastEnabled) ||
+        (expectedPodcastStudentPosts !== undefined && actualPodcastStudentPosts !== expectedPodcastStudentPosts)
+      ) {
+        throw new Error(
+          `Podcast setting did not persist on discussion ${discussionId}. Requested podcast_enabled=${expectedPodcastEnabled}, ` +
+          `podcast_has_student_posts=${expectedPodcastStudentPosts}; Canvas returned podcast_enabled=${actualPodcastEnabled}, ` +
+          `podcast_has_student_posts=${actualPodcastStudentPosts}. This can be blocked by Canvas role/account settings.`
+        );
+      }
+    }
+
+    return topicResult || finalTopic;
   }
 
   async updatePage(courseId: number, pageUrl: string, updates: Record<string, any>) {
