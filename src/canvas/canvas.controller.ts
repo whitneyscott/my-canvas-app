@@ -264,16 +264,8 @@ export class CanvasController {
     @Body() updates: Record<string, any>
   ) {
     try {
-      console.log(`[Controller] Updating assignment ${id} in course ${courseId}`);
-      console.log(`[Controller] Updates received:`, JSON.stringify(updates, null, 2));
-      const result = await this.canvasService.updateAssignment(courseId, id, updates);
-      console.log(`[Controller] Assignment ${id} updated successfully`);
-      console.log(`[Controller] Returning result to client:`, JSON.stringify(result, null, 2));
-      return result;
+      return await this.canvasService.updateAssignment(courseId, id, updates);
     } catch (error: any) {
-      console.error(`[Controller] Error updating assignment ${id} in course ${courseId}:`, error);
-      console.error(`[Controller] Error message:`, error.message);
-      console.error(`[Controller] Error stack:`, error.stack);
       throw new HttpException(
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -292,17 +284,8 @@ export class CanvasController {
     @Body() updates: Record<string, any>
   ) {
     try {
-      console.log(`[Controller] Updating quiz ${id} in course ${courseId}`);
-      console.log(`[Controller] Updates received:`, JSON.stringify(updates, null, 2));
-      const result = await this.canvasService.updateQuiz(courseId, id, updates);
-      console.log(`[Controller] Quiz ${id} updated successfully`);
-      console.log(`[Controller] Returning result to client:`, JSON.stringify(result, null, 2));
-      return result;
+      return await this.canvasService.updateQuiz(courseId, id, updates);
     } catch (error: any) {
-      console.error(`[Controller] Error updating quiz ${id}:`, error);
-      console.error(`[Controller] Error message:`, error.message);
-      console.error(`[Controller] Error stack:`, error.stack);
-      // Throw HttpException so NestJS handles it properly
       throw new HttpException(
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,

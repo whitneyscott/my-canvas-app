@@ -60,6 +60,7 @@ const CANVAS_CONFIG = {
     pages: {
       displayName: 'Pages',
       endpoint: 'pages',
+      usesSlugIdentifier: true,
       fields: [
         { key: 'title', label: 'Page Title', editable: true, type: 'text' },
         { key: 'body', label: 'Content', editable: true, type: 'html' },

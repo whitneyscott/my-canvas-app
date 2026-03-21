@@ -77,6 +77,13 @@ let assignmentGroupsCache = {};
 
 const FIELD_DEFINITIONS = window.FIELD_DEFINITIONS || window.CANVAS_CONFIG?.FIELD_DEFINITIONS || {};
 
+function getConfigKey(tabOrType) {
+    if (!tabOrType) return tabOrType;
+    if (FIELD_DEFINITIONS[tabOrType]) return tabOrType;
+    if (tabOrType === 'discussions') return 'discussion_topics';
+    return tabOrType;
+}
+
 function debugLog(message, type = 'info') {
     const debugContent = document.getElementById('debugContent');
     if (!debugContent) return;
@@ -294,8 +301,7 @@ const gridOptions = {
     // Additional event handler to catch programmatic changes
     onRowDataUpdated: params => {
         if (!gridApi || currentTab === 'files') return;
-        let configKey = currentTab;
-        if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
+        const configKey = getConfigKey(currentTab);
         const tabConfig = FIELD_DEFINITIONS[configKey];
         const trackKeys = tabConfig?.fields?.map(f => f.key).filter(Boolean) || [];
         const keysToCompare = trackKeys.filter(k => !['_edit_status', 'id', 'url'].includes(k));
@@ -427,8 +433,7 @@ async function submitToken() {
 
 function generateColumnDefs(tabName) {
     debugLog(`Generating column definitions for: ${tabName}`);
-    let configKey = tabName;
-    if (!FIELD_DEFINITIONS[configKey] && tabName === 'discussions') configKey = 'discussion_topics';
+    const configKey = getConfigKey(tabName);
     const tabConfig = FIELD_DEFINITIONS[configKey];
     if (!tabConfig) {
         debugLog(`ERROR: No config found for tab: ${tabName}`);
@@ -445,6 +450,7 @@ function generateColumnDefs(tabName) {
         minWidth: 90,
         sortable: true,
         editable: false,
+        cellClass: 'ag-read-only-cell',
         cellRenderer: params => {
             if (params.value === 'modified') {
                 return `<span class="status-pending">Modified</span>`;
@@ -604,6 +610,7 @@ function generateColumnDefs(tabName) {
                 return container;
             };
         }
+        if (colDef.editable === false) colDef.cellClass = 'ag-read-only-cell';
         return colDef;
     });
 
@@ -613,6 +620,7 @@ function generateColumnDefs(tabName) {
             field: 'is_folder',
             sortable: true,
             editable: false,
+            cellClass: 'ag-read-only-cell',
             width: 70,
             minWidth: 70,
             valueGetter: params => params.data?.is_folder ? 'Folder' : 'File',
@@ -632,6 +640,7 @@ function generateColumnDefs(tabName) {
         minWidth: 70,
         sortable: true,
         editable: false,
+        cellClass: 'ag-read-only-cell',
         hide: false,
         pinned: 'left'
     };
@@ -664,9 +673,7 @@ async function refreshCurrentTab() {
     try {
         if (gridApi) gridApi.setGridOption('loading', true);
 
-        let configKey = currentTab;
-        if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
-
+        const configKey = getConfigKey(currentTab);
         const tabConfig = FIELD_DEFINITIONS[configKey];
         if (!tabConfig) { throw new Error(`No config for: ${currentTab}`); }
 
@@ -1456,8 +1463,7 @@ async function loadTabData(tabName) {
     try {
         if (!selectedCourseId) return;
 
-        var configKey = tabName;
-        if (!FIELD_DEFINITIONS[configKey] && tabName === 'discussions') configKey = 'discussion_topics';
+        const configKey = getConfigKey(tabName);
 
         var tabConfig = FIELD_DEFINITIONS[configKey];
         if (!tabConfig) return;
@@ -1576,8 +1582,7 @@ async function syncChanges() {
     const updateItemIds = itemIds.filter(id => !String(id).startsWith('TEMP_'));
     if (!itemIds.length) return alert('No changes.');
 
-    let configKey = currentTab;
-    if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
+    const configKey = getConfigKey(currentTab);
     const config = FIELD_DEFINITIONS[configKey];
     if (!config) return alert('Invalid tab.');
     const endpoint = config.endpoint;
@@ -1660,7 +1665,8 @@ async function syncChanges() {
                     updates.isFolder = true;
             });
         }
-        const url = `/canvas/courses/${selectedCourseId}/${endpoint}/${itemId}`;
+        const pathSegment = config.usesSlugIdentifier ? encodeURIComponent(itemId) : itemId;
+        const url = `/canvas/courses/${selectedCourseId}/${endpoint}/${pathSegment}`;
         const svcMap = { assignments: 'updateAssignment', quizzes: 'updateQuiz', discussions: 'updateDiscussion', pages: 'updatePage', announcements: 'updateAnnouncement', modules: 'updateModule' };
         debugLog('[Sync] PUT ' + url + ' -> canvasService.' + (svcMap[endpoint] || 'update') + '() body=' + JSON.stringify(updates), 'info');
         try {
@@ -1972,8 +1978,7 @@ function populateColumnDropdown(selectId) {
     const selectElement = document.getElementById(selectId);
     if (!selectElement) return;
     selectElement.innerHTML = '';
-    let configKey = currentTab;
-    if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
+    const configKey = getConfigKey(currentTab);
     const tabConfig = FIELD_DEFINITIONS[configKey];
     if (!tabConfig?.fields) return;
     tabConfig.fields.forEach((field) => {
@@ -2013,8 +2018,7 @@ function populateDateColumnSelector() {
     const container = document.getElementById('dateColumnSelector');
     if (!container) return;
     container.innerHTML = '';
-    let configKey = currentTab;
-    if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
+    const configKey = getConfigKey(currentTab);
     const tabConfig = FIELD_DEFINITIONS[configKey];
     if (!tabConfig) {
         container.innerHTML = '<div style="text-align:center;padding:10px;color:#666">Select valid tab</div>';
@@ -2046,8 +2050,7 @@ function populateNumericColumnSelector(selectId) {
     const selectElement = document.getElementById(selectId);
     if (!selectElement) return;
     selectElement.innerHTML = '';
-    let configKey = currentTab;
-    if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
+    const configKey = getConfigKey(currentTab);
     const tabConfig = FIELD_DEFINITIONS[configKey];
     if (!tabConfig) return;
     tabConfig.fields.forEach(field => {
@@ -2066,8 +2069,7 @@ async function populateAssignmentGroupSelector() {
     const helpEl = document.getElementById('assignmentGroupHelp');
     if (!selectEl) return;
     selectEl.innerHTML = '<option value="">Loading...</option>';
-    let configKey = currentTab;
-    if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
+    const configKey = getConfigKey(currentTab);
     const tabConfig = FIELD_DEFINITIONS[configKey];
     const hasAgField = tabConfig && tabConfig.fields && tabConfig.fields.some(f => f.key === 'assignment_group_id');
     if (!hasAgField) {
@@ -2144,8 +2146,7 @@ async function executeMoveToAssignmentGroup() {
         }
     }
     if (isNaN(targetGroupId)) return;
-    let configKey = currentTab;
-    if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
+    const configKey = getConfigKey(currentTab);
     const tabConfig = FIELD_DEFINITIONS[configKey];
     const hasAgField = tabConfig && tabConfig.fields && tabConfig.fields.some(f => f.key === 'assignment_group_id');
     if (!hasAgField) return;
@@ -2448,13 +2449,13 @@ async function executeClone() {
                 var lt2 = document.getElementById('custom-loading-text');
                 if (lt2) lt2.textContent = 'Cloning...';
             }
-            let configKey = currentTab;
-            if (!FIELD_DEFINITIONS[configKey] && currentTab === 'discussions') configKey = 'discussion_topics';
+            const configKey = getConfigKey(currentTab);
             const tabConfig = FIELD_DEFINITIONS[configKey];
             for (const rowData of selectedRows) {
                 const endpoint = tabConfig.endpoint;
                 const itemIdentifier = (currentTab === 'pages') ? (rowData.url || rowData.page_url) : rowData.id;
-                const response = await fetch(`/canvas/courses/${selectedCourseId}/${endpoint}/${itemIdentifier}`);
+                const pathSegment = tabConfig.usesSlugIdentifier ? encodeURIComponent(itemIdentifier) : itemIdentifier;
+                const response = await fetch(`/canvas/courses/${selectedCourseId}/${endpoint}/${pathSegment}`);
                 if (response.ok) {
                     const originalFullObject = await response.json();
                     const sanitizedCopy = sanitizeRowData(originalFullObject, endpoint, 'clone');
@@ -2691,8 +2692,7 @@ function getUniqueName(originalName, existingNames, prefix = '', suffix = '') {
 }
 
 function sanitizeRowData(rowData, tabType, method = 'sync') {
-    let configKey = tabType;
-    if (!FIELD_DEFINITIONS[configKey] && tabType === 'discussions') configKey = 'discussion_topics';
+    const configKey = getConfigKey(tabType);
     const tabConfig = FIELD_DEFINITIONS[configKey];
     if (!tabConfig) return {};
 
@@ -2766,7 +2766,8 @@ async function performDeepCloneWithIndex(moduleRecord, prefix, baseName, suffix,
                 else if (itemType === 'Discussion') apiEndpoint = 'discussions';
                 if (apiEndpoint) {
                     const contentIdentifier = (itemType === 'Page') ? (item.page_url || item.content_id) : item.content_id;
-                    const contentResponse = await fetch(`/canvas/courses/${selectedCourseId}/${apiEndpoint}/${contentIdentifier}`);
+                    const pathSegment = (itemType === 'Page') ? encodeURIComponent(contentIdentifier) : contentIdentifier;
+                    const contentResponse = await fetch(`/canvas/courses/${selectedCourseId}/${apiEndpoint}/${pathSegment}`);
                     if (contentResponse.ok) {
                         const originalFullObject = await contentResponse.json();
                         const sanitizedCopy = sanitizeRowData(originalFullObject, apiEndpoint, 'clone');
@@ -2916,11 +2917,11 @@ function getSelectedItems() {
 }
 
 async function deleteCanvasItem(type, courseId, identifier, extraBody) {
-    let configKey = type;
-    if (!FIELD_DEFINITIONS[configKey] && type === 'discussions') configKey = 'discussion_topics';
+    const configKey = getConfigKey(type);
     const config = FIELD_DEFINITIONS[configKey];
     const endpoint = config ? config.endpoint : type;
-    const response = await fetch(`/canvas/courses/${courseId}/${endpoint}/${identifier}`, {
+    const pathSegment = config?.usesSlugIdentifier ? encodeURIComponent(identifier) : identifier;
+    const response = await fetch(`/canvas/courses/${courseId}/${endpoint}/${pathSegment}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: extraBody ? JSON.stringify(extraBody) : undefined
