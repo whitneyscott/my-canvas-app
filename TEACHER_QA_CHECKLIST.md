@@ -88,9 +88,9 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 - [x] **Assignment Group**: change → Sync → verify.
 - [x] **Time limit**: edit → Sync → verify (min picker, bulk op).
 - [ ] **Allowed attempts**: edit → Sync → verify.
-- [ ] **Due / Available From / Available Until**, **Show Answers At / Hide Answers At**: edit → Sync → verify (server may route `due_at` via assignment for graded quizzes).
+- [x] **Due / Available From / Available Until**, **Show Answers At / Hide Answers At**: edit → Sync → verify (server may route `due_at` via assignment for graded quizzes).
 - [ ] **Points** (bulk) on `time_limit` or `allowed_attempts`.
-- [ ] **Date Shift** on quiz date fields.
+- [x] **Date Shift** on quiz date fields.
 - [x] **Search & Replace** on title.
 - [ ] **Clone** deep: fetches quiz + creates copy → verify.
 - [ ] **Delete** → verify.
