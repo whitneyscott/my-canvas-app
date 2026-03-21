@@ -1797,20 +1797,30 @@ async function syncChanges() {
         }
         const pathSegment = config.usesSlugIdentifier ? encodeURIComponent(itemId) : itemId;
         const url = `/canvas/courses/${selectedCourseId}/${endpoint}/${pathSegment}`;
+        debugLog('[Sync] Request: ' + currentTab + ' ' + itemId + ' PUT ' + url + ' payload=' + JSON.stringify(updates), 'info');
         const response = await fetch(url, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updates)
         });
         if (!response.ok) {
+            const rawText = await response.text();
             let errMsg = response.statusText;
             try {
-                const errBody = await response.json();
-                errMsg = errBody.message || errBody.error || errMsg;
+                const errBody = rawText ? JSON.parse(rawText) : {};
+                errMsg = errBody.message || errBody.error || rawText || errMsg;
             } catch (_) {
-                const text = await response.text();
-                if (text) errMsg = text.slice(0, 300);
+                if (rawText) errMsg = rawText.slice(0, 1000);
             }
+            debugLog(
+                '[Sync] HTTP FAILED: item=' + itemId +
+                ' tab=' + currentTab +
+                ' status=' + response.status +
+                ' endpoint=' + url +
+                ' payload=' + JSON.stringify(updates) +
+                ' response=' + (rawText ? rawText.slice(0, 1000) : ''),
+                'error'
+            );
             throw new Error(errMsg);
         }
         return { itemId, updates };

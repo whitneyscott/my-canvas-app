@@ -1910,6 +1910,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   async updateDiscussion(courseId: number, discussionId: number, updates: Record<string, any>) {
+    console.log(`[Service] updateDiscussion called for discussion ${discussionId} in course ${courseId}`);
+    console.log(`[Service] Raw discussion updates:`, JSON.stringify(updates, null, 2));
     const { token, baseUrl } = await this.getAuthHeaders();
     const pending: Record<string, any> = { ...updates };
     let gradedSelection: boolean | undefined = undefined;
@@ -1937,7 +1939,9 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     try {
       const topic = await this.getDiscussion(courseId, discussionId);
       assignmentId = topic?.assignment_id ?? null;
-    } catch {
+      console.log(`[Service] Discussion ${discussionId} assignment_id:`, assignmentId);
+    } catch (e: any) {
+      console.warn(`[Service] Could not fetch discussion ${discussionId} before update:`, e?.message || e);
       assignmentId = null;
     }
 
@@ -1961,8 +1965,13 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       ];
       let lastStatus = 0;
       let lastText = '';
+      let lastAttempt: { contentType: string; body: string } | null = null;
       let out: any = null;
       for (const attempt of attempts) {
+        console.log(`[Service] Discussion ${discussionId} PUT attempt`, {
+          contentType: attempt.contentType,
+          body: attempt.body,
+        });
         const response = await fetch(topicUrl, {
           method: 'PUT',
           headers: {
@@ -1972,6 +1981,11 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
           body: attempt.body,
         });
         const text = await response.text();
+        console.log(`[Service] Discussion ${discussionId} PUT response`, {
+          status: response.status,
+          statusText: response.statusText,
+          body: text?.slice(0, 1000) || '',
+        });
         if (response.ok) {
           if (text) {
             try {
@@ -1988,12 +2002,42 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         }
         lastStatus = response.status;
         lastText = text || response.statusText;
+        lastAttempt = attempt;
         if (![400, 415, 422].includes(response.status)) break;
       }
       if (lastStatus) {
-        throw new Error(`Failed to update discussion: ${lastStatus} - ${lastText}`);
+        throw new Error(
+          `Failed to update discussion ${discussionId}: ${lastStatus} - ${lastText}. Endpoint: ${topicUrl}. ` +
+          `Payload: ${(lastAttempt?.body || '').slice(0, 1000)}`
+        );
       }
       return out;
+    };
+
+    const sendDiscussionDateDetailsUpdate = async (payload: Record<string, any>): Promise<void> => {
+      if (!payload || Object.keys(payload).length === 0) return;
+      const dateDetailsUrl = `${baseUrl}/courses/${courseId}/discussion_topics/${discussionId}/date_details`;
+      const response = await fetch(dateDetailsUrl, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const text = await response.text();
+      console.log(`[Service] Discussion ${discussionId} date_details response`, {
+        status: response.status,
+        statusText: response.statusText,
+        body: text?.slice(0, 1000) || '',
+        payload,
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Failed to update discussion date_details ${discussionId}: ${response.status} - ${text || response.statusText}. ` +
+          `Endpoint: ${dateDetailsUrl}. Payload: ${JSON.stringify(payload).slice(0, 1000)}`
+        );
+      }
     };
 
     let topicResult: any = null;
@@ -2025,9 +2069,39 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       }
     });
 
-    const mergedDates = { ...discussionUpdates, ...assignmentUpdates };
+    const dateDetailsUpdates: Record<string, any> = {};
+    ['due_at', 'unlock_at', 'lock_at'].forEach((k) => {
+      if (Object.prototype.hasOwnProperty.call(discussionUpdates, k)) {
+        dateDetailsUpdates[k] = discussionUpdates[k];
+        delete discussionUpdates[k];
+      }
+      if (Object.prototype.hasOwnProperty.call(assignmentUpdates, k)) {
+        dateDetailsUpdates[k] = assignmentUpdates[k];
+        delete assignmentUpdates[k];
+      }
+    });
+
+    const mergedDates = { ...dateDetailsUpdates };
     if (Object.keys(mergedDates).length > 0) {
       validateDateOrder(mergedDates, `Discussion ${discussionId}`);
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(dateDetailsUpdates, 'due_at') &&
+      !assignmentId
+    ) {
+      throw new Error('Cannot set due_at on an ungraded discussion. Enable Graded first.');
+    }
+    console.log(`[Service] Discussion ${discussionId} routed updates`, {
+      discussionUpdates,
+      assignmentUpdates,
+      dateDetailsUpdates,
+      assignmentId,
+      gradedSelection,
+      rubricSelection,
+    });
+
+    if (Object.keys(dateDetailsUpdates).length > 0) {
+      await sendDiscussionDateDetailsUpdate(dateDetailsUpdates);
     }
 
     if (Object.keys(discussionUpdates).length > 0) {
@@ -2038,6 +2112,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       if (!assignmentId) {
         throw new Error('Cannot set grading fields on an ungraded discussion. Enable Graded first.');
       }
+      console.log(`[Service] Discussion ${discussionId} updating assignment ${assignmentId} with`, assignmentUpdates);
       await this.updateAssignment(courseId, assignmentId, assignmentUpdates);
     }
 

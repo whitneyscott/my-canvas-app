@@ -316,7 +316,18 @@ export class CanvasController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updates: Record<string, any>
   ) {
-    return this.canvasService.updateDiscussion(courseId, id, updates);
+    try {
+      return await this.canvasService.updateDiscussion(courseId, id, updates);
+    } catch (error: any) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: `Failed to update discussion ${id}: ${error?.message || 'Unknown error'}`,
+          error: error?.message || 'Internal server error'
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
   }
 
   @Put('courses/:courseId/pages/:id')
