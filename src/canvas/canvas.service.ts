@@ -1486,7 +1486,17 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       } else if (Object.prototype.hasOwnProperty.call(cleanedUpdates, 'due_at') && !result.assignment_id) {
         console.log(`[Service] Quiz does not have an assignment_id (likely a practice quiz or ungraded survey)`);
       }
-      
+
+      if (Object.prototype.hasOwnProperty.call(cleanedUpdates, 'points_possible') && result.assignment_id) {
+        try {
+          await this.updateAssignment(courseId, result.assignment_id, { points_possible: cleanedUpdates.points_possible });
+          console.log(`[Service] ✓ Synced points_possible to assignment ${result.assignment_id}`);
+        } catch (assignmentError: any) {
+          console.error(`[Service] ✗ Failed to update assignment points:`, assignmentError.message);
+          throw assignmentError;
+        }
+      }
+
       if (Object.prototype.hasOwnProperty.call(cleanedUpdates, 'due_at') && cleanedUpdates.due_at) {
         if (result.due_at) {
           console.log(`[Service] Due date comparison:`);
