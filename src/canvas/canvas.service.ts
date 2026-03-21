@@ -1135,8 +1135,12 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
           const full = await this.getDiscussion(courseId, row.id);
           return {
             ...row,
+            ...full,
             message: full.message ?? row.message,
             title: full.title ?? row.title,
+            delayed_post_at: full.delayed_post_at ?? row.delayed_post_at ?? null,
+            lock_at: full.lock_at ?? row.lock_at ?? null,
+            posted_at: full.posted_at ?? row.posted_at ?? null,
           };
         } catch {
           return row;
