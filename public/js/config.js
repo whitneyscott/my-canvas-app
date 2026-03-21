@@ -99,6 +99,12 @@ const CANVAS_CONFIG = {
       endpoint: 'quizzes',
       fields: [
         { key: 'title', label: 'Quiz Title', editable: true, type: 'text' },
+        { key: 'quiz_type', label: 'Quiz Type', editable: true, type: 'select', options: [
+          { value: 'practice_quiz', label: 'Practice quiz' },
+          { value: 'assignment', label: 'Graded quiz' },
+          { value: 'graded_survey', label: 'Graded survey' },
+          { value: 'survey', label: 'Survey' }
+        ] },
         { key: 'description', label: 'Description', editable: true, type: 'html' },
         { key: 'assignment_group_id', label: 'Assignment Group', editable: true, type: 'assignment_group_dropdown' },
         { key: 'points_possible', label: 'Points', editable: true, type: 'number' },

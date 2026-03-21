@@ -461,7 +461,20 @@ function generateColumnDefs(tabName) {
             editable: field.editable !== false
         };
 
-        if (field.type === 'assignment_group_dropdown') {
+        if (field.type === 'select' && Array.isArray(field.options)) {
+            const optMap = Object.fromEntries(field.options.map(o => [o.value, o.label]));
+            colDef.valueFormatter = params => {
+                const v = params.value;
+                if (v == null || v === '') return '';
+                return optMap[v] || String(v);
+            };
+            colDef.cellEditor = 'agSelectCellEditor';
+            colDef.cellEditorParams = {
+                values: field.options.map(o => o.value),
+                formatValue: (value) => optMap[value] ?? String(value)
+            };
+        }
+        else if (field.type === 'assignment_group_dropdown') {
             const groups = assignmentGroupsCache[selectedCourseId] || {};
 
             colDef.valueFormatter = params => {
