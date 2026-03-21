@@ -1554,6 +1554,20 @@ function getFieldsForTab(tab, filterFn) {
     return filterFn ? cfg.fields.filter(filterFn) : cfg.fields;
 }
 
+const CREATE_EXTRAS = { announcements: ['is_announcement'] };
+
+function buildCreateParams(rowData, tab) {
+    const cfg = FIELD_DEFINITIONS[getConfigKey(tab)];
+    const fieldKeys = new Set((cfg?.fields || []).map(f => f.key));
+    (CREATE_EXTRAS[tab] || []).forEach(k => fieldKeys.add(k));
+    const out = {};
+    for (const k of Object.keys(rowData)) {
+        if (k.startsWith('_') || ['id', 'isNew', '_edit_status', '_isNew', '_pristine'].includes(k)) continue;
+        if (fieldKeys.has(k)) out[k] = rowData[k];
+    }
+    return out;
+}
+
 async function syncChanges() {
     if (!selectedCourseId) return alert('Select course first.');
     const tabChanges = changes[currentTab] || {};
@@ -1578,13 +1592,7 @@ async function syncChanges() {
                 delete changes[currentTab][itemId];
                 continue;
             }
-            const createParams = { ...rowData };
-            delete createParams.id;
-            delete createParams.isNew;
-            delete createParams._edit_status;
-            delete createParams._isNew;
-            delete createParams._pristine;
-            Object.keys(createParams).filter(k => k.startsWith('_')).forEach(k => delete createParams[k]);
+            const createParams = buildCreateParams(rowData, currentTab);
             try {
                 const handler = CREATE_HANDLERS[currentTab];
                 const created = handler ? await handler(selectedCourseId, createParams) : null;
@@ -1624,7 +1632,7 @@ async function syncChanges() {
         newItemIds.forEach(id => delete changes[currentTab][id]);
     }
 
-    for (const itemId of updateItemIds) {
+    const updatePromises = updateItemIds.map(async (itemId) => {
         const updates = { ...tabChanges[itemId] };
         delete updates._isNew;
         if (currentTab === 'files') {
@@ -1635,49 +1643,52 @@ async function syncChanges() {
         }
         const pathSegment = config.usesSlugIdentifier ? encodeURIComponent(itemId) : itemId;
         const url = `/canvas/courses/${selectedCourseId}/${endpoint}/${pathSegment}`;
-        const svcMap = { assignments: 'updateAssignment', quizzes: 'updateQuiz', discussions: 'updateDiscussion', pages: 'updatePage', announcements: 'updateAnnouncement', modules: 'updateModule' };
-        try {
-            const response = await fetch(url, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updates)
-            });
-
-            if (!response.ok) {
-                let errMsg = response.statusText;
-                try {
-                    const errBody = await response.json();
-                    errMsg = errBody.message || errBody.error || errMsg;
-                } catch (_) {
-                    const text = await response.text();
-                    if (text) errMsg = text.slice(0, 300);
-                }
-                throw new Error(errMsg);
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates)
+        });
+        if (!response.ok) {
+            let errMsg = response.statusText;
+            try {
+                const errBody = await response.json();
+                errMsg = errBody.message || errBody.error || errMsg;
+            } catch (_) {
+                const text = await response.text();
+                if (text) errMsg = text.slice(0, 300);
             }
-
-            const rowNodes = [];
+            throw new Error(errMsg);
+        }
+        return { itemId, updates };
+    });
+    const updateResults = await Promise.allSettled(updatePromises);
+    const redrawNodes = [];
+    updateResults.forEach((result, i) => {
+        const itemId = updateItemIds[i];
+        if (result.status === 'fulfilled') {
+            const { updates } = result.value;
             gridApi.forEachNode(node => {
                 const nodeId = node.data.id || node.data.url;
                 if (String(nodeId) === String(itemId)) {
                     node.setDataValue('_edit_status', 'synced');
-                    rowNodes.push(node);
+                    redrawNodes.push(node);
                     if (originalData[currentTab]) {
                         const originalRow = originalData[currentTab].find(item => String(item.id || item.url) === String(itemId));
-                        if (originalRow) {
-                            Object.keys(updates).forEach(fieldKey => originalRow[fieldKey] = updates[fieldKey]);
-                        }
+                        if (originalRow) Object.keys(updates).forEach(fieldKey => originalRow[fieldKey] = updates[fieldKey]);
                     }
                 }
             });
-            if (rowNodes.length) gridApi.redrawRows({ rowNodes });
             delete changes[currentTab][itemId];
-        } catch (error) {
-            console.error(error);
-            debugLog('[Sync] Return: ' + itemId + ' FAILED - ' + (error.message || error), 'error');
-            const label = (gridApi.getRowNode(String(itemId))?.data?.name ?? gridApi.getRowNode(String(itemId))?.data?.title ?? itemId) || itemId;
-            errors.push({ itemId, label, message: error.message || String(error) });
+        } else {
+            debugLog('[Sync] Return: ' + itemId + ' FAILED - ' + (result.reason?.message || result.reason), 'error');
+            let label = itemId;
+            gridApi.forEachNode(nd => {
+                if (String(nd.data?.id || nd.data?.url) === String(itemId)) label = nd.data?.name ?? nd.data?.title ?? itemId;
+            });
+            errors.push({ itemId, label, message: result.reason?.message || String(result.reason) });
         }
-    }
+    });
+    if (redrawNodes.length) gridApi.redrawRows({ rowNodes: redrawNodes });
 
     if (errors.length) {
         alert(`Sync failed for ${errors.length} item(s):\n\n${errors.map(e => `• ${e.label}: ${e.message}`).join('\n')}`);
