@@ -109,8 +109,80 @@ window.fetch = async (...args) => {
 };
 let assignmentGroupsCache = {};
 let rubricsCache = {};
+let inMemoryChangeLog = [];
+const CHANGE_LOG_CAP = 500;
+const SNAPSHOT_KEY_PREFIX = 'bulkeditor:snapshots:';
+const SNAPSHOT_LIMIT_PER_TAB = 5;
+let suppressCellChangeLog = false;
+let failedRevertRowIds = new Set();
+let pendingRevertSnapshotId = null;
 
 const FIELD_DEFINITIONS = window.FIELD_DEFINITIONS || window.CANVAS_CONFIG?.FIELD_DEFINITIONS || {};
+const REVERT_BLOCKED_FIELDS = new Set([
+    'id', 'uuid', 'created_at', 'updated_at', 'items_count', 'items', 'html_url', 'url',
+    'workflow_state', 'publish_at', 'course_id', 'context_type', 'context_id', 'lti_context_id',
+    'global_id', 'secure_params', 'original_lti_resource_link_id', 'items_url', 'locked_for_user',
+    'lock_info', 'lock_explanation', 'permissions', 'submission', 'overrides', 'all_dates', 'can_duplicate'
+]);
+
+function getSnapshotStorageKey(tab) {
+    return `${SNAPSHOT_KEY_PREFIX}${tab}`;
+}
+
+function loadSnapshots(tab) {
+    try {
+        const raw = localStorage.getItem(getSnapshotStorageKey(tab));
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveSnapshots(tab, snapshots) {
+    const trimmed = (Array.isArray(snapshots) ? snapshots : []).slice(0, SNAPSHOT_LIMIT_PER_TAB);
+    localStorage.setItem(getSnapshotStorageKey(tab), JSON.stringify(trimmed));
+}
+
+function clearInMemoryChangeLog() {
+    inMemoryChangeLog = [];
+}
+
+function pushChangeLogEntry(entry) {
+    inMemoryChangeLog.push(entry);
+    if (inMemoryChangeLog.length > CHANGE_LOG_CAP) {
+        inMemoryChangeLog = inMemoryChangeLog.slice(inMemoryChangeLog.length - CHANGE_LOG_CAP);
+    }
+}
+
+function showToast(message, type = 'info', duration = 3500) {
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.style.position = 'fixed';
+        container.style.top = '12px';
+        container.style.right = '12px';
+        container.style.zIndex = '9999';
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '8px';
+        document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    const bg = type === 'success' ? '#106c2c' : type === 'error' ? '#8b1a1a' : type === 'warn' ? '#8b5a00' : '#1f3a5f';
+    toast.style.background = bg;
+    toast.style.color = '#fff';
+    toast.style.padding = '10px 12px';
+    toast.style.borderRadius = '6px';
+    toast.style.boxShadow = '0 2px 8px rgba(0,0,0,0.25)';
+    toast.style.fontSize = '13px';
+    toast.textContent = message;
+    container.appendChild(toast);
+    window.setTimeout(() => {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, duration);
+}
 
 function getConfigKey(tabOrType) {
     if (!tabOrType) return tabOrType;
@@ -413,7 +485,16 @@ const gridOptions = {
     getRowId: (params) => {
         return String(params.data.id || params.data.url || Math.random());
     },
-    getRowStyle: params => params.data?._edit_status === 'modified' ? { backgroundColor: '#fff9c4', fontWeight: 'bold', color: '#d35400' } : null,
+    getRowStyle: params => {
+        const rowId = String(getRowIdForData(params.data) || '');
+        if (failedRevertRowIds.has(rowId)) {
+            return { backgroundColor: '#ffd6d6', color: '#9f1d1d', fontWeight: 'bold' };
+        }
+        if (params.data?._edit_status === 'modified') {
+            return { backgroundColor: '#fff9c4', fontWeight: 'bold', color: '#d35400' };
+        }
+        return null;
+    },
     onCellValueChanged: params => {
         if (params.colDef.field !== '_edit_status') {
             if (params.colDef.field === 'rubric_id' && params.newValue === '__create_new__') {
@@ -423,6 +504,21 @@ const gridOptions = {
             params.node.setDataValue('_edit_status', 'modified');
             const committedValue = params.data?.[params.colDef.field];
             trackChange(currentTab, params.data.id || params.data.url, params.colDef.field, committedValue);
+            if (!suppressCellChangeLog && !isFieldReadOnlyForTab(currentTab, params.colDef.field)) {
+                const oldValue = params.oldValue;
+                const newValue = params.newValue;
+                const changed = JSON.stringify(oldValue) !== JSON.stringify(newValue);
+                if (changed) {
+                    pushChangeLogEntry({
+                        rowId: String(getRowIdForData(params.data)),
+                        field: params.colDef.field,
+                        oldValue,
+                        newValue,
+                        timestamp: Date.now(),
+                        tab: currentTab,
+                    });
+                }
+            }
             params.api.redrawRows({ rowNodes: [params.node] });
         }
     },
@@ -457,6 +553,10 @@ const gridOptions = {
                 });
             }
         });
+        updateDeleteMenuState();
+    },
+    onSelectionChanged: () => {
+        updateDeleteMenuState();
     },
     onGridReady: params => {
         window.gridApi = params.api;
@@ -478,6 +578,7 @@ const gridOptions = {
         // Enable sorting and filtering for all columns
         params.api.setGridOption('sorting', true);
         params.api.setGridOption('filtering', true);
+        updateDeleteMenuState();
     },
     overlayLoadingTemplate: 
         '<div class="ag-overlay-loading-wrapper">' +
@@ -847,6 +948,7 @@ async function refreshCurrentTab() {
             gridApi.redrawRows();
             if (currentTab === 'students') setTimeout(() => gridApi.resetRowHeights(), 100);
         }
+        updateSyncHistoryIndicator();
     } catch (event) {
         console.error(`Error refreshing:`, event);
         alert('Refresh failed.');
@@ -1024,6 +1126,24 @@ function updatePointsUiLabels(tabName) {
     if (actionBtn) actionBtn.textContent = isModules ? 'Update Position' : 'Update Points';
 }
 
+function updateDeleteMenuState() {
+    const deleteItem = document.getElementById('deleteMenuItem');
+    if (!deleteItem) return;
+    const selected = gridApi ? (gridApi.getSelectedRows() || []) : [];
+    const folderSelectedInFiles = currentTab === 'files' && selected.some(r => r?.is_folder === true);
+    if (folderSelectedInFiles) {
+        deleteItem.style.opacity = '0.45';
+        deleteItem.style.cursor = 'not-allowed';
+        deleteItem.style.pointerEvents = 'none';
+        deleteItem.title = 'Folders must be deleted directly in Canvas';
+    } else {
+        deleteItem.style.opacity = '';
+        deleteItem.style.cursor = '';
+        deleteItem.style.pointerEvents = '';
+        deleteItem.title = '';
+    }
+}
+
 function switchTab(tabName) {
     // Security Check: Enforce tab interception guard clause
     const allowedTabs = ['assignments', 'discussions', 'announcements', 'pages', 'quizzes', 'new_quizzes', 'modules', 'files', 'standards_sync'];
@@ -1062,7 +1182,12 @@ function switchTab(tabName) {
             tab.setAttribute('aria-selected', isTarget ? 'true' : 'false');
         });
 
+        const previousTab = currentTab;
         currentTab = tabName;
+        if (previousTab !== tabName) {
+            clearInMemoryChangeLog();
+            clearFailedRevertRows();
+        }
 
         const gridEl = document.getElementById('myGrid');
         const panelEl = document.getElementById('standardsSyncPanel');
@@ -1084,6 +1209,8 @@ function switchTab(tabName) {
         const allowRatingMenuItem = document.getElementById('allowRatingMenuItem');
         if (allowRatingMenuItem) allowRatingMenuItem.style.display = (tabName === 'discussions') ? 'block' : 'none';
         updatePointsUiLabels(tabName);
+        updateSyncHistoryIndicator();
+        updateDeleteMenuState();
 
         if (tabName !== 'standards_sync' && typeof loadTabData === 'function') {
             loadTabData(tabName);
@@ -1153,6 +1280,15 @@ document.addEventListener('keydown', function(event) {
         event.preventDefault();
         toggleTabInterception();
     }
+});
+
+document.addEventListener('keydown', function(event) {
+    if (!(event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === 'z')) return;
+    const tag = (event.target?.tagName || '').toLowerCase();
+    const isEditableTarget = tag === 'input' || tag === 'textarea' || event.target?.isContentEditable;
+    if (isEditableTarget) return;
+    event.preventDefault();
+    undoLastCellEdit();
 });
 
 // Initialize tab interception system
@@ -1681,6 +1817,7 @@ async function loadTabData(tabName) {
             setGridColumnDefsForTab(tabName);
             gridApi.setGridOption('rowData', dataWithStatus);
             gridApi.hideOverlay();
+            updateSyncHistoryIndicator();
         }
     } catch (error) {
         if (typeof progressInterval !== 'undefined') clearInterval(progressInterval);
@@ -1690,6 +1827,56 @@ async function loadTabData(tabName) {
 
 function trackChange(tabName, itemId, fieldName, value) {
     CanvasHelpers.trackChange(changes, tabName, itemId, fieldName, value);
+}
+
+function updateTrackedChangeForCell(tabName, itemId, fieldName, value) {
+    const rows = originalData[tabName] || [];
+    const baseline = rows.find(r => String(getRowIdForData(r)) === String(itemId));
+    const baseValue = baseline ? baseline[fieldName] : undefined;
+    const changed = JSON.stringify(baseValue) !== JSON.stringify(value);
+    if (!changes[tabName]) changes[tabName] = {};
+    if (!changes[tabName][itemId]) changes[tabName][itemId] = {};
+    if (changed) {
+        changes[tabName][itemId][fieldName] = value;
+    } else {
+        delete changes[tabName][itemId][fieldName];
+        if (Object.keys(changes[tabName][itemId]).length === 0) delete changes[tabName][itemId];
+    }
+}
+
+function undoLastCellEdit() {
+    if (!inMemoryChangeLog.length) {
+        showToast('Nothing to undo for this tab.', 'warn');
+        return;
+    }
+    const entry = inMemoryChangeLog[inMemoryChangeLog.length - 1];
+    if (!entry || entry.tab !== currentTab) {
+        showToast('Nothing to undo for this tab.', 'warn');
+        return;
+    }
+    let targetNode = null;
+    gridApi?.forEachNode(node => {
+        if (String(getRowIdForData(node.data)) === String(entry.rowId)) targetNode = node;
+    });
+    if (!targetNode) {
+        inMemoryChangeLog.pop();
+        showToast('Undo skipped: row not currently loaded.', 'warn');
+        return;
+    }
+    suppressCellChangeLog = true;
+    try {
+        targetNode.setDataValue(entry.field, entry.oldValue);
+        const rowId = String(getRowIdForData(targetNode.data));
+        updateTrackedChangeForCell(currentTab, rowId, entry.field, entry.oldValue);
+        const rowChanges = changes[currentTab]?.[rowId] || {};
+        const hasChanges = Object.keys(rowChanges).length > 0;
+        targetNode.setDataValue('_edit_status', hasChanges ? 'modified' : 'synced');
+    } finally {
+        suppressCellChangeLog = false;
+    }
+    inMemoryChangeLog.pop();
+    gridApi?.redrawRows({ rowNodes: [targetNode] });
+    showToast('Undo applied.', 'success', 1800);
 }
 
 function getBulkTargetRowData(fillVisibleWhenEmpty) {
@@ -1707,16 +1894,26 @@ function applyGridCellChange(rowData, field, value) {
     if (!gridApi) return;
     gridApi.forEachNode(gridNode => {
         if (gridNode.data === rowData) {
-            gridNode.setDataValue(field, value);
-            gridNode.setDataValue('_edit_status', 'modified');
+            suppressCellChangeLog = true;
+            try {
+                gridNode.setDataValue(field, value);
+                gridNode.setDataValue('_edit_status', 'modified');
+            } finally {
+                suppressCellChangeLog = false;
+            }
             trackChange(currentTab, rowData.id || rowData.url, field, value);
         }
     });
 }
 
 function applyGridCellChangeToNode(gridNode, field, value) {
-    gridNode.setDataValue(field, value);
-    gridNode.setDataValue('_edit_status', 'modified');
+    suppressCellChangeLog = true;
+    try {
+        gridNode.setDataValue(field, value);
+        gridNode.setDataValue('_edit_status', 'modified');
+    } finally {
+        suppressCellChangeLog = false;
+    }
     trackChange(currentTab, gridNode.data.id || gridNode.data.url, field, value);
 }
 
@@ -1768,6 +1965,101 @@ function getFieldsForTab(tab, filterFn) {
     return filterFn ? cfg.fields.filter(filterFn) : cfg.fields;
 }
 
+function isFieldReadOnlyForTab(tab, field) {
+    if (!field) return true;
+    if (field.startsWith('_')) return true;
+    if (REVERT_BLOCKED_FIELDS.has(field)) return true;
+    const fields = getFieldsForTab(tab);
+    const def = fields.find(f => (f.key || f.name) === field);
+    if (!def) return true;
+    return def.editable === false;
+}
+
+function getRowIdForData(rowData) {
+    return rowData?.id ?? rowData?.url ?? null;
+}
+
+function updateSyncHistoryIndicator() {
+    const btn = document.getElementById('revertLastSyncBtn');
+    const ind = document.getElementById('syncHistoryIndicator');
+    if (!btn || !ind) return;
+    const snaps = loadSnapshots(currentTab);
+    if (!snaps.length) {
+        btn.style.display = 'none';
+        ind.style.display = 'none';
+        return;
+    }
+    const last = snaps[0];
+    btn.style.display = '';
+    ind.style.display = '';
+    const count = Number(last.changeCount ?? last.rowsAffected ?? 0);
+    ind.textContent = `Last sync: ${count} changes at ${last.timestamp} — Revert?`;
+}
+
+function buildSnapshotForRows(tab, rowIds) {
+    const rowIdSet = new Set(Array.from(rowIds || []).map(String));
+    const changes = inMemoryChangeLog
+        .filter(e => e.tab === tab && rowIdSet.has(String(e.rowId)))
+        .map(e => ({ ...e }));
+    if (!changes.length) return null;
+    const rowsAffected = new Set(changes.map(c => String(c.rowId))).size;
+    return {
+        snapshotId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: new Date().toLocaleString(),
+        tab,
+        rowsAffected,
+        changeCount: changes.length,
+        changes,
+    };
+}
+
+function persistSnapshot(snapshot) {
+    if (!snapshot) return;
+    const snaps = loadSnapshots(snapshot.tab);
+    snaps.unshift(snapshot);
+    saveSnapshots(snapshot.tab, snaps);
+}
+
+function removeInMemoryEntriesForRows(tab, rowIds) {
+    const rowIdSet = new Set(Array.from(rowIds || []).map(String));
+    inMemoryChangeLog = inMemoryChangeLog.filter(e => !(e.tab === tab && rowIdSet.has(String(e.rowId))));
+}
+
+function collapseSnapshotChanges(snapshot) {
+    const collapsed = new Map();
+    const ordered = Array.isArray(snapshot?.changes) ? snapshot.changes : [];
+    ordered.forEach(entry => {
+        const key = `${entry.rowId}::${entry.field}`;
+        if (!collapsed.has(key)) {
+            collapsed.set(key, { rowId: entry.rowId, field: entry.field, oldValue: entry.oldValue, tab: entry.tab });
+        }
+    });
+    return Array.from(collapsed.values());
+}
+
+function markFailedRevertRows(rowIds) {
+    failedRevertRowIds = new Set(Array.from(rowIds || []).map(String));
+    if (gridApi) gridApi.redrawRows();
+}
+
+function clearFailedRevertRows() {
+    if (!failedRevertRowIds.size) return;
+    failedRevertRowIds.clear();
+    if (gridApi) gridApi.redrawRows();
+}
+
+function showRevertResultModal(failedItems) {
+    const container = document.getElementById('revertResultContent');
+    if (!container) return;
+    if (!failedItems?.length) {
+        container.innerHTML = '<p>Revert complete.</p>';
+    } else {
+        const rows = failedItems.map(f => `<li><strong>${f.label}</strong>: ${f.message}</li>`).join('');
+        container.innerHTML = `<p>Some rows failed to revert:</p><ul>${rows}</ul>`;
+    }
+    openModal('revertResultModal');
+}
+
 const CREATE_EXTRAS = { announcements: ['is_announcement'] };
 
 function buildCreateParams(rowData, tab) {
@@ -1783,6 +2075,122 @@ function buildCreateParams(rowData, tab) {
     return out;
 }
 
+function openRevertLastSyncModal() {
+    const snaps = loadSnapshots(currentTab);
+    if (!snaps.length) {
+        showToast('No sync snapshot available for this tab.', 'warn');
+        updateSyncHistoryIndicator();
+        return;
+    }
+    pendingRevertSnapshotId = snaps[0].snapshotId;
+    const msg = document.getElementById('revertConfirmMessage');
+    const count = Number(snaps[0].changeCount ?? snaps[0].rowsAffected ?? 0);
+    if (msg) msg.textContent = `Revert ${count} changes synced at ${snaps[0].timestamp}? This will push previous values back to Canvas.`;
+    const btn = document.getElementById('confirmRevertBtn');
+    if (btn) btn.onclick = () => executeRevertSnapshot(pendingRevertSnapshotId);
+    openModal('revertConfirmModal');
+}
+
+function openSyncHistoryModal() {
+    const list = document.getElementById('syncHistoryList');
+    if (!list) return;
+    const snaps = loadSnapshots(currentTab);
+    if (!snaps.length) {
+        list.innerHTML = '<p>No snapshots for this tab yet.</p>';
+        openModal('syncHistoryModal');
+        return;
+    }
+    list.innerHTML = snaps.map(s => `
+        <div style="border:1px solid #ddd;border-radius:6px;padding:8px;margin-bottom:8px;">
+            <div><strong>${Number(s.changeCount ?? s.rowsAffected ?? 0)}</strong> changes at <strong>${s.timestamp}</strong></div>
+            <div style="margin-top:8px;">
+                <button class="primary-btn" onclick="executeRevertSnapshot('${s.snapshotId}')">Revert</button>
+            </div>
+        </div>
+    `).join('');
+    openModal('syncHistoryModal');
+}
+
+async function executeRevertSnapshot(snapshotId) {
+    if (!snapshotId) return;
+    if (!selectedCourseId) {
+        showToast('Select a course before reverting.', 'warn');
+        return;
+    }
+    const snaps = loadSnapshots(currentTab);
+    const snapshot = snaps.find(s => s.snapshotId === snapshotId);
+    if (!snapshot) {
+        showToast('Snapshot not found.', 'error');
+        updateSyncHistoryIndicator();
+        return;
+    }
+    const configKey = getConfigKey(currentTab);
+    const config = FIELD_DEFINITIONS[configKey];
+    if (!config) {
+        showToast('Invalid tab configuration for revert.', 'error');
+        return;
+    }
+
+    const collapsed = collapseSnapshotChanges(snapshot).filter(c => !isFieldReadOnlyForTab(currentTab, c.field));
+    const grouped = new Map();
+    collapsed.forEach(c => {
+        const key = String(c.rowId);
+        if (!grouped.has(key)) grouped.set(key, {});
+        grouped.get(key)[c.field] = c.oldValue;
+    });
+    const endpoint = config.endpoint;
+    const failed = [];
+    const succeededRows = [];
+    for (const [rowId, updates] of grouped.entries()) {
+        const pathSegment = config.usesSlugIdentifier ? encodeURIComponent(rowId) : rowId;
+        const url = `/canvas/courses/${selectedCourseId}/${endpoint}/${pathSegment}`;
+        try {
+            const res = await fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+            });
+            if (!res.ok) {
+                const txt = await res.text().catch(() => '');
+                throw new Error(txt || res.statusText || `HTTP ${res.status}`);
+            }
+            succeededRows.push(rowId);
+            gridApi?.forEachNode(node => {
+                if (String(getRowIdForData(node.data)) !== String(rowId)) return;
+                suppressCellChangeLog = true;
+                try {
+                    Object.entries(updates).forEach(([k, v]) => node.setDataValue(k, v));
+                    node.setDataValue('_edit_status', 'synced');
+                } finally {
+                    suppressCellChangeLog = false;
+                }
+            });
+        } catch (err) {
+            const message = err?.message || String(err);
+            let label = rowId;
+            gridApi?.forEachNode(node => {
+                if (String(getRowIdForData(node.data)) === String(rowId)) {
+                    label = node.data?.name || node.data?.title || node.data?.display_name || rowId;
+                }
+            });
+            failed.push({ rowId, label, message });
+        }
+    }
+
+    if (!failed.length) {
+        const next = snaps.filter(s => s.snapshotId !== snapshotId);
+        saveSnapshots(currentTab, next);
+        clearFailedRevertRows();
+        closeActiveModal();
+        showToast(`Revert complete — ${collapsed.length} changes restored.`, 'success');
+    } else {
+        markFailedRevertRows(failed.map(f => f.rowId));
+        showToast(`Partial revert failed — ${failed.length} row(s) need attention.`, 'warn');
+        showRevertResultModal(failed);
+    }
+    updateSyncHistoryIndicator();
+}
+
 async function syncChanges() {
     if (!selectedCourseId) return alert('Select course first.');
     const tabChanges = changes[currentTab] || {};
@@ -1795,6 +2203,12 @@ async function syncChanges() {
     const config = FIELD_DEFINITIONS[configKey];
     if (!config) return alert('Invalid tab.');
     const endpoint = config.endpoint;
+    const snapshotTargetRows = new Set(updateItemIds.map(String));
+    const snapshot = buildSnapshotForRows(currentTab, snapshotTargetRows);
+    if (snapshot) {
+        persistSnapshot(snapshot);
+        updateSyncHistoryIndicator();
+    }
 
     const errors = [];
     if (newItemIds.length && CLONE_CREATE_TABS.includes(currentTab)) {
@@ -1904,10 +2318,12 @@ async function syncChanges() {
     });
     const updateResults = await Promise.allSettled(updatePromises);
     const redrawNodes = [];
+    const succeededRowIds = new Set();
     updateResults.forEach((result, i) => {
         const itemId = updateItemIds[i];
         if (result.status === 'fulfilled') {
             const { updates } = result.value;
+            succeededRowIds.add(String(itemId));
             gridApi.forEachNode(node => {
                 const nodeId = node.data.id || node.data.url;
                 if (String(nodeId) === String(itemId)) {
@@ -1930,6 +2346,7 @@ async function syncChanges() {
         }
     });
     if (redrawNodes.length) gridApi.redrawRows({ rowNodes: redrawNodes });
+    if (succeededRowIds.size) removeInMemoryEntriesForRows(currentTab, succeededRowIds);
 
     if (errors.length) {
         debugLog('[Sync] Summary FAILED count=' + errors.length + ' details=' + JSON.stringify(errors).slice(0, 3000), 'error');
@@ -2761,6 +3178,11 @@ async function executeDelete() {
     if (confirmInput.value !== 'DELETE') { alert('Type DELETE.'); return; }
     const selectedItems = getSelectedItems();
     if (!selectedItems || !selectedItems.length) { alert('No items.'); return; }
+    if (currentTab === 'files' && selectedItems.some(i => i?.is_folder)) {
+        showToast('Folders must be deleted directly in Canvas', 'warn');
+        debugLog('[Delete] Blocked folder delete request in Files tab', 'warn');
+        return;
+    }
     const courseId = document.getElementById('courseSelect')?.value || selectedCourseId;
     if (!courseId) { alert('No course.'); return; }
     try {

@@ -602,6 +602,9 @@ export class CanvasController {
     @Param('id', ParseIntPipe) courseId: number,
     @Body() body: { fileIds: number[]; isFolders?: boolean[] }
   ) {
+    if (Array.isArray(body?.isFolders) && body.isFolders.some(Boolean)) {
+      throw new HttpException('Folders must be deleted directly in Canvas', HttpStatus.BAD_REQUEST);
+    }
     return this.canvasService.bulkDeleteFiles(courseId, body.fileIds, body.isFolders || []);
   }
 
@@ -652,6 +655,9 @@ export class CanvasController {
     @Param('fileId', ParseIntPipe) fileId: number,
     @Body() body: { isFolder?: boolean }
   ) {
+    if (body?.isFolder) {
+      throw new HttpException('Folders must be deleted directly in Canvas', HttpStatus.BAD_REQUEST);
+    }
     const results = await this.canvasService.bulkDeleteFiles(courseId, [fileId], [!!body?.isFolder]);
     const r = results[0];
     if (r && !r.success) throw new HttpException(r.error || 'Delete failed', HttpStatus.BAD_REQUEST);

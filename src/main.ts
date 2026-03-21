@@ -5,6 +5,13 @@ import { AppModule } from './app.module';
 import session from 'express-session';
 import * as express from 'express';
 
+// IMPORTANT: Folder deletion is intentionally disabled in this tool.
+// Canvas requires recursive deletion of folder contents before the folder
+// itself can be removed. A bug in recursive deletion could cause
+// catastrophic, unrecoverable loss of course content.
+// Folder deletion must be performed manually in Canvas.
+// Do not implement folder delete without explicit written approval.
+
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 

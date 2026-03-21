@@ -113,15 +113,20 @@
                                 <div id="publishMenuItem" class="dropdown-item" onclick="openModal('publishModal'); closeDropdown('bulkActionsDropdown')">Publish</div>
                                 <div class="dropdown-item" onclick="handleCloneClick(); closeDropdown('bulkActionsDropdown')">Clone</div>
                                 <div id="mergeMenuItem" class="dropdown-item" onclick="populateMergeSelector(); openModal('mergeModal'); closeDropdown('bulkActionsDropdown')" style="display: none;">Merge Modules</div>
-                                <div class="dropdown-item" onclick="handleDeleteClick(); closeDropdown('bulkActionsDropdown')">Delete</div>
+                                <div id="deleteMenuItem" class="dropdown-item" onclick="handleDeleteClick(); closeDropdown('bulkActionsDropdown')">Delete</div>
                             </div>
                         </div>
                         <button class="primary-btn" onclick="openModal('columnVisibilityModal')">Columns</button>
                     </div>
                     <button class="primary-btn" onclick="syncChanges()">Sync Changes</button>
+                    <button id="revertLastSyncBtn" class="primary-btn" onclick="openRevertLastSyncModal()" style="display: none;">Revert Last Sync</button>
+                    <button id="syncHistoryIndicator" class="primary-btn" onclick="openSyncHistoryModal()" style="display: none;">Last sync: none</button>
                     <button class="primary-btn" onclick="refreshCurrentTab()">Refresh</button>
                     <button class="primary-btn" onclick="openModal('modeSelectionModal')" title="Application Mode Settings">⚙️ Mode</button>
                 </header>
+                <div style="margin: 10px 0 12px 0; padding: 10px 12px; border: 1px solid #d9b300; background: #fff8db; border-radius: 6px; color: #4a3d00; font-size: 14px; line-height: 1.4;">
+                    ⚠️ <strong>Important:</strong> This tool makes direct changes to your Canvas courses via the API. Cell edits and bulk actions can be reverted using the Sync History panel. Delete operations are permanent and cannot be undone — folder deletion is disabled entirely due to its recursive nature. Always verify your selections before syncing or deleting. Use a sandbox course for testing.
+                </div>
                 <div id="tabContentArea">
                     <div id="myGrid" class="ag-theme-quartz" style="height: 500px; width: 100%;"></div>
                     <div id="standardsSyncPanel" class="standards-sync-panel" style="display: none;">
