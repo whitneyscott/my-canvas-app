@@ -90,7 +90,6 @@ Use this to verify GUI behavior against Canvas API routes (`/canvas/courses/:id/
 - [x] **Allowed attempts**: edit → Sync → verify.
 - [x] **Due / Available From / Available Until**, **Show Answers At / Hide Answers At**: edit → Sync → verify (server may route `due_at` via assignment for graded quizzes).
 - [x] **Points (from questions)**: read-only in grid; not sent on quiz PUT (total comes from questions; use **Assignments** tab to set assignment `points_possible` where applicable).
-- [ ] **Points** (bulk) on `time_limit` / `allowed_attempts` (numeric targets only; not `points_possible`).
 - [x] **Allowed Attempts** (Bulk Actions): set / add / unlimited → Sync → verify.
 - [x] **Date Shift** on quiz date fields.
 - [x] **Search & Replace** on title.
