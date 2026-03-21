@@ -349,7 +349,65 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   async updateNewQuizRow(courseId: number, assignmentId: number, updates: Record<string, any>) {
-    return this.updateAssignment(courseId, assignmentId, updates);
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const assignmentUpdates: Record<string, any> = { ...updates };
+    const quizUpdates: { instructions?: string; title?: string } = {};
+
+    if (Object.prototype.hasOwnProperty.call(assignmentUpdates, 'description')) {
+      const rawDesc = assignmentUpdates.description;
+      quizUpdates.instructions = rawDesc === null || rawDesc === undefined ? '' : String(rawDesc);
+      delete assignmentUpdates.description;
+    }
+    if (Object.prototype.hasOwnProperty.call(assignmentUpdates, 'name')) {
+      const rawTitle = assignmentUpdates.name;
+      quizUpdates.title = rawTitle === null || rawTitle === undefined ? '' : String(rawTitle);
+      delete assignmentUpdates.name;
+    }
+
+    if (Object.keys(quizUpdates).length > 0) {
+      await this.patchNewQuizByAssignment(courseId, assignmentId, quizUpdates, token, baseUrl);
+    }
+
+    if (Object.keys(assignmentUpdates).length > 0) {
+      return this.updateAssignment(courseId, assignmentId, assignmentUpdates);
+    }
+
+    return this.getAssignment(courseId, assignmentId);
+  }
+
+  async createNewQuiz(courseId: number, body: Record<string, any>): Promise<any> {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const quizBase = this.quizApiV1Base(baseUrl);
+    const url = `${quizBase}/courses/${courseId}/quizzes`;
+    const payload: Record<string, any> = {};
+    if (body.title != null) payload.title = body.title;
+    if (body.name != null) payload.title = payload.title ?? body.name;
+    if (body.instructions != null) payload.instructions = body.instructions;
+    if (body.description != null) payload.instructions = payload.instructions ?? body.description;
+    if (body.assignment_group_id != null) payload.assignment_group_id = body.assignment_group_id;
+    if (body.points_possible != null) payload.points_possible = body.points_possible;
+    if (body.due_at != null) payload.due_at = body.due_at;
+    if (body.unlock_at != null) payload.unlock_at = body.unlock_at;
+    if (body.lock_at != null) payload.lock_at = body.lock_at;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let errMsg = text;
+      try {
+        const j = JSON.parse(text);
+        errMsg = j.message || j.error || errMsg;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(`New Quizzes API: ${errMsg}`);
+    }
+    const created = await res.json();
+    const id = created.assignment_id ?? created.id ?? created.assignmentId;
+    return { ...created, id };
   }
 
   private async patchNewQuizByAssignment(

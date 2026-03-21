@@ -1508,11 +1508,12 @@ function applyGridCellChangeToNode(gridNode, field, value) {
     trackChange(currentTab, gridNode.data.id || gridNode.data.url, field, value);
 }
 
-const CLONE_CREATE_TABS = ['assignments', 'quizzes', 'pages', 'discussions', 'announcements', 'modules'];
+const CLONE_CREATE_TABS = ['assignments', 'quizzes', 'new_quizzes', 'pages', 'discussions', 'announcements', 'modules'];
 
 const CREATE_HANDLERS = {
     assignments: (courseId, p) => createAssignments(courseId, p),
     quizzes: (courseId, p) => createQuizzes(courseId, p),
+    new_quizzes: (courseId, p) => createNewQuizzes(courseId, p),
     pages: (courseId, p) => createPages(courseId, p),
     discussions: (courseId, p) => createDiscussions(courseId, p),
     announcements: (courseId, p) => createAnnouncements(courseId, p),
@@ -1605,6 +1606,7 @@ async function syncChanges() {
                             node.setDataValue('id', created.id != null ? created.id : realId);
                             if (cfg?.usesSlugIdentifier) node.setDataValue('url', created.url || realId);
                             node.setDataValue('_edit_status', 'synced');
+                            node.data._edit_status = 'synced';
                             delete node.data.isNew;
                             updatedNodes.push(node);
                             const syncedRow = { ...node.data };
@@ -1614,7 +1616,9 @@ async function syncChanges() {
                             if (originalData[currentTab]) originalData[currentTab].push(syncedRow);
                         }
                     });
-                    if (updatedNodes.length) gridApi.redrawRows({ rowNodes: updatedNodes });
+                    if (updatedNodes.length) {
+                        gridApi.refreshCells({ rowNodes: updatedNodes, columns: ['_edit_status'], force: true });
+                    }
                     delete changes[currentTab][itemId];
                 } else {
                     throw new Error('Create returned no data');
@@ -1626,8 +1630,11 @@ async function syncChanges() {
             }
         }
     } else if (newItemIds.length) {
+        const msg = currentTab === 'modules'
+            ? 'Use Deep Clone for modules.'
+            : `Create not supported for ${currentTab} tab.`;
         for (const id of newItemIds) {
-            errors.push({ itemId: id, label: id, message: `Create not supported for ${currentTab} tab. Use Deep Clone for modules.` });
+            errors.push({ itemId: id, label: id, message: msg });
         }
         newItemIds.forEach(id => delete changes[currentTab][id]);
     }
@@ -2628,6 +2635,13 @@ function calculateDateOffset() {
     document.getElementById('dateOffsetDays').value = Math.round((new Date(newVal) - new Date(oldVal)) / 86400000);
 }
 
+function clearFixedDateOverride() {
+    const dateEl = document.getElementById('manualFixedDate');
+    const timeEl = document.getElementById('manualFixedTime');
+    if (dateEl) dateEl.value = '';
+    if (timeEl) timeEl.value = '';
+}
+
 function getUniqueName(originalName, existingNames, prefix = '', suffix = '') {
     let baseName = originalName || "Untitled";
     let trimmedName = baseName;
@@ -2816,6 +2830,15 @@ async function createDiscussions(courseId, params) {
 
 async function createAnnouncements(courseId, params) {
     const response = await fetch(`/canvas/courses/${courseId}/announcements`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return response.ok ? await response.json() : null;
+}
+
+async function createNewQuizzes(courseId, params) {
+    const response = await fetch(`/canvas/courses/${courseId}/new_quizzes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)

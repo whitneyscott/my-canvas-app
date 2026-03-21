@@ -489,6 +489,14 @@ export class CanvasController {
     return this.canvasService.createModule(courseId, body);
   }
 
+  @Post('courses/:courseId/new_quizzes')
+  async createNewQuiz(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Body() body: Record<string, any>
+  ) {
+    return this.canvasService.createNewQuiz(courseId, body);
+  }
+
   @Post('courses/:courseId/quizzes/:quizId/extensions')
   async createQuizExtensions(
     @Param('courseId', ParseIntPipe) courseId: number,
