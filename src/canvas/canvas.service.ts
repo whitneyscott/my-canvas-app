@@ -1162,63 +1162,43 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   async getCourseFiles(courseId: number) {
     const { token, baseUrl } = await this.getAuthHeaders();
-    const url = `${baseUrl}/courses/${courseId}/files?per_page=100`;
-    const files = await this.fetchPaginatedData(url, token);
-    
+    const filesUrl = `${baseUrl}/courses/${courseId}/files?per_page=100`;
+    const files = await this.fetchPaginatedData(filesUrl, token);
     const foldersUrl = `${baseUrl}/courses/${courseId}/folders?per_page=100`;
     const folders = await this.fetchPaginatedData(foldersUrl, token);
     const folderMap = new Map<number, string>();
-    
     folders.forEach((folder: any) => {
       if (folder.id && folder.full_name) {
         folderMap.set(folder.id, folder.full_name);
       }
     });
+    const filesWithMeta = files.map((file: any) => {
+      const folderPath = file.folder_id ? (folderMap.get(file.folder_id) || 'Unknown') : 'Root';
+      return { ...file, usage: [], folder_path: folderPath, is_folder: false };
+    });
     
-    const filesWithUsage = await Promise.all(
-      files.map(async (file) => {
-        const usage = await this.getFileUsage(courseId, file.id);
-        const folderPath = file.folder_id ? (folderMap.get(file.folder_id) || 'Unknown') : 'Root';
-        return { ...file, usage, folder_path: folderPath, is_folder: false };
-      })
-    );
-    
-    const foldersWithCounts = await Promise.all(
-      folders.map(async (folder: any) => {
-        let fileCount = folder.files_count || 0;
-        let folderCount = 0;
-        
-        try {
-          const subfoldersUrl = `${baseUrl}/folders/${folder.id}/folders?per_page=100`;
-          const subfolders = await this.fetchPaginatedData(subfoldersUrl, token);
-          folderCount = subfolders.length;
-        } catch (error) {
-          console.error(`[Service] Error fetching subfolders for folder ${folder.id}:`, error);
-        }
-        
-        const itemCount = fileCount + folderCount;
-        const folderPath = folder.parent_folder_id ? (folderMap.get(folder.parent_folder_id) || 'Unknown') : 'Root';
-        
-        return {
-          id: folder.id,
-          display_name: folder.name,
-          filename: folder.name,
-          folder: true,
-          is_folder: true,
-          content_type: 'folder',
-          size: null,
-          modified_at: folder.updated_at || folder.created_at,
-          folder_path: folderPath,
-          folder_id: folder.parent_folder_id,
-          usage: [],
-          item_count: itemCount,
-          file_count: fileCount,
-          folder_count: folderCount
-        };
-      })
-    );
-    
-    return [...filesWithUsage, ...foldersWithCounts];
+    const foldersWithCounts = folders.map((folder: any) => {
+      const fileCount = folder.files_count || 0;
+      const folderCount = folder.folders_count ?? 0;
+      const folderPath = folder.parent_folder_id ? (folderMap.get(folder.parent_folder_id) || 'Unknown') : 'Root';
+      return {
+        id: folder.id,
+        display_name: folder.name,
+        filename: folder.name,
+        folder: true,
+        is_folder: true,
+        content_type: 'folder',
+        size: null,
+        modified_at: folder.updated_at || folder.created_at,
+        folder_path: folderPath,
+        folder_id: folder.parent_folder_id,
+        usage: [],
+        item_count: fileCount + folderCount,
+        file_count: fileCount,
+        folder_count: folderCount
+      };
+    });
+    return [...filesWithMeta, ...foldersWithCounts];
   }
 
   private async getFileUsage(courseId: number, fileId: number): Promise<Array<{ type: string; id: number; title: string }>> {

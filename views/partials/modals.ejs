@@ -311,7 +311,7 @@
 
     <div id="pointsModal" class="modal-content-wrapper">
         <div class="modal-header">
-            <h3>Points/Weighting</h3>
+            <h3 id="pointsModalTitle">Points/Weighting</h3>
             <button class="close-x" onclick="closeActiveModal()">&times;</button>
         </div>
         <div class="modal-body">
@@ -329,7 +329,7 @@
             <input type="number" id="pointsValue" step="0.5" placeholder="Enter value...">
         </div>
         <div class="modal-footer">
-            <button class="primary-btn" onclick="executePointsUpdate()">Update Points</button>
+            <button id="pointsActionBtn" class="primary-btn" onclick="executePointsUpdate()">Update Points</button>
             <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
         </div>
     </div>

@@ -104,7 +104,8 @@
                             <div id="bulkActionsDropdown" class="dropdown-menu">
                                 <div class="dropdown-item" onclick="openModal('searchReplaceModal'); closeDropdown('bulkActionsDropdown')">Search & Replace</div>
                                 <div class="dropdown-item" onclick="openModal('dateShiftModal'); closeDropdown('bulkActionsDropdown')">Date Shift</div>
-                                <div class="dropdown-item" onclick="openModal('pointsModal'); closeDropdown('bulkActionsDropdown')">Points</div>
+                                <div id="pointsMenuItem" class="dropdown-item" onclick="openModal('pointsModal'); closeDropdown('bulkActionsDropdown')">Points</div>
+                                <div id="positionMenuItem" class="dropdown-item" onclick="openModal('pointsModal'); closeDropdown('bulkActionsDropdown')" style="display: none;">Position</div>
                                 <div id="timeLimitMenuItem" class="dropdown-item" onclick="openModal('timeLimitModal'); closeDropdown('bulkActionsDropdown')" style="display: none;">Time Limit</div>
                                 <div id="allowedAttemptsMenuItem" class="dropdown-item" onclick="openModal('allowedAttemptsModal'); closeDropdown('bulkActionsDropdown')" style="display: none;">Allowed Attempts</div>
                                 <div id="allowRatingMenuItem" class="dropdown-item" onclick="openModal('allowRatingModal'); closeDropdown('bulkActionsDropdown')" style="display: none;">Add Rating</div>

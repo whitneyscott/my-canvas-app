@@ -830,8 +830,13 @@ async function refreshCurrentTab() {
         const tabConfig = FIELD_DEFINITIONS[configKey];
         if (!tabConfig) { throw new Error(`No config for: ${currentTab}`); }
 
-        const response = await fetch(`/canvas/courses/${selectedCourseId}/${tabConfig.endpoint}`);
+        const response = await fetch(`/canvas/courses/${selectedCourseId}/${tabConfig.endpoint}`, { credentials: 'include' });
+        if (!response.ok) {
+            const errText = await response.text().catch(() => '');
+            throw new Error(`${response.status} ${response.statusText}${errText ? ': ' + errText.slice(0, 200) : ''}`);
+        }
         const data = await response.json();
+        if (!Array.isArray(data)) throw new Error('Unexpected response format');
         const dataWithStatus = data.map(x => ({ ...x, _edit_status: 'synced' }));
         originalData[currentTab] = dataWithStatus;
 
@@ -1004,8 +1009,10 @@ function getTabNameFromButton(tabEl) {
 
 function updatePointsUiLabels(tabName) {
     const isModules = tabName === 'modules';
-    const menuItem = document.getElementById('pointsMenuItem');
-    if (menuItem) menuItem.textContent = isModules ? 'Position' : 'Points';
+    const pointsItem = document.getElementById('pointsMenuItem');
+    const positionItem = document.getElementById('positionMenuItem');
+    if (pointsItem) pointsItem.style.display = isModules ? 'none' : '';
+    if (positionItem) positionItem.style.display = isModules ? 'block' : 'none';
     const title = document.getElementById('pointsModalTitle');
     if (title) title.textContent = isModules ? 'Position' : 'Points/Weighting';
     const actionBtn = document.getElementById('pointsActionBtn');
@@ -1640,18 +1647,23 @@ async function loadTabData(tabName) {
         }
 
         var dataUrl = "/canvas/courses/" + selectedCourseId + "/" + tabConfig.endpoint;
-        var response = await fetch(dataUrl);
+        var response = await fetch(dataUrl, { credentials: 'include' });
 
         clearInterval(progressInterval);
 
         if (!response.ok) {
             if (gridApi) gridApi.hideOverlay();
+            var errText = '';
+            try { errText = await response.text(); } catch (_) {}
+            var errMsg = errText ? (errText.slice(0, 300) + (errText.length > 300 ? '...' : '')) : response.statusText;
+            alert('Failed to load ' + displayTab + ': ' + response.status + ' ' + errMsg);
             return;
         }
 
         var data = await response.json();
         if (!Array.isArray(data)) {
             if (gridApi) gridApi.hideOverlay();
+            alert('Failed to load ' + displayTab + ': unexpected response format');
             return;
         }
         var dataWithStatus = data.map(function(item) { 
@@ -2233,9 +2245,12 @@ function populateNumericColumnSelector(selectId) {
     const selectElement = document.getElementById(selectId);
     if (!selectElement) return;
     selectElement.innerHTML = '';
-    const fields = getFieldsForTab(currentTab, f =>
-        f.editable !== false && (f.type === 'number' || f.type === 'time_limit' || (f.key && f.key.toLowerCase().includes('points')))
-    );
+    const fields = getFieldsForTab(currentTab, f => {
+        if (f.editable === false) return false;
+        if (f.type === 'number' || f.type === 'time_limit') return true;
+        const k = (f.key || f.name || '').toLowerCase();
+        return k.includes('points') || k === 'position';
+    });
     fields.forEach(field => {
         const option = document.createElement('option');
         option.value = field.key;
@@ -2944,9 +2959,14 @@ async function performDeepCloneWithIndex(moduleRecord, prefix, baseName, suffix,
             const itemType = item.type;
             const contentType = itemType.toLowerCase();
             let newContent;
+            let displayTitle = item.title;
             let itemParams = { title: item.title, type: itemType, position: item.position, indent: item.indent };
             if (contentType === 'subheader' || contentType === 'externalurl') {
                 if (contentType === 'externalurl') itemParams.external_url = item.external_url;
+                if (copyIndex != null && autoIncrement) {
+                    displayTitle = formatNameWithCopyIndex(item.title || 'Item', copyIndex, prefix, suffix, true);
+                    itemParams.title = displayTitle;
+                }
                 newContent = { id: 'no-content-needed' };
             } else {
                 const apiEndpoint = getApiEndpoint(itemType);
@@ -2964,6 +2984,10 @@ async function performDeepCloneWithIndex(moduleRecord, prefix, baseName, suffix,
                         if (sanitizedCopy.name !== undefined) sanitizedCopy.name = uniqueItemName;
                         if (sanitizedCopy.title !== undefined) sanitizedCopy.title = uniqueItemName;
                         newContent = await createDeepContent(itemType, sanitizedCopy);
+                        if (newContent) {
+                            displayTitle = newContent.title || newContent.name || uniqueItemName;
+                            itemParams.title = displayTitle;
+                        }
                     }
                 }
             }
