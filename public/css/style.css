@@ -32,7 +32,7 @@ body, html {
     border-right: 1px solid #8a9ba9;
     display: flex;
     flex-direction: column;
-    padding-top: 15px;
+    padding-top: 60px;
 }
 
 .main-content {
@@ -985,4 +985,9 @@ input:checked + .slider:before {
 
 .standards-sync-panel .acc-save-std {
     padding: 0.4rem 0.8rem;
+}
+
+.ag-read-only-cell {
+    background-color: #f5f5f5;
+    color: #666;
 }

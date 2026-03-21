@@ -518,19 +518,7 @@ function generateColumnDefs(tabName) {
                 if (isNaN(date.getTime())) return params.value;
                 return date.toISOString().slice(0, 19);
             };
-            colDef.valueParser = params => {
-                if (!params.newValue) return null;
-                const value = String(params.newValue).trim();
-                if (!value) return null;
-                if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T23:59:00Z`;
-                if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return `${value}:00Z`;
-                if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(value)) return `${value.replace(' ', 'T')}:00Z`;
-                if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value)) return `${value}Z`;
-                if (/Z$|[+-]\d{2}:\d{2}$/.test(value)) return value;
-                const date = new Date(value);
-                if (isNaN(date.getTime())) return value;
-                return date.toISOString().slice(0, 19) + 'Z';
-            };
+            colDef.valueParser = params => DateUtils.parseForCanvas(params.newValue);
         } else if (field.type === 'boolean') {
             colDef.editable = false;
             colDef.cellRenderer = params => {
@@ -636,6 +624,7 @@ function generateColumnDefs(tabName) {
     const idCol = {
         headerName: 'ID',
         field: 'id',
+        valueGetter: params => params.data?.id ?? params.data?.url ?? '',
         width: 100,
         minWidth: 70,
         sortable: true,
@@ -650,6 +639,7 @@ function generateColumnDefs(tabName) {
 
     return allColumns;
 }
+if (typeof window !== 'undefined') window.generateColumnDefs = generateColumnDefs;
 
 const GRID_DATA_TABS = ['assignments', 'new_quizzes', 'quizzes', 'discussions', 'announcements', 'pages', 'modules', 'files'];
 
@@ -1538,9 +1528,7 @@ async function loadTabData(tabName) {
 }
 
 function trackChange(tabName, itemId, fieldName, value) {
-    if (!changes[tabName]) changes[tabName] = {};
-    if (!changes[tabName][itemId]) changes[tabName][itemId] = {};
-    changes[tabName][itemId][fieldName] = value;
+    CanvasHelpers.trackChange(changes, tabName, itemId, fieldName, value);
 }
 
 function getBulkTargetRowData(fillVisibleWhenEmpty) {
@@ -2201,12 +2189,13 @@ function openModal(modalId) {
         const methodSelect = document.getElementById('cloneMethod');
         const isModuleTab = (currentTab === 'modules');
         if (methodSelect) {
-            Array.from(methodSelect.options).forEach(option => {
-                const isItemMode = (option.value === 'item');
-                option.hidden = isModuleTab ? isItemMode : !isItemMode;
-                option.disabled = isModuleTab ? isItemMode : !isItemMode;
-            });
-            methodSelect.value = isModuleTab ? 'structural' : 'item';
+            if (isModuleTab) {
+                methodSelect.innerHTML = '<option value="structural">Structural Clone (Empty Shell)</option><option value="deep">Deep Clone (Modules only)</option>';
+                methodSelect.value = 'structural';
+            } else {
+                methodSelect.innerHTML = '<option value="item">Add to Grid (then Sync to Canvas)</option>';
+                methodSelect.value = 'item';
+            }
         }
     }
     overlay.classList.add('active');
@@ -2325,21 +2314,21 @@ function executeDateShift() {
                 const timeStr = manualTime || timeOverride;
                 if (timeStr) { const [hours, mins] = timeStr.split(':'); dateObj.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
                 else dateObj.setHours(23, 59, 0, 0);
-                newDateValue = dateObj.toISOString().slice(0, 19) + 'Z';
+                newDateValue = DateUtils.formatForCanvas(dateObj);
             } else if (currentValue) {
                 const currentDate = new Date(currentValue);
                 if (!isNaN(currentDate.getTime())) {
                     const shiftedDate = new Date(currentDate);
                     shiftedDate.setDate(shiftedDate.getDate() + offsetDaysNum);
                     if (timeOverride) { const [hours, mins] = timeOverride.split(':'); shiftedDate.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
-                    newDateValue = shiftedDate.toISOString().slice(0, 19) + 'Z';
+                    newDateValue = DateUtils.formatForCanvas(shiftedDate);
                 }
             } else if (offsetDaysNum !== 0) {
                 const baseDate = new Date();
                 baseDate.setDate(baseDate.getDate() + offsetDaysNum);
                 if (timeOverride) { const [hours, mins] = timeOverride.split(':'); baseDate.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
                 else baseDate.setHours(23, 59, 0, 0);
-                newDateValue = baseDate.toISOString().slice(0, 19) + 'Z';
+                newDateValue = DateUtils.formatForCanvas(baseDate);
             }
             if (isClearMode || newDateValue !== null) {
                 applyGridCellChangeToNode(gridNode, field, newDateValue);

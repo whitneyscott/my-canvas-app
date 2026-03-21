@@ -28,34 +28,16 @@ const CanvasHelpers = {
     },
   
     generateColumnDefs(tabName) {
+      if (typeof window.generateColumnDefs === 'function') return window.generateColumnDefs(tabName);
       const config = window.CANVAS_CONFIG;
-      const fields = config.FIELD_DEFINITIONS[tabName];
-      
-      if (!fields) {
-        console.warn(`No field definitions found for tab: ${tabName}`);
-        return [];
-      }
-  
-      const statusCol = {
-        ...config.STATUS_COLUMN,
-        cellRenderer: this.statusCellRenderer
-      };
-  
+      const fields = config?.FIELD_DEFINITIONS?.[tabName];
+      if (!fields) return [];
+      const statusCol = { ...(config?.STATUS_COLUMN || {}), cellRenderer: this.statusCellRenderer };
       const dataColumns = fields.map(field => {
-        const colDef = {
-          headerName: field.label,
-          field: field.key,
-          editable: field.editable !== false
-        };
-  
-        if (field.type === 'boolean') {
-          colDef.editable = false;
-          colDef.cellRenderer = (params) => this.booleanCellRenderer(params, field);
-        }
-  
+        const colDef = { headerName: field.label, field: field.key, editable: field.editable !== false };
+        if (field.type === 'boolean') { colDef.editable = false; colDef.cellRenderer = (params) => this.booleanCellRenderer(params, field); }
         return colDef;
       });
-  
       return [statusCol, ...dataColumns];
     },
   
