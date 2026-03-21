@@ -345,7 +345,18 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       if (row) rows.push(row);
     }
     await this.enrichNewQuizRowsFromDetail(courseId, rows, token, baseUrl);
-    return rows;
+    const rubricLookup = await this.getAssignmentRubricLookup(courseId, token, baseUrl);
+    return rows.map((row: any) => {
+      const assignmentId = Number(row?.id);
+      const rubric = Number.isFinite(assignmentId) ? rubricLookup.get(assignmentId) : null;
+      return {
+        ...row,
+        rubric_id: rubric?.rubric_id ?? null,
+        rubric_summary: rubric?.rubric_summary ?? null,
+        rubric_url: rubric?.rubric_url ?? null,
+        rubric_association_id: rubric?.rubric_association_id ?? null,
+      };
+    });
   }
 
   async updateNewQuizRow(courseId: number, assignmentId: number, updates: Record<string, any>) {
@@ -627,8 +638,20 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       console.log(`[Service] Course ID: ${courseId}`);
       console.log(`[Service] Full URL: ${url}`);
       const result = await this.fetchPaginatedData(url, token);
-      console.log(`[Service] Retrieved ${result.length} quizzes`);
-      return result;
+      const rubricLookup = await this.getAssignmentRubricLookup(courseId, token, baseUrl);
+      const enriched = result.map((quiz: any) => {
+        const assignmentId = Number(quiz?.assignment_id);
+        const rubric = Number.isFinite(assignmentId) ? rubricLookup.get(assignmentId) : null;
+        return {
+          ...quiz,
+          rubric_id: rubric?.rubric_id ?? null,
+          rubric_summary: rubric?.rubric_summary ?? null,
+          rubric_url: rubric?.rubric_url ?? null,
+          rubric_association_id: rubric?.rubric_association_id ?? null,
+        };
+      });
+      console.log(`[Service] Retrieved ${enriched.length} quizzes`);
+      return enriched;
     } catch (error: any) {
       console.error(`[Service] Error in getCourseQuizzes for course ${courseId}:`, error);
       console.error(`[Service] Error message:`, error.message);
@@ -642,7 +665,18 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const url = `${baseUrl}/courses/${courseId}/assignments?per_page=100&include[]=submission`;
     const assignments = await this.fetchPaginatedData(url, token);
     const pure = assignments.filter((a: any) => !this.isQuizLinkedAssignment(a));
-    return pure;
+    const rubricLookup = await this.getAssignmentRubricLookup(courseId, token, baseUrl);
+    return pure.map((assignment: any) => {
+      const assignmentId = Number(assignment?.id);
+      const rubric = Number.isFinite(assignmentId) ? rubricLookup.get(assignmentId) : null;
+      return {
+        ...assignment,
+        rubric_id: rubric?.rubric_id ?? null,
+        rubric_summary: rubric?.rubric_summary ?? null,
+        rubric_url: rubric?.rubric_url ?? null,
+        rubric_association_id: rubric?.rubric_association_id ?? null,
+      };
+    });
   }
 
   async getCourseAssignmentGroups(courseId: number) {
@@ -655,6 +689,163 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     } catch (error: any) {
       console.error(`[Service] Error in getCourseAssignmentGroups for course ${courseId}:`, error);
       throw error;
+    }
+  }
+
+  private canvasHtmlBase(apiV1BaseUrl: string): string {
+    const trimmed = apiV1BaseUrl.replace(/\/$/, '');
+    return trimmed.endsWith('/api/v1') ? trimmed.slice(0, -'/api/v1'.length) : trimmed;
+  }
+
+  private async getAssignmentRubricLookup(courseId: number, token: string, baseUrl: string): Promise<Map<number, { rubric_id: number; rubric_summary: string; rubric_url: string; rubric_association_id: number | null }>> {
+    const rubricsUrl = `${baseUrl}/courses/${courseId}/rubrics?per_page=100&include[]=associations`;
+    const rubrics = await this.fetchPaginatedData(rubricsUrl, token);
+    const htmlBase = this.canvasHtmlBase(baseUrl);
+    const map = new Map<number, { rubric_id: number; rubric_summary: string; rubric_url: string; rubric_association_id: number | null }>();
+    rubrics.forEach((rubric: any) => {
+      const rubricId = Number(rubric?.id);
+      if (!Number.isFinite(rubricId)) return;
+      const associations = Array.isArray(rubric?.associations) ? rubric.associations : [];
+      associations.forEach((assoc: any) => {
+        const associationId = Number(assoc?.association_id);
+        if (!Number.isFinite(associationId)) return;
+        if (String(assoc?.association_type || '') !== 'Assignment') return;
+        map.set(associationId, {
+          rubric_id: rubricId,
+          rubric_summary: String(rubric?.title || `Rubric ${rubricId}`),
+          rubric_url: `${htmlBase}/courses/${courseId}/rubrics/${rubricId}`,
+          rubric_association_id: Number.isFinite(Number(assoc?.id)) ? Number(assoc.id) : null,
+        });
+      });
+    });
+    return map;
+  }
+
+  async getCourseRubrics(courseId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const htmlBase = this.canvasHtmlBase(baseUrl);
+    const rubricsUrl = `${baseUrl}/courses/${courseId}/rubrics?per_page=100`;
+    const rubrics = await this.fetchPaginatedData(rubricsUrl, token);
+    return rubrics
+      .map((r: any) => {
+        const id = Number(r?.id);
+        if (!Number.isFinite(id)) return null;
+        return {
+          id,
+          title: String(r?.title || `Rubric ${id}`),
+          url: `${htmlBase}/courses/${courseId}/rubrics/${id}`,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  async createCourseRubric(
+    courseId: number,
+    body: { title?: string; association_id?: number; association_type?: string },
+  ) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const htmlBase = this.canvasHtmlBase(baseUrl);
+    const title = (body?.title || 'New Rubric').trim() || 'New Rubric';
+    const associationType = body?.association_type || 'Assignment';
+    const associationId = body?.association_id != null ? Number(body.association_id) : null;
+    const url = `${baseUrl}/courses/${courseId}/rubrics`;
+    const withCriteria = new URLSearchParams();
+    withCriteria.append('rubric[title]', title);
+    withCriteria.append('rubric[free_form_criterion_comments]', 'true');
+    withCriteria.append('rubric[criteria][0][description]', 'Criterion 1');
+    withCriteria.append('rubric[criteria][0][points]', '1');
+    withCriteria.append('rubric[criteria][0][ratings][0][description]', 'Not met');
+    withCriteria.append('rubric[criteria][0][ratings][0][points]', '0');
+    withCriteria.append('rubric[criteria][0][ratings][1][description]', 'Met');
+    withCriteria.append('rubric[criteria][0][ratings][1][points]', '1');
+    if (associationId && Number.isFinite(associationId)) {
+      withCriteria.append('rubric_association[association_id]', String(associationId));
+      withCriteria.append('rubric_association[association_type]', associationType);
+      withCriteria.append('rubric_association[purpose]', 'grading');
+      withCriteria.append('rubric_association[use_for_grading]', 'true');
+    }
+    const noCriteria = new URLSearchParams(withCriteria.toString());
+    ['rubric[criteria][0][description]', 'rubric[criteria][0][points]', 'rubric[criteria][0][ratings][0][description]', 'rubric[criteria][0][ratings][0][points]', 'rubric[criteria][0][ratings][1][description]', 'rubric[criteria][0][ratings][1][points]'].forEach((k) => noCriteria.delete(k));
+
+    const attempts = [withCriteria, noCriteria];
+    let payload: any = null;
+    let lastError = '';
+    for (const params of attempts) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      });
+      const text = await res.text();
+      if (res.ok) {
+        try {
+          payload = text ? JSON.parse(text) : {};
+        } catch {
+          payload = {};
+        }
+        break;
+      }
+      lastError = text || `${res.status} ${res.statusText}`;
+      if (![400, 415, 422].includes(res.status)) break;
+    }
+
+    if (!payload) {
+      throw new Error(`Failed to create rubric: ${lastError}`);
+    }
+
+    const rubric = payload.rubric || payload;
+    const id = Number(rubric?.id);
+    if (!Number.isFinite(id)) {
+      throw new Error('Rubric created but ID was not returned');
+    }
+    return {
+      id,
+      title: String(rubric?.title || title),
+      url: `${htmlBase}/courses/${courseId}/rubrics/${id}`,
+    };
+  }
+
+  private async upsertAssignmentRubricAssociation(
+    courseId: number,
+    assignmentId: number,
+    rubricId: number | null,
+    token: string,
+    baseUrl: string,
+  ): Promise<void> {
+    const lookup = await this.getAssignmentRubricLookup(courseId, token, baseUrl);
+    const current = lookup.get(assignmentId);
+
+    if (rubricId == null) {
+      if (current?.rubric_association_id) {
+        await fetch(`${baseUrl}/courses/${courseId}/rubric_associations/${current.rubric_association_id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+      return;
+    }
+
+    if (current?.rubric_id === rubricId) return;
+
+    const params = new URLSearchParams();
+    params.append('rubric_association[rubric_id]', String(rubricId));
+    params.append('rubric_association[association_id]', String(assignmentId));
+    params.append('rubric_association[association_type]', 'Assignment');
+    params.append('rubric_association[purpose]', 'grading');
+    params.append('rubric_association[use_for_grading]', 'true');
+
+    const targetUrl = current?.rubric_association_id
+      ? `${baseUrl}/courses/${courseId}/rubric_associations/${current.rubric_association_id}`
+      : `${baseUrl}/courses/${courseId}/rubric_associations`;
+    const method = current?.rubric_association_id ? 'PUT' : 'POST';
+    const res = await fetch(targetUrl, {
+      method,
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to update rubric association: ${res.status} ${res.statusText} - ${text}`);
     }
   }
 
@@ -755,7 +946,30 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   async getCourseDiscussions(courseId: number) {
     const { token, baseUrl } = await this.getAuthHeaders();
     const url = `${baseUrl}/courses/${courseId}/discussion_topics?per_page=100`;
-    return await this.fetchPaginatedData(url, token);
+    const discussions = await this.fetchPaginatedData(url, token);
+
+    const assignmentsUrl = `${baseUrl}/courses/${courseId}/assignments?per_page=100`;
+    const assignments = await this.fetchPaginatedData(assignmentsUrl, token);
+    const assignmentById = new Map<number, any>();
+    assignments.forEach((a: any) => {
+      const id = Number(a?.id);
+      if (Number.isFinite(id)) assignmentById.set(id, a);
+    });
+    const rubricLookup = await this.getAssignmentRubricLookup(courseId, token, baseUrl);
+
+    return discussions.map((topic: any) => {
+      const assignmentId = Number(topic?.assignment_id);
+      const assignment = Number.isFinite(assignmentId) ? assignmentById.get(assignmentId) : null;
+      const rubric = Number.isFinite(assignmentId) ? rubricLookup.get(assignmentId) : null;
+      return {
+        ...topic,
+        points_possible: assignment?.points_possible ?? null,
+        rubric_id: rubric?.rubric_id ?? null,
+        rubric_summary: rubric?.rubric_summary ?? null,
+        rubric_url: rubric?.rubric_url ?? null,
+        rubric_association_id: rubric?.rubric_association_id ?? null,
+      };
+    });
   }
 
   private extractTextFromBlockEditorBlocks(blocks: unknown): string {
@@ -1247,6 +1461,20 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       
       const { token, baseUrl } = await this.getAuthHeaders();
       const pending: Record<string, any> = { ...updates };
+      let rubricSelection: number | null | undefined = undefined;
+      if (Object.prototype.hasOwnProperty.call(pending, 'rubric_id')) {
+        const rawRubric = pending.rubric_id;
+        if (rawRubric === null || rawRubric === '' || rawRubric === undefined) {
+          rubricSelection = null;
+        } else {
+          const parsedRubricId = Number(rawRubric);
+          rubricSelection = Number.isFinite(parsedRubricId) ? parsedRubricId : null;
+        }
+        delete pending.rubric_id;
+      }
+      delete pending.rubric_summary;
+      delete pending.rubric_url;
+      delete pending.rubric_association_id;
 
       const needsNewQuizRoute =
         Object.prototype.hasOwnProperty.call(pending, 'description') ||
@@ -1312,6 +1540,9 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       });
       
       if (Object.keys(cleanedUpdates).length === 0) {
+        if (rubricSelection !== undefined) {
+          await this.upsertAssignmentRubricAssociation(courseId, assignmentId, rubricSelection, token, baseUrl);
+        }
         return await this.getAssignment(courseId, assignmentId);
       }
       
@@ -1370,7 +1601,12 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
       console.log(`[Service] Assignment ${assignmentId} updated successfully`);
       console.log(`[Service] Canvas API response (formatted):`, JSON.stringify(result, null, 2));
-      
+
+      if (rubricSelection !== undefined) {
+        await this.upsertAssignmentRubricAssociation(courseId, assignmentId, rubricSelection, token, baseUrl);
+        return await this.getAssignment(courseId, assignmentId);
+      }
+
       return result;
     } catch (error: any) {
       console.error(`[Service] Error in updateAssignment for assignment ${assignmentId}:`, error);
@@ -1413,10 +1649,25 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         console.warn(`[Service] Could not verify course end date:`, courseCheckError.message);
       }
       console.log(`[Service] Got auth headers, baseUrl: ${baseUrl}`);
-      
+      const pending: Record<string, any> = { ...updates };
+      let rubricSelection: number | null | undefined = undefined;
+      if (Object.prototype.hasOwnProperty.call(pending, 'rubric_id')) {
+        const rawRubric = pending.rubric_id;
+        if (rawRubric === null || rawRubric === '' || rawRubric === undefined) {
+          rubricSelection = null;
+        } else {
+          const parsedRubricId = Number(rawRubric);
+          rubricSelection = Number.isFinite(parsedRubricId) ? parsedRubricId : null;
+        }
+        delete pending.rubric_id;
+      }
+      delete pending.rubric_summary;
+      delete pending.rubric_url;
+      delete pending.rubric_association_id;
+
       const cleanedUpdates: Record<string, any> = {};
-      Object.keys(updates).forEach(key => {
-        const value = updates[key];
+      Object.keys(pending).forEach(key => {
+        const value = pending[key];
         if (value === undefined) return;
         const dateVal = processDateField(key, value);
         if (dateVal !== undefined) {
@@ -1469,7 +1720,16 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       }
       
       if (Object.keys(cleanedUpdates).length === 0) {
-        throw new Error('No valid updates to send to Canvas API');
+        if (rubricSelection === undefined) {
+          throw new Error('No valid updates to send to Canvas API');
+        }
+        const quizSnapshot = await this.getQuiz(courseId, quizId);
+        const assignmentId = Number(quizSnapshot?.assignment_id);
+        if (!Number.isFinite(assignmentId)) {
+          throw new Error('Cannot set rubric: quiz does not have an assignment_id');
+        }
+        await this.upsertAssignmentRubricAssociation(courseId, assignmentId, rubricSelection, token, baseUrl);
+        return await this.getQuiz(courseId, quizId);
       }
       
       console.log(`[Service] Updating quiz ${quizId} in course ${courseId}`);
@@ -1590,7 +1850,16 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
           console.warn(`[Service]   This is normal for graded quizzes - the due date is stored on the assignment.`);
         }
       }
-      
+
+      if (rubricSelection !== undefined) {
+        const assignmentId = Number(result?.assignment_id);
+        if (!Number.isFinite(assignmentId)) {
+          throw new Error('Cannot set rubric: quiz does not have an assignment_id');
+        }
+        await this.upsertAssignmentRubricAssociation(courseId, assignmentId, rubricSelection, token, baseUrl);
+        return await this.getQuiz(courseId, quizId);
+      }
+
       return result;
     } catch (error: any) {
       console.error(`[Service] Error in updateQuiz for quiz ${quizId}:`, error);
@@ -1607,25 +1876,106 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   async updateDiscussion(courseId: number, discussionId: number, updates: Record<string, any>) {
     const { token, baseUrl } = await this.getAuthHeaders();
-    const cleanedUpdates = cleanContentUpdates(updates, { clearableTextFields: true });
-    console.log(`Updating discussion ${discussionId} with:`, cleanedUpdates);
-    
-    const response = await fetch(`${baseUrl}/courses/${courseId}/discussion_topics/${discussionId}`, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(cleanedUpdates),
-    });
+    const pending: Record<string, any> = { ...updates };
+    let rubricSelection: number | null | undefined = undefined;
+    if (Object.prototype.hasOwnProperty.call(pending, 'rubric_id')) {
+      const rawRubric = pending.rubric_id;
+      if (rawRubric === null || rawRubric === '' || rawRubric === undefined) {
+        rubricSelection = null;
+      } else {
+        const parsedRubricId = Number(rawRubric);
+        rubricSelection = Number.isFinite(parsedRubricId) ? parsedRubricId : null;
+      }
+      delete pending.rubric_id;
+    }
+    delete pending.rubric_summary;
+    delete pending.rubric_url;
+    delete pending.rubric_association_id;
+    const cleanedUpdates = cleanContentUpdates(pending, { clearableTextFields: true });
+    const topicUrl = `${baseUrl}/courses/${courseId}/discussion_topics/${discussionId}`;
+    const discussionUpdates: Record<string, any> = { ...cleanedUpdates };
+    const assignmentDateUpdates: Record<string, any> = {};
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Discussion update failed: ${response.status} ${response.statusText}`, errorText);
-      throw new Error(`Failed to update discussion: ${response.status} ${response.statusText} - ${errorText}`);
+    let assignmentId: number | null = null;
+    try {
+      const topic = await this.getDiscussion(courseId, discussionId);
+      assignmentId = topic?.assignment_id ?? null;
+    } catch {
+      assignmentId = null;
     }
 
-    return await response.json();
+    ['due_at', 'unlock_at', 'lock_at'].forEach((k) => {
+      if (
+        assignmentId &&
+        Object.prototype.hasOwnProperty.call(discussionUpdates, k)
+      ) {
+        assignmentDateUpdates[k] = discussionUpdates[k];
+      }
+    });
+
+    delete discussionUpdates.due_at;
+    delete discussionUpdates.unlock_at;
+
+    let topicResult: any = null;
+    if (Object.keys(discussionUpdates).length > 0) {
+      const form = new URLSearchParams();
+      Object.entries(discussionUpdates).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) form.append(k, String(v));
+      });
+      const attempts: Array<{ contentType: string; body: string }> = [
+        { contentType: 'application/json', body: JSON.stringify(discussionUpdates) },
+        { contentType: 'application/json', body: JSON.stringify({ discussion_topic: discussionUpdates }) },
+        { contentType: 'application/x-www-form-urlencoded', body: form.toString() },
+      ];
+
+      let lastStatus = 0;
+      let lastText = '';
+      for (const attempt of attempts) {
+        const response = await fetch(topicUrl, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': attempt.contentType,
+          },
+          body: attempt.body,
+        });
+        const text = await response.text();
+        if (response.ok) {
+          if (text) {
+            try {
+              topicResult = JSON.parse(text);
+            } catch {
+              topicResult = {};
+            }
+          } else {
+            topicResult = {};
+          }
+          lastStatus = 0;
+          lastText = '';
+          break;
+        }
+        lastStatus = response.status;
+        lastText = text || response.statusText;
+        if (![400, 415, 422].includes(response.status)) break;
+      }
+
+      if (lastStatus) {
+        throw new Error(`Failed to update discussion: ${lastStatus} - ${lastText}`);
+      }
+    }
+
+    if (assignmentId && Object.keys(assignmentDateUpdates).length > 0) {
+      await this.updateAssignment(courseId, assignmentId, assignmentDateUpdates);
+    }
+
+    if (rubricSelection !== undefined) {
+      if (!assignmentId) {
+        throw new Error('Cannot set rubric: discussion does not have an assignment_id');
+      }
+      await this.upsertAssignmentRubricAssociation(courseId, assignmentId, rubricSelection, token, baseUrl);
+    }
+
+    return topicResult || this.getDiscussion(courseId, discussionId);
   }
 
   async updatePage(courseId: number, pageUrl: string, updates: Record<string, any>) {

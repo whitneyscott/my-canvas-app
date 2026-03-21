@@ -71,6 +71,19 @@ export class CanvasController {
     return this.canvasService.getCourseAssignmentGroups(id);
   }
 
+  @Get('courses/:id/rubrics')
+  async getCourseRubrics(@Param('id', ParseIntPipe) id: number) {
+    return this.canvasService.getCourseRubrics(id);
+  }
+
+  @Post('courses/:id/rubrics')
+  async createCourseRubric(
+    @Param('id', ParseIntPipe) courseId: number,
+    @Body() body: { title?: string; association_id?: number; association_type?: string },
+  ) {
+    return this.canvasService.createCourseRubric(courseId, body || {});
+  }
+
   @Post('courses/:id/assignment_groups')
   async createAssignmentGroup(
     @Param('id', ParseIntPipe) courseId: number,

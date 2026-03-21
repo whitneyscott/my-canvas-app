@@ -62,7 +62,8 @@
                 <div class="debug-panel-header" onclick="toggleDebugPanel()">
                     <span>System Debug Monitor</span>
                     <span class="debug-panel-header-right" onclick="event.stopPropagation()">
-                        <button type="button" class="debug-copy-btn" onclick="copyDebugLogToClipboard(event)" title="Copy all log lines">Copy</button>
+                        <button type="button" class="debug-copy-btn" onclick="clearDebugLog(event)" title="Clear debug log">Clear</button>
+                        <button type="button" id="debugCopyBtn" class="debug-copy-btn" onclick="copyDebugLogToClipboard(event)" title="Copy all log lines">Copy</button>
                         <span id="debugToggle">▲</span>
                     </span>
                 </div>
@@ -106,6 +107,7 @@
                                 <div class="dropdown-item" onclick="openModal('pointsModal'); closeDropdown('bulkActionsDropdown')">Points</div>
                                 <div id="timeLimitMenuItem" class="dropdown-item" onclick="openModal('timeLimitModal'); closeDropdown('bulkActionsDropdown')" style="display: none;">Time Limit</div>
                                 <div id="allowedAttemptsMenuItem" class="dropdown-item" onclick="openModal('allowedAttemptsModal'); closeDropdown('bulkActionsDropdown')" style="display: none;">Allowed Attempts</div>
+                                <div id="allowRatingMenuItem" class="dropdown-item" onclick="openModal('allowRatingModal'); closeDropdown('bulkActionsDropdown')" style="display: none;">Add Rating</div>
                                 <div class="dropdown-item" onclick="openModal('assignmentGroupModal'); closeDropdown('bulkActionsDropdown')">Assignment Group</div>
                                 <div class="dropdown-item" onclick="openModal('publishModal'); closeDropdown('bulkActionsDropdown')">Publish</div>
                                 <div class="dropdown-item" onclick="handleCloneClick(); closeDropdown('bulkActionsDropdown')">Clone</div>

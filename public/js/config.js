@@ -9,6 +9,12 @@ const DISCUSSION_LIKE_FIELDS = [
   { key: 'published', label: 'Published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
 ];
 
+const DISCUSSION_FIELDS = [
+  ...DISCUSSION_LIKE_FIELDS,
+  { key: 'points_possible', label: 'Points Possible', editable: false, type: 'number' },
+  { key: 'rubric_id', label: 'Rubric', editable: true, type: 'rubric_dropdown' }
+];
+
 const CANVAS_CONFIG = {
   FIELD_DEFINITIONS: {
     assignments: {
@@ -18,6 +24,7 @@ const CANVAS_CONFIG = {
         { key: 'name', label: 'Name', editable: true, type: 'text' },
         { key: 'description', label: 'Description/Instructions', editable: true, type: 'html' },
         { key: 'assignment_group_id', label: 'Assignment Group', editable: true, type: 'assignment_group_dropdown' },
+        { key: 'rubric_id', label: 'Rubric', editable: true, type: 'rubric_dropdown' },
         { key: 'points_possible', label: 'Points Possible', editable: true, type: 'number' },
         { key: 'due_at', label: 'Due Date', editable: true, type: 'date' },
         { key: 'unlock_at', label: 'Available From', editable: true, type: 'date' },
@@ -28,7 +35,7 @@ const CANVAS_CONFIG = {
     discussion_topics: {
       displayName: 'Discussions',
       endpoint: 'discussions',
-      fields: DISCUSSION_LIKE_FIELDS
+      fields: DISCUSSION_FIELDS
     },
     files: {
       displayName: 'Files',
@@ -81,6 +88,7 @@ const CANVAS_CONFIG = {
         { key: 'name', label: 'Name', editable: true, type: 'text' },
         { key: 'description', label: 'Instructions', editable: true, type: 'html' },
         { key: 'assignment_group_id', label: 'Assignment Group', editable: true, type: 'assignment_group_dropdown' },
+        { key: 'rubric_id', label: 'Rubric', editable: true, type: 'rubric_dropdown' },
         { key: 'points_possible', label: 'Points Possible', editable: true, type: 'number' },
         { key: 'due_at', label: 'Due Date', editable: true, type: 'date' },
         { key: 'unlock_at', label: 'Available From', editable: true, type: 'date' },
@@ -101,6 +109,7 @@ const CANVAS_CONFIG = {
         ] },
         { key: 'description', label: 'Description', editable: true, type: 'html' },
         { key: 'assignment_group_id', label: 'Assignment Group', editable: true, type: 'assignment_group_dropdown' },
+        { key: 'rubric_id', label: 'Rubric', editable: true, type: 'rubric_dropdown' },
         { key: 'points_possible', label: 'Points (from questions)', editable: false, type: 'number' },
         { key: 'time_limit', label: 'Time Limit', editable: true, type: 'time_limit' },
         { key: 'allowed_attempts', label: 'Allowed Attempts', editable: true, type: 'number' },

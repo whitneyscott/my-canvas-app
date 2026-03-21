@@ -70,6 +70,7 @@ function showFlashError(message) {
 // Run the function as soon as the window loads
 window.onload = init;
 let assignmentGroupsCache = {};
+let rubricsCache = {};
 
 const FIELD_DEFINITIONS = window.FIELD_DEFINITIONS || window.CANVAS_CONFIG?.FIELD_DEFINITIONS || {};
 
@@ -78,6 +79,85 @@ function getConfigKey(tabOrType) {
     if (FIELD_DEFINITIONS[tabOrType]) return tabOrType;
     if (tabOrType === 'discussions') return 'discussion_topics';
     return tabOrType;
+}
+
+function getRubricAssociationIdForRow(rowData, tabName) {
+    if (!rowData) return null;
+    if (tabName === 'assignments') return Number(rowData.id) || null;
+    if (tabName === 'quizzes') return Number(rowData.assignment_id) || null;
+    if (tabName === 'new_quizzes') return Number(rowData.id) || null;
+    if (tabName === 'discussions') return Number(rowData.assignment_id) || null;
+    return null;
+}
+
+function getRubricTitleForRow(rowData) {
+    const base = (rowData?.name || rowData?.title || 'Item').toString().trim();
+    return `Rubric - ${base}`;
+}
+
+async function loadRubricsForCourse(courseId) {
+    if (!courseId) return;
+    try {
+        const res = await fetch(`/canvas/courses/${courseId}/rubrics`);
+        if (!res.ok) throw new Error(await res.text());
+        const list = await res.json();
+        const map = {};
+        (Array.isArray(list) ? list : []).forEach(r => {
+            const id = Number(r?.id);
+            if (Number.isFinite(id)) map[id] = { title: r.title || `Rubric ${id}`, url: r.url || '' };
+        });
+        rubricsCache[courseId] = map;
+    } catch (_) {
+        rubricsCache[courseId] = rubricsCache[courseId] || {};
+    }
+}
+
+async function createRubricForRow(params) {
+    const rowData = params?.data;
+    if (!selectedCourseId || !rowData) return;
+    const associationId = getRubricAssociationIdForRow(rowData, currentTab);
+    if (!associationId) {
+        alert('This item does not support rubric scoring.');
+        params.node.setDataValue('rubric_id', rowData.rubric_id || null);
+        return;
+    }
+    const title = getRubricTitleForRow(rowData);
+    const res = await fetch(`/canvas/courses/${selectedCourseId}/rubrics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, association_id: associationId, association_type: 'Assignment' })
+    });
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || res.statusText);
+    }
+    const created = await res.json();
+    const rid = Number(created?.id);
+    if (!Number.isFinite(rid)) throw new Error('Rubric ID not returned');
+    rubricsCache[selectedCourseId] = rubricsCache[selectedCourseId] || {};
+    rubricsCache[selectedCourseId][rid] = { title: created.title || title, url: created.url || '' };
+    params.node.setDataValue('rubric_id', rid);
+    params.node.setDataValue('rubric_summary', created.title || title);
+    params.node.setDataValue('rubric_url', created.url || '');
+    params.node.setDataValue('_edit_status', 'synced');
+    const itemId = params.data?.id || params.data?.url;
+    const baseline = originalData[currentTab]?.find(item => String(item.id || item.url) === String(itemId));
+    if (baseline) {
+        baseline.rubric_id = rid;
+        baseline.rubric_summary = created.title || title;
+        baseline.rubric_url = created.url || '';
+    }
+    if (changes[currentTab] && changes[currentTab][itemId]) {
+        delete changes[currentTab][itemId].rubric_id;
+        delete changes[currentTab][itemId].rubric_summary;
+        delete changes[currentTab][itemId].rubric_url;
+        if (Object.keys(changes[currentTab][itemId]).length === 0) delete changes[currentTab][itemId];
+    }
+    params.api.refreshCells({ rowNodes: [params.node], force: true });
+    if (created.url) {
+        const openNow = window.confirm('Rubric created. Open it in Canvas to edit criteria now?');
+        if (openNow) window.open(created.url, '_blank', 'noopener');
+    }
 }
 
 function debugLog(message, type = 'info') {
@@ -146,12 +226,22 @@ async function copyDebugLogToClipboard(ev) {
             document.body.removeChild(ta);
         }
     }
-    const btn = document.querySelector('.debug-copy-btn');
+    const btn = document.getElementById('debugCopyBtn');
     if (btn) {
         const prev = btn.textContent;
         btn.textContent = 'Copied';
         setTimeout(() => { btn.textContent = prev; }, 1500);
     }
+}
+
+function clearDebugLog(ev) {
+    if (ev) {
+        ev.stopPropagation();
+        ev.preventDefault();
+    }
+    const debugContent = document.getElementById('debugContent');
+    if (!debugContent) return;
+    debugContent.innerHTML = '';
 }
 
 // Debug Panel Drag and Drop
@@ -288,6 +378,10 @@ const gridOptions = {
     getRowStyle: params => params.data?._edit_status === 'modified' ? { backgroundColor: '#fff9c4', fontWeight: 'bold', color: '#d35400' } : null,
     onCellValueChanged: params => {
         if (params.colDef.field !== '_edit_status') {
+            if (params.colDef.field === 'rubric_id' && params.newValue === '__create_new__') {
+                createRubricForRow(params).catch(err => alert('Failed to create rubric: ' + (err?.message || err)));
+                return;
+            }
             params.node.setDataValue('_edit_status', 'modified');
             const committedValue = params.data?.[params.colDef.field];
             trackChange(currentTab, params.data.id || params.data.url, params.colDef.field, committedValue);
@@ -489,6 +583,35 @@ function generateColumnDefs(tabName) {
 
             colDef.valueParser = params => {
                 return parseInt(params.newValue);
+            };
+        }
+        else if (field.type === 'rubric_dropdown') {
+            const rubrics = rubricsCache[selectedCourseId] || {};
+            const rubricIds = Object.keys(rubrics).map(id => parseInt(id, 10)).filter(n => !isNaN(n));
+            const values = [...rubricIds, '__create_new__'];
+            colDef.valueFormatter = params => {
+                const v = params.value;
+                if (v === '__create_new__') return '+ Create New...';
+                if (v == null || v === '') return '';
+                const r = rubrics[v];
+                return r?.title || params.data?.rubric_summary || `Rubric ${v}`;
+            };
+            colDef.cellEditor = 'agSelectCellEditor';
+            colDef.cellEditorParams = {
+                values,
+                formatValue: (value) => {
+                    if (value === '__create_new__') return '+ Create New...';
+                    const r = rubrics[value];
+                    return r?.title || `Rubric ${value}`;
+                },
+                valueListGap: 0,
+                valueListMaxHeight: 240
+            };
+            colDef.valueParser = params => {
+                if (params.newValue === '__create_new__') return '__create_new__';
+                if (params.newValue === '' || params.newValue == null) return null;
+                const n = parseInt(params.newValue, 10);
+                return isNaN(n) ? null : n;
             };
         }
         else if (field.type === 'date' || field.type === 'datetime') {
@@ -882,6 +1005,8 @@ function switchTab(tabName) {
         if (timeLimitMenuItem) timeLimitMenuItem.style.display = (tabName === 'quizzes') ? 'block' : 'none';
         const allowedAttemptsMenuItem = document.getElementById('allowedAttemptsMenuItem');
         if (allowedAttemptsMenuItem) allowedAttemptsMenuItem.style.display = (tabName === 'quizzes') ? 'block' : 'none';
+        const allowRatingMenuItem = document.getElementById('allowRatingMenuItem');
+        if (allowRatingMenuItem) allowRatingMenuItem.style.display = (tabName === 'discussions') ? 'block' : 'none';
 
         if (tabName !== 'standards_sync' && typeof loadTabData === 'function') {
             loadTabData(tabName);
@@ -1442,6 +1567,11 @@ async function loadTabData(tabName) {
             } catch (agError) {
                 assignmentGroupsCache[selectedCourseId] = {};
             }
+        }
+
+        const hasRubricField = getFieldsForTab(tabName).some(f => f.type === 'rubric_dropdown');
+        if (hasRubricField) {
+            await loadRubricsForCourse(selectedCourseId);
         }
 
         var dataUrl = "/canvas/courses/" + selectedCourseId + "/" + tabConfig.endpoint;
@@ -2380,6 +2510,18 @@ function executeAllowedAttemptsUpdate() {
             applyGridCellChange(rowData, 'allowed_attempts', newVal);
         });
     }
+    gridApi.redrawRows();
+    closeActiveModal();
+}
+
+function executeAllowRatingUpdate() {
+    if (!gridApi) return;
+    const valueEl = document.getElementById('allowRatingValue');
+    if (!valueEl) return;
+    const allowRating = valueEl.value === 'true';
+    const nodesToUpdate = getBulkTargetRowData(true);
+    if (!nodesToUpdate.length) { alert('Select rows or filter to target.'); return; }
+    nodesToUpdate.forEach(rowData => applyGridCellChange(rowData, 'allow_rating', allowRating));
     gridApi.redrawRows();
     closeActiveModal();
 }
