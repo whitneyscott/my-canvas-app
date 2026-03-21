@@ -1291,60 +1291,68 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return results;
   }
 
-  async renameFile(courseId: number, fileId: number, newName: string) {
+  async updateFile(courseId: number, fileId: number, updates: Record<string, any>) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const payload: Record<string, any> = {};
+    if (updates.name != null) payload.name = updates.name;
+    if (updates.display_name != null) payload.name = updates.display_name;
+    if (updates.locked != null) payload.locked = !!updates.locked;
+    if (updates.lock_at != null) payload.lock_at = updates.lock_at;
+    if (updates.unlock_at != null) payload.unlock_at = updates.unlock_at;
+    if (updates.hidden != null) payload.hidden = !!updates.hidden;
+    if (Object.keys(payload).length === 0) throw new Error('No valid file updates provided');
+
+    const url = `${baseUrl}/files/${fileId}`;
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Canvas API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
     try {
-      const { token, baseUrl } = await this.getAuthHeaders();
-      const url = `${baseUrl}/files/${fileId}`;
-
-      const response = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: newName }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Canvas API error: ${response.status} ${response.statusText} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log(`[Service] Renamed file ${fileId} to ${newName}`);
-      return result;
-    } catch (error: any) {
-      console.error(`[Service] Error renaming file ${fileId}:`, error);
-      throw error;
+      return await response.json();
+    } catch {
+      return { id: fileId };
     }
   }
 
-  async renameFolder(folderId: number, newName: string) {
-    try {
-      const { token, baseUrl } = await this.getAuthHeaders();
-      const url = `${baseUrl}/folders/${folderId}`;
+  async updateFolder(folderId: number, updates: Record<string, any>) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const payload: Record<string, any> = {};
+    if (updates.name != null) payload.name = updates.name;
+    if (updates.display_name != null) payload.name = updates.display_name;
+    if (updates.locked != null) payload.locked = !!updates.locked;
+    if (updates.lock_at != null) payload.lock_at = updates.lock_at;
+    if (updates.unlock_at != null) payload.unlock_at = updates.unlock_at;
+    if (updates.hidden != null) payload.hidden = !!updates.hidden;
+    if (Object.keys(payload).length === 0) throw new Error('No valid folder updates provided');
 
-      const response = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: newName }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Canvas API error: ${response.status} ${response.statusText} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log(`[Service] Renamed folder ${folderId} to ${newName}`);
-      return result;
-    } catch (error: any) {
-      console.error(`[Service] Error renaming folder ${folderId}:`, error);
-      throw error;
+    const url = `${baseUrl}/folders/${folderId}`;
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Canvas API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
+    try {
+      return await response.json();
+    } catch {
+      return { id: folderId };
+    }
+  }
+
+  async renameFile(courseId: number, fileId: number, newName: string) {
+    return this.updateFile(courseId, fileId, { name: newName });
+  }
+
+  async renameFolder(folderId: number, newName: string) {
+    return this.updateFolder(folderId, { name: newName });
   }
 
   async getCourseAccommodations(courseId: number) {

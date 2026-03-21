@@ -621,11 +621,9 @@ export class CanvasController {
   async updateFileOrFolder(
     @Param('id', ParseIntPipe) courseId: number,
     @Param('fileId', ParseIntPipe) fileId: number,
-    @Body() body: { name?: string; display_name?: string; isFolder?: boolean }
+    @Body() body: { name?: string; display_name?: string; locked?: boolean; isFolder?: boolean }
   ) {
-    const newName = body.name ?? body.display_name;
-    if (!newName) throw new HttpException('name or display_name required', HttpStatus.BAD_REQUEST);
-    if (body.isFolder) return this.canvasService.renameFolder(fileId, newName);
-    return this.canvasService.renameFile(courseId, fileId, newName);
+    if (body.isFolder) return this.canvasService.updateFolder(fileId, body);
+    return this.canvasService.updateFile(courseId, fileId, body);
   }
 }

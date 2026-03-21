@@ -1009,10 +1009,15 @@ function getTabNameFromButton(tabEl) {
 
 function updatePointsUiLabels(tabName) {
     const isModules = tabName === 'modules';
+    const isFiles = tabName === 'files';
     const pointsItem = document.getElementById('pointsMenuItem');
     const positionItem = document.getElementById('positionMenuItem');
-    if (pointsItem) pointsItem.style.display = isModules ? 'none' : '';
+    const agItem = document.getElementById('assignmentGroupMenuItem');
+    const publishItem = document.getElementById('publishMenuItem');
+    if (pointsItem) pointsItem.style.display = (isModules || isFiles) ? 'none' : '';
     if (positionItem) positionItem.style.display = isModules ? 'block' : 'none';
+    if (agItem) agItem.style.display = isFiles ? 'none' : '';
+    if (publishItem) publishItem.style.display = isFiles ? 'none' : '';
     const title = document.getElementById('pointsModalTitle');
     if (title) title.textContent = isModules ? 'Position' : 'Points/Weighting';
     const actionBtn = document.getElementById('pointsActionBtn');
