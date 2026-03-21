@@ -2787,6 +2787,7 @@ async function executeDelete() {
         }
     } catch (error) {
         console.error(error);
+        debugLog('[Delete] FAILED - ' + (error?.message || String(error)), 'error');
         alert(`Error: ${error.message}`);
     } finally {
         const deleteBtn = document.querySelector('.modal-footer .btn-danger');
@@ -3255,7 +3256,9 @@ async function deleteCanvasItem(type, courseId, identifier, extraBody) {
     const config = FIELD_DEFINITIONS[configKey];
     const endpoint = config ? config.endpoint : type;
     const pathSegment = config?.usesSlugIdentifier ? encodeURIComponent(identifier) : identifier;
-    const response = await fetch(`/canvas/courses/${courseId}/${endpoint}/${pathSegment}`, {
+    const url = `/canvas/courses/${courseId}/${endpoint}/${pathSegment}`;
+    debugLog('[Delete] Request: type=' + type + ' item=' + identifier + ' DELETE ' + url + ' payload=' + JSON.stringify(extraBody || {}), 'info');
+    const response = await fetch(url, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: extraBody ? JSON.stringify(extraBody) : undefined
@@ -3264,6 +3267,15 @@ async function deleteCanvasItem(type, courseId, identifier, extraBody) {
         const errorText = await response.text();
         let errorDetail;
         try { errorDetail = JSON.parse(errorText); } catch { errorDetail = { message: errorText }; }
+        debugLog(
+            '[Delete] HTTP FAILED: type=' + type +
+            ' item=' + identifier +
+            ' status=' + response.status +
+            ' endpoint=' + url +
+            ' payload=' + JSON.stringify(extraBody || {}) +
+            ' response=' + (errorText || ''),
+            'error'
+        );
         throw new Error(errorDetail.message || `Failed: ${type} ${identifier}`);
     }
     if (gridApi) {
