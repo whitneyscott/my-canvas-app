@@ -105,6 +105,7 @@ const CANVAS_CONFIG = {
       fields: [
         { key: 'title', label: 'Page Title', editable: true, type: 'text' },
         { key: 'body', label: 'Content', editable: true, type: 'html' },
+        { key: 'publish_at', label: 'Publish at', editable: true, type: 'date' },
         { key: 'published', label: 'Published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
       ]
     },

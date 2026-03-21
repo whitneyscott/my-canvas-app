@@ -64,3 +64,15 @@ After changing `.env`, **restart the NestJS server** (not Canvas). The app loads
 
 - Available at `/lti/debug`. Shows login, launch, and OAuth steps.
 - Shareable URL lets others (or tools) inspect it directly instead of copying logs—saves time and reduces mistakes.
+
+## Lessons from Discussion/Announcement QA (Mar 2026)
+
+- Announcements are still `discussion_topics` under Canvas. App routes may use `/announcements/:id`, but backend should update Canvas via `PUT /courses/:course_id/discussion_topics/:topic_id`.
+- Announcement date semantics differ from assignments/quizzes: `delayed_post_at` is the "available from / posted on schedule" field, and `lock_at` is "available until". `unlock_at` is not the right announcement availability-start field.
+- Discussion date writes and announcement date writes do not behave identically. For discussion rows, atomic date writes via `date_details` can help avoid ordering conflicts; for announcements, `lock_at` should stay on the topic update payload.
+- Canvas field names must match exactly. `expanded` / `expanded_locked` worked; `expand` / `expand_locked` did not.
+- For API debugging, always log endpoint, payload, content type/format attempt, status, and response body snippet. Generic "Internal server error" hides root cause.
+- Frontend error parsing should handle non-string `message` payloads (`message` can be an object/array).
+- Direct API probes are decisive, but only when run against the correct Canvas domain. Using `canvas.instructure.com` instead of tenant domain (`tjc.instructure.com`) can produce false 404 conclusions.
+- Podcast settings are inconsistent in API responses: `podcast_enabled` may be omitted even when changes apply. `podcast_url` was a more reliable persisted-state signal in readback tests.
+- When an API capability is unstable for end users after repeated attempts, removing that column from the grid is a valid product fallback to reduce confusion.
