@@ -1,3 +1,14 @@
+const DISCUSSION_LIKE_FIELDS = [
+  { key: 'title', label: 'Title', editable: true, type: 'text' },
+  { key: 'message', label: 'Message', editable: true, type: 'html' },
+  { key: 'allow_rating', label: 'Allow Rating', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
+  { key: 'delayed_post_at', label: 'Delayed Post', editable: true, type: 'date' },
+  { key: 'lock_at', label: 'Lock Date', editable: true, type: 'date' },
+  { key: 'unlock_at', label: 'Unlock Date', editable: true, type: 'date' },
+  { key: 'due_at', label: 'Due Date', editable: true, type: 'date' },
+  { key: 'published', label: 'Published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
+];
+
 const CANVAS_CONFIG = {
   FIELD_DEFINITIONS: {
     assignments: {
@@ -17,16 +28,7 @@ const CANVAS_CONFIG = {
     discussion_topics: {
       displayName: 'Discussions',
       endpoint: 'discussions',
-      fields: [
-        { key: 'title', label: 'Title', editable: true, type: 'text' },
-        { key: 'message', label: 'Message', editable: true, type: 'html' },
-        { key: 'allow_rating', label: 'Allow Rating', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
-        { key: 'delayed_post_at', label: 'Delayed Post', editable: true, type: 'date' },
-        { key: 'lock_at', label: 'Lock Date', editable: true, type: 'date' },
-        { key: 'unlock_at', label: 'Unlock Date', editable: true, type: 'date' },
-        { key: 'due_at', label: 'Due Date', editable: true, type: 'date' },
-        { key: 'published', label: 'Published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
-      ]
+      fields: DISCUSSION_LIKE_FIELDS
     },
     files: {
       displayName: 'Files',
@@ -70,16 +72,7 @@ const CANVAS_CONFIG = {
     announcements: {
       displayName: 'Announcements',
       endpoint: 'announcements',
-      fields: [
-        { key: 'title', label: 'Title', editable: true, type: 'text' },
-        { key: 'message', label: 'Message', editable: true, type: 'html' },
-        { key: 'allow_rating', label: 'Allow Rating', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
-        { key: 'delayed_post_at', label: 'Delayed Post', editable: true, type: 'date' },
-        { key: 'lock_at', label: 'Lock Date', editable: true, type: 'date' },
-        { key: 'unlock_at', label: 'Unlock Date', editable: true, type: 'date' },
-        { key: 'due_at', label: 'Due Date', editable: true, type: 'date' },
-        { key: 'published', label: 'Published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
-      ]
+      fields: DISCUSSION_LIKE_FIELDS
     },
     new_quizzes: {
       displayName: 'New Quizzes',
