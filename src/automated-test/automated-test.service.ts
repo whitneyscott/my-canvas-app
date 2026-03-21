@@ -111,27 +111,12 @@ export class AutomatedTestService {
 
     for (const item of itemsToDelete) {
       try {
-        const config = TEST_CONFIG[item.type as keyof typeof TEST_CONFIG];
-        if (!config) {
-          results.push({ type: item.type, id: item.id, success: false, error: 'Unknown type' });
+        const config = TEST_CONFIG[item.type as keyof typeof TEST_CONFIG] as { deletePath?: (c: number, i: string | number) => string };
+        if (!config?.deletePath) {
+          results.push({ type: item.type, id: item.id, success: false, error: config ? 'Unsupported type' : 'Unknown type' });
           continue;
         }
-
-        let deleteUrl: string;
-        if (item.type === 'pages') {
-          deleteUrl = `${baseUrl}/courses/${courseId}/pages/${encodeURIComponent(item.id as string)}`;
-        } else if (item.type === 'assignments') {
-          deleteUrl = `${baseUrl}/courses/${courseId}/assignments/${item.id}`;
-        } else if (item.type === 'quizzes') {
-          deleteUrl = `${baseUrl}/courses/${courseId}/quizzes/${item.id}`;
-        } else if (item.type === 'discussions' || item.type === 'announcements') {
-          deleteUrl = `${baseUrl}/courses/${courseId}/discussion_topics/${item.id}`;
-        } else if (item.type === 'modules') {
-          deleteUrl = `${baseUrl}/courses/${courseId}/modules/${item.id}`;
-        } else {
-          results.push({ type: item.type, id: item.id, success: false, error: 'Unsupported type' });
-          continue;
-        }
+        const deleteUrl = `${baseUrl}${config.deletePath(courseId, item.id)}`;
 
         const response = await fetch(deleteUrl, {
           method: 'DELETE',

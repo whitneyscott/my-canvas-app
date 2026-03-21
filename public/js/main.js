@@ -1,5 +1,4 @@
 async function init() {
-    debugLog("Initializing Application...");
     const tokenOverlay = document.getElementById('token-overlay');
     const oauthOverlay = document.getElementById('oauth-overlay');
     const wrapper = document.getElementById('main-app-wrapper');
@@ -9,7 +8,6 @@ async function init() {
         const status = await response.json();
 
         if (status && status.needsToken === true) {
-            debugLog(status.needsOAuth ? "Status: Canvas OAuth required" : "Status: Manual token required");
             if (wrapper) wrapper.style.display = 'none';
             if (status.needsOAuth) {
                 if (oauthOverlay) oauthOverlay.style.display = 'flex';
@@ -19,14 +17,13 @@ async function init() {
                 if (tokenOverlay) tokenOverlay.style.display = 'flex';
             }
         } else {
-            debugLog("Status: Access Granted");
             if (oauthOverlay) oauthOverlay.style.display = 'none';
             if (tokenOverlay) tokenOverlay.style.display = 'none';
             if (wrapper) wrapper.style.display = 'block';
             await loadCourses();
         }
     } catch (err) {
-        debugLog("Init Error: " + err.message);
+        debugLog("Init Error: " + err.message, 'error');
     }
 }
 
@@ -49,13 +46,12 @@ async function submitCredentials() {
         const result = await response.json();
 
         if (result.success) {
-            debugLog("Credentials saved. Reloading app...");
             location.reload();
         } else {
             alert("Error: " + result.message);
         }
     } catch (err) {
-        debugLog("Login error: " + err.message);
+        debugLog("Login error: " + err.message, 'error');
     }
 }
 function showFlashError(message) {
@@ -106,8 +102,8 @@ function debugLog(message, type = 'info') {
     
     debugContent.appendChild(logEntry);
     debugContent.scrollTop = debugContent.scrollHeight;
-    
-    console.log(`%c[${type.toUpperCase()}] ${message}`, `color: ${typeColors[type]}`);
+
+    if (type === 'warn' || type === 'error') console.log(`%c[${type.toUpperCase()}] ${message}`, `color: ${typeColors[type]}`);
 }
 
 function toggleDebugPanel() {
@@ -382,7 +378,6 @@ function logCourseContextAtLoad() {
         url_course_id: urlParams.get('course_id') || '(none)',
         url_context_id: urlParams.get('context_id') || '(none)'
     };
-    debugLog('[Course Context] Detected at page load: ' + JSON.stringify(raw), 'info');
 }
 
 function initializeGrid() {
@@ -393,12 +388,7 @@ function initializeGrid() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    debugLog('=== Canvas Manager Initializing ===');
-
-    if (NEEDS_TOKEN) {
-        debugLog('Authentication required. Showing overlay.', 'warn');
-        return;
-    }
+    if (NEEDS_TOKEN) return;
 
     initializeGrid();
 });
@@ -432,7 +422,6 @@ async function submitToken() {
 }
 
 function generateColumnDefs(tabName) {
-    debugLog(`Generating column definitions for: ${tabName}`);
     const configKey = getConfigKey(tabName);
     const tabConfig = FIELD_DEFINITIONS[configKey];
     if (!tabConfig) {
@@ -441,7 +430,6 @@ function generateColumnDefs(tabName) {
     }
 
     const defs = tabConfig.fields;
-    debugLog(`Found ${defs.length} field definitions: ${defs.map(f => f.key).join(', ')}`);
 
     const statusCol = {
         headerName: 'edit_status',
@@ -635,8 +623,6 @@ function generateColumnDefs(tabName) {
     };
 
     const allColumns = [statusCol, idCol, ...mapping];
-    debugLog(`Returning ${allColumns.length} total columns (status + id + ${mapping.length} data columns)`);
-
     return allColumns;
 }
 if (typeof window !== 'undefined') window.generateColumnDefs = generateColumnDefs;
@@ -694,7 +680,6 @@ document.addEventListener('change', event => {
 });
 
 async function loadCourses() {
-    debugLog('loadCourses() called');
     logCourseContextAtLoad();
     try {
         const courseSelect = document.getElementById('courseSelect');
@@ -704,8 +689,6 @@ async function loadCourses() {
         }
 
         courseSelect.innerHTML = '<option value="">Select a Course</option>';
-        debugLog('Fetching courses from /canvas/courses');
-
         const response = await fetch('/canvas/courses');
         
         if (response.status === 401) {
@@ -743,8 +726,6 @@ async function loadCourses() {
         }
 
         const courseGroups = await response.json();
-        debugLog(`Received ${Array.isArray(courseGroups) ? courseGroups.length : 0} course groups`);
-        
         if (!Array.isArray(courseGroups)) {
             debugLog('ERROR: Expected array of course groups', 'error');
             courseSelect.innerHTML = '<option value="">Select a Course</option>';
@@ -776,35 +757,25 @@ async function loadCourses() {
             }
         });
 
-        debugLog(`SUCCESS: Loaded ${totalCourses} courses successfully`, 'success');
-
         const urlParams = new URLSearchParams(window.location.search);
         const rawServer = (window.SERVER_DATA && window.SERVER_DATA.courseId) || null;
         const rawUrlCourseId = urlParams.get('courseId') || urlParams.get('course_id') || urlParams.get('context_id');
         const rawAuto = rawServer || rawUrlCourseId;
         const autoCourseId = extractNumericCourseId(rawAuto) || (rawAuto && rawAuto !== 'null' && rawAuto !== 'undefined' ? String(rawAuto).trim() : null);
 
-        debugLog(`[Course Context] Raw sources: SERVER_DATA="${rawServer || '(none)'}", URL="${rawUrlCourseId || '(none)'}"`, 'info');
-        debugLog(`[Course Context] Resolved autoCourseId: "${autoCourseId || '(none)'}" (from raw "${rawAuto || '(none)'}")`, autoCourseId ? 'success' : 'warn');
-
         const validId = autoCourseId && autoCourseId !== 'null' && autoCourseId !== '' && autoCourseId !== 'undefined';
         const optionValues = Array.from(courseSelect.options).map(o => o.value).filter(Boolean);
         const hasOption = validId && optionValues.includes(String(autoCourseId));
 
-        debugLog(`[Course Context] validId=${validId}, hasOption=${hasOption}, dropdown has ${optionValues.length} course(s)`, 'info');
-        if (validId && !hasOption) {
-            debugLog(`[Course Context] WARN: Context course ${autoCourseId} not in dropdown. Available: ${optionValues.slice(0, 5).join(', ')}${optionValues.length > 5 ? '...' : ''}`, 'warn');
-        }
+        if (validId && !hasOption) debugLog(`Context course ${autoCourseId} not in dropdown`, 'warn');
 
         if (validId && hasOption) {
-            debugLog(`[Course Context] Auto-selecting LTI/referring course: ${autoCourseId}`, 'success');
             courseSelect.value = autoCourseId;
             if (typeof onCourseSelected === 'function') onCourseSelected();
         } else {
             const firstOpt = Array.from(courseSelect.options).find(opt => opt.value && opt.value !== '');
             if (firstOpt) {
                 courseSelect.value = firstOpt.value;
-                debugLog(`[Course Context] No context course detected or not in list — defaulting to first course: ${firstOpt.value}`, 'warn');
                 if (typeof onCourseSelected === 'function') onCourseSelected();
             } else {
                 courseSelect.value = '';
@@ -821,13 +792,10 @@ async function loadCourses() {
 }
 
 function onCourseSelected() {
-    debugLog('onCourseSelected() called');
     const courseSelect = document.getElementById('courseSelect');
     const courseId = courseSelect.value;
-    debugLog(`Course selected: ${courseId}`);
     
     if (!courseId) {
-        debugLog('No course ID, clearing data', 'warn');
         selectedCourseId = null;
         if (gridApi) {
             gridApi.setGridOption('rowData', []);
@@ -837,8 +805,7 @@ function onCourseSelected() {
     }
     
     selectedCourseId = courseId;
-    debugLog(`selectedCourseId set to: ${selectedCourseId}`, 'success');
-    
+
     // Update URL to match current selection without refreshing
     const url = new URL(window.location);
     url.searchParams.set('courseId', courseId);
@@ -847,8 +814,6 @@ function onCourseSelected() {
     // Reset state and reload
     originalData = {};
     if (gridApi) gridApi.setGridOption('rowData', []);
-    
-    debugLog('Cleared originalData and Grid, calling switchTab');
     switchTab(currentTab);
 }
 
@@ -866,8 +831,7 @@ function switchTab(tabName) {
     if (tabInterceptionEnabled && !allowedTabs.includes(tabName)) {
         const message = 'Module Integration Pending: This feature is planned for a future development phase.';
         alert(message);
-        debugLog(`Tab interception blocked: ${tabName}`, 'warn');
-        
+
         // Clear the grid to prevent ghost data
         if (gridApi) {
             gridApi.setGridOption('rowData', []);
@@ -900,7 +864,6 @@ function switchTab(tabName) {
         });
 
         currentTab = tabName;
-        debugLog(`Switched to ${tabName} view`, 'info');
 
         const gridEl = document.getElementById('myGrid');
         const panelEl = document.getElementById('standardsSyncPanel');
@@ -937,13 +900,10 @@ function handleTabClick(event) {
     if (tabInterceptionEnabled && !allowedTabs.includes(tabName)) {
         event.preventDefault();
         event.stopPropagation();
-        
+
         const message = 'Module Integration Pending: This feature is planned for a future development phase.';
         alert(message);
-        
-        // Log the interception
-        debugLog(`Tab interception blocked: ${tabName}`, 'warn');
-        
+
         // Clear the grid to prevent ghost data
         if (gridApi) {
             gridApi.setGridOption('rowData', []);
@@ -973,9 +933,7 @@ function handleTabClick(event) {
 // Hidden Toggle System
 function toggleTabInterception() {
     tabInterceptionEnabled = !tabInterceptionEnabled;
-    const status = tabInterceptionEnabled ? 'ENABLED' : 'DISABLED';
-    debugLog(`Tab Interception: ${status}`, tabInterceptionEnabled ? 'warn' : 'info');
-    
+
     // Visual feedback - flash the active tab
     const activeTab = document.querySelector('.tab-btn.active');
     if (activeTab) {
@@ -1009,7 +967,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    debugLog('Tab Interception System Initialized', 'info');
 });
 
 async function loadStandardsSyncTab() {
@@ -1039,11 +996,9 @@ async function loadStandardsSyncTab() {
         const prevChecked = keepSelections && listEl ? new Set(Array.from(listEl.querySelectorAll('input[name="accStd"]:checked')).map(cb => cb.value)) : new Set();
         try {
             const url = `/canvas/courses/${selectedCourseId}/accreditation/accreditors?cip=${encodeURIComponent(cip)}`;
-            console.log('[Accreditation] refreshAccreditorsStandards fetching:', { cip, url });
             const res = await fetch(url);
             const data = res.ok ? await res.json() : {};
             const list = Array.isArray(data?.accreditors) ? data.accreditors : (Array.isArray(data) ? data : []);
-            console.log('[Accreditation] refreshAccreditorsStandards response:', { cip, source: data?.source, count: list.length, accreditors: list });
             const source = data?.source || 'stub';
             const sourceBanner = source === 'lookup_service' ? '<div class="acc-source-notice">Accreditation standards loaded from database</div>' : '';
             const hint = '<p class="acc-standards-hint">Select standards to apply to this course.</p>';
@@ -1165,8 +1120,6 @@ async function loadStandardsSyncTab() {
             const accreditorsPayload = accreditorsRes.ok ? await accreditorsRes.json() : {};
             const accreditorsList = Array.isArray(accreditorsPayload?.accreditors) ? accreditorsPayload.accreditors : (Array.isArray(accreditorsPayload) ? accreditorsPayload : []);
             const accreditorsSource = accreditorsPayload?.source || 'stub';
-            console.log('[Accreditation] loadOutcomes accreditors:', { cip, url: accreditorsUrl, source: accreditorsSource, count: accreditorsList.length, data: accreditorsList });
-            if (typeof debugLog === 'function') debugLog('[Accreditation] Retrieved accreditors: ' + accreditorsSource + ', count=' + accreditorsList.length, 'info');
             const outcomes = outcomesRes.ok ? await outcomesRes.json() : [];
             const selectedIds = Array.isArray(profile?.selectedStandards) ? profile.selectedStandards : [];
             const sourceBanner = accreditorsSource === 'lookup_service' ? '<div class="acc-source-notice">Accreditation standards loaded from database</div>' : '';
@@ -1230,10 +1183,8 @@ async function onAccStateChange() {
     }
     try {
         const url = '/college-scorecard/cities?state=' + encodeURIComponent(state);
-        if (typeof debugLog === 'function') debugLog('[AccProfile] Fetching cities: ' + url);
         const res = await fetch(url);
         const data = await res.json();
-        if (typeof debugLog === 'function') debugLog('[AccProfile] Cities response: status=' + res.status);
         let html;
         if (data && data.error) {
             html = '<select id="accCity"><option value="">' + escapeHtml(data.error) + '</option></select>';
@@ -1448,8 +1399,6 @@ function escapeHtml(s) {
 }
 
 async function loadTabData(tabName) {
-    debugLog("loadTabData() called for: " + tabName);
-    
     try {
         if (!selectedCourseId) return;
 
@@ -1561,9 +1510,52 @@ function applyGridCellChangeToNode(gridNode, field, value) {
 
 const CLONE_CREATE_TABS = ['assignments', 'quizzes', 'pages', 'discussions', 'announcements', 'modules'];
 
+const CREATE_HANDLERS = {
+    assignments: (courseId, p) => createAssignments(courseId, p),
+    quizzes: (courseId, p) => createQuizzes(courseId, p),
+    pages: (courseId, p) => createPages(courseId, p),
+    discussions: (courseId, p) => createDiscussions(courseId, p),
+    announcements: (courseId, p) => createAnnouncements(courseId, p),
+    modules: (courseId, p) => createModules(courseId, p.name || 'Module', p.position)
+};
+
+const ITEM_TYPE_TO_CREATE = {
+    Assignment: (p) => createAssignments(selectedCourseId, p),
+    Quiz: (p) => createQuizzes(selectedCourseId, p),
+    Page: (p) => createPages(selectedCourseId, p),
+    Discussion: (p) => createDiscussions(selectedCourseId, p),
+    Announcement: (p) => createAnnouncements(selectedCourseId, p),
+    Folder: (p) => createFolders(selectedCourseId, p)
+};
+
+const ITEM_TYPE_TO_ENDPOINT = {
+    Assignment: 'assignments',
+    Quiz: 'quizzes',
+    Page: 'pages',
+    Discussion: 'discussions',
+    Announcement: 'discussions'
+};
+
+function getItemIdentifier(row, tabOrType) {
+    const ck = getConfigKey(tabOrType);
+    const cfg = FIELD_DEFINITIONS[ck];
+    if (cfg?.usesSlugIdentifier) return row.url || row.page_url;
+    return row.id;
+}
+
+function getApiEndpoint(itemType) {
+    return ITEM_TYPE_TO_ENDPOINT[itemType] || null;
+}
+
+function getFieldsForTab(tab, filterFn) {
+    const ck = getConfigKey(tab);
+    const cfg = FIELD_DEFINITIONS[ck];
+    if (!cfg?.fields) return [];
+    return filterFn ? cfg.fields.filter(filterFn) : cfg.fields;
+}
+
 async function syncChanges() {
     if (!selectedCourseId) return alert('Select course first.');
-    debugLog('[Sync] syncChanges() called - sends tracked changes to backend', 'info');
     const tabChanges = changes[currentTab] || {};
     const itemIds = Object.keys(tabChanges);
     const newItemIds = itemIds.filter(id => String(id).startsWith('TEMP_'));
@@ -1574,11 +1566,9 @@ async function syncChanges() {
     const config = FIELD_DEFINITIONS[configKey];
     if (!config) return alert('Invalid tab.');
     const endpoint = config.endpoint;
-    debugLog('[Sync] Tab=' + currentTab + ' endpoint=' + endpoint + ' updateItemIds=' + updateItemIds.length, 'info');
 
     const errors = [];
     if (newItemIds.length && CLONE_CREATE_TABS.includes(currentTab)) {
-        debugLog('[Sync] Creating ' + newItemIds.length + ' new item(s)', 'info');
         for (const itemId of newItemIds) {
             let rowData = null;
             gridApi.forEachNode(node => {
@@ -1596,30 +1586,19 @@ async function syncChanges() {
             delete createParams._pristine;
             Object.keys(createParams).filter(k => k.startsWith('_')).forEach(k => delete createParams[k]);
             try {
-                let created = null;
-                if (currentTab === 'assignments') {
-                    created = await createAssignments(selectedCourseId, createParams);
-                } else if (currentTab === 'quizzes') {
-                    created = await createQuizzes(selectedCourseId, createParams);
-                } else if (currentTab === 'pages') {
-                    created = await createPages(selectedCourseId, createParams);
-                } else if (currentTab === 'discussions') {
-                    created = await createDiscussions(selectedCourseId, createParams);
-                } else if (currentTab === 'announcements') {
-                    created = await createAnnouncements(selectedCourseId, createParams);
-                } else if (currentTab === 'modules') {
-                    created = await createModules(selectedCourseId, createParams.name || 'Module', createParams.position);
-                }
+                const handler = CREATE_HANDLERS[currentTab];
+                const created = handler ? await handler(selectedCourseId, createParams) : null;
                 if (created) {
+                    const cfg = FIELD_DEFINITIONS[getConfigKey(currentTab)];
+                    const realId = cfg?.usesSlugIdentifier ? (created.url || created.id) : (created.id || created.url);
                     gridApi.forEachNode(node => {
                         if (String(node.data?.id) === String(itemId)) {
-                            const realId = (currentTab === 'pages') ? (created.url || created.id) : (created.id || created.url);
                             node.setDataValue('id', created.id != null ? created.id : realId);
-                            if (currentTab === 'pages') node.setDataValue('url', created.url || realId);
+                            if (cfg?.usesSlugIdentifier) node.setDataValue('url', created.url || realId);
                             node.setDataValue('_edit_status', 'synced');
                             delete node.data.isNew;
                             const syncedRow = { ...node.data };
-                            if (currentTab === 'pages') syncedRow.url = created.url || realId;
+                            if (cfg?.usesSlugIdentifier) syncedRow.url = created.url || realId;
                             syncedRow.id = created.id != null ? created.id : realId;
                             syncedRow._edit_status = 'synced';
                             if (originalData[currentTab]) originalData[currentTab].push(syncedRow);
@@ -1627,7 +1606,6 @@ async function syncChanges() {
                     });
                     gridApi.redrawRows();
                     delete changes[currentTab][itemId];
-                    debugLog('[Sync] Created: ' + (rowData.name || rowData.title || itemId), 'success');
                 } else {
                     throw new Error('Create returned no data');
                 }
@@ -1656,7 +1634,6 @@ async function syncChanges() {
         const pathSegment = config.usesSlugIdentifier ? encodeURIComponent(itemId) : itemId;
         const url = `/canvas/courses/${selectedCourseId}/${endpoint}/${pathSegment}`;
         const svcMap = { assignments: 'updateAssignment', quizzes: 'updateQuiz', discussions: 'updateDiscussion', pages: 'updatePage', announcements: 'updateAnnouncement', modules: 'updateModule' };
-        debugLog('[Sync] PUT ' + url + ' -> canvasService.' + (svcMap[endpoint] || 'update') + '() body=' + JSON.stringify(updates), 'info');
         try {
             const response = await fetch(url, {
                 method: 'PUT',
@@ -1692,7 +1669,6 @@ async function syncChanges() {
             });
             if (rowNodes.length) gridApi.redrawRows({ rowNodes });
             delete changes[currentTab][itemId];
-            debugLog('[Sync] Return: ' + itemId + ' OK', 'success');
         } catch (error) {
             console.error(error);
             debugLog('[Sync] Return: ' + itemId + ' FAILED - ' + (error.message || error), 'error');
@@ -1705,7 +1681,6 @@ async function syncChanges() {
         alert(`Sync failed for ${errors.length} item(s):\n\n${errors.map(e => `• ${e.label}: ${e.message}`).join('\n')}`);
         return;
     }
-    debugLog('[Sync] Completed', 'success');
     alert('Sync completed.');
 }
 async function handleDeleteClick() {
@@ -1966,10 +1941,8 @@ function populateColumnDropdown(selectId) {
     const selectElement = document.getElementById(selectId);
     if (!selectElement) return;
     selectElement.innerHTML = '';
-    const configKey = getConfigKey(currentTab);
-    const tabConfig = FIELD_DEFINITIONS[configKey];
-    if (!tabConfig?.fields) return;
-    tabConfig.fields.forEach((field) => {
+    const fields = getFieldsForTab(currentTab, f => f.key);
+    fields.forEach((field) => {
         const id = field.key;
         if (!id) return;
         const option = document.createElement('option');
@@ -2006,30 +1979,23 @@ function populateDateColumnSelector() {
     const container = document.getElementById('dateColumnSelector');
     if (!container) return;
     container.innerHTML = '';
-    const configKey = getConfigKey(currentTab);
-    const tabConfig = FIELD_DEFINITIONS[configKey];
-    if (!tabConfig) {
-        container.innerHTML = '<div style="text-align:center;padding:10px;color:#666">Select valid tab</div>';
-        return;
-    }
+    const fields = getFieldsForTab(currentTab, f => (f.type === 'date' || f.type === 'datetime') && f.editable === true);
     let matchCount = 0;
-    tabConfig.fields.forEach(field => {
-        if ((field.type === 'date' || field.type === 'datetime') && field.editable === true) {
-            matchCount++;
-            const row = document.createElement('div');
+    fields.forEach(field => {
+        matchCount++;
+        const row = document.createElement('div');
             const label = document.createElement('label');
             const checkbox = document.createElement('input');
-            row.className = 'checkbox-group';
-            row.style.cssText = 'flex-direction:row;justify-content:space-between;padding:8px 12px;margin-bottom:5px';
-            label.textContent = field.label || field.key;
-            label.style.fontWeight = '500';
-            checkbox.type = 'checkbox';
-            checkbox.className = 'date-col-checkbox';
-            checkbox.value = field.key;
-            checkbox.checked = true;
-            row.append(label, checkbox);
-            container.appendChild(row);
-        }
+        row.className = 'checkbox-group';
+        row.style.cssText = 'flex-direction:row;justify-content:space-between;padding:8px 12px;margin-bottom:5px';
+        label.textContent = field.label || field.key;
+        label.style.fontWeight = '500';
+        checkbox.type = 'checkbox';
+        checkbox.className = 'date-col-checkbox';
+        checkbox.value = field.key;
+        checkbox.checked = true;
+        row.append(label, checkbox);
+        container.appendChild(row);
     });
     if (!matchCount) container.innerHTML = '<div style="text-align:center;padding:10px;color:#666">No date fields</div>';
 }
@@ -2038,17 +2004,14 @@ function populateNumericColumnSelector(selectId) {
     const selectElement = document.getElementById(selectId);
     if (!selectElement) return;
     selectElement.innerHTML = '';
-    const configKey = getConfigKey(currentTab);
-    const tabConfig = FIELD_DEFINITIONS[configKey];
-    if (!tabConfig) return;
-    tabConfig.fields.forEach(field => {
-        if (field.editable === false) return;
-        if (field.type === 'number' || field.type === 'time_limit' || (field.key && field.key.toLowerCase().includes('points'))) {
-            const option = document.createElement('option');
-            option.value = field.key;
-            option.textContent = field.label || field.key;
-            selectElement.appendChild(option);
-        }
+    const fields = getFieldsForTab(currentTab, f =>
+        f.editable !== false && (f.type === 'number' || f.type === 'time_limit' || (f.key && f.key.toLowerCase().includes('points')))
+    );
+    fields.forEach(field => {
+        const option = document.createElement('option');
+        option.value = field.key;
+        option.textContent = field.label || field.key;
+        selectElement.appendChild(option);
     });
 }
 
@@ -2057,9 +2020,7 @@ async function populateAssignmentGroupSelector() {
     const helpEl = document.getElementById('assignmentGroupHelp');
     if (!selectEl) return;
     selectEl.innerHTML = '<option value="">Loading...</option>';
-    const configKey = getConfigKey(currentTab);
-    const tabConfig = FIELD_DEFINITIONS[configKey];
-    const hasAgField = tabConfig && tabConfig.fields && tabConfig.fields.some(f => f.key === 'assignment_group_id');
+    const hasAgField = getFieldsForTab(currentTab).some(f => f.key === 'assignment_group_id');
     if (!hasAgField) {
         selectEl.innerHTML = '<option value="">This tab does not support assignment groups</option>';
         if (helpEl) helpEl.textContent = 'Use Assignments, New Quizzes, or Quizzes tab.';
@@ -2134,9 +2095,7 @@ async function executeMoveToAssignmentGroup() {
         }
     }
     if (isNaN(targetGroupId)) return;
-    const configKey = getConfigKey(currentTab);
-    const tabConfig = FIELD_DEFINITIONS[configKey];
-    const hasAgField = tabConfig && tabConfig.fields && tabConfig.fields.some(f => f.key === 'assignment_group_id');
+    const hasAgField = getFieldsForTab(currentTab).some(f => f.key === 'assignment_group_id');
     if (!hasAgField) return;
     if (!gridApi) return;
     const fieldKey = 'assignment_group_id';
@@ -2273,21 +2232,17 @@ function executePublishStatus() {
 
 function executeDateShift() {
     if (!gridApi) return;
-    debugLog('[DateShift] executeDateShift() called', 'info');
     const offsetDays = parseInt(document.getElementById('dateOffsetDays').value, 10);
     const offsetDaysNum = (offsetDays === 0 || isNaN(offsetDays)) ? 0 : offsetDays;
     const timeOverride = (document.getElementById('timeOverride') || {}).value || '';
     const manualDate = (document.getElementById('manualFixedDate') || {}).value || '';
     const manualTime = (document.getElementById('manualFixedTime') || {}).value || '';
     const selectedDateColumns = Array.from(document.querySelectorAll('.date-col-checkbox:checked')).map(checkbox => checkbox.value);
-    debugLog('[DateShift] Inputs: manualDate=' + (manualDate || '(empty)') + ' manualTime=' + (manualTime || '(empty)') + ' timeOverride=' + (timeOverride || '(empty)') + ' offsetDays=' + offsetDaysNum, 'info');
-    debugLog('[DateShift] selectedDateColumns=' + JSON.stringify(selectedDateColumns), 'info');
     if (!selectedDateColumns.length) { alert('Select date columns.'); return; }
     const isClearMode = !manualDate && !timeOverride && offsetDaysNum === 0;
     let rowNodes = [];
     const selected = gridApi.getSelectedRows();
     if (selected.length) {
-        debugLog('[DateShift] Using getSelectedRows(): ' + selected.length + ' rows selected', 'info');
         selected.forEach(rowData => {
             const rowId = String(rowData.id || rowData.url);
             const node = gridApi.getRowNode(rowId);
@@ -2295,10 +2250,8 @@ function executeDateShift() {
             else debugLog('[DateShift] getRowNode("' + rowId + '") returned null for row "' + (rowData.name || rowData.title || rowId) + '"', 'warn');
         });
     } else {
-        debugLog('[DateShift] No selection - using forEachNodeAfterFilter (all visible rows)', 'info');
         gridApi.forEachNodeAfterFilter(node => rowNodes.push(node));
     }
-    debugLog('[DateShift] Resolved ' + rowNodes.length + ' rowNodes to update', 'info');
     const refreshedNodes = [];
     rowNodes.forEach(gridNode => {
         const rowData = gridNode.data;
@@ -2333,7 +2286,6 @@ function executeDateShift() {
             if (isClearMode || newDateValue !== null) {
                 applyGridCellChangeToNode(gridNode, field, newDateValue);
                 const readBack = gridNode.data[field];
-                debugLog('[DateShift] setDataValue rowId=' + rowId + ' field=' + field + ' newDateValue=' + (newDateValue || 'null') + ' readBack=' + (readBack || 'null'), readBack === newDateValue ? 'success' : 'warn');
                 refreshedNodes.push({ node: gridNode, field });
             }
         });
@@ -2344,7 +2296,6 @@ function executeDateShift() {
         gridApi.refreshCells({ rowNodes: nodesToRefresh, columns: fieldsToRefresh, force: true });
     }
     gridApi.redrawRows();
-    debugLog('[DateShift] Done. Data stored in grid + changes dict. Sync Changes sends to backend.', 'info');
     closeActiveModal();
 }
 
@@ -2442,7 +2393,7 @@ async function executeClone() {
             const tabConfig = FIELD_DEFINITIONS[configKey];
             for (const rowData of selectedRows) {
                 const endpoint = tabConfig.endpoint;
-                const itemIdentifier = (currentTab === 'pages') ? (rowData.url || rowData.page_url) : rowData.id;
+                const itemIdentifier = getItemIdentifier(rowData, currentTab);
                 const pathSegment = tabConfig.usesSlugIdentifier ? encodeURIComponent(itemIdentifier) : itemIdentifier;
                 const response = await fetch(`/canvas/courses/${selectedCourseId}/${endpoint}/${pathSegment}`);
                 if (response.ok) {
@@ -2493,7 +2444,7 @@ async function executeDelete() {
             if (mode === 'deep' && type === 'modules') {
                 await deepPurgeModule(courseId, item);
             } else {
-                const identifier = (type === 'pages') ? (item.url || item.page_url) : item.id;
+                const identifier = getItemIdentifier(item, type);
                 const extra = (type === 'files' && item.is_folder) ? { isFolder: true } : undefined;
                 await deleteCanvasItem(type, courseId, identifier, extra);
             }
@@ -2748,14 +2699,10 @@ async function performDeepCloneWithIndex(moduleRecord, prefix, baseName, suffix,
                 if (contentType === 'externalurl') itemParams.external_url = item.external_url;
                 newContent = { id: 'no-content-needed' };
             } else {
-                let apiEndpoint = '';
-                if (itemType === 'Assignment') apiEndpoint = 'assignments';
-                else if (itemType === 'Quiz') apiEndpoint = 'quizzes';
-                else if (itemType === 'Page') apiEndpoint = 'pages';
-                else if (itemType === 'Discussion') apiEndpoint = 'discussions';
+                const apiEndpoint = getApiEndpoint(itemType);
                 if (apiEndpoint) {
-                    const contentIdentifier = (itemType === 'Page') ? (item.page_url || item.content_id) : item.content_id;
-                    const pathSegment = (itemType === 'Page') ? encodeURIComponent(contentIdentifier) : contentIdentifier;
+                    const contentIdentifier = itemType === 'Page' ? (item.page_url || item.content_id) : item.content_id;
+                    const pathSegment = itemType === 'Page' ? encodeURIComponent(contentIdentifier) : contentIdentifier;
                     const contentResponse = await fetch(`/canvas/courses/${selectedCourseId}/${apiEndpoint}/${pathSegment}`);
                     if (contentResponse.ok) {
                         const originalFullObject = await contentResponse.json();
@@ -2789,13 +2736,8 @@ function getSerializedName(baseName, copyIndex, prefix, suffix) {
 }
 
 async function createDeepContent(itemType, sanitizedParams) {
-    if (itemType === 'Assignment') return await createAssignments(selectedCourseId, sanitizedParams);
-    if (itemType === 'Quiz') return await createQuizzes(selectedCourseId, sanitizedParams);
-    if (itemType === 'Page') return await createPages(selectedCourseId, sanitizedParams);
-    if (itemType === 'Discussion') return await createDiscussions(selectedCourseId, sanitizedParams);
-    if (itemType === 'Announcement') return await createAnnouncements(selectedCourseId, sanitizedParams);
-    if (itemType === 'Folder') return await createFolders(selectedCourseId, sanitizedParams);
-    return null;
+    const fn = ITEM_TYPE_TO_CREATE[itemType];
+    return fn ? await fn(sanitizedParams) : null;
 }
 
 function prepareUIClone(row, type, prefix, suffix, existingSet, copyIndex = -1, serialize = false) {
@@ -3037,7 +2979,6 @@ let currentAppMode = localStorage.getItem('appMode') || 'demo';
 
 function initializeAppMode() {
     applyAppMode(currentAppMode);
-    debugLog(`Application mode initialized: ${currentAppMode}`, 'info');
 }
 
 function applyAppMode(mode) {
@@ -3051,14 +2992,12 @@ function applyAppMode(mode) {
             // All tabs active, debug panel visible
             tabInterceptionEnabled = false;
             if (debugPanel) debugPanel.style.display = 'block';
-            debugLog('Developer Mode: All tabs active, debug panel visible', 'success');
             break;
 
         case 'production':
             // All tabs active, debug panel hidden
             tabInterceptionEnabled = false;
             if (debugPanel) debugPanel.style.display = 'none';
-            debugLog('Production Mode: All tabs active, debug panel hidden', 'info');
             break;
 
         case 'demo':
@@ -3066,7 +3005,6 @@ function applyAppMode(mode) {
             // Only assignments tab active, debug panel hidden
             tabInterceptionEnabled = true;
             if (debugPanel) debugPanel.style.display = 'none';
-            debugLog('Demo Mode: Only Assignments tab active', 'warn');
             break;
     }
 
