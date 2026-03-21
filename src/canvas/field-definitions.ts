@@ -72,7 +72,7 @@ export const FIELD_DEFINITIONS: Record<string, FieldDefinition[]> = {
       ]
     },
     { name: 'assignment_group_id', label: 'Assignment Group', type: 'select', editable: true },
-    { name: 'points_possible', label: 'Points', type: 'number', editable: true, validation: { min: 0 } },
+    { name: 'points_possible', label: 'Points (from questions)', type: 'number', editable: false, validation: { min: 0 } },
     { name: 'question_count', label: 'Question Count', type: 'number', editable: false },
     { name: 'time_limit', label: 'Time Limit (minutes)', type: 'number', editable: true, validation: { min: 0 } },
     { name: 'shuffle_answers', label: 'Shuffle Answers', type: 'boolean', editable: true },

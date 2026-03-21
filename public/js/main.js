@@ -2051,6 +2051,7 @@ function populateNumericColumnSelector(selectId) {
     const tabConfig = FIELD_DEFINITIONS[configKey];
     if (!tabConfig) return;
     tabConfig.fields.forEach(field => {
+        if (field.editable === false) return;
         if (field.type === 'number' || field.type === 'time_limit' || (field.key && field.key.toLowerCase().includes('points'))) {
             const option = document.createElement('option');
             option.value = field.key;
