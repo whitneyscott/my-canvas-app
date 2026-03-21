@@ -389,23 +389,49 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     if (body.due_at != null) payload.due_at = body.due_at;
     if (body.unlock_at != null) payload.unlock_at = body.unlock_at;
     if (body.lock_at != null) payload.lock_at = body.lock_at;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+    const form = new URLSearchParams();
+    Object.entries(payload).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) form.append(k, String(v));
     });
-    if (!res.ok) {
+    const requestAttempts: Array<{ contentType: string; body: string }> = [
+      { contentType: 'application/json', body: JSON.stringify(payload) },
+      { contentType: 'application/json', body: JSON.stringify({ quiz: payload }) },
+      { contentType: 'application/x-www-form-urlencoded', body: form.toString() },
+    ];
+
+    let created: any = null;
+    let lastErrorText = '';
+    for (const attempt of requestAttempts) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': attempt.contentType },
+        body: attempt.body,
+      });
       const text = await res.text();
-      let errMsg = text;
+      if (res.ok) {
+        try {
+          created = text ? JSON.parse(text) : {};
+        } catch {
+          created = {};
+        }
+        break;
+      }
+      lastErrorText = text || `${res.status} ${res.statusText}`;
+      if (![400, 415, 422].includes(res.status)) {
+        break;
+      }
+    }
+
+    if (!created) {
+      let errMsg = lastErrorText;
       try {
-        const j = JSON.parse(text);
+        const j = JSON.parse(lastErrorText);
         errMsg = j.message || j.error || errMsg;
       } catch {
         /* ignore */
       }
       throw new Error(`New Quizzes API: ${errMsg}`);
     }
-    const created = await res.json();
     const id = created.assignment_id ?? created.id ?? created.assignmentId;
     return { ...created, id };
   }

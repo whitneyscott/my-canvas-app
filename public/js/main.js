@@ -2843,7 +2843,18 @@ async function createNewQuizzes(courseId, params) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
     });
-    return response.ok ? await response.json() : null;
+    if (!response.ok) {
+        let msg = response.statusText;
+        try {
+            const err = await response.json();
+            msg = err.message || err.error || msg;
+        } catch (_) {
+            const text = await response.text();
+            if (text) msg = text.slice(0, 400);
+        }
+        throw new Error(msg || 'Failed to create New Quiz');
+    }
+    return await response.json();
 }
 
 async function createFolders(courseId, params) {
