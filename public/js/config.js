@@ -35,8 +35,6 @@ const DISCUSSION_FIELDS = [
   { key: 'only_graders_can_rate', label: 'Only Graders Can Rate', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
   { key: 'pinned', label: 'Pinned', editable: true, type: 'boolean', activeLabel: 'Pinned', inactiveLabel: 'Not Pinned' },
   { key: 'lock_comment', label: 'Lock Comments', editable: true, type: 'boolean', activeLabel: 'Locked', inactiveLabel: 'Open' },
-  { key: 'podcast_enabled', label: 'Podcast Enabled', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
-  { key: 'podcast_has_student_posts', label: 'Podcast Includes Student Posts', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
   { key: 'rubric_id', label: 'Rubric', editable: true, type: 'rubric_dropdown' }
 ];
 
@@ -46,7 +44,6 @@ const ANNOUNCEMENT_FIELDS = [
   { key: 'allow_rating', label: 'Allow Rating', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
   { key: 'delayed_post_at', label: 'Available From', editable: true, type: 'date' },
   { key: 'lock_at', label: 'Available Until', editable: true, type: 'date' },
-  { key: 'podcast_enabled', label: 'Podcast Enabled', editable: true, type: 'boolean', activeLabel: 'Yes', inactiveLabel: 'No' },
   { key: 'published', label: 'Published', editable: false, type: 'boolean', activeLabel: 'Published', inactiveLabel: 'Unpublished' }
 ];
 
