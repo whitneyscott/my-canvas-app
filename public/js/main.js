@@ -1591,12 +1591,14 @@ async function syncChanges() {
                 if (created) {
                     const cfg = FIELD_DEFINITIONS[getConfigKey(currentTab)];
                     const realId = cfg?.usesSlugIdentifier ? (created.url || created.id) : (created.id || created.url);
+                    const updatedNodes = [];
                     gridApi.forEachNode(node => {
                         if (String(node.data?.id) === String(itemId)) {
                             node.setDataValue('id', created.id != null ? created.id : realId);
                             if (cfg?.usesSlugIdentifier) node.setDataValue('url', created.url || realId);
                             node.setDataValue('_edit_status', 'synced');
                             delete node.data.isNew;
+                            updatedNodes.push(node);
                             const syncedRow = { ...node.data };
                             if (cfg?.usesSlugIdentifier) syncedRow.url = created.url || realId;
                             syncedRow.id = created.id != null ? created.id : realId;
@@ -1604,7 +1606,7 @@ async function syncChanges() {
                             if (originalData[currentTab]) originalData[currentTab].push(syncedRow);
                         }
                     });
-                    gridApi.redrawRows();
+                    if (updatedNodes.length) gridApi.redrawRows({ rowNodes: updatedNodes });
                     delete changes[currentTab][itemId];
                 } else {
                     throw new Error('Create returned no data');
@@ -2243,11 +2245,9 @@ function executeDateShift() {
     let rowNodes = [];
     const selected = gridApi.getSelectedRows();
     if (selected.length) {
-        selected.forEach(rowData => {
-            const rowId = String(rowData.id || rowData.url);
-            const node = gridApi.getRowNode(rowId);
-            if (node) rowNodes.push(node);
-            else debugLog('[DateShift] getRowNode("' + rowId + '") returned null for row "' + (rowData.name || rowData.title || rowId) + '"', 'warn');
+        const selectedSet = new Set(selected);
+        gridApi.forEachNode(node => {
+            if (node.data && selectedSet.has(node.data)) rowNodes.push(node);
         });
     } else {
         gridApi.forEachNodeAfterFilter(node => rowNodes.push(node));
