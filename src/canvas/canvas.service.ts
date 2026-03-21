@@ -17,7 +17,7 @@ const CLEARABLE_CONTENT_KEYS = new Set(['description', 'message', 'body', 'instr
 const NULLABLE_QUIZ_FIELDS = new Set(['time_limit']);
 
 function processDateField(key: string, value: any): any {
-  if (!key.includes('_at') && !key.includes('date')) return undefined;
+  if (!key.endsWith('_at')) return undefined;
   if (value === null) return null;
   if (value === undefined || value === '') return undefined;
   try {
