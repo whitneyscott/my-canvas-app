@@ -947,6 +947,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const { token, baseUrl } = await this.getAuthHeaders();
     const url = `${baseUrl}/courses/${courseId}/discussion_topics?per_page=100`;
     const discussions = await this.fetchPaginatedData(url, token);
+    const htmlBase = this.canvasHtmlBase(baseUrl);
 
     const assignmentsUrl = `${baseUrl}/courses/${courseId}/assignments?per_page=100`;
     const assignments = await this.fetchPaginatedData(assignmentsUrl, token);
@@ -961,6 +962,15 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       const assignmentId = Number(topic?.assignment_id);
       const assignment = Number.isFinite(assignmentId) ? assignmentById.get(assignmentId) : null;
       const rubric = Number.isFinite(assignmentId) ? rubricLookup.get(assignmentId) : null;
+      const assignmentRubricId = Number(assignment?.rubric_settings?.id ?? assignment?.rubric_id);
+      const rubricId = rubric?.rubric_id ?? (Number.isFinite(assignmentRubricId) ? assignmentRubricId : null);
+      const rubricSummary =
+        rubric?.rubric_summary ??
+        assignment?.rubric_settings?.title ??
+        (rubricId != null ? `Rubric ${rubricId}` : null);
+      const rubricUrl =
+        rubric?.rubric_url ??
+        (rubricId != null ? `${htmlBase}/courses/${courseId}/rubrics/${rubricId}` : null);
       return {
         ...topic,
         graded: Boolean(assignment),
@@ -968,10 +978,10 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         assignment_group_id: assignment?.assignment_group_id ?? topic?.assignment_group_id ?? null,
         due_at: assignment?.due_at ?? topic?.due_at ?? null,
         unlock_at: assignment?.unlock_at ?? topic?.unlock_at ?? null,
-        lock_at: assignment?.lock_at ?? topic?.lock_at ?? null,
-        rubric_id: rubric?.rubric_id ?? null,
-        rubric_summary: rubric?.rubric_summary ?? null,
-        rubric_url: rubric?.rubric_url ?? null,
+        lock_at: topic?.lock_at ?? assignment?.lock_at ?? null,
+        rubric_id: rubricId,
+        rubric_summary: rubricSummary,
+        rubric_url: rubricUrl,
         rubric_association_id: rubric?.rubric_association_id ?? null,
       };
     });
@@ -1971,8 +1981,11 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       if (gradedSelection && !assignmentId) {
         const pointsSeedRaw = pending.points_possible;
         const pointsSeedNum = Number(pointsSeedRaw);
-        const pointsSeed = Number.isFinite(pointsSeedNum) ? pointsSeedNum : 0;
-        topicResult = await sendDiscussionUpdate({ assignment: { points_possible: pointsSeed } });
+        const assignmentPayload: Record<string, any> = {};
+        if (pointsSeedRaw !== undefined && pointsSeedRaw !== null && pointsSeedRaw !== '' && Number.isFinite(pointsSeedNum)) {
+          assignmentPayload.points_possible = pointsSeedNum;
+        }
+        topicResult = await sendDiscussionUpdate({ assignment: assignmentPayload });
         const refreshed = await this.getDiscussion(courseId, discussionId);
         assignmentId = refreshed?.assignment_id ?? null;
       }
@@ -1985,7 +1998,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const cleanedUpdates = cleanContentUpdates(pending, { clearableTextFields: true });
     const discussionUpdates: Record<string, any> = { ...cleanedUpdates };
     const assignmentUpdates: Record<string, any> = {};
-    ['due_at', 'unlock_at', 'lock_at', 'points_possible', 'assignment_group_id'].forEach((k) => {
+    ['due_at', 'unlock_at', 'points_possible', 'assignment_group_id'].forEach((k) => {
       if (Object.prototype.hasOwnProperty.call(discussionUpdates, k)) {
         assignmentUpdates[k] = discussionUpdates[k];
         delete discussionUpdates[k];
