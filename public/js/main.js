@@ -628,6 +628,7 @@ const gridOptions = {
         });
     },
     onCellValueChanged: params => {
+        if (suppressCellChangeLog) return;
         if (params.colDef.field !== '_edit_status') {
             if (params.colDef.field === 'rubric_id' && params.newValue === '__create_new__') {
                 createRubricForRow(params).catch(err => alert('Failed to create rubric: ' + (err?.message || err)));
@@ -1998,6 +1999,7 @@ function undoLastCellEdit() {
         if (!record || record.tab !== currentTab || record.pending) continue;
         const cells = (record.cells || []).filter(c => !isFieldReadOnlyForTab(currentTab, c.field));
         if (!cells.length) continue;
+        console.log('[Undo] Applying record:', record.type, 'cells count:', cells.length, 'cells:', cells);
         const rowCount = applyHistoryCells(cells, 'beforeValue');
         showToast(`Undo applied (${record.type}) to ${rowCount} row${rowCount === 1 ? '' : 's'}.`, 'success', 1800);
         return;
