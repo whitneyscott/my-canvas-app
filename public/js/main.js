@@ -689,15 +689,13 @@ const gridOptions = {
         gridApi.forEachNode(node => {
             const originalRow = originalData[currentTab]?.find(item => String(item.id || item.url) === String(node.data?.id || node.data?.url));
             if (!originalRow) return;
-            const hasChanges = keysToCompare.some(key => !valuesEqual(node.data[key], originalRow[key]));
-            if (hasChanges && node.data._edit_status !== 'modified') {
-                node.setDataValue('_edit_status', 'modified');
-                keysToCompare.forEach(key => {
-                    if (!valuesEqual(node.data[key], originalRow[key])) {
-                        trackChange(currentTab, node.data.id || node.data.url, key, node.data[key]);
-                    }
-                });
-            }
+            const rowId = String(node.data?.id || node.data?.url);
+            keysToCompare.forEach(key => {
+                updateTrackedChangeForCell(currentTab, rowId, key, node.data[key]);
+            });
+            const rowChanges = changes[currentTab]?.[rowId] || {};
+            const hasChanges = Object.keys(rowChanges).length > 0;
+            node.setDataValue('_edit_status', hasChanges ? 'modified' : 'synced');
         });
         updateDeleteMenuState();
     },
@@ -941,8 +939,11 @@ function generateColumnDefs(tabName) {
                 button.onclick = () => {
                     const newValue = !isTrue;
                     params.node.setDataValue(field.key, newValue);
-                    params.node.setDataValue('_edit_status', 'modified');
-                    trackChange(currentTab, params.data.id || params.data.url, field.key, newValue);
+                    const rowId = String(params.data?.id || params.data?.url);
+                    updateTrackedChangeForCell(currentTab, rowId, field.key, newValue);
+                    const rowChanges = changes[currentTab]?.[rowId] || {};
+                    const hasChanges = Object.keys(rowChanges).length > 0;
+                    params.node.setDataValue('_edit_status', hasChanges ? 'modified' : 'synced');
                     params.api.redrawRows({ rowNodes: [params.node] });
                 };
                 return button;
