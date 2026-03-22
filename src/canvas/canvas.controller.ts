@@ -191,7 +191,7 @@ export class CanvasController {
     @Param('id', ParseIntPipe) id: number,
     @Query('cip') cip: string,
     @Query('degree_level') degreeLevel: string,
-  ) {
+  ): Promise<any> {
     return this.canvasService.getAccreditationStandardsForCourse(id, cip || undefined, degreeLevel || undefined);
   }
 
