@@ -198,28 +198,25 @@ function applyHistoryCells(cells, valueKey) {
         rowMap.set(String(getRowIdForData(node.data)), node);
     });
     const touchedRowIds = new Set();
-    suppressCellChangeLog = true;
-    try {
-        cells.forEach(cell => {
-            const node = rowMap.get(String(cell.rowId));
-            if (!node) return;
-            const nextValue = cell[valueKey];
-            node.setDataValue(cell.field, nextValue);
-            updateTrackedChangeForCell(currentTab, String(cell.rowId), cell.field, nextValue);
-            touchedRowIds.add(String(cell.rowId));
-        });
-        touchedRowIds.forEach(rowId => {
-            const node = rowMap.get(rowId);
-            if (!node) return;
-            const rowChanges = changes[currentTab]?.[rowId] || {};
-            const hasChanges = Object.keys(rowChanges).length > 0;
-            node.setDataValue('_edit_status', hasChanges ? 'modified' : 'synced');
-        });
-    } finally {
-        suppressCellChangeLog = false;
-    }
+    const affectedFields = new Set();
+    cells.forEach(cell => {
+        const node = rowMap.get(String(cell.rowId));
+        if (!node) return;
+        const nextValue = cell[valueKey];
+        node.data[cell.field] = nextValue;
+        updateTrackedChangeForCell(currentTab, String(cell.rowId), cell.field, nextValue);
+        touchedRowIds.add(String(cell.rowId));
+        affectedFields.add(cell.field);
+    });
     const touchedNodes = Array.from(touchedRowIds).map(id => rowMap.get(id)).filter(Boolean);
-    if (touchedNodes.length) gridApi.redrawRows({ rowNodes: touchedNodes });
+    touchedNodes.forEach(node => {
+        const rowId = String(getRowIdForData(node.data));
+        const rowChanges = changes[currentTab]?.[rowId] || {};
+        const hasChanges = Object.keys(rowChanges).length > 0;
+        node.data._edit_status = hasChanges ? 'modified' : 'synced';
+    });
+    affectedFields.add('_edit_status');
+    if (touchedNodes.length) gridApi.refreshCells({ rowNodes: touchedNodes, columns: Array.from(affectedFields), force: true });
     return touchedRowIds.size;
 }
 
