@@ -216,7 +216,10 @@ function applyHistoryCells(cells, valueKey) {
         node.data._edit_status = hasChanges ? 'modified' : 'synced';
     });
     affectedFields.add('_edit_status');
-    if (touchedNodes.length) gridApi.refreshCells({ rowNodes: touchedNodes, columns: Array.from(affectedFields), force: true });
+    if (touchedNodes.length) {
+        gridApi.refreshCells({ rowNodes: touchedNodes, columns: Array.from(affectedFields), force: true });
+        gridApi.redrawRows({ rowNodes: touchedNodes });
+    }
     return touchedRowIds.size;
 }
 
@@ -1083,12 +1086,13 @@ async function refreshCurrentTab() {
         }
         const data = await response.json();
         if (!Array.isArray(data)) throw new Error('Unexpected response format');
-        const dataWithStatus = data.map(x => ({ ...x, _edit_status: 'synced' }));
-        originalData[currentTab] = dataWithStatus;
+        const baselineDataWithStatus = data.map(x => ({ ...x, _edit_status: 'synced' }));
+        const workingDataWithStatus = baselineDataWithStatus.map(x => ({ ...x }));
+        originalData[currentTab] = baselineDataWithStatus;
 
         if (gridApi) {
             setGridColumnDefsForTab(currentTab);
-            gridApi.setGridOption('rowData', dataWithStatus);
+            gridApi.setGridOption('rowData', workingDataWithStatus);
             gridApi.setGridOption('loading', false);
             gridApi.redrawRows();
             if (currentTab === 'students') setTimeout(() => gridApi.resetRowHeights(), 100);
@@ -1953,15 +1957,18 @@ async function loadTabData(tabName) {
             alert('Failed to load ' + displayTab + ': unexpected response format');
             return;
         }
-        var dataWithStatus = data.map(function(item) { 
-            return Object.assign({}, item, { _edit_status: 'synced' }); 
+        var baselineDataWithStatus = data.map(function(item) {
+            return Object.assign({}, item, { _edit_status: 'synced' });
         });
-        
-        originalData[tabName] = dataWithStatus;
+        var workingDataWithStatus = baselineDataWithStatus.map(function(item) {
+            return Object.assign({}, item);
+        });
+
+        originalData[tabName] = baselineDataWithStatus;
 
         if (currentTab === tabName && gridApi) {
             setGridColumnDefsForTab(tabName);
-            gridApi.setGridOption('rowData', dataWithStatus);
+            gridApi.setGridOption('rowData', workingDataWithStatus);
             gridApi.hideOverlay();
             updateSyncHistoryIndicator();
         }
