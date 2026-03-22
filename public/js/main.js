@@ -547,6 +547,7 @@ function setGridStatus(tabName, message, color = '#00ff00') {
 let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, selectedCourseId = null, lastGridColumnTab = null;
 let accessibilityLastReport = null;
 const ACCESSIBILITY_RUN_HISTORY_KEY = 'accessibility:runHistory:v1';
+let accessibilityGridApi = null;
 
 function DurationPickerCellEditor() {}
 DurationPickerCellEditor.prototype.init = function(params) {
@@ -1346,6 +1347,7 @@ function switchTab(tabName) {
             if (gridEl) gridEl.style.display = 'none';
             if (standardsPanelEl) standardsPanelEl.style.display = 'block';
             if (accessibilityPanelEl) accessibilityPanelEl.style.display = 'none';
+            destroyAccessibilityGrid();
             loadStandardsSyncTab();
         } else if (tabName === 'ada_compliance') {
             if (gridEl) gridEl.style.display = 'none';
@@ -1356,6 +1358,7 @@ function switchTab(tabName) {
             if (gridEl) gridEl.style.display = '';
             if (standardsPanelEl) standardsPanelEl.style.display = 'none';
             if (accessibilityPanelEl) accessibilityPanelEl.style.display = 'none';
+            destroyAccessibilityGrid();
         }
 
         const mergeMenuItem = document.getElementById('mergeMenuItem');
@@ -1891,37 +1894,23 @@ function renderAccessibilityReport(report) {
 
     const findings = Array.isArray(report?.findings) ? report.findings : [];
     if (!findings.length) {
+        destroyAccessibilityGrid();
         findingsEl.innerHTML = '<p>No findings. Tier 1 checks passed for scanned resources.</p>';
     } else {
-        const rows = findings.slice(0, 500).map((f) => `
-            <tr>
-                <td>${escapeHtml(f.severity || '')}</td>
-                <td>${escapeHtml(f.rule_id || '')}</td>
-                <td>${escapeHtml(f.resource_type || '')}</td>
-                <td>${escapeHtml(f.resource_title || '')}</td>
-                <td>${escapeHtml(f.message || '')}</td>
-                <td>${escapeHtml(f.snippet || '')}</td>
-            </tr>
-        `).join('');
-        const truncationNote = findings.length > 500 ? `<p style="margin-top:8px;color:#666;">Showing first 500 findings of ${findings.length}.</p>` : '';
         findingsEl.innerHTML = `
-            <div style="overflow:auto;max-height:480px;border:1px solid #ddd;border-radius:6px;">
-                <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                    <thead>
-                        <tr style="position:sticky;top:0;background:#f8f8f8;">
-                            <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Severity</th>
-                            <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Rule</th>
-                            <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Type</th>
-                            <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Resource</th>
-                            <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Message</th>
-                            <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Snippet</th>
-                        </tr>
-                    </thead>
-                    <tbody>${rows}</tbody>
-                </table>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+                <div><strong>Rows:</strong> ${findings.length}</div>
+                <input id="accessibilityQuickFilter" type="text" placeholder="Quick filter findings..." style="min-width:260px;max-width:420px;" />
             </div>
-            ${truncationNote}
+            <div id="accessibilityResultsGrid" class="ag-theme-quartz" style="height: 520px; width: 100%;"></div>
         `;
+        initializeAccessibilityGrid(findings);
+        const quickFilterEl = document.getElementById('accessibilityQuickFilter');
+        if (quickFilterEl) {
+            quickFilterEl.addEventListener('input', () => {
+                if (accessibilityGridApi) accessibilityGridApi.setGridOption('quickFilterText', quickFilterEl.value || '');
+            });
+        }
     }
 
     const runBtn = document.getElementById('runAccessibilityScanBtn');
@@ -1989,6 +1978,61 @@ function loadAccessibilityTab() {
         renderAccessibilityReport(accessibilityLastReport);
         return;
     }
+}
+
+function destroyAccessibilityGrid() {
+    if (accessibilityGridApi && typeof accessibilityGridApi.destroy === 'function') {
+        accessibilityGridApi.destroy();
+    }
+    accessibilityGridApi = null;
+}
+
+function initializeAccessibilityGrid(findings) {
+    const gridEl = document.getElementById('accessibilityResultsGrid');
+    if (!gridEl) return;
+    destroyAccessibilityGrid();
+    const rowData = (Array.isArray(findings) ? findings : []).map((f) => ({
+        severity: f?.severity || '',
+        rule_id: f?.rule_id || '',
+        resource_type: f?.resource_type || '',
+        resource_title: f?.resource_title || '',
+        message: f?.message || '',
+        snippet: f?.snippet || '',
+        resource_url: f?.resource_url || ''
+    }));
+    const columnDefs = [
+        { field: 'severity', headerName: 'Severity', width: 120, sort: 'asc' },
+        { field: 'rule_id', headerName: 'Rule', minWidth: 180 },
+        { field: 'resource_type', headerName: 'Type', width: 140 },
+        { field: 'resource_title', headerName: 'Resource', minWidth: 220 },
+        { field: 'message', headerName: 'Message', minWidth: 280 },
+        { field: 'snippet', headerName: 'Snippet', minWidth: 260 },
+        {
+            field: 'resource_url',
+            headerName: 'URL',
+            minWidth: 220,
+            cellRenderer: (params) => {
+                const url = params.value || '';
+                if (!url) return '';
+                return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open</a>`;
+            }
+        }
+    ];
+    const options = {
+        columnDefs,
+        rowData,
+        rowSelection: 'multiple',
+        defaultColDef: {
+            filter: 'agTextColumnFilter',
+            floatingFilter: true,
+            sortable: true,
+            resizable: true,
+            minWidth: 120,
+            flex: 1,
+        },
+        animateRows: true,
+    };
+    accessibilityGridApi = agGrid.createGrid(gridEl, options);
 }
 
 async function onAccStateChange() {
