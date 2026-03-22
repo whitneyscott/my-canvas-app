@@ -116,6 +116,8 @@ const SNAPSHOT_LIMIT_PER_TAB = 5;
 let suppressCellChangeLog = false;
 let failedRevertRowIds = new Set();
 let pendingRevertSnapshotId = null;
+const REQUEST_CONCURRENCY_LIMIT = 6;
+const BULK_UPDATE_TABS = new Set(['assignments', 'quizzes', 'discussions', 'pages', 'announcements', 'modules']);
 
 const FIELD_DEFINITIONS = window.FIELD_DEFINITIONS || window.CANVAS_CONFIG?.FIELD_DEFINITIONS || {};
 const REVERT_BLOCKED_FIELDS = new Set([
@@ -182,6 +184,46 @@ function showToast(message, type = 'info', duration = 3500) {
     window.setTimeout(() => {
         if (toast.parentNode) toast.parentNode.removeChild(toast);
     }, duration);
+}
+
+function stableSerialize(value) {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`;
+    const keys = Object.keys(value).sort();
+    return `{${keys.map(k => `${JSON.stringify(k)}:${stableSerialize(value[k])}`).join(',')}}`;
+}
+
+function toRequestErrorMessage(response, rawText) {
+    let errMsg = response.statusText || `HTTP ${response.status}`;
+    try {
+        const errBody = rawText ? JSON.parse(rawText) : {};
+        const msg = errBody.message ?? errBody.error;
+        if (typeof msg === 'string') errMsg = msg;
+        else if (msg != null) errMsg = JSON.stringify(msg);
+        else if (rawText) errMsg = rawText;
+    } catch (_) {
+        if (rawText) errMsg = rawText.slice(0, 1000);
+    }
+    return errMsg;
+}
+
+async function runWithConcurrency(items, limit, worker) {
+    const out = new Array(items.length);
+    let next = 0;
+    async function runWorker() {
+        while (true) {
+            const idx = next++;
+            if (idx >= items.length) break;
+            try {
+                out[idx] = { status: 'fulfilled', value: await worker(items[idx], idx) };
+            } catch (error) {
+                out[idx] = { status: 'rejected', reason: error };
+            }
+        }
+    }
+    const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, () => runWorker());
+    await Promise.all(workers);
+    return out;
 }
 
 function getConfigKey(tabOrType) {
@@ -2141,19 +2183,24 @@ async function executeRevertSnapshot(snapshotId) {
     const endpoint = config.endpoint;
     const failed = [];
     const succeededRows = [];
-    for (const [rowId, updates] of grouped.entries()) {
-        const pathSegment = config.usesSlugIdentifier ? encodeURIComponent(rowId) : rowId;
+    const revertItems = Array.from(grouped.entries()).map(([rowId, updates]) => ({ rowId, updates }));
+    const revertResults = await runWithConcurrency(revertItems, REQUEST_CONCURRENCY_LIMIT, async (item) => {
+        const pathSegment = config.usesSlugIdentifier ? encodeURIComponent(item.rowId) : item.rowId;
         const url = `/canvas/courses/${selectedCourseId}/${endpoint}/${pathSegment}`;
-        try {
-            const res = await fetch(url, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updates),
-            });
-            if (!res.ok) {
-                const txt = await res.text().catch(() => '');
-                throw new Error(txt || res.statusText || `HTTP ${res.status}`);
-            }
+        const res = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(item.updates),
+        });
+        if (!res.ok) {
+            const txt = await res.text().catch(() => '');
+            throw new Error(toRequestErrorMessage(res, txt));
+        }
+        return item;
+    });
+    revertResults.forEach((result, idx) => {
+        if (result.status === 'fulfilled') {
+            const { rowId, updates } = result.value;
             succeededRows.push(rowId);
             gridApi?.forEachNode(node => {
                 if (String(getRowIdForData(node.data)) !== String(rowId)) return;
@@ -2165,8 +2212,10 @@ async function executeRevertSnapshot(snapshotId) {
                     suppressCellChangeLog = false;
                 }
             });
-        } catch (err) {
-            const message = err?.message || String(err);
+        } else {
+            const failedItem = revertItems[idx];
+            const rowId = failedItem?.rowId;
+            const message = result.reason?.message || String(result.reason);
             let label = rowId;
             gridApi?.forEachNode(node => {
                 if (String(getRowIdForData(node.data)) === String(rowId)) {
@@ -2175,7 +2224,7 @@ async function executeRevertSnapshot(snapshotId) {
             });
             failed.push({ rowId, label, message });
         }
-    }
+    });
 
     if (!failed.length) {
         const next = snaps.filter(s => s.snapshotId !== snapshotId);
@@ -2199,39 +2248,51 @@ async function syncChanges() {
     const updateItemIds = itemIds.filter(id => !String(id).startsWith('TEMP_'));
     if (!itemIds.length) return alert('No changes.');
 
-    const configKey = getConfigKey(currentTab);
-    const config = FIELD_DEFINITIONS[configKey];
-    if (!config) return alert('Invalid tab.');
-    const endpoint = config.endpoint;
-    const snapshotTargetRows = new Set(updateItemIds.map(String));
-    const snapshot = buildSnapshotForRows(currentTab, snapshotTargetRows);
-    if (snapshot) {
-        persistSnapshot(snapshot);
-        updateSyncHistoryIndicator();
+    const syncBtn = document.querySelector('button[onclick="syncChanges()"]');
+    const priorSyncLabel = syncBtn?.textContent || 'Sync Changes';
+    if (syncBtn) {
+        syncBtn.disabled = true;
+        syncBtn.textContent = 'Syncing...';
     }
+    showToast(`Sync started for ${itemIds.length} item(s).`, 'info', 1800);
 
-    const errors = [];
-    if (newItemIds.length && CLONE_CREATE_TABS.includes(currentTab)) {
-        for (const itemId of newItemIds) {
-            let rowData = null;
-            gridApi.forEachNode(node => {
-                if (String(node.data?.id) === String(itemId)) rowData = node.data;
-            });
-            if (!rowData) {
-                delete changes[currentTab][itemId];
-                continue;
-            }
-            const createParams = currentTab === 'files'
-                ? {
-                    source_file_id: rowData._source_file_id,
-                    parent_folder_id: rowData.folder_id ?? rowData._source_folder_id ?? null,
-                    display_name: rowData.display_name || rowData.filename || rowData.name
+    try {
+        const configKey = getConfigKey(currentTab);
+        const config = FIELD_DEFINITIONS[configKey];
+        if (!config) {
+            showToast('Invalid tab configuration.', 'error');
+            return;
+        }
+        const endpoint = config.endpoint;
+        const snapshotTargetRows = new Set(updateItemIds.map(String));
+        const snapshot = buildSnapshotForRows(currentTab, snapshotTargetRows);
+        if (snapshot) {
+            persistSnapshot(snapshot);
+            updateSyncHistoryIndicator();
+        }
+
+        const errors = [];
+        if (newItemIds.length && CLONE_CREATE_TABS.includes(currentTab)) {
+            for (const itemId of newItemIds) {
+                let rowData = null;
+                gridApi.forEachNode(node => {
+                    if (String(node.data?.id) === String(itemId)) rowData = node.data;
+                });
+                if (!rowData) {
+                    delete changes[currentTab][itemId];
+                    continue;
                 }
-                : buildCreateParams(rowData, currentTab);
-            try {
-                const handler = CREATE_HANDLERS[currentTab];
-                const created = handler ? await handler(selectedCourseId, createParams) : null;
-                if (created) {
+                const createParams = currentTab === 'files'
+                    ? {
+                        source_file_id: rowData._source_file_id,
+                        parent_folder_id: rowData.folder_id ?? rowData._source_folder_id ?? null,
+                        display_name: rowData.display_name || rowData.filename || rowData.name
+                    }
+                    : buildCreateParams(rowData, currentTab);
+                try {
+                    const handler = CREATE_HANDLERS[currentTab];
+                    const created = handler ? await handler(selectedCourseId, createParams) : null;
+                    if (!created) throw new Error('Create returned no data');
                     const cfg = FIELD_DEFINITIONS[getConfigKey(currentTab)];
                     const realId = cfg?.usesSlugIdentifier ? (created.url || created.id) : (created.id || created.url);
                     const updatedNodes = [];
@@ -2254,106 +2315,188 @@ async function syncChanges() {
                         gridApi.refreshCells({ rowNodes: updatedNodes, columns: ['_edit_status'], force: true });
                     }
                     delete changes[currentTab][itemId];
-                } else {
-                    throw new Error('Create returned no data');
+                } catch (error) {
+                    console.error(error);
+                    debugLog('[Sync] Create FAILED - ' + (error.message || error), 'error');
+                    errors.push({ itemId, label: rowData.name || rowData.title || itemId, message: error.message || String(error) });
                 }
-            } catch (error) {
-                console.error(error);
-                debugLog('[Sync] Create FAILED - ' + (error.message || error), 'error');
-                errors.push({ itemId, label: rowData.name || rowData.title || itemId, message: error.message || String(error) });
             }
+        } else if (newItemIds.length) {
+            const msg = currentTab === 'modules'
+                ? 'Use Deep Clone for modules.'
+                : `Create not supported for ${currentTab} tab.`;
+            for (const id of newItemIds) {
+                debugLog('[Sync] Create FAILED - item=' + id + ' tab=' + currentTab + ' message=' + msg, 'error');
+                errors.push({ itemId: id, label: id, message: msg });
+            }
+            newItemIds.forEach(id => delete changes[currentTab][id]);
         }
-    } else if (newItemIds.length) {
-        const msg = currentTab === 'modules'
-            ? 'Use Deep Clone for modules.'
-            : `Create not supported for ${currentTab} tab.`;
-        for (const id of newItemIds) {
-            debugLog('[Sync] Create FAILED - item=' + id + ' tab=' + currentTab + ' message=' + msg, 'error');
-            errors.push({ itemId: id, label: id, message: msg });
-        }
-        newItemIds.forEach(id => delete changes[currentTab][id]);
-    }
 
-    const updatePromises = updateItemIds.map(async (itemId) => {
-        const updates = { ...tabChanges[itemId] };
-        delete updates._isNew;
-        if (currentTab === 'files') {
-            gridApi.forEachNode(node => {
-                if (String(node.data?.id) === String(itemId) && node.data?.is_folder)
-                    updates.isFolder = true;
-            });
-        }
-        const pathSegment = config.usesSlugIdentifier ? encodeURIComponent(itemId) : itemId;
-        const url = `/canvas/courses/${selectedCourseId}/${endpoint}/${pathSegment}`;
-        debugLog('[Sync] Request: ' + currentTab + ' ' + itemId + ' PUT ' + url + ' payload=' + JSON.stringify(updates), 'info');
-        const response = await fetch(url, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updates)
-        });
-        if (!response.ok) {
-            const rawText = await response.text();
-            let errMsg = response.statusText;
-            try {
-                const errBody = rawText ? JSON.parse(rawText) : {};
-                const msg = errBody.message ?? errBody.error;
-                if (typeof msg === 'string') errMsg = msg;
-                else if (msg != null) errMsg = JSON.stringify(msg);
-                else errMsg = rawText || errMsg;
-            } catch (_) {
-                if (rawText) errMsg = rawText.slice(0, 1000);
-            }
-            debugLog(
-                '[Sync] HTTP FAILED: item=' + itemId +
-                ' tab=' + currentTab +
-                ' status=' + response.status +
-                ' endpoint=' + url +
-                ' payload=' + JSON.stringify(updates) +
-                ' response=' + (rawText ? rawText.slice(0, 1000) : ''),
-                'error'
-            );
-            throw new Error(errMsg);
-        }
-        return { itemId, updates };
-    });
-    const updateResults = await Promise.allSettled(updatePromises);
-    const redrawNodes = [];
-    const succeededRowIds = new Set();
-    updateResults.forEach((result, i) => {
-        const itemId = updateItemIds[i];
-        if (result.status === 'fulfilled') {
-            const { updates } = result.value;
-            succeededRowIds.add(String(itemId));
-            gridApi.forEachNode(node => {
-                const nodeId = node.data.id || node.data.url;
-                if (String(nodeId) === String(itemId)) {
-                    node.setDataValue('_edit_status', 'synced');
-                    redrawNodes.push(node);
-                    if (originalData[currentTab]) {
-                        const originalRow = originalData[currentTab].find(item => String(item.id || item.url) === String(itemId));
-                        if (originalRow) Object.keys(updates).forEach(fieldKey => originalRow[fieldKey] = updates[fieldKey]);
+        const prepared = updateItemIds.map(itemId => {
+            const updates = { ...tabChanges[itemId] };
+            delete updates._isNew;
+            if (currentTab === 'files') {
+                gridApi.forEachNode(node => {
+                    if (String(node.data?.id) === String(itemId) && node.data?.is_folder) {
+                        updates.isFolder = true;
                     }
-                }
-            });
-            delete changes[currentTab][itemId];
-        } else {
-            debugLog('[Sync] Return: ' + itemId + ' FAILED - ' + (result.reason?.message || result.reason), 'error');
-            let label = itemId;
-            gridApi.forEachNode(nd => {
-                if (String(nd.data?.id || nd.data?.url) === String(itemId)) label = nd.data?.name ?? nd.data?.title ?? itemId;
-            });
-            errors.push({ itemId, label, message: result.reason?.message || String(result.reason) });
-        }
-    });
-    if (redrawNodes.length) gridApi.redrawRows({ rowNodes: redrawNodes });
-    if (succeededRowIds.size) removeInMemoryEntriesForRows(currentTab, succeededRowIds);
+                });
+            }
+            return { itemId, updates };
+        });
 
-    if (errors.length) {
-        debugLog('[Sync] Summary FAILED count=' + errors.length + ' details=' + JSON.stringify(errors).slice(0, 3000), 'error');
-        alert(`Sync failed for ${errors.length} item(s):\n\n${errors.map(e => `• ${e.label}: ${e.message}`).join('\n')}`);
-        return;
+        const bulkEligible = BULK_UPDATE_TABS.has(currentTab);
+        const groupedBySignature = new Map();
+        if (bulkEligible) {
+            prepared.forEach(entry => {
+                const sig = stableSerialize(entry.updates);
+                if (!groupedBySignature.has(sig)) groupedBySignature.set(sig, []);
+                groupedBySignature.get(sig).push(entry);
+            });
+        }
+
+        const bulkRequests = [];
+        const perItemRequests = [];
+        const bulkCoveredItemIds = new Set();
+
+        if (bulkEligible) {
+            groupedBySignature.forEach((entries) => {
+                if (entries.length < 2) return;
+                const updates = entries[0].updates || {};
+                if (!Object.keys(updates).length) return;
+                const ids = entries.map(e => currentTab === 'pages' ? String(e.itemId) : Number(e.itemId));
+                if (ids.some(v => v === null || v === undefined || Number.isNaN(v))) return;
+                bulkRequests.push({
+                    itemIds: ids,
+                    originalItemIds: entries.map(e => String(e.itemId)),
+                    updates,
+                });
+                entries.forEach(e => bulkCoveredItemIds.add(String(e.itemId)));
+            });
+        }
+
+        prepared.forEach(entry => {
+            if (!bulkCoveredItemIds.has(String(entry.itemId))) perItemRequests.push(entry);
+        });
+
+        const bulkResults = await runWithConcurrency(bulkRequests, REQUEST_CONCURRENCY_LIMIT, async (req) => {
+            const url = `/canvas/courses/${selectedCourseId}/${endpoint}/bulk`;
+            debugLog('[Sync] Bulk Request: tab=' + currentTab + ' endpoint=' + url + ' itemIds=' + JSON.stringify(req.itemIds) + ' payload=' + JSON.stringify(req.updates), 'info');
+            const response = await fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ itemIds: req.itemIds, updates: req.updates }),
+            });
+            if (!response.ok) {
+                const rawText = await response.text().catch(() => '');
+                debugLog('[Sync] BULK HTTP FAILED: tab=' + currentTab + ' status=' + response.status + ' endpoint=' + url + ' response=' + rawText.slice(0, 1000), 'error');
+                throw new Error(toRequestErrorMessage(response, rawText));
+            }
+            return req;
+        });
+
+        const perItemResults = await runWithConcurrency(perItemRequests, REQUEST_CONCURRENCY_LIMIT, async (req) => {
+            const pathSegment = config.usesSlugIdentifier ? encodeURIComponent(req.itemId) : req.itemId;
+            const url = `/canvas/courses/${selectedCourseId}/${endpoint}/${pathSegment}`;
+            debugLog('[Sync] Request: ' + currentTab + ' ' + req.itemId + ' PUT ' + url + ' payload=' + JSON.stringify(req.updates), 'info');
+            const response = await fetch(url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(req.updates),
+            });
+            if (!response.ok) {
+                const rawText = await response.text().catch(() => '');
+                const errMsg = toRequestErrorMessage(response, rawText);
+                debugLog(
+                    '[Sync] HTTP FAILED: item=' + req.itemId +
+                    ' tab=' + currentTab +
+                    ' status=' + response.status +
+                    ' endpoint=' + url +
+                    ' payload=' + JSON.stringify(req.updates) +
+                    ' response=' + rawText.slice(0, 1000),
+                    'error'
+                );
+                throw new Error(errMsg);
+            }
+            return req;
+        });
+
+        const redrawNodes = [];
+        const succeededRowIds = new Set();
+
+        bulkResults.forEach((result, idx) => {
+            const req = bulkRequests[idx];
+            if (result.status === 'fulfilled') {
+                req.originalItemIds.forEach(id => {
+                    succeededRowIds.add(String(id));
+                    delete changes[currentTab][id];
+                    gridApi.forEachNode(node => {
+                        const nodeId = String(node.data.id || node.data.url);
+                        if (nodeId === String(id)) {
+                            node.setDataValue('_edit_status', 'synced');
+                            redrawNodes.push(node);
+                            if (originalData[currentTab]) {
+                                const originalRow = originalData[currentTab].find(item => String(item.id || item.url) === String(id));
+                                if (originalRow) Object.keys(req.updates).forEach(fieldKey => originalRow[fieldKey] = req.updates[fieldKey]);
+                            }
+                        }
+                    });
+                });
+            } else {
+                req.originalItemIds.forEach(id => {
+                    let label = id;
+                    gridApi.forEachNode(nd => {
+                        if (String(nd.data?.id || nd.data?.url) === String(id)) label = nd.data?.name ?? nd.data?.title ?? nd.data?.display_name ?? id;
+                    });
+                    errors.push({ itemId: id, label, message: result.reason?.message || String(result.reason) });
+                });
+            }
+        });
+
+        perItemResults.forEach((result, idx) => {
+            const req = perItemRequests[idx];
+            const itemId = String(req.itemId);
+            if (result.status === 'fulfilled') {
+                succeededRowIds.add(itemId);
+                gridApi.forEachNode(node => {
+                    const nodeId = node.data.id || node.data.url;
+                    if (String(nodeId) === itemId) {
+                        node.setDataValue('_edit_status', 'synced');
+                        redrawNodes.push(node);
+                        if (originalData[currentTab]) {
+                            const originalRow = originalData[currentTab].find(item => String(item.id || item.url) === itemId);
+                            if (originalRow) Object.keys(req.updates).forEach(fieldKey => originalRow[fieldKey] = req.updates[fieldKey]);
+                        }
+                    }
+                });
+                delete changes[currentTab][itemId];
+            } else {
+                debugLog('[Sync] Return: ' + itemId + ' FAILED - ' + (result.reason?.message || result.reason), 'error');
+                let label = itemId;
+                gridApi.forEachNode(nd => {
+                    if (String(nd.data?.id || nd.data?.url) === itemId) label = nd.data?.name ?? nd.data?.title ?? nd.data?.display_name ?? itemId;
+                });
+                errors.push({ itemId, label, message: result.reason?.message || String(result.reason) });
+            }
+        });
+
+        if (redrawNodes.length) gridApi.redrawRows({ rowNodes: redrawNodes });
+        if (succeededRowIds.size) removeInMemoryEntriesForRows(currentTab, succeededRowIds);
+
+        const successCount = succeededRowIds.size;
+        if (errors.length) {
+            debugLog('[Sync] Summary FAILED count=' + errors.length + ' details=' + JSON.stringify(errors).slice(0, 3000), 'error');
+            showToast(`Sync complete with issues — ${successCount} succeeded, ${errors.length} failed.`, 'warn', 5000);
+            alert(`Sync failed for ${errors.length} item(s):\n\n${errors.map(e => `• ${e.label}: ${e.message}`).join('\n')}`);
+            return;
+        }
+        showToast(`Sync complete — ${successCount} item(s) synced.`, 'success', 3000);
+    } finally {
+        if (syncBtn) {
+            syncBtn.disabled = false;
+            syncBtn.textContent = priorSyncLabel;
+        }
     }
-    alert('Sync completed.');
 }
 async function handleDeleteClick() {
     const selectedItems = getSelectedItems();
