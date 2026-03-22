@@ -109,14 +109,13 @@ window.fetch = async (...args) => {
 };
 let assignmentGroupsCache = {};
 let rubricsCache = {};
-let inMemoryChangeLog = [];
-const CHANGE_LOG_CAP = 500;
+const editHistoryRef = { current: [] };
+const EDIT_HISTORY_CAP = 500;
 const SNAPSHOT_KEY_PREFIX = 'bulkeditor:snapshots:';
 const SNAPSHOT_LIMIT_PER_TAB = 5;
 let suppressCellChangeLog = false;
 let failedRevertRowIds = new Set();
 let pendingRevertSnapshotId = null;
-let activeUndoGroupId = null;
 const REQUEST_CONCURRENCY_LIMIT = 6;
 const BULK_UPDATE_TABS = new Set(['assignments', 'quizzes', 'discussions', 'pages', 'announcements', 'modules']);
 
@@ -148,31 +147,86 @@ function saveSnapshots(tab, snapshots) {
 }
 
 function clearInMemoryChangeLog() {
-    inMemoryChangeLog = [];
+    editHistoryRef.current = [];
 }
 
-function pushChangeLogEntry(entry) {
-    const normalized = {
-        ...entry,
-        groupId: entry?.groupId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    };
-    inMemoryChangeLog.push(normalized);
-    if (inMemoryChangeLog.length > CHANGE_LOG_CAP) {
-        inMemoryChangeLog = inMemoryChangeLog.slice(inMemoryChangeLog.length - CHANGE_LOG_CAP);
+function pushEditHistoryRecord(record) {
+    if (!record || !Array.isArray(record.cells) || !record.cells.length) return;
+    editHistoryRef.current.push({
+        type: record.type === 'bulk' ? 'bulk' : 'individual',
+        tab: record.tab || currentTab,
+        timestamp: Date.now(),
+        pending: record.pending === true,
+        cells: record.cells.map(c => ({
+            rowId: String(c.rowId),
+            field: c.field,
+            beforeValue: c.beforeValue,
+            afterValue: c.afterValue,
+        })),
+    });
+    if (editHistoryRef.current.length > EDIT_HISTORY_CAP) {
+        editHistoryRef.current = editHistoryRef.current.slice(editHistoryRef.current.length - EDIT_HISTORY_CAP);
     }
 }
 
-function createUndoGroupId() {
-    return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+function valuesEqual(a, b) {
+    if (a === b) return true;
+    if (a == null && b == null) return true;
+    if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
+        try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
+    }
+    return false;
 }
 
-function beginUndoGroup() {
-    activeUndoGroupId = createUndoGroupId();
-    return activeUndoGroupId;
+function createCellSnapshot(rowData, field, beforeValue, afterValue) {
+    if (!rowData || !field || isFieldReadOnlyForTab(currentTab, field)) return null;
+    if (valuesEqual(beforeValue, afterValue)) return null;
+    const rowId = getRowIdForData(rowData);
+    if (rowId == null) return null;
+    return {
+        rowId: String(rowId),
+        field,
+        beforeValue,
+        afterValue,
+    };
 }
 
-function endUndoGroup() {
-    activeUndoGroupId = null;
+function applyHistoryCells(cells, valueKey) {
+    if (!gridApi || !Array.isArray(cells) || !cells.length) return 0;
+    const rowMap = new Map();
+    gridApi.forEachNode(node => {
+        rowMap.set(String(getRowIdForData(node.data)), node);
+    });
+    const touchedRowIds = new Set();
+    suppressCellChangeLog = true;
+    try {
+        cells.forEach(cell => {
+            const node = rowMap.get(String(cell.rowId));
+            if (!node) return;
+            const nextValue = cell[valueKey];
+            node.setDataValue(cell.field, nextValue);
+            updateTrackedChangeForCell(currentTab, String(cell.rowId), cell.field, nextValue);
+            touchedRowIds.add(String(cell.rowId));
+        });
+        touchedRowIds.forEach(rowId => {
+            const node = rowMap.get(rowId);
+            if (!node) return;
+            const rowChanges = changes[currentTab]?.[rowId] || {};
+            const hasChanges = Object.keys(rowChanges).length > 0;
+            node.setDataValue('_edit_status', hasChanges ? 'modified' : 'synced');
+        });
+    } finally {
+        suppressCellChangeLog = false;
+    }
+    const touchedNodes = Array.from(touchedRowIds).map(id => rowMap.get(id)).filter(Boolean);
+    if (touchedNodes.length) gridApi.redrawRows({ rowNodes: touchedNodes });
+    return touchedRowIds.size;
+}
+
+function applyBulkCellSnapshots(cells) {
+    if (!Array.isArray(cells) || !cells.length) return 0;
+    pushEditHistoryRecord({ type: 'bulk', tab: currentTab, cells });
+    return applyHistoryCells(cells, 'afterValue');
 }
 
 function showToast(message, type = 'info', duration = 3500) {
@@ -555,29 +609,60 @@ const gridOptions = {
         }
         return null;
     },
+    onCellEditingStarted: params => {
+        if (params.colDef.field === '_edit_status') return;
+        if (suppressCellChangeLog) return;
+        if (isFieldReadOnlyForTab(currentTab, params.colDef.field)) return;
+        const rowId = getRowIdForData(params.data);
+        if (rowId == null) return;
+        pushEditHistoryRecord({
+            type: 'individual',
+            tab: currentTab,
+            pending: true,
+            cells: [{
+                rowId: String(rowId),
+                field: params.colDef.field,
+                beforeValue: params.value,
+                afterValue: params.value,
+            }],
+        });
+    },
     onCellValueChanged: params => {
         if (params.colDef.field !== '_edit_status') {
             if (params.colDef.field === 'rubric_id' && params.newValue === '__create_new__') {
                 createRubricForRow(params).catch(err => alert('Failed to create rubric: ' + (err?.message || err)));
                 return;
             }
-            params.node.setDataValue('_edit_status', 'modified');
+            const rowId = String(getRowIdForData(params.data));
             const committedValue = params.data?.[params.colDef.field];
-            trackChange(currentTab, params.data.id || params.data.url, params.colDef.field, committedValue);
+            updateTrackedChangeForCell(currentTab, rowId, params.colDef.field, committedValue);
+            const rowChanges = changes[currentTab]?.[rowId] || {};
+            const hasChanges = Object.keys(rowChanges).length > 0;
+            params.node.setDataValue('_edit_status', hasChanges ? 'modified' : 'synced');
             if (!suppressCellChangeLog && !isFieldReadOnlyForTab(currentTab, params.colDef.field)) {
                 const oldValue = params.oldValue;
                 const newValue = params.newValue;
-                const changed = JSON.stringify(oldValue) !== JSON.stringify(newValue);
+                const changed = !valuesEqual(oldValue, newValue);
+                const top = editHistoryRef.current[editHistoryRef.current.length - 1];
+                const isTopPendingMatch = !!(
+                    top &&
+                    top.pending &&
+                    top.type === 'individual' &&
+                    top.tab === currentTab &&
+                    top.cells?.length === 1 &&
+                    String(top.cells[0].rowId) === rowId &&
+                    top.cells[0].field === params.colDef.field
+                );
                 if (changed) {
-                    pushChangeLogEntry({
-                        rowId: String(getRowIdForData(params.data)),
-                        field: params.colDef.field,
-                        oldValue,
-                        newValue,
-                        timestamp: Date.now(),
-                        tab: currentTab,
-                        groupId: createUndoGroupId(),
-                    });
+                    if (isTopPendingMatch) {
+                        top.pending = false;
+                        top.cells[0].afterValue = newValue;
+                    } else {
+                        const snapshot = createCellSnapshot(params.data, params.colDef.field, oldValue, newValue);
+                        if (snapshot) pushEditHistoryRecord({ type: 'individual', tab: currentTab, cells: [snapshot] });
+                    }
+                } else if (isTopPendingMatch) {
+                    editHistoryRef.current.pop();
                 }
             }
             params.api.redrawRows({ rowNodes: [params.node] });
@@ -1354,6 +1439,7 @@ document.addEventListener('keydown', function(event) {
 
 // Initialize tab interception system
 document.addEventListener('DOMContentLoaded', function() {
+    clearInMemoryChangeLog();
     // Add data-tab attributes to existing tab buttons for interception system
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(tab => {
@@ -1906,62 +1992,16 @@ function updateTrackedChangeForCell(tabName, itemId, fieldName, value) {
 }
 
 function undoLastCellEdit() {
-    if (!inMemoryChangeLog.length) {
-        showToast('Nothing to undo for this tab.', 'warn');
+    while (editHistoryRef.current.length) {
+        const record = editHistoryRef.current.pop();
+        if (!record || record.tab !== currentTab || record.pending) continue;
+        const cells = (record.cells || []).filter(c => !isFieldReadOnlyForTab(currentTab, c.field));
+        if (!cells.length) continue;
+        const rowCount = applyHistoryCells(cells, 'beforeValue');
+        showToast(`Undo applied (${record.type}) to ${rowCount} row${rowCount === 1 ? '' : 's'}.`, 'success', 1800);
         return;
     }
-    const lastEntry = inMemoryChangeLog[inMemoryChangeLog.length - 1];
-    if (!lastEntry || lastEntry.tab !== currentTab) {
-        showToast('Nothing to undo for this tab.', 'warn');
-        return;
-    }
-    const targetGroupId = lastEntry.groupId;
-    const groupEntries = [];
-    while (inMemoryChangeLog.length) {
-        const tail = inMemoryChangeLog[inMemoryChangeLog.length - 1];
-        if (tail.tab !== currentTab || tail.groupId !== targetGroupId) break;
-        groupEntries.push(inMemoryChangeLog.pop());
-    }
-    if (!groupEntries.length) {
-        showToast('Nothing to undo for this tab.', 'warn');
-        return;
-    }
-    const collapsedByCell = new Map();
-    for (let i = groupEntries.length - 1; i >= 0; i--) {
-        const entry = groupEntries[i];
-        collapsedByCell.set(`${entry.rowId}::${entry.field}`, entry);
-    }
-    const updates = Array.from(collapsedByCell.values());
-    const rowMap = new Map();
-    gridApi?.forEachNode(node => {
-        rowMap.set(String(getRowIdForData(node.data)), node);
-    });
-    const touchedNodes = [];
-    suppressCellChangeLog = true;
-    try {
-        updates.forEach(entry => {
-            const node = rowMap.get(String(entry.rowId));
-            if (!node) return;
-            node.setDataValue(entry.field, entry.oldValue);
-            updateTrackedChangeForCell(currentTab, String(entry.rowId), entry.field, entry.oldValue);
-            touchedNodes.push(node);
-        });
-        const touchedRowIds = new Set(touchedNodes.map(n => String(getRowIdForData(n.data))));
-        touchedRowIds.forEach(rowId => {
-            const node = rowMap.get(rowId);
-            if (!node) return;
-            const rowChanges = changes[currentTab]?.[rowId] || {};
-            const hasChanges = Object.keys(rowChanges).length > 0;
-            node.setDataValue('_edit_status', hasChanges ? 'modified' : 'synced');
-        });
-    } finally {
-        suppressCellChangeLog = false;
-    }
-    if (touchedNodes.length) {
-        gridApi?.redrawRows({ rowNodes: touchedNodes });
-    }
-    const rowCount = new Set(updates.map(e => String(e.rowId))).size;
-    showToast(`Undo applied to ${rowCount} row${rowCount === 1 ? '' : 's'}.`, 'success', 1800);
+    showToast('Nothing to undo for this tab.', 'warn');
 }
 
 function getBulkTargetRowData(fillVisibleWhenEmpty) {
@@ -1976,60 +2016,18 @@ function getBulkTargetRowData(fillVisibleWhenEmpty) {
 }
 
 function applyGridCellChange(rowData, field, value) {
-    if (!gridApi) return;
-    gridApi.forEachNode(gridNode => {
-        if (gridNode.data === rowData) {
-            const oldValue = gridNode.data?.[field];
-            suppressCellChangeLog = true;
-            try {
-                gridNode.setDataValue(field, value);
-                gridNode.setDataValue('_edit_status', 'modified');
-            } finally {
-                suppressCellChangeLog = false;
-            }
-            if (activeUndoGroupId) {
-                const changed = JSON.stringify(oldValue) !== JSON.stringify(value);
-                if (changed && !isFieldReadOnlyForTab(currentTab, field)) {
-                    pushChangeLogEntry({
-                        rowId: String(getRowIdForData(rowData)),
-                        field,
-                        oldValue,
-                        newValue: value,
-                        timestamp: Date.now(),
-                        tab: currentTab,
-                        groupId: activeUndoGroupId,
-                    });
-                }
-            }
-            trackChange(currentTab, rowData.id || rowData.url, field, value);
-        }
-    });
+    const beforeValue = rowData?.[field];
+    const cell = createCellSnapshot(rowData, field, beforeValue, value);
+    if (!cell) return;
+    applyHistoryCells([cell], 'afterValue');
 }
 
 function applyGridCellChangeToNode(gridNode, field, value) {
-    const oldValue = gridNode.data?.[field];
-    suppressCellChangeLog = true;
-    try {
-        gridNode.setDataValue(field, value);
-        gridNode.setDataValue('_edit_status', 'modified');
-    } finally {
-        suppressCellChangeLog = false;
-    }
-    if (activeUndoGroupId) {
-        const changed = JSON.stringify(oldValue) !== JSON.stringify(value);
-        if (changed && !isFieldReadOnlyForTab(currentTab, field)) {
-            pushChangeLogEntry({
-                rowId: String(getRowIdForData(gridNode.data)),
-                field,
-                oldValue,
-                newValue: value,
-                timestamp: Date.now(),
-                tab: currentTab,
-                groupId: activeUndoGroupId,
-            });
-        }
-    }
-    trackChange(currentTab, gridNode.data.id || gridNode.data.url, field, value);
+    if (!gridNode?.data) return;
+    const beforeValue = gridNode.data[field];
+    const cell = createCellSnapshot(gridNode.data, field, beforeValue, value);
+    if (!cell) return;
+    applyHistoryCells([cell], 'afterValue');
 }
 
 const CLONE_CREATE_TABS = ['assignments', 'quizzes', 'new_quizzes', 'pages', 'discussions', 'announcements', 'modules', 'files'];
@@ -2113,9 +2111,16 @@ function updateSyncHistoryIndicator() {
 
 function buildSnapshotForRows(tab, rowIds) {
     const rowIdSet = new Set(Array.from(rowIds || []).map(String));
-    const changes = inMemoryChangeLog
-        .filter(e => e.tab === tab && rowIdSet.has(String(e.rowId)))
-        .map(e => ({ ...e }));
+    const changes = editHistoryRef.current
+        .filter(record => record?.tab === tab && !record?.pending)
+        .flatMap(record => (record.cells || []).map(cell => ({
+            rowId: String(cell.rowId),
+            field: cell.field,
+            oldValue: cell.beforeValue,
+            newValue: cell.afterValue,
+            tab,
+        })))
+        .filter(entry => rowIdSet.has(String(entry.rowId)));
     if (!changes.length) return null;
     const rowsAffected = new Set(changes.map(c => String(c.rowId))).size;
     return {
@@ -2137,7 +2142,14 @@ function persistSnapshot(snapshot) {
 
 function removeInMemoryEntriesForRows(tab, rowIds) {
     const rowIdSet = new Set(Array.from(rowIds || []).map(String));
-    inMemoryChangeLog = inMemoryChangeLog.filter(e => !(e.tab === tab && rowIdSet.has(String(e.rowId))));
+    editHistoryRef.current = editHistoryRef.current
+        .map(record => {
+            if (!record || record.tab !== tab) return record;
+            const remainingCells = (record.cells || []).filter(cell => !rowIdSet.has(String(cell.rowId)));
+            if (!remainingCells.length) return null;
+            return { ...record, cells: remainingCells, pending: false };
+        })
+        .filter(Boolean);
 }
 
 function collapseSnapshotChanges(snapshot) {
@@ -3027,12 +3039,10 @@ async function executeMoveToAssignmentGroup() {
     if (!hasAgField) return;
     if (!gridApi) return;
     const fieldKey = 'assignment_group_id';
-    beginUndoGroup();
-    try {
-        getBulkTargetRowData(true).forEach(rowData => applyGridCellChange(rowData, fieldKey, targetGroupId));
-    } finally {
-        endUndoGroup();
-    }
+    const cells = getBulkTargetRowData(true)
+        .map(rowData => createCellSnapshot(rowData, fieldKey, rowData?.[fieldKey], targetGroupId))
+        .filter(Boolean);
+    applyBulkCellSnapshots(cells);
     gridApi.redrawRows();
     closeActiveModal();
 }
@@ -3110,12 +3120,10 @@ function executeBulkEdit() {
     const targetColumn = document.getElementById('beColumnTarget').value;
     const newValue = document.getElementById('beValueInput').value;
     if (!gridApi) return;
-    beginUndoGroup();
-    try {
-        getBulkTargetRowData(true).forEach(rowData => applyGridCellChange(rowData, targetColumn, newValue));
-    } finally {
-        endUndoGroup();
-    }
+    const cells = getBulkTargetRowData(true)
+        .map(rowData => createCellSnapshot(rowData, targetColumn, rowData?.[targetColumn], newValue))
+        .filter(Boolean);
+    applyBulkCellSnapshots(cells);
     gridApi.redrawRows();
     closeActiveModal();
 }
@@ -3126,22 +3134,20 @@ function executeSearchReplace() {
     const replaceText = document.getElementById('srReplaceInput').value;
     const useRegex = document.getElementById('srUseRegex').checked;
     if (!searchText || !gridApi) return;
-    beginUndoGroup();
-    try {
-        getBulkTargetRowData(true).forEach(rowData => {
-            const currentValue = rowData[targetColumn];
-            if (currentValue && typeof currentValue === 'string') {
-                let updatedValue;
-                if (useRegex) {
-                    try { updatedValue = currentValue.replace(new RegExp(searchText, 'g'), replaceText); }
-                    catch { return; }
-                } else updatedValue = currentValue.split(searchText).join(replaceText);
-                if (updatedValue !== currentValue) applyGridCellChange(rowData, targetColumn, updatedValue);
-            }
-        });
-    } finally {
-        endUndoGroup();
-    }
+    const cells = [];
+    getBulkTargetRowData(true).forEach(rowData => {
+        const currentValue = rowData[targetColumn];
+        if (currentValue && typeof currentValue === 'string') {
+            let updatedValue;
+            if (useRegex) {
+                try { updatedValue = currentValue.replace(new RegExp(searchText, 'g'), replaceText); }
+                catch { return; }
+            } else updatedValue = currentValue.split(searchText).join(replaceText);
+            const snap = createCellSnapshot(rowData, targetColumn, currentValue, updatedValue);
+            if (snap) cells.push(snap);
+        }
+    });
+    applyBulkCellSnapshots(cells);
     gridApi.redrawRows();
     closeActiveModal();
 }
@@ -3152,22 +3158,20 @@ function executeInsertPaste() {
     const position = document.querySelector('input[name="ipPosition"]:checked')?.value;
     const marker = document.getElementById('ipMarkerInput').value;
     if (!gridApi) return;
-    beginUndoGroup();
-    try {
-        getBulkTargetRowData(true).forEach(rowData => {
-            const currentValue = rowData[targetColumn] || "";
-            let updatedValue = currentValue;
-            if (position === 'start') updatedValue = textToInsert + currentValue;
-            else if (position === 'end') updatedValue = currentValue + textToInsert;
-            else if (marker && currentValue.includes(marker)) {
-                const parts = currentValue.split(marker);
-                updatedValue = position === 'beforeMarker' ? (parts[0] + textToInsert + marker + parts.slice(1).join(marker)) : (parts[0] + marker + textToInsert + parts.slice(1).join(marker));
-            }
-            if (updatedValue !== currentValue) applyGridCellChange(rowData, targetColumn, updatedValue);
-        });
-    } finally {
-        endUndoGroup();
-    }
+    const cells = [];
+    getBulkTargetRowData(true).forEach(rowData => {
+        const currentValue = rowData[targetColumn] || "";
+        let updatedValue = currentValue;
+        if (position === 'start') updatedValue = textToInsert + currentValue;
+        else if (position === 'end') updatedValue = currentValue + textToInsert;
+        else if (marker && currentValue.includes(marker)) {
+            const parts = currentValue.split(marker);
+            updatedValue = position === 'beforeMarker' ? (parts[0] + textToInsert + marker + parts.slice(1).join(marker)) : (parts[0] + marker + textToInsert + parts.slice(1).join(marker));
+        }
+        const snap = createCellSnapshot(rowData, targetColumn, currentValue, updatedValue);
+        if (snap) cells.push(snap);
+    });
+    applyBulkCellSnapshots(cells);
     gridApi.redrawRows();
     closeActiveModal();
 }
@@ -3179,12 +3183,10 @@ function executePublishStatus() {
     const publishValue = selectedStatus === 'true';
     const nodesToUpdate = getBulkTargetRowData(true);
     if (!nodesToUpdate.length) { alert('No rows.'); return; }
-    beginUndoGroup();
-    try {
-        nodesToUpdate.forEach(rowData => applyGridCellChange(rowData, 'published', publishValue));
-    } finally {
-        endUndoGroup();
-    }
+    const cells = nodesToUpdate
+        .map(rowData => createCellSnapshot(rowData, 'published', rowData?.published, publishValue))
+        .filter(Boolean);
+    applyBulkCellSnapshots(cells);
     gridApi.redrawRows();
     closeActiveModal();
 }
@@ -3210,50 +3212,48 @@ function executeDateShift() {
         gridApi.forEachNodeAfterFilter(node => rowNodes.push(node));
     }
     const refreshedNodes = [];
-    beginUndoGroup();
-    try {
-        rowNodes.forEach(gridNode => {
-            const rowData = gridNode.data;
-            if (!rowData) return;
-            selectedDateColumns.forEach(field => {
-                const currentValue = rowData[field];
-                let newDateValue = null;
-                if (isClearMode) {
-                    newDateValue = null;
-                } else if (manualDate) {
-                    const dateObj = new Date(manualDate);
-                    const timeStr = manualTime || timeOverride;
-                    if (timeStr) { const [hours, mins] = timeStr.split(':'); dateObj.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
-                    else dateObj.setHours(23, 59, 0, 0);
-                    if (field === 'unlock_at') dateObj.setHours(dateObj.getHours() - 1, dateObj.getMinutes(), 0, 0);
-                    else if (field === 'lock_at') dateObj.setHours(dateObj.getHours() + 1, dateObj.getMinutes(), 0, 0);
-                    newDateValue = DateUtils.formatForCanvas(dateObj);
-                } else if (currentValue) {
-                    const currentDate = new Date(currentValue);
-                    if (!isNaN(currentDate.getTime())) {
-                        const shiftedDate = new Date(currentDate);
-                        shiftedDate.setDate(shiftedDate.getDate() + offsetDaysNum);
-                        if (timeOverride) { const [hours, mins] = timeOverride.split(':'); shiftedDate.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
-                        newDateValue = DateUtils.formatForCanvas(shiftedDate);
-                    }
-                } else if (offsetDaysNum !== 0) {
-                    const baseDate = new Date();
-                    baseDate.setDate(baseDate.getDate() + offsetDaysNum);
-                    if (timeOverride) { const [hours, mins] = timeOverride.split(':'); baseDate.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
-                    else baseDate.setHours(23, 59, 0, 0);
-                    if (field === 'unlock_at') baseDate.setHours(baseDate.getHours() - 1, baseDate.getMinutes(), 0, 0);
-                    else if (field === 'lock_at') baseDate.setHours(baseDate.getHours() + 1, baseDate.getMinutes(), 0, 0);
-                    newDateValue = DateUtils.formatForCanvas(baseDate);
+    const cells = [];
+    rowNodes.forEach(gridNode => {
+        const rowData = gridNode.data;
+        if (!rowData) return;
+        selectedDateColumns.forEach(field => {
+            const currentValue = rowData[field];
+            let newDateValue = null;
+            if (isClearMode) {
+                newDateValue = null;
+            } else if (manualDate) {
+                const dateObj = new Date(manualDate);
+                const timeStr = manualTime || timeOverride;
+                if (timeStr) { const [hours, mins] = timeStr.split(':'); dateObj.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
+                else dateObj.setHours(23, 59, 0, 0);
+                if (field === 'unlock_at') dateObj.setHours(dateObj.getHours() - 1, dateObj.getMinutes(), 0, 0);
+                else if (field === 'lock_at') dateObj.setHours(dateObj.getHours() + 1, dateObj.getMinutes(), 0, 0);
+                newDateValue = DateUtils.formatForCanvas(dateObj);
+            } else if (currentValue) {
+                const currentDate = new Date(currentValue);
+                if (!isNaN(currentDate.getTime())) {
+                    const shiftedDate = new Date(currentDate);
+                    shiftedDate.setDate(shiftedDate.getDate() + offsetDaysNum);
+                    if (timeOverride) { const [hours, mins] = timeOverride.split(':'); shiftedDate.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
+                    newDateValue = DateUtils.formatForCanvas(shiftedDate);
                 }
-                if (isClearMode || newDateValue !== null) {
-                    applyGridCellChangeToNode(gridNode, field, newDateValue);
-                    refreshedNodes.push({ node: gridNode, field });
-                }
-            });
+            } else if (offsetDaysNum !== 0) {
+                const baseDate = new Date();
+                baseDate.setDate(baseDate.getDate() + offsetDaysNum);
+                if (timeOverride) { const [hours, mins] = timeOverride.split(':'); baseDate.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
+                else baseDate.setHours(23, 59, 0, 0);
+                if (field === 'unlock_at') baseDate.setHours(baseDate.getHours() - 1, baseDate.getMinutes(), 0, 0);
+                else if (field === 'lock_at') baseDate.setHours(baseDate.getHours() + 1, baseDate.getMinutes(), 0, 0);
+                newDateValue = DateUtils.formatForCanvas(baseDate);
+            }
+            if (isClearMode || newDateValue !== null) {
+                const snap = createCellSnapshot(rowData, field, currentValue, newDateValue);
+                if (snap) cells.push(snap);
+                refreshedNodes.push({ node: gridNode, field });
+            }
         });
-    } finally {
-        endUndoGroup();
-    }
+    });
+    applyBulkCellSnapshots(cells);
     if (refreshedNodes.length && gridApi.refreshCells) {
         const nodesToRefresh = [...new Set(refreshedNodes.map(r => r.node))];
         const fieldsToRefresh = [...new Set(refreshedNodes.map(r => r.field))];
@@ -3270,25 +3270,26 @@ function executeTimeLimitUpdate() {
     const nodesToUpdate = getBulkTargetRowData(true);
     if (!nodesToUpdate.length) { alert('Select rows or filter to target.'); return; }
     const val = picker ? picker.getMinutes() : 0;
-    beginUndoGroup();
-    try {
-        if (op === 'remove') {
-            nodesToUpdate.forEach(rowData => applyGridCellChange(rowData, 'time_limit', null));
-        } else {
-            if (op === 'set' && (isNaN(val) || val < 0)) { alert('Enter valid duration (hours and minutes).'); return; }
-            if (op === 'add' && (isNaN(val) || val < 0)) { alert('Enter valid duration to add.'); return; }
-            nodesToUpdate.forEach(rowData => {
-                const current = rowData.time_limit;
-                const curNum = (current != null && current !== '') ? Math.max(0, parseInt(Number(current), 10) || 0) : 0;
-                let newVal = op === 'set' ? val : curNum + val;
-                if (newVal < 0) newVal = 0;
-                if (op === 'set' && newVal === 0) newVal = null;
-                applyGridCellChange(rowData, 'time_limit', newVal);
-            });
-        }
-    } finally {
-        endUndoGroup();
+    const cells = [];
+    if (op === 'remove') {
+        nodesToUpdate.forEach(rowData => {
+            const snap = createCellSnapshot(rowData, 'time_limit', rowData?.time_limit, null);
+            if (snap) cells.push(snap);
+        });
+    } else {
+        if (op === 'set' && (isNaN(val) || val < 0)) { alert('Enter valid duration (hours and minutes).'); return; }
+        if (op === 'add' && (isNaN(val) || val < 0)) { alert('Enter valid duration to add.'); return; }
+        nodesToUpdate.forEach(rowData => {
+            const current = rowData.time_limit;
+            const curNum = (current != null && current !== '') ? Math.max(0, parseInt(Number(current), 10) || 0) : 0;
+            let newVal = op === 'set' ? val : curNum + val;
+            if (newVal < 0) newVal = 0;
+            if (op === 'set' && newVal === 0) newVal = null;
+            const snap = createCellSnapshot(rowData, 'time_limit', rowData?.time_limit, newVal);
+            if (snap) cells.push(snap);
+        });
     }
+    applyBulkCellSnapshots(cells);
     gridApi.redrawRows();
     closeActiveModal();
 }
@@ -3300,17 +3301,15 @@ function executePointsUpdate() {
     const selectedRows = getBulkTargetRowData(false);
     if (!selectedRows.length) { alert("Select rows."); return; }
     if (isNaN(pointsValue)) { alert("Enter valid number."); return; }
-    beginUndoGroup();
-    try {
-        selectedRows.forEach(rowData => {
-            const currentValue = parseFloat(rowData[targetField]) || 0;
-            let finalValue = operation === 'set' ? pointsValue : operation === 'scale' ? currentValue * pointsValue : currentValue + pointsValue;
-            const pointsResult = Number(finalValue.toFixed(2));
-            applyGridCellChange(rowData, targetField, pointsResult);
-        });
-    } finally {
-        endUndoGroup();
-    }
+    const cells = [];
+    selectedRows.forEach(rowData => {
+        const currentValue = parseFloat(rowData[targetField]) || 0;
+        let finalValue = operation === 'set' ? pointsValue : operation === 'scale' ? currentValue * pointsValue : currentValue + pointsValue;
+        const pointsResult = Number(finalValue.toFixed(2));
+        const snap = createCellSnapshot(rowData, targetField, rowData?.[targetField], pointsResult);
+        if (snap) cells.push(snap);
+    });
+    applyBulkCellSnapshots(cells);
     gridApi.redrawRows();
     closeActiveModal();
 }
@@ -3321,26 +3320,27 @@ function executeAllowedAttemptsUpdate() {
     if (!gridApi) return;
     const nodesToUpdate = getBulkTargetRowData(true);
     if (!nodesToUpdate.length) { alert('Select rows or filter to target.'); return; }
-    beginUndoGroup();
-    try {
-        if (op === 'unlimited') {
-            nodesToUpdate.forEach(rowData => applyGridCellChange(rowData, 'allowed_attempts', -1));
-        } else {
-            const val = valueInput ? parseInt(valueInput.value, 10) : 0;
-            if (op === 'set' && (isNaN(val) || val < -1)) { alert('Enter valid number of attempts (-1 for unlimited, or positive number).'); return; }
-            if (op === 'add' && isNaN(val)) { alert('Enter valid number to add.'); return; }
-            nodesToUpdate.forEach(rowData => {
-                const current = rowData.allowed_attempts;
-                const curNum = (current != null && current !== '') ? parseInt(Number(current), 10) : 1;
-                let newVal = op === 'set' ? val : curNum + val;
-                if (newVal < -1) newVal = -1;
-                if (newVal === 0) newVal = 1;
-                applyGridCellChange(rowData, 'allowed_attempts', newVal);
-            });
-        }
-    } finally {
-        endUndoGroup();
+    const cells = [];
+    if (op === 'unlimited') {
+        nodesToUpdate.forEach(rowData => {
+            const snap = createCellSnapshot(rowData, 'allowed_attempts', rowData?.allowed_attempts, -1);
+            if (snap) cells.push(snap);
+        });
+    } else {
+        const val = valueInput ? parseInt(valueInput.value, 10) : 0;
+        if (op === 'set' && (isNaN(val) || val < -1)) { alert('Enter valid number of attempts (-1 for unlimited, or positive number).'); return; }
+        if (op === 'add' && isNaN(val)) { alert('Enter valid number to add.'); return; }
+        nodesToUpdate.forEach(rowData => {
+            const current = rowData.allowed_attempts;
+            const curNum = (current != null && current !== '') ? parseInt(Number(current), 10) : 1;
+            let newVal = op === 'set' ? val : curNum + val;
+            if (newVal < -1) newVal = -1;
+            if (newVal === 0) newVal = 1;
+            const snap = createCellSnapshot(rowData, 'allowed_attempts', rowData?.allowed_attempts, newVal);
+            if (snap) cells.push(snap);
+        });
     }
+    applyBulkCellSnapshots(cells);
     gridApi.redrawRows();
     closeActiveModal();
 }
@@ -3352,12 +3352,10 @@ function executeAllowRatingUpdate() {
     const allowRating = valueEl.value === 'true';
     const nodesToUpdate = getBulkTargetRowData(true);
     if (!nodesToUpdate.length) { alert('Select rows or filter to target.'); return; }
-    beginUndoGroup();
-    try {
-        nodesToUpdate.forEach(rowData => applyGridCellChange(rowData, 'allow_rating', allowRating));
-    } finally {
-        endUndoGroup();
-    }
+    const cells = nodesToUpdate
+        .map(rowData => createCellSnapshot(rowData, 'allow_rating', rowData?.allow_rating, allowRating))
+        .filter(Boolean);
+    applyBulkCellSnapshots(cells);
     gridApi.redrawRows();
     closeActiveModal();
 }
