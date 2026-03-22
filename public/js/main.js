@@ -109,7 +109,7 @@ window.fetch = async (...args) => {
 };
 let assignmentGroupsCache = {};
 let rubricsCache = {};
-const editHistoryRef = { current: [] };
+const undoStack = [];
 const EDIT_HISTORY_CAP = 500;
 const SNAPSHOT_KEY_PREFIX = 'bulkeditor:snapshots:';
 const SNAPSHOT_LIMIT_PER_TAB = 5;
@@ -147,12 +147,12 @@ function saveSnapshots(tab, snapshots) {
 }
 
 function clearInMemoryChangeLog() {
-    editHistoryRef.current = [];
+    undoStack.length = 0;
 }
 
 function pushEditHistoryRecord(record) {
     if (!record || !Array.isArray(record.cells) || !record.cells.length) return;
-    editHistoryRef.current.push({
+    undoStack.push({
         type: record.type === 'bulk' ? 'bulk' : 'individual',
         tab: record.tab || currentTab,
         timestamp: Date.now(),
@@ -164,8 +164,8 @@ function pushEditHistoryRecord(record) {
             afterValue: c.afterValue,
         })),
     });
-    if (editHistoryRef.current.length > EDIT_HISTORY_CAP) {
-        editHistoryRef.current = editHistoryRef.current.slice(editHistoryRef.current.length - EDIT_HISTORY_CAP);
+    if (undoStack.length > EDIT_HISTORY_CAP) {
+        undoStack.splice(0, undoStack.length - EDIT_HISTORY_CAP);
     }
 }
 
@@ -643,7 +643,7 @@ const gridOptions = {
                 const oldValue = params.oldValue;
                 const newValue = params.newValue;
                 const changed = !valuesEqual(oldValue, newValue);
-                const top = editHistoryRef.current[editHistoryRef.current.length - 1];
+                const top = undoStack[undoStack.length - 1];
                 const isTopPendingMatch = !!(
                     top &&
                     top.pending &&
@@ -662,7 +662,7 @@ const gridOptions = {
                         if (snapshot) pushEditHistoryRecord({ type: 'individual', tab: currentTab, cells: [snapshot] });
                     }
                 } else if (isTopPendingMatch) {
-                    editHistoryRef.current.pop();
+                    undoStack.pop();
                 }
             }
             params.api.redrawRows({ rowNodes: [params.node] });
@@ -1992,8 +1992,8 @@ function updateTrackedChangeForCell(tabName, itemId, fieldName, value) {
 }
 
 function undoLastCellEdit() {
-    while (editHistoryRef.current.length) {
-        const record = editHistoryRef.current.pop();
+    while (undoStack.length) {
+        const record = undoStack.pop();
         if (!record || record.tab !== currentTab || record.pending) continue;
         const cells = (record.cells || []).filter(c => !isFieldReadOnlyForTab(currentTab, c.field));
         if (!cells.length) continue;
@@ -2111,7 +2111,7 @@ function updateSyncHistoryIndicator() {
 
 function buildSnapshotForRows(tab, rowIds) {
     const rowIdSet = new Set(Array.from(rowIds || []).map(String));
-    const changes = editHistoryRef.current
+    const changes = undoStack
         .filter(record => record?.tab === tab && !record?.pending)
         .flatMap(record => (record.cells || []).map(cell => ({
             rowId: String(cell.rowId),
@@ -2142,7 +2142,7 @@ function persistSnapshot(snapshot) {
 
 function removeInMemoryEntriesForRows(tab, rowIds) {
     const rowIdSet = new Set(Array.from(rowIds || []).map(String));
-    editHistoryRef.current = editHistoryRef.current
+    const filtered = undoStack
         .map(record => {
             if (!record || record.tab !== tab) return record;
             const remainingCells = (record.cells || []).filter(cell => !rowIdSet.has(String(cell.rowId)));
@@ -2150,6 +2150,8 @@ function removeInMemoryEntriesForRows(tab, rowIds) {
             return { ...record, cells: remainingCells, pending: false };
         })
         .filter(Boolean);
+    undoStack.length = 0;
+    undoStack.push(...filtered);
 }
 
 function collapseSnapshotChanges(snapshot) {
