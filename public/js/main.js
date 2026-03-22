@@ -1736,6 +1736,14 @@ function renderAccessibilityPanelSkeleton() {
             <button id="runAccessibilityScanBtn" class="primary-btn">Run Scan</button>
             <button id="exportAccessibilityCsvBtn" class="primary-btn" disabled>Export CSV</button>
         </div>
+        <div id="accessibilityScopeControls" style="margin-top:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <strong style="font-size:13px;">Scope:</strong>
+            <label><input type="checkbox" class="acc-type-checkbox" value="pages" checked> Pages</label>
+            <label><input type="checkbox" class="acc-type-checkbox" value="assignments" checked> Assignments</label>
+            <label><input type="checkbox" class="acc-type-checkbox" value="announcements"> Announcements</label>
+            <label><input type="checkbox" class="acc-type-checkbox" value="discussions"> Discussions</label>
+            <label><input type="checkbox" class="acc-type-checkbox" value="syllabus"> Syllabus</label>
+        </div>
         <div id="accessibilityMetrics" style="margin-top:10px;color:#444;">Ready to scan.</div>
     `;
     findingsEl.innerHTML = '<p>No scan has been run yet.</p>';
@@ -1744,6 +1752,26 @@ function renderAccessibilityPanelSkeleton() {
     const exportBtn = document.getElementById('exportAccessibilityCsvBtn');
     if (runBtn) runBtn.onclick = () => runAccessibilityScan();
     if (exportBtn) exportBtn.onclick = () => downloadAccessibilityCsv();
+}
+
+function getSelectedAccessibilityTypes() {
+    const selected = Array.from(document.querySelectorAll('.acc-type-checkbox:checked')).map((el) => el.value);
+    return selected.length ? selected : ['pages', 'assignments'];
+}
+
+function buildAccessibilityTypesControls(selectedTypes) {
+    const selected = new Set(Array.isArray(selectedTypes) && selectedTypes.length ? selectedTypes : ['pages', 'assignments']);
+    const row = (value, label) => `<label><input type="checkbox" class="acc-type-checkbox" value="${value}" ${selected.has(value) ? 'checked' : ''}> ${label}</label>`;
+    return `
+        <div id="accessibilityScopeControls" style="margin-top:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <strong style="font-size:13px;">Scope:</strong>
+            ${row('pages', 'Pages')}
+            ${row('assignments', 'Assignments')}
+            ${row('announcements', 'Announcements')}
+            ${row('discussions', 'Discussions')}
+            ${row('syllabus', 'Syllabus')}
+        </div>
+    `;
 }
 
 function renderAccessibilityReport(report) {
@@ -1755,6 +1783,7 @@ function renderAccessibilityReport(report) {
     const summary = report?.summary || {};
     const benchmark = report?.benchmark || {};
     const bySeverity = summary.by_severity || {};
+    const selectedTypes = report?.requested_resource_types || Object.keys(summary.resources_scanned_by_type || {});
     const metricsHtml = `
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <label for="accessibilityBaselineMs" style="font-size:13px;">Canvas baseline (ms, optional):</label>
@@ -1762,6 +1791,7 @@ function renderAccessibilityReport(report) {
             <button id="runAccessibilityScanBtn" class="primary-btn">Run Scan</button>
             <button id="exportAccessibilityCsvBtn" class="primary-btn">Export CSV</button>
         </div>
+        ${buildAccessibilityTypesControls(selectedTypes)}
         <div id="accessibilityMetrics" style="margin-top:10px;line-height:1.5;">
             <strong>Findings:</strong> ${summary.total_findings || 0}
             &nbsp;|&nbsp; <strong>High:</strong> ${bySeverity.high || 0}
@@ -1829,7 +1859,15 @@ async function runAccessibilityScan() {
     const findingsEl = document.getElementById('accessibilityFindingsContent');
     const baselineInput = document.getElementById('accessibilityBaselineMs');
     const baselineMs = baselineInput && baselineInput.value ? Number(baselineInput.value) : null;
-    const qs = baselineMs && Number.isFinite(baselineMs) && baselineMs > 0 ? `?baseline_ms=${encodeURIComponent(String(baselineMs))}` : '';
+    const selectedTypes = getSelectedAccessibilityTypes();
+    const queryParts = [];
+    if (baselineMs && Number.isFinite(baselineMs) && baselineMs > 0) {
+        queryParts.push(`baseline_ms=${encodeURIComponent(String(baselineMs))}`);
+    }
+    if (selectedTypes.length) {
+        queryParts.push(`resource_types=${encodeURIComponent(selectedTypes.join(','))}`);
+    }
+    const qs = queryParts.length ? `?${queryParts.join('&')}` : '';
     if (summaryEl) {
         const metrics = document.getElementById('accessibilityMetrics');
         if (metrics) metrics.textContent = 'Scanning course content...';
@@ -1856,7 +1894,9 @@ function downloadAccessibilityCsv() {
         showToast('Select a course before exporting CSV.', 'warn');
         return;
     }
-    const url = `/canvas/courses/${selectedCourseId}/accessibility/export.csv`;
+    const selectedTypes = getSelectedAccessibilityTypes();
+    const qs = selectedTypes.length ? `?resource_types=${encodeURIComponent(selectedTypes.join(','))}` : '';
+    const url = `/canvas/courses/${selectedCourseId}/accessibility/export.csv${qs}`;
     window.open(url, '_blank');
 }
 

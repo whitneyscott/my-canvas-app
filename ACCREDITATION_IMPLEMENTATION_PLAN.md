@@ -14,9 +14,10 @@ Current status snapshot:
 
 If resuming after a break, do these in order:
 1. **Accessibility MVP track** (weekend-only phased plan below)
-2. **AI standards discovery in Accreditation tab** (`Phase A`)
-3. **Content alignment view** (`Phase B`)
-4. **Lookup service cleanup decisions** (`Phase C`)
+2. **Increase standards resolution to substandards** (`Phase A`)
+3. **Connect selected standards to Canvas LMS outcomes** (`Phase A.5`)
+4. **Content alignment view** (`Phase B`)
+5. **Lookup service cleanup decisions** (`Phase C`)
 
 ---
 
@@ -38,27 +39,41 @@ Implementation notes:
 - Tier 1 and Tier 2 rules live in `ACCESSIBILITY_CHECKS.md`.
 - Build for rate limits from day one (delta scans + adaptive throttling).
 - Keep autofix limited to deterministic reversible actions until v1 stability is proven.
+- Display accessibility findings in an AG Grid interface (filter/sort parity with other tabs) to support rapid triage workflows.
 
 ### Accreditation Track (after Accessibility MVP baseline)
 Status: ⏳ Deferred behind accessibility urgency
 
-### Phase A — AI standards discovery (next)
+### Phase A — Increase standards resolution to substandards (next)
 Status: ⏳ Not completed
 
 Goal:
-- Suggest standards from profile + course context.
-- Let teacher review/select, then apply.
-- Resolve standards per selected organization using source-priority retrieval with AI fallback.
+- Retrieve and display finer-grained standards hierarchy (substandards/indicators), not only top-level standards.
+- Preserve source and confidence metadata while increasing node detail.
 
 Deliverables:
-- Suggestion endpoint or service integration for standards recommendations.
-- Confidence/rationale shown in UI for each recommendation.
-- Apply flow writes selected standards to profile (`selectedStandards`) and reflects immediately in tab state.
-- Retrieval order: DB -> official API -> trusted file -> scraping -> AI fallback.
-- Return provenance (`sourceType`, `sourceUri`) and confidence for each standards payload.
+- Resolver returns hierarchical standards nodes with parent/child relationships.
+- UI displays standards grouped by organization with expandable substandards.
+- Selection flow supports leaf-level standards IDs in `selectedStandards`.
+- Retrieval order remains: DB -> official API -> trusted file -> scraping -> AI fallback.
+- Provenance (`sourceType`, `sourceUri`) and confidence remain visible in payload/UI.
 
 Done when:
-- Teacher can click a discovery action, review suggested standards, and apply without manual ID entry.
+- Teacher can browse and select substandards (not only top-level org standards), then save selection.
+
+### Phase A.5 — Connect selected standards to Canvas LMS outcomes (after A)
+Status: ⏳ Not completed
+
+Goal:
+- Materialize selected standards into Canvas outcomes and keep mappings synchronized.
+
+Deliverables:
+- Create/reuse outcomes from selected standards (idempotent behavior).
+- Persist standards-to-outcome linkage using existing standards prefix convention in outcome descriptions.
+- Provide update flow to keep outcome mappings in sync when selected standards change.
+
+Done when:
+- Selected standards are reliably represented in Canvas outcomes with stable mapping on reload.
 
 ### Phase B — Content alignment view (next after A)
 Status: ⏳ Not completed (placeholder currently)

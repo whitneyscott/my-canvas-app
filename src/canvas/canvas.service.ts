@@ -3932,6 +3932,22 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       }
     }
 
+    // Links: broken/split URLs rendered as plain text fragments
+    const plainText = content
+      .replace(/<a\b[\s\S]*?<\/a>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const splitUrlRegex = /\b(?:https?:\s*\/\s*\/\s*[\w.-]+(?:\s*\/\s*[\w\-./?%&=+#:]*)?|www\.\s*[\w.-]+\s*\.\s*[a-z]{2,}(?:\s*\/\s*[\w\-./?%&=+#:]*)?)\b/gi;
+    let splitMatch: RegExpExecArray | null;
+    while ((splitMatch = splitUrlRegex.exec(plainText))) {
+      const token = splitMatch[0];
+      if (/\s/.test(token)) {
+        this.addFinding(findings, base, 'link_split_or_broken', 'medium', 'URL appears split/fractured in content and may not be clickable.', token);
+      }
+    }
+
     // Contrast (inline style only)
     const styleTagRegex = /<([a-z0-9]+)\b[^>]*style\s*=\s*("([^"]*)"|'([^']*)')[^>]*>/gi;
     let styleMatch: RegExpExecArray | null;
@@ -4094,6 +4110,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const hasBaseline = Number.isFinite(baseline) && baseline > 0;
 
     return {
+      requested_resource_types: types,
       summary: {
         course_id: courseId,
         total_findings: findings.length,
