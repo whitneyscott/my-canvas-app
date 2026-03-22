@@ -546,6 +546,7 @@ function setGridStatus(tabName, message, color = '#00ff00') {
 
 let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, selectedCourseId = null, lastGridColumnTab = null;
 let accessibilityLastReport = null;
+const ACCESSIBILITY_RUN_HISTORY_KEY = 'accessibility:runHistory:v1';
 
 function DurationPickerCellEditor() {}
 DurationPickerCellEditor.prototype.init = function(params) {
@@ -1745,6 +1746,7 @@ function renderAccessibilityPanelSkeleton() {
             <label><input type="checkbox" class="acc-type-checkbox" value="syllabus"> Syllabus</label>
         </div>
         <div id="accessibilityMetrics" style="margin-top:10px;color:#444;">Ready to scan.</div>
+        <div id="accessibilityRunHistory" style="margin-top:10px;"></div>
     `;
     findingsEl.innerHTML = '<p>No scan has been run yet.</p>';
 
@@ -1752,6 +1754,83 @@ function renderAccessibilityPanelSkeleton() {
     const exportBtn = document.getElementById('exportAccessibilityCsvBtn');
     if (runBtn) runBtn.onclick = () => runAccessibilityScan();
     if (exportBtn) exportBtn.onclick = () => downloadAccessibilityCsv();
+}
+
+function loadAccessibilityRunHistory() {
+    try {
+        const raw = localStorage.getItem(ACCESSIBILITY_RUN_HISTORY_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function saveAccessibilityRunHistory(entries) {
+    try {
+        localStorage.setItem(ACCESSIBILITY_RUN_HISTORY_KEY, JSON.stringify(entries));
+    } catch (_) {}
+}
+
+function formatResourcesScannedByType(map) {
+    const data = map && typeof map === 'object' ? map : {};
+    const items = Object.keys(data)
+        .sort()
+        .map((k) => `${k}:${data[k]}`);
+    return items.length ? items.join(', ') : 'none';
+}
+
+function recordAccessibilityRun(report) {
+    const summary = report?.summary || {};
+    const benchmark = report?.benchmark || {};
+    const entry = {
+        ran_at: new Date().toISOString(),
+        resources_scanned_by_type: summary.resources_scanned_by_type || {},
+        total_findings: Number(summary.total_findings || 0),
+        rule_version: String(report?.rule_version || 'unknown'),
+        total_ms: Number(benchmark.total_ms || 0)
+    };
+    const next = [entry, ...loadAccessibilityRunHistory()].slice(0, 25);
+    saveAccessibilityRunHistory(next);
+}
+
+function renderAccessibilityRunHistory() {
+    const host = document.getElementById('accessibilityRunHistory');
+    if (!host) return;
+    const rows = loadAccessibilityRunHistory();
+    if (!rows.length) {
+        host.innerHTML = '';
+        return;
+    }
+    const htmlRows = rows.slice(0, 10).map((r) => `
+        <tr>
+            <td style="padding:6px;border-bottom:1px solid #eee;white-space:nowrap;">${escapeHtml(new Date(r.ran_at).toLocaleString())}</td>
+            <td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(formatResourcesScannedByType(r.resources_scanned_by_type))}</td>
+            <td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(String(r.total_findings))}</td>
+            <td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(String(r.rule_version || 'unknown'))}</td>
+            <td style="padding:6px;border-bottom:1px solid #eee;white-space:nowrap;">${escapeHtml(String(r.total_ms))} ms</td>
+        </tr>
+    `).join('');
+    host.innerHTML = `
+        <div style="margin-top:8px;">
+            <strong>Recent runs (comparison set)</strong>
+            <div style="overflow:auto;max-height:220px;border:1px solid #ddd;border-radius:6px;margin-top:6px;">
+                <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                    <thead>
+                        <tr style="position:sticky;top:0;background:#f8f8f8;">
+                            <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Run</th>
+                            <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Resources Scanned By Type</th>
+                            <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Total Findings</th>
+                            <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Rule Version</th>
+                            <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Total Ms</th>
+                        </tr>
+                    </thead>
+                    <tbody>${htmlRows}</tbody>
+                </table>
+            </div>
+        </div>
+    `;
 }
 
 function getSelectedAccessibilityTypes() {
@@ -1805,8 +1884,10 @@ function renderAccessibilityReport(report) {
             ${benchmark.slower_than_canvas === true ? '&nbsp;|&nbsp; <span style="color:#a94442;"><strong>Slower than Canvas baseline</strong></span>' : ''}
             ${benchmark.slower_than_canvas === false ? '&nbsp;|&nbsp; <span style="color:#2b7a0b;"><strong>Faster than Canvas baseline</strong></span>' : ''}
         </div>
+        <div id="accessibilityRunHistory" style="margin-top:10px;"></div>
     `;
     summaryEl.innerHTML = metricsHtml;
+    renderAccessibilityRunHistory();
 
     const findings = Array.isArray(report?.findings) ? report.findings : [];
     if (!findings.length) {
@@ -1881,6 +1962,7 @@ async function runAccessibilityScan() {
         }
         const report = await response.json();
         accessibilityLastReport = report;
+        recordAccessibilityRun(report);
         renderAccessibilityReport(report);
         showToast('Accessibility scan complete.', 'success', 1800);
     } catch (error) {
@@ -1902,6 +1984,7 @@ function downloadAccessibilityCsv() {
 
 function loadAccessibilityTab() {
     renderAccessibilityPanelSkeleton();
+    renderAccessibilityRunHistory();
     if (accessibilityLastReport) {
         renderAccessibilityReport(accessibilityLastReport);
         return;
