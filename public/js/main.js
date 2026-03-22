@@ -579,6 +579,8 @@ function createDurationPickerDOM(initialMinutes) {
 const gridOptions = {
     components: { durationPickerCellEditor: DurationPickerCellEditor },
     sortingOrder: ['asc', 'desc'],
+    enableRangeSelection: true,
+    cellSelection: true,
     rowSelection: 'multiple',
     rowMultiSelectWithClick: true,
     defaultColDef: {
