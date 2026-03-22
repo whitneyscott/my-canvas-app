@@ -11,3 +11,23 @@ alwaysApply: true
 2. Run `git push`
 
 Do not end an editing session without pushing. The user has stated this explicitly; do not skip it or wait to be asked.
+
+## PowerShell Commit Message Protocol (Mandatory)
+
+When running in PowerShell, do **not** use `bash -lc` with heredocs for commit messages. This repeatedly causes parser/quoting failures.
+
+Use native PowerShell multiline messages instead:
+
+```powershell
+$msg = @'
+Commit title line.
+
+Optional body line(s).
+'@
+git commit -m $msg
+```
+
+Rules:
+- Prefer PowerShell-native commit commands in this workspace.
+- Avoid retry loops with the same broken bash heredoc pattern.
+- If multiline quoting fails once, switch immediately to the PowerShell here-string pattern above.

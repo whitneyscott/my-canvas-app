@@ -1836,7 +1836,12 @@ async function runAccessibilityScan() {
     }
     if (findingsEl) findingsEl.innerHTML = '<p>Scan in progress...</p>';
     try {
-        const report = await fetchJSON(`/canvas/courses/${selectedCourseId}/accessibility/scan${qs}`);
+        const response = await fetch(`/canvas/courses/${selectedCourseId}/accessibility/scan${qs}`, { credentials: 'include' });
+        if (!response.ok) {
+            const errText = await response.text().catch(() => '');
+            throw new Error(`${response.status} ${response.statusText}${errText ? ': ' + errText.slice(0, 300) : ''}`);
+        }
+        const report = await response.json();
         accessibilityLastReport = report;
         renderAccessibilityReport(report);
         showToast('Accessibility scan complete.', 'success', 1800);
