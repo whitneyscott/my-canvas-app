@@ -3976,6 +3976,202 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return findings;
   }
 
+  private evaluateAccessibilityTier2ForHtml(
+    base: Omit<AccessibilityFinding, 'rule_id' | 'severity' | 'message' | 'snippet'>,
+    html: string,
+  ): AccessibilityFinding[] {
+    const findings: AccessibilityFinding[] = [];
+    const content = String(html || '');
+    if (!content.trim()) return findings;
+    const contentLower = content.toLowerCase();
+    const stripTags = (s: string) => s.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+    const plainText = stripTags(content);
+    const hasTranscriptWord = /\btranscript\b/i.test(plainText);
+
+    const anchorRegex = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+    let aMatch: RegExpExecArray | null;
+    while ((aMatch = anchorRegex.exec(content))) {
+      const attrs = aMatch[1] || '';
+      const text = stripTags(aMatch[2] || '');
+      const hrefMatch = attrs.match(/\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const href = (hrefMatch?.[2] ?? hrefMatch?.[3] ?? hrefMatch?.[4] ?? '').trim();
+      if (!text && !/\baria-label\s*=\s*["'][^"']+["']/i.test(attrs)) {
+        this.addFinding(findings, base, 'link_empty_name', 'high', 'Link has no accessible name.', aMatch[0]);
+      }
+      if (/^(click here|read more|learn more|more|here)$/i.test(text)) {
+        this.addFinding(findings, base, 'link_ambiguous_text', 'medium', 'Link text is ambiguous without context.', text);
+      }
+      if (/\btarget\s*=\s*["']_blank["']/i.test(attrs) && !/\b(new tab|opens in new tab)\b/i.test(text)) {
+        this.addFinding(findings, base, 'link_new_tab_no_warning', 'low', 'Link opens in a new tab without warning text.', aMatch[0]);
+      }
+      if (/\.(pdf|docx?|pptx?|xlsx?|csv)(?:[?#].*)?$/i.test(href)) {
+        if (!/\b(pdf|doc|word|ppt|powerpoint|xls|excel|csv)\b/i.test(text) || !/\b\d+\s?(kb|mb|gb)\b/i.test(text)) {
+          this.addFinding(findings, base, 'link_file_missing_type_size_hint', 'low', 'File link is missing type and/or size hint.', `${text} ${href}`.trim());
+        }
+        if (/\.pdf(?:[?#].*)?$/i.test(href)) {
+          this.addFinding(findings, base, 'doc_pdf_accessibility_unknown', 'low', 'Linked PDF accessibility (tags/text layer/title/lang) is unknown and should be verified.', href);
+        } else if (/\.(docx?|pptx?)(?:[?#].*)?$/i.test(href)) {
+          this.addFinding(findings, base, 'doc_office_structure_unknown', 'low', 'Linked Office file accessibility structure should be verified.', href);
+        } else if (/\.(xlsx?|csv)(?:[?#].*)?$/i.test(href)) {
+          this.addFinding(findings, base, 'doc_spreadsheet_headers_unknown', 'low', 'Linked spreadsheet should be checked for header/merge accessibility risks.', href);
+        }
+      }
+    }
+
+    const buttonRegex = /<button\b([^>]*)>([\s\S]*?)<\/button>/gi;
+    let bMatch: RegExpExecArray | null;
+    while ((bMatch = buttonRegex.exec(content))) {
+      const attrs = bMatch[1] || '';
+      const text = stripTags(bMatch[2] || '');
+      if (!text && !/\baria-label\s*=\s*["'][^"']+["']/i.test(attrs) && !/\btitle\s*=\s*["'][^"']+["']/i.test(attrs)) {
+        this.addFinding(findings, base, 'button_empty_name', 'high', 'Button has no accessible name.', bMatch[0]);
+      }
+    }
+
+    const headingRegex = /<(h[1-6])\b[^>]*>([\s\S]*?)<\/\1>/gi;
+    let h1Count = 0;
+    let hMatch: RegExpExecArray | null;
+    while ((hMatch = headingRegex.exec(content))) {
+      const tag = (hMatch[1] || '').toLowerCase();
+      const text = stripTags(hMatch[2] || '');
+      if (tag === 'h1') h1Count++;
+      if (!text) this.addFinding(findings, base, 'heading_empty', 'medium', 'Heading is empty.', hMatch[0]);
+    }
+    if (h1Count > 1) this.addFinding(findings, base, 'heading_duplicate_h1', 'medium', `Multiple H1 headings detected (${h1Count}).`);
+
+    if (!/<h[1-6]\b/i.test(content) && /<(?:p|div|span)\b[^>]*style\s*=\s*["'][^"']*(?:font-size\s*:\s*(?:2[4-9]|[3-9]\d)px|font-weight\s*:\s*(?:700|800|900|bold))[^"']*["'][^>]*>/i.test(content)) {
+      this.addFinding(findings, base, 'heading_visual_only_style', 'low', 'Visual heading style detected without semantic heading tags.');
+    }
+
+    if (plainText.length > 2500) {
+      const hasMain = /<(main\b|[^>]+\brole\s*=\s*["']main["'])/i.test(content);
+      const hasNav = /<(nav\b|[^>]+\brole\s*=\s*["']navigation["'])/i.test(content);
+      const hasRegion = /\brole\s*=\s*["']region["']/i.test(content);
+      if (!hasMain || !hasNav || !hasRegion) {
+        this.addFinding(findings, base, 'landmark_structure_quality', 'low', 'Long content should include robust landmark structure (main/nav/region).');
+      }
+    }
+
+    const emptyLiRegex = /<li\b[^>]*>\s*(?:&nbsp;|\s|<br[^>]*>|<\/?span[^>]*>)*<\/li>/gi;
+    let liMatch: RegExpExecArray | null;
+    while ((liMatch = emptyLiRegex.exec(content))) {
+      this.addFinding(findings, base, 'list_empty_item', 'medium', 'List contains empty item.', liMatch[0]);
+    }
+
+    const tableRegex = /<table\b[\s\S]*?<\/table>/gi;
+    let tMatch: RegExpExecArray | null;
+    while ((tMatch = tableRegex.exec(content))) {
+      const tableHtml = tMatch[0];
+      const noHeaders = !/<th\b/i.test(tableHtml);
+      const rowCount = (tableHtml.match(/<tr\b/gi) || []).length;
+      const colCount = (tableHtml.match(/<t[dh]\b/gi) || []).length;
+      if (noHeaders && rowCount > 2 && colCount > 4) {
+        this.addFinding(findings, base, 'table_layout_heuristic', 'low', 'Table may be used for layout instead of data.', tableHtml);
+      }
+      if (/\b(rowspan|colspan)\s*=\s*["']?\d+/i.test(tableHtml) && !/\b(headers|scope)\s*=/i.test(tableHtml)) {
+        this.addFinding(findings, base, 'table_complex_assoc_missing', 'medium', 'Complex table with rowspan/colspan lacks clear header associations.', tableHtml);
+      }
+    }
+
+    const imgRegex = /<img\b([^>]*)>/gi;
+    let imgMatch: RegExpExecArray | null;
+    while ((imgMatch = imgRegex.exec(content))) {
+      const attrs = imgMatch[1] || '';
+      const altMatch = attrs.match(/\balt\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const srcMatch = attrs.match(/\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const alt = (altMatch?.[2] ?? altMatch?.[3] ?? altMatch?.[4] ?? '').trim();
+      const src = (srcMatch?.[2] ?? srcMatch?.[3] ?? srcMatch?.[4] ?? '').trim();
+      const decorativeHint = /\b(decorative|spacer|divider|ornament|separator)\b/i.test(attrs + ' ' + src);
+      if (decorativeHint && alt && !/\b(role\s*=\s*["']presentation["']|aria-hidden\s*=\s*["']true["'])/i.test(attrs)) {
+        this.addFinding(findings, base, 'img_decorative_misuse', 'low', 'Decorative image appears to have meaningful alt text.', imgMatch[0]);
+      }
+      if (!decorativeHint && alt === '' && !/\b(role\s*=\s*["']presentation["']|aria-hidden\s*=\s*["']true["'])/i.test(attrs)) {
+        this.addFinding(findings, base, 'img_meaningful_empty_alt', 'medium', 'Potentially meaningful image has empty alt text.', imgMatch[0]);
+      }
+      if (/\b(text|banner|header|poster|flyer|infographic)\b/i.test(src + ' ' + alt)) {
+        this.addFinding(findings, base, 'img_text_in_image_warning', 'low', 'Image may contain meaningful text; verify readability and alt quality.', imgMatch[0]);
+      }
+      if (/\.gif(?:[?#].*)?$/i.test(src)) {
+        this.addFinding(findings, base, 'motion_gif_warning', 'low', 'Animated GIF may create motion sensitivity concerns.', src);
+      }
+    }
+
+    const videoRegex = /<video\b([^>]*)>([\s\S]*?)<\/video>/gi;
+    let vMatch: RegExpExecArray | null;
+    while ((vMatch = videoRegex.exec(content))) {
+      const attrs = vMatch[1] || '';
+      const body = vMatch[2] || '';
+      if (!/<track\b[^>]*\bkind\s*=\s*["']?(captions|subtitles)["']?/i.test(body)) {
+        this.addFinding(findings, base, 'video_missing_captions', 'high', 'Video is missing caption/subtitle track.', vMatch[0]);
+      }
+      if (/\bautoplay\b/i.test(attrs)) this.addFinding(findings, base, 'media_autoplay', 'medium', 'Media uses autoplay.', vMatch[0]);
+    }
+    const audioRegex = /<audio\b([^>]*)>([\s\S]*?)<\/audio>/gi;
+    let auMatch: RegExpExecArray | null;
+    while ((auMatch = audioRegex.exec(content))) {
+      const attrs = auMatch[1] || '';
+      if (!hasTranscriptWord) this.addFinding(findings, base, 'audio_missing_transcript', 'high', 'Audio content may be missing transcript.', auMatch[0]);
+      if (/\bautoplay\b/i.test(attrs)) this.addFinding(findings, base, 'media_autoplay', 'medium', 'Media uses autoplay.', auMatch[0]);
+    }
+    if (/<iframe\b[^>]*\bsrc\s*=\s*["'][^"']*(youtube|vimeo)[^"']*["'][^>]*>/i.test(content) && !/\b(captions|cc_load_policy=1|subtitle)\b/i.test(contentLower)) {
+      this.addFinding(findings, base, 'video_embed_caption_unknown', 'medium', 'Embedded video captions cannot be confirmed from markup.', 'iframe video embed');
+    }
+
+    const controlRegex = /<(input|select|textarea)\b([^>]*)>/gi;
+    let cMatch: RegExpExecArray | null;
+    while ((cMatch = controlRegex.exec(content))) {
+      const tag = (cMatch[1] || '').toLowerCase();
+      const attrs = cMatch[2] || '';
+      const idMatch = attrs.match(/\bid\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const id = (idMatch?.[2] ?? idMatch?.[3] ?? idMatch?.[4] ?? '').trim();
+      const hasLabelByFor = id ? new RegExp(`<label\\b[^>]*\\bfor\\s*=\\s*["']${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*>[\\s\\S]*?<\\/label>`, 'i').test(content) : false;
+      const hasProgrammaticLabel = /\b(aria-label|aria-labelledby|title)\s*=\s*["'][^"']+["']/i.test(attrs);
+      if (!hasLabelByFor && !hasProgrammaticLabel) {
+        this.addFinding(findings, base, 'form_control_missing_label', 'high', `${tag} appears to be missing an accessible label.`, cMatch[0]);
+      }
+      if (/\bplaceholder\s*=\s*["'][^"']+["']/i.test(attrs) && !hasLabelByFor && !/\baria-label(ledby)?\b/i.test(attrs)) {
+        this.addFinding(findings, base, 'form_placeholder_as_label', 'medium', 'Placeholder appears to be used as the only label.', cMatch[0]);
+      }
+      if (/\b(class|data-required)\s*=\s*["'][^"']*required[^"']*["']/i.test(attrs) && !/\b(required|aria-required)\b/i.test(attrs)) {
+        this.addFinding(findings, base, 'form_required_not_programmatic', 'medium', 'Required state may be visual only and not programmatically conveyed.', cMatch[0]);
+      }
+      if (/\baria-invalid\s*=\s*["']true["']/i.test(attrs) && !/\baria-describedby\s*=\s*["'][^"']+["']/i.test(attrs)) {
+        this.addFinding(findings, base, 'form_error_unassociated', 'medium', 'Invalid control lacks aria-describedby reference to error text.', cMatch[0]);
+      }
+    }
+
+    const roleRegex = /\brole\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+    const validRoles = new Set([
+      'alert', 'button', 'checkbox', 'dialog', 'grid', 'heading', 'img', 'link', 'list', 'listitem', 'main', 'menu', 'menubar', 'menuitem', 'navigation', 'option', 'presentation', 'progressbar', 'radio', 'radiogroup', 'region', 'row', 'rowgroup', 'rowheader', 'search', 'slider', 'spinbutton', 'status', 'switch', 'tab', 'table', 'tablist', 'tabpanel', 'textbox', 'timer', 'tooltip'
+    ]);
+    let rMatch: RegExpExecArray | null;
+    while ((rMatch = roleRegex.exec(content))) {
+      const roleVal = ((rMatch[2] ?? rMatch[3] ?? rMatch[4] ?? '').trim().toLowerCase());
+      if (roleVal && !validRoles.has(roleVal)) {
+        this.addFinding(findings, base, 'aria_invalid_role', 'medium', 'Element contains an invalid/unknown ARIA role.', roleVal);
+      }
+    }
+    if (/\baria-hidden\s*=\s*["']true["'][^>]*\b(?:tabindex\s*=\s*["']?[0-9]+["']?|href=|onclick=)|<(a|button|input|select|textarea)\b[^>]*\baria-hidden\s*=\s*["']true["']/i.test(content)) {
+      this.addFinding(findings, base, 'aria_hidden_focusable', 'high', 'Focusable interactive element is marked aria-hidden="true".');
+    }
+    const idRegex = /\bid\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+    const ids = new Map<string, number>();
+    let idMatch: RegExpExecArray | null;
+    while ((idMatch = idRegex.exec(content))) {
+      const idVal = (idMatch[2] ?? idMatch[3] ?? idMatch[4] ?? '').trim();
+      if (!idVal) continue;
+      ids.set(idVal, (ids.get(idVal) || 0) + 1);
+    }
+    ids.forEach((count, idVal) => {
+      if (count > 1) this.addFinding(findings, base, 'duplicate_id', 'high', `Duplicate id "${idVal}" appears ${count} times.`);
+    });
+    if (/\btabindex\s*=\s*["']?[1-9]\d*["']?/i.test(content) || /\bonkeydown\s*=\s*["'][^"']*preventDefault\(/i.test(content)) {
+      this.addFinding(findings, base, 'keyboard_focus_trap_heuristic', 'low', 'Potential keyboard navigation/focus trap risk detected.');
+    }
+
+    return findings;
+  }
+
   async getAccessibilityScan(courseId: number, options: AccessibilityScanOptions = {}) {
     const types = this.resolveAccessibilityResourceTypes(options.resourceTypes);
     const startedAt = Date.now();
@@ -4085,6 +4281,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
           resource_url: resource.url ?? null,
         };
         all.push(...this.evaluateAccessibilityTier1ForHtml(base, resource.html));
+        all.push(...this.evaluateAccessibilityTier2ForHtml(base, resource.html));
       }
       return all;
     });
@@ -4136,7 +4333,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       },
       findings,
       warnings,
-      rule_version: 'tier1-v1',
+      rule_version: 'tier2-v1',
     };
   }
 
