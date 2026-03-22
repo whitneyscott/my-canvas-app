@@ -579,13 +579,8 @@ function createDurationPickerDOM(initialMinutes) {
 const gridOptions = {
     components: { durationPickerCellEditor: DurationPickerCellEditor },
     sortingOrder: ['asc', 'desc'],
-    rowSelection: {
-        mode: 'multiRow',
-        selectAll: 'filtered',
-        headerCheckbox: true,
-        checkboxes: true,
-        enableClickSelection: false
-    },
+    rowSelection: 'multiple',
+    rowMultiSelectWithClick: true,
     defaultColDef: {
         minWidth: 150,
         flex: 1,
@@ -594,7 +589,7 @@ const gridOptions = {
         sortable: true,
         resizable: true,
         editable: true,
-        singleClickEdit: true
+        singleClickEdit: false
     },
     getRowId: (params) => {
         return String(params.data.id || params.data.url || Math.random());
@@ -1438,6 +1433,73 @@ document.addEventListener('keydown', function(event) {
     if (isEditableTarget) return;
     event.preventDefault();
     undoLastCellEdit();
+});
+
+document.addEventListener('keydown', function(event) {
+    if (!(event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === 'd')) return;
+    const tag = (event.target?.tagName || '').toLowerCase();
+    const isEditableTarget = tag === 'input' || tag === 'textarea' || event.target?.isContentEditable;
+    if (isEditableTarget) return;
+    if (!gridApi) return;
+    event.preventDefault();
+
+    const selectedNodes = (gridApi.getSelectedNodes ? gridApi.getSelectedNodes() : [])
+        .filter(node => !!node?.data)
+        .sort((a, b) => (a.rowIndex ?? 0) - (b.rowIndex ?? 0));
+    if (selectedNodes.length < 2) {
+        showToast('Select two or more rows to fill down.', 'warn');
+        return;
+    }
+
+    const focusedCell = gridApi.getFocusedCell ? gridApi.getFocusedCell() : null;
+    const colId = focusedCell?.column?.getColId ? focusedCell.column.getColId() : null;
+    if (!colId || colId === '_edit_status') return;
+    if (isFieldReadOnlyForTab(currentTab, colId)) return;
+
+    const sourceNode = selectedNodes[0];
+    const sourceValue = sourceNode?.data?.[colId];
+    const cells = [];
+    for (let i = 1; i < selectedNodes.length; i++) {
+        const node = selectedNodes[i];
+        const rowId = String(getRowIdForData(node.data));
+        const beforeValue = node.data?.[colId];
+        if (valuesEqual(beforeValue, sourceValue)) continue;
+        cells.push({
+            rowId,
+            field: colId,
+            beforeValue,
+            afterValue: sourceValue,
+        });
+    }
+    if (!cells.length) {
+        showToast('Filled down: 0 rows updated.', 'info', 1800);
+        return;
+    }
+
+    pushEditHistoryRecord({ type: 'bulk', tab: currentTab, cells });
+
+    const rowMap = new Map();
+    gridApi.forEachNode(node => {
+        rowMap.set(String(getRowIdForData(node.data)), node);
+    });
+    const touchedRowIds = new Set();
+    cells.forEach(cell => {
+        const node = rowMap.get(String(cell.rowId));
+        if (!node) return;
+        node.data[cell.field] = cell.afterValue;
+        updateTrackedChangeForCell(currentTab, String(cell.rowId), cell.field, cell.afterValue);
+        const rowChanges = changes[currentTab]?.[String(cell.rowId)] || {};
+        const hasChanges = Object.keys(rowChanges).length > 0;
+        node.data._edit_status = hasChanges ? 'modified' : 'synced';
+        touchedRowIds.add(String(cell.rowId));
+    });
+
+    const touchedNodes = Array.from(touchedRowIds).map(id => rowMap.get(id)).filter(Boolean);
+    if (touchedNodes.length) {
+        gridApi.refreshCells({ rowNodes: touchedNodes, columns: [colId, '_edit_status'], force: true });
+        gridApi.redrawRows({ rowNodes: touchedNodes });
+    }
+    showToast(`Filled down: ${touchedNodes.length} rows updated.`, 'success', 1800);
 });
 
 // Initialize tab interception system
