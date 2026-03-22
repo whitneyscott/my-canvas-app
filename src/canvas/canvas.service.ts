@@ -15,6 +15,24 @@ interface CanvasCourse {
   created_at?: string;
 }
 
+type AccessibilitySeverity = 'high' | 'medium' | 'low';
+
+interface AccessibilityFinding {
+  resource_type: string;
+  resource_id: string;
+  resource_title: string;
+  resource_url?: string | null;
+  rule_id: string;
+  severity: AccessibilitySeverity;
+  message: string;
+  snippet?: string | null;
+}
+
+interface AccessibilityScanOptions {
+  canvasNativeBaselineMs?: number;
+  resourceTypes?: string[];
+}
+
 interface AccreditationStandardNode {
   id: string;
   title: string;
@@ -3760,5 +3778,382 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     });
     if (!putRes.ok) throw new Error(`Failed to update outcome: ${putRes.statusText}`);
     return putRes.json();
+  }
+
+  private static readonly ACCESSIBILITY_SUPPORTED_TYPES = ['pages', 'assignments', 'announcements', 'syllabus', 'discussions'] as const;
+
+  private resolveAccessibilityResourceTypes(resourceTypes?: string[]): string[] {
+    const allowed = new Set<string>(CanvasService.ACCESSIBILITY_SUPPORTED_TYPES as unknown as string[]);
+    const requested = Array.isArray(resourceTypes) ? resourceTypes.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean) : [];
+    if (!requested.length) return Array.from(allowed);
+    return requested.filter((x) => allowed.has(x));
+  }
+
+  private escapeCsvCell(value: unknown): string {
+    const s = String(value ?? '');
+    if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  }
+
+  private snippet(text: string, max = 220): string {
+    const t = String(text || '').replace(/\s+/g, ' ').trim();
+    return t.length <= max ? t : `${t.slice(0, max - 1)}…`;
+  }
+
+  private addFinding(
+    findings: AccessibilityFinding[],
+    base: Omit<AccessibilityFinding, 'rule_id' | 'severity' | 'message' | 'snippet'>,
+    rule_id: string,
+    severity: AccessibilitySeverity,
+    message: string,
+    snippet?: string,
+  ) {
+    findings.push({
+      ...base,
+      rule_id,
+      severity,
+      message,
+      snippet: snippet ? this.snippet(snippet) : null,
+    });
+  }
+
+  private parseCssColor(input: string | null | undefined): { r: number; g: number; b: number } | null {
+    const s = String(input || '').trim().toLowerCase();
+    if (!s) return null;
+    const hex = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (hex) {
+      const raw = hex[1];
+      const full = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw;
+      return {
+        r: parseInt(full.slice(0, 2), 16),
+        g: parseInt(full.slice(2, 4), 16),
+        b: parseInt(full.slice(4, 6), 16),
+      };
+    }
+    const rgb = s.match(/^rgba?\(([^)]+)\)$/);
+    if (rgb) {
+      const parts = rgb[1].split(',').map((x) => Number(x.trim()));
+      if (parts.length >= 3 && parts.slice(0, 3).every((n) => Number.isFinite(n))) {
+        return { r: Math.max(0, Math.min(255, parts[0])), g: Math.max(0, Math.min(255, parts[1])), b: Math.max(0, Math.min(255, parts[2])) };
+      }
+    }
+    return null;
+  }
+
+  private contrastRatio(fg: { r: number; g: number; b: number }, bg: { r: number; g: number; b: number }): number {
+    const lum = (c: { r: number; g: number; b: number }) => {
+      const channel = (v: number) => {
+        const x = v / 255;
+        return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+      };
+      return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b);
+    };
+    const l1 = lum(fg);
+    const l2 = lum(bg);
+    const lighter = Math.max(l1, l2);
+    const darker = Math.min(l1, l2);
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  private evaluateAccessibilityTier1ForHtml(
+    base: Omit<AccessibilityFinding, 'rule_id' | 'severity' | 'message' | 'snippet'>,
+    html: string,
+  ): AccessibilityFinding[] {
+    const findings: AccessibilityFinding[] = [];
+    const content = String(html || '');
+    if (!content.trim()) return findings;
+
+    // Images: missing alt / long alt / filename alt
+    const imgTagRegex = /<img\b[^>]*>/gi;
+    let imgMatch: RegExpExecArray | null;
+    while ((imgMatch = imgTagRegex.exec(content))) {
+      const tag = imgMatch[0];
+      const altMatch = tag.match(/\balt\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const srcMatch = tag.match(/\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const alt = (altMatch?.[2] ?? altMatch?.[3] ?? altMatch?.[4] ?? '').trim();
+      const src = (srcMatch?.[2] ?? srcMatch?.[3] ?? srcMatch?.[4] ?? '').trim();
+      if (!altMatch || !alt) {
+        this.addFinding(findings, base, 'img_missing_alt', 'high', 'Image is missing descriptive alt text.', tag);
+      } else {
+        if (alt.length > 200) this.addFinding(findings, base, 'img_alt_too_long', 'medium', 'Image alt text exceeds 200 characters.', alt);
+        if (/\.(png|jpe?g|gif|webp|svg|bmp|tiff?)$/i.test(alt) || (src && alt.toLowerCase() === src.split('/').pop()?.toLowerCase())) {
+          this.addFinding(findings, base, 'img_alt_filename', 'medium', 'Image alt text appears to be a filename.', alt);
+        }
+      }
+    }
+
+    // Tables: header/caption/scope
+    const tableRegex = /<table\b[\s\S]*?<\/table>/gi;
+    let tableMatch: RegExpExecArray | null;
+    while ((tableMatch = tableRegex.exec(content))) {
+      const tableHtml = tableMatch[0];
+      if (!/<th\b/i.test(tableHtml)) this.addFinding(findings, base, 'table_missing_header', 'high', 'Table does not include at least one header cell.', tableHtml);
+      if (!/<caption\b[\s\S]*?<\/caption>/i.test(tableHtml)) this.addFinding(findings, base, 'table_missing_caption', 'medium', 'Table does not include a caption.', tableHtml);
+      const thRegex = /<th\b[^>]*>/gi;
+      let thMatch: RegExpExecArray | null;
+      while ((thMatch = thRegex.exec(tableHtml))) {
+        if (!/\bscope\s*=\s*("row"|"col"|'row'|'col'|row|col)/i.test(thMatch[0])) {
+          this.addFinding(findings, base, 'table_header_scope_missing', 'medium', 'Table header is missing scope (row/col).', thMatch[0]);
+        }
+      }
+    }
+
+    // Headings: H1 in content, overlong heading, skipped levels
+    const headingRegex = /<(h[1-6])\b[^>]*>([\s\S]*?)<\/\1>/gi;
+    const levels: number[] = [];
+    let headingMatch: RegExpExecArray | null;
+    while ((headingMatch = headingRegex.exec(content))) {
+      const tag = headingMatch[1].toLowerCase();
+      const level = Number(tag.slice(1));
+      const text = headingMatch[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      levels.push(level);
+      if (level === 1) this.addFinding(findings, base, 'heading_h1_in_body', 'medium', 'H1 heading appears in body content.', text || headingMatch[0]);
+      if (text.length > 120) this.addFinding(findings, base, 'heading_too_long', 'low', 'Heading exceeds 120 characters.', text);
+    }
+    for (let i = 1; i < levels.length; i++) {
+      if (levels[i] > levels[i - 1] + 1) {
+        this.addFinding(findings, base, 'heading_skipped_level', 'medium', `Heading levels are skipped (h${levels[i - 1]} to h${levels[i]}).`);
+      }
+    }
+
+    // Lists: visual bullets without semantic list
+    if (!/<(?:ul|ol)\b/i.test(content) && /(?:^|<br[^>]*>|<\/p>)\s*(?:[-*•]|&bull;)\s+\S/i.test(content)) {
+      this.addFinding(findings, base, 'list_not_semantic', 'medium', 'Content appears to be a list but is not marked up as ul/ol/li.');
+    }
+
+    // Links: adjacent duplicates / split links
+    const adjacentAnchorRegex = /<a\b[^>]*href\s*=\s*("([^"]*)"|'([^']*)')[^>]*>[\s\S]*?<\/a>\s*(?:&nbsp;|\s|<span[^>]*>\s*<\/span>|<br[^>]*>)*<a\b[^>]*href\s*=\s*("([^"]*)"|'([^']*)')[^>]*>[\s\S]*?<\/a>/gi;
+    let anchorMatch: RegExpExecArray | null;
+    while ((anchorMatch = adjacentAnchorRegex.exec(content))) {
+      const h1 = (anchorMatch[2] ?? anchorMatch[3] ?? '').trim();
+      const h2 = (anchorMatch[5] ?? anchorMatch[6] ?? '').trim();
+      if (h1 && h2 && h1 === h2) {
+        this.addFinding(findings, base, 'adjacent_duplicate_links', 'low', 'Adjacent links point to the same URL and should be merged.', anchorMatch[0]);
+      }
+    }
+
+    // Contrast (inline style only)
+    const styleTagRegex = /<([a-z0-9]+)\b[^>]*style\s*=\s*("([^"]*)"|'([^']*)')[^>]*>/gi;
+    let styleMatch: RegExpExecArray | null;
+    while ((styleMatch = styleTagRegex.exec(content))) {
+      const style = styleMatch[3] ?? styleMatch[4] ?? '';
+      const colorMatch = style.match(/(?:^|;)\s*color\s*:\s*([^;]+)/i);
+      const bgMatch = style.match(/(?:^|;)\s*background(?:-color)?\s*:\s*([^;]+)/i);
+      if (!colorMatch || !bgMatch) continue;
+      const fg = this.parseCssColor(colorMatch[1]);
+      const bg = this.parseCssColor(bgMatch[1]);
+      if (!fg || !bg) continue;
+      const ratio = this.contrastRatio(fg, bg);
+      const fsMatch = style.match(/(?:^|;)\s*font-size\s*:\s*([0-9.]+)px/i);
+      const fwMatch = style.match(/(?:^|;)\s*font-weight\s*:\s*([^;]+)/i);
+      const fontSizePx = fsMatch ? Number(fsMatch[1]) : 16;
+      const fontWeightRaw = (fwMatch?.[1] || '').trim().toLowerCase();
+      const isBold = fontWeightRaw === 'bold' || Number(fontWeightRaw) >= 700;
+      const isLarge = fontSizePx >= 24 || (isBold && fontSizePx >= 18.67);
+      if (isLarge && ratio < 3) {
+        this.addFinding(findings, base, 'large_text_contrast', 'medium', `Large text contrast ratio ${ratio.toFixed(2)} is below 3:1.`, styleMatch[0]);
+      } else if (!isLarge && ratio < 4.5) {
+        this.addFinding(findings, base, 'small_text_contrast', 'high', `Small text contrast ratio ${ratio.toFixed(2)} is below 4.5:1.`, styleMatch[0]);
+      }
+    }
+
+    return findings;
+  }
+
+  async getAccessibilityScan(courseId: number, options: AccessibilityScanOptions = {}) {
+    const types = this.resolveAccessibilityResourceTypes(options.resourceTypes);
+    const startedAt = Date.now();
+    const timings: Record<string, number> = {};
+    const warnings: string[] = [];
+
+    const timed = async <T>(name: string, fn: () => Promise<T>): Promise<T> => {
+      const t0 = Date.now();
+      const out = await fn();
+      timings[name] = Date.now() - t0;
+      return out;
+    };
+
+    const fetchers: Array<Promise<{ type: string; items: Array<{ type: string; id: string; title: string; html: string; url?: string | null }> }>> = [];
+    if (types.includes('pages')) {
+      fetchers.push(timed('fetch_pages', async () => {
+        const pages = await this.getCoursePages(courseId);
+        const items = (Array.isArray(pages) ? pages : []).map((p: any) => ({
+          type: 'pages',
+          id: String(p?.id ?? p?.page_id ?? p?.url ?? ''),
+          title: String(p?.title || p?.name || p?.url || 'Untitled Page'),
+          html: String(p?.body || ''),
+          url: p?.html_url || p?.url || null,
+        })).filter((x: any) => x.id && x.html);
+        return { type: 'pages', items };
+      }).catch((e: any) => {
+        warnings.push(`pages fetch failed: ${e?.message || 'unknown error'}`);
+        return { type: 'pages', items: [] };
+      }));
+    }
+    if (types.includes('assignments')) {
+      fetchers.push(timed('fetch_assignments', async () => {
+        const assignments = await this.getCourseAssignments(courseId);
+        const items = (Array.isArray(assignments) ? assignments : []).map((a: any) => ({
+          type: 'assignments',
+          id: String(a?.id ?? ''),
+          title: String(a?.name || a?.title || `Assignment ${a?.id ?? ''}`),
+          html: String(a?.description || ''),
+          url: a?.html_url || null,
+        })).filter((x: any) => x.id && x.html);
+        return { type: 'assignments', items };
+      }).catch((e: any) => {
+        warnings.push(`assignments fetch failed: ${e?.message || 'unknown error'}`);
+        return { type: 'assignments', items: [] };
+      }));
+    }
+    if (types.includes('announcements')) {
+      fetchers.push(timed('fetch_announcements', async () => {
+        const announcements = await this.getCourseAnnouncements(courseId);
+        const items = (Array.isArray(announcements) ? announcements : []).map((a: any) => ({
+          type: 'announcements',
+          id: String(a?.id ?? ''),
+          title: String(a?.title || `Announcement ${a?.id ?? ''}`),
+          html: String(a?.message || ''),
+          url: a?.html_url || null,
+        })).filter((x: any) => x.id && x.html);
+        return { type: 'announcements', items };
+      }).catch((e: any) => {
+        warnings.push(`announcements fetch failed: ${e?.message || 'unknown error'}`);
+        return { type: 'announcements', items: [] };
+      }));
+    }
+    if (types.includes('discussions')) {
+      fetchers.push(timed('fetch_discussions', async () => {
+        const discussions = await this.getCourseDiscussions(courseId);
+        const items = (Array.isArray(discussions) ? discussions : []).map((d: any) => ({
+          type: 'discussions',
+          id: String(d?.id ?? ''),
+          title: String(d?.title || `Discussion ${d?.id ?? ''}`),
+          html: String(d?.message || ''),
+          url: d?.html_url || null,
+        })).filter((x: any) => x.id && x.html);
+        return { type: 'discussions', items };
+      }).catch((e: any) => {
+        warnings.push(`discussions fetch failed: ${e?.message || 'unknown error'}`);
+        return { type: 'discussions', items: [] };
+      }));
+    }
+    if (types.includes('syllabus')) {
+      fetchers.push(timed('fetch_syllabus', async () => {
+        const course = await this.getCourseDetails(courseId);
+        const html = String((course as any)?.syllabus_body || '');
+        const items = html.trim() ? [{
+          type: 'syllabus',
+          id: String(courseId),
+          title: 'Course Syllabus',
+          html,
+          url: (course as any)?.html_url || null,
+        }] : [];
+        return { type: 'syllabus', items };
+      }).catch((e: any) => {
+        warnings.push(`syllabus fetch failed: ${e?.message || 'unknown error'}`);
+        return { type: 'syllabus', items: [] };
+      }));
+    }
+
+    const fetched = await Promise.all(fetchers);
+    const resources = fetched.flatMap((x) => x.items);
+
+    const findings = await timed('evaluate_rules', async () => {
+      const all: AccessibilityFinding[] = [];
+      for (const resource of resources) {
+        const base = {
+          resource_type: resource.type,
+          resource_id: resource.id,
+          resource_title: resource.title,
+          resource_url: resource.url ?? null,
+        };
+        all.push(...this.evaluateAccessibilityTier1ForHtml(base, resource.html));
+      }
+      return all;
+    });
+
+    const bySeverity = findings.reduce((acc: Record<string, number>, f) => {
+      acc[f.severity] = (acc[f.severity] || 0) + 1;
+      return acc;
+    }, {});
+    const byRule = findings.reduce((acc: Record<string, number>, f) => {
+      acc[f.rule_id] = (acc[f.rule_id] || 0) + 1;
+      return acc;
+    }, {});
+    const byResourceType = findings.reduce((acc: Record<string, number>, f) => {
+      acc[f.resource_type] = (acc[f.resource_type] || 0) + 1;
+      return acc;
+    }, {});
+    const resourcesScannedByType = resources.reduce((acc: Record<string, number>, r) => {
+      acc[r.type] = (acc[r.type] || 0) + 1;
+      return acc;
+    }, {});
+    const totalMs = Date.now() - startedAt;
+    const baseline = Number(options.canvasNativeBaselineMs);
+    const hasBaseline = Number.isFinite(baseline) && baseline > 0;
+
+    return {
+      summary: {
+        course_id: courseId,
+        total_findings: findings.length,
+        resources_scanned: resources.length,
+        resources_scanned_by_type: resourcesScannedByType,
+        by_severity: {
+          high: bySeverity.high || 0,
+          medium: bySeverity.medium || 0,
+          low: bySeverity.low || 0,
+        },
+        by_rule: byRule,
+        by_resource_type: byResourceType,
+      },
+      benchmark: {
+        started_at: new Date(startedAt).toISOString(),
+        finished_at: new Date().toISOString(),
+        total_ms: totalMs,
+        stage_ms: timings,
+        throttle_events: 0,
+        canvas_native_baseline_ms: hasBaseline ? baseline : null,
+        slower_than_canvas: hasBaseline ? totalMs > baseline : null,
+        ratio_vs_canvas: hasBaseline ? Number((totalMs / baseline).toFixed(3)) : null,
+      },
+      findings,
+      warnings,
+      rule_version: 'tier1-v1',
+    };
+  }
+
+  buildAccessibilityCsv(report: any): string {
+    const rows = Array.isArray(report?.findings) ? report.findings : [];
+    const headers = [
+      'resource_type',
+      'resource_id',
+      'resource_title',
+      'resource_url',
+      'rule_id',
+      'severity',
+      'message',
+      'snippet',
+      'rule_version',
+      'scanned_at',
+    ];
+    const nowIso = new Date().toISOString();
+    const lines = [headers.join(',')];
+    for (const r of rows) {
+      const row = [
+        this.escapeCsvCell(r?.resource_type ?? ''),
+        this.escapeCsvCell(r?.resource_id ?? ''),
+        this.escapeCsvCell(r?.resource_title ?? ''),
+        this.escapeCsvCell(r?.resource_url ?? ''),
+        this.escapeCsvCell(r?.rule_id ?? ''),
+        this.escapeCsvCell(r?.severity ?? ''),
+        this.escapeCsvCell(r?.message ?? ''),
+        this.escapeCsvCell(r?.snippet ?? ''),
+        this.escapeCsvCell(report?.rule_version ?? 'tier1-v1'),
+        this.escapeCsvCell(nowIso),
+      ];
+      lines.push(row.join(','));
+    }
+    return lines.join('\n');
   }
 }

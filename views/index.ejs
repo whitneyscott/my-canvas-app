@@ -124,11 +124,34 @@
                     <button class="primary-btn" onclick="refreshCurrentTab()">Refresh</button>
                     <button class="primary-btn" onclick="openModal('modeSelectionModal')" title="Application Mode Settings">⚙️ Mode</button>
                 </header>
-                <div style="margin: 10px 0 12px 0; padding: 10px 12px; border: 1px solid #d9b300; background: #fff8db; border-radius: 6px; color: #4a3d00; font-size: 14px; line-height: 1.4;">
-                    ⚠️ <strong>Important:</strong> This tool makes direct changes to your Canvas courses via the API. Cell edits and bulk actions can be reverted using the Sync History panel. Delete operations are permanent and cannot be undone — folder deletion is disabled entirely due to its recursive nature. Always verify your selections before syncing or deleting. Use a sandbox course for testing.
+                <div id="safetyBanner" style="margin: 10px 0 12px 0; padding: 10px 12px; border: 1px solid #d9b300; background: #fff8db; border-radius: 6px; color: #4a3d00; font-size: 14px; line-height: 1.4; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+                    <div style="flex: 1;">
+                        ⚠️ <strong>Important:</strong> This tool makes direct changes to your Canvas courses via the API. Cell edits and bulk actions can be reverted using the Sync History panel. Delete operations are permanent and cannot be undone — folder deletion is disabled entirely due to its recursive nature. Always verify your selections before syncing or deleting. Use a sandbox course for testing.
+                        <div style="margin-top: 8px;">
+                            <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: normal;">
+                                <input type="checkbox" id="safetyBannerDontShowAgain">
+                                Do not show again
+                            </label>
+                        </div>
+                    </div>
+                    <button type="button" id="safetyBannerDismiss" style="flex-shrink: 0; padding: 4px 10px; background: #d9b300; border: 1px solid #b89400; border-radius: 4px; color: #4a3d00; cursor: pointer; font-size: 13px;">Hide</button>
                 </div>
                 <div id="tabContentArea">
                     <div id="myGrid" class="ag-theme-quartz" style="height: 500px; width: 100%;"></div>
+                    <div id="accessibilityPanel" class="standards-sync-panel" style="display: none;">
+                        <section class="acc-section acc-profile">
+                            <h3>Accessibility Scan</h3>
+                            <div id="accessibilitySummaryContent">
+                                <p>Select a course, then run an accessibility scan.</p>
+                            </div>
+                        </section>
+                        <section class="acc-section acc-outcomes">
+                            <h3>Findings</h3>
+                            <div id="accessibilityFindingsContent">
+                                <p>No scan has been run yet.</p>
+                            </div>
+                        </section>
+                    </div>
                     <div id="standardsSyncPanel" class="standards-sync-panel" style="display: none;">
                         <section class="acc-section acc-profile">
                             <h3>Accreditation Profile</h3>
@@ -165,5 +188,24 @@
     <script src="/js/helpers.js"></script>
     <script src="/js/utils.js"></script>
     <script src="/js/main.js"></script>
+    <script>
+        (function() {
+            var key = 'bulkeditor:safetyBannerHidden';
+            document.addEventListener('DOMContentLoaded', function() {
+                var banner = document.getElementById('safetyBanner');
+                var dismiss = document.getElementById('safetyBannerDismiss');
+                var checkbox = document.getElementById('safetyBannerDontShowAgain');
+                if (!banner || !dismiss) return;
+                if (localStorage.getItem(key) === 'true') {
+                    banner.style.display = 'none';
+                    return;
+                }
+                dismiss.addEventListener('click', function() {
+                    if (checkbox && checkbox.checked) localStorage.setItem(key, 'true');
+                    banner.style.display = 'none';
+                });
+            });
+        })();
+    </script>
 </body>
 </html>

@@ -545,6 +545,7 @@ function setGridStatus(tabName, message, color = '#00ff00') {
 }
 
 let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, selectedCourseId = null, lastGridColumnTab = null;
+let accessibilityLastReport = null;
 
 function DurationPickerCellEditor() {}
 DurationPickerCellEditor.prototype.init = function(params) {
@@ -1065,6 +1066,10 @@ async function refreshCurrentTab() {
         loadStandardsSyncTab();
         return;
     }
+    if (currentTab === 'ada_compliance') {
+        runAccessibilityScan();
+        return;
+    }
     delete originalData[currentTab];
     if (changes[currentTab]) changes[currentTab] = {};
     try {
@@ -1290,7 +1295,7 @@ function updateDeleteMenuState() {
 
 function switchTab(tabName) {
     // Security Check: Enforce tab interception guard clause
-    const allowedTabs = ['assignments', 'discussions', 'announcements', 'pages', 'quizzes', 'new_quizzes', 'modules', 'files', 'standards_sync'];
+    const allowedTabs = ['assignments', 'discussions', 'announcements', 'pages', 'quizzes', 'new_quizzes', 'modules', 'files', 'standards_sync', 'ada_compliance'];
     if (tabInterceptionEnabled && !allowedTabs.includes(tabName)) {
         const message = 'Module Integration Pending: This feature is planned for a future development phase.';
         alert(message);
@@ -1334,14 +1339,22 @@ function switchTab(tabName) {
         }
 
         const gridEl = document.getElementById('myGrid');
-        const panelEl = document.getElementById('standardsSyncPanel');
+        const standardsPanelEl = document.getElementById('standardsSyncPanel');
+        const accessibilityPanelEl = document.getElementById('accessibilityPanel');
         if (tabName === 'standards_sync') {
             if (gridEl) gridEl.style.display = 'none';
-            if (panelEl) panelEl.style.display = 'block';
+            if (standardsPanelEl) standardsPanelEl.style.display = 'block';
+            if (accessibilityPanelEl) accessibilityPanelEl.style.display = 'none';
             loadStandardsSyncTab();
+        } else if (tabName === 'ada_compliance') {
+            if (gridEl) gridEl.style.display = 'none';
+            if (standardsPanelEl) standardsPanelEl.style.display = 'none';
+            if (accessibilityPanelEl) accessibilityPanelEl.style.display = 'block';
+            loadAccessibilityTab();
         } else {
             if (gridEl) gridEl.style.display = '';
-            if (panelEl) panelEl.style.display = 'none';
+            if (standardsPanelEl) standardsPanelEl.style.display = 'none';
+            if (accessibilityPanelEl) accessibilityPanelEl.style.display = 'none';
         }
 
         const mergeMenuItem = document.getElementById('mergeMenuItem');
@@ -1356,7 +1369,7 @@ function switchTab(tabName) {
         updateSyncHistoryIndicator();
         updateDeleteMenuState();
 
-        if (tabName !== 'standards_sync' && typeof loadTabData === 'function') {
+        if (tabName !== 'standards_sync' && tabName !== 'ada_compliance' && typeof loadTabData === 'function') {
             loadTabData(tabName);
         }
     }
@@ -1369,7 +1382,7 @@ function handleTabClick(event) {
     const tab = event.currentTarget;
     const tabName = tab.getAttribute('data-tab');
     
-    const allowedTabs = ['assignments', 'discussions', 'announcements', 'pages', 'quizzes', 'new_quizzes', 'modules', 'files', 'standards_sync'];
+    const allowedTabs = ['assignments', 'discussions', 'announcements', 'pages', 'quizzes', 'new_quizzes', 'modules', 'files', 'standards_sync', 'ada_compliance'];
     if (tabInterceptionEnabled && !allowedTabs.includes(tabName)) {
         event.preventDefault();
         event.stopPropagation();
@@ -1710,6 +1723,144 @@ async function loadStandardsSyncTab() {
     };
     const profile = await loadProfile();
     await loadOutcomes(profile);
+}
+
+function renderAccessibilityPanelSkeleton() {
+    const summaryEl = document.getElementById('accessibilitySummaryContent');
+    const findingsEl = document.getElementById('accessibilityFindingsContent');
+    if (!summaryEl || !findingsEl) return;
+    summaryEl.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <label for="accessibilityBaselineMs" style="font-size:13px;">Canvas baseline (ms, optional):</label>
+            <input id="accessibilityBaselineMs" type="number" min="1" step="1" style="max-width:180px;" placeholder="e.g. 120000" />
+            <button id="runAccessibilityScanBtn" class="primary-btn">Run Scan</button>
+            <button id="exportAccessibilityCsvBtn" class="primary-btn" disabled>Export CSV</button>
+        </div>
+        <div id="accessibilityMetrics" style="margin-top:10px;color:#444;">Ready to scan.</div>
+    `;
+    findingsEl.innerHTML = '<p>No scan has been run yet.</p>';
+
+    const runBtn = document.getElementById('runAccessibilityScanBtn');
+    const exportBtn = document.getElementById('exportAccessibilityCsvBtn');
+    if (runBtn) runBtn.onclick = () => runAccessibilityScan();
+    if (exportBtn) exportBtn.onclick = () => downloadAccessibilityCsv();
+}
+
+function renderAccessibilityReport(report) {
+    const summaryEl = document.getElementById('accessibilitySummaryContent');
+    const findingsEl = document.getElementById('accessibilityFindingsContent');
+    const exportBtn = document.getElementById('exportAccessibilityCsvBtn');
+    if (!summaryEl || !findingsEl) return;
+
+    const summary = report?.summary || {};
+    const benchmark = report?.benchmark || {};
+    const bySeverity = summary.by_severity || {};
+    const metricsHtml = `
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <label for="accessibilityBaselineMs" style="font-size:13px;">Canvas baseline (ms, optional):</label>
+            <input id="accessibilityBaselineMs" type="number" min="1" step="1" style="max-width:180px;" value="${benchmark.canvas_native_baseline_ms || ''}" placeholder="e.g. 120000" />
+            <button id="runAccessibilityScanBtn" class="primary-btn">Run Scan</button>
+            <button id="exportAccessibilityCsvBtn" class="primary-btn">Export CSV</button>
+        </div>
+        <div id="accessibilityMetrics" style="margin-top:10px;line-height:1.5;">
+            <strong>Findings:</strong> ${summary.total_findings || 0}
+            &nbsp;|&nbsp; <strong>High:</strong> ${bySeverity.high || 0}
+            &nbsp;|&nbsp; <strong>Medium:</strong> ${bySeverity.medium || 0}
+            &nbsp;|&nbsp; <strong>Low:</strong> ${bySeverity.low || 0}
+            &nbsp;|&nbsp; <strong>Resources scanned:</strong> ${summary.resources_scanned || 0}
+            <br/>
+            <strong>Scan time:</strong> ${benchmark.total_ms || 0} ms
+            ${benchmark.canvas_native_baseline_ms ? `&nbsp;|&nbsp; <strong>Canvas baseline:</strong> ${benchmark.canvas_native_baseline_ms} ms` : ''}
+            ${benchmark.ratio_vs_canvas ? `&nbsp;|&nbsp; <strong>Ratio vs Canvas:</strong> ${benchmark.ratio_vs_canvas}x` : ''}
+            ${benchmark.slower_than_canvas === true ? '&nbsp;|&nbsp; <span style="color:#a94442;"><strong>Slower than Canvas baseline</strong></span>' : ''}
+            ${benchmark.slower_than_canvas === false ? '&nbsp;|&nbsp; <span style="color:#2b7a0b;"><strong>Faster than Canvas baseline</strong></span>' : ''}
+        </div>
+    `;
+    summaryEl.innerHTML = metricsHtml;
+
+    const findings = Array.isArray(report?.findings) ? report.findings : [];
+    if (!findings.length) {
+        findingsEl.innerHTML = '<p>No findings. Tier 1 checks passed for scanned resources.</p>';
+    } else {
+        const rows = findings.slice(0, 500).map((f) => `
+            <tr>
+                <td>${escapeHtml(f.severity || '')}</td>
+                <td>${escapeHtml(f.rule_id || '')}</td>
+                <td>${escapeHtml(f.resource_type || '')}</td>
+                <td>${escapeHtml(f.resource_title || '')}</td>
+                <td>${escapeHtml(f.message || '')}</td>
+                <td>${escapeHtml(f.snippet || '')}</td>
+            </tr>
+        `).join('');
+        const truncationNote = findings.length > 500 ? `<p style="margin-top:8px;color:#666;">Showing first 500 findings of ${findings.length}.</p>` : '';
+        findingsEl.innerHTML = `
+            <div style="overflow:auto;max-height:480px;border:1px solid #ddd;border-radius:6px;">
+                <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead>
+                        <tr style="position:sticky;top:0;background:#f8f8f8;">
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Severity</th>
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Rule</th>
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Type</th>
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Resource</th>
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Message</th>
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">Snippet</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+            ${truncationNote}
+        `;
+    }
+
+    const runBtn = document.getElementById('runAccessibilityScanBtn');
+    const newExportBtn = document.getElementById('exportAccessibilityCsvBtn');
+    if (runBtn) runBtn.onclick = () => runAccessibilityScan();
+    if (newExportBtn) newExportBtn.onclick = () => downloadAccessibilityCsv();
+    if (exportBtn) exportBtn.disabled = false;
+}
+
+async function runAccessibilityScan() {
+    if (!selectedCourseId) {
+        showToast('Select a course before running accessibility scan.', 'warn');
+        return;
+    }
+    const summaryEl = document.getElementById('accessibilitySummaryContent');
+    const findingsEl = document.getElementById('accessibilityFindingsContent');
+    const baselineInput = document.getElementById('accessibilityBaselineMs');
+    const baselineMs = baselineInput && baselineInput.value ? Number(baselineInput.value) : null;
+    const qs = baselineMs && Number.isFinite(baselineMs) && baselineMs > 0 ? `?baseline_ms=${encodeURIComponent(String(baselineMs))}` : '';
+    if (summaryEl) {
+        const metrics = document.getElementById('accessibilityMetrics');
+        if (metrics) metrics.textContent = 'Scanning course content...';
+    }
+    if (findingsEl) findingsEl.innerHTML = '<p>Scan in progress...</p>';
+    try {
+        const report = await fetchJSON(`/canvas/courses/${selectedCourseId}/accessibility/scan${qs}`);
+        accessibilityLastReport = report;
+        renderAccessibilityReport(report);
+        showToast('Accessibility scan complete.', 'success', 1800);
+    } catch (error) {
+        if (findingsEl) findingsEl.innerHTML = `<p style="color:#a94442;">Failed to run scan: ${escapeHtml(error.message || String(error))}</p>`;
+        showToast('Accessibility scan failed.', 'error');
+    }
+}
+
+function downloadAccessibilityCsv() {
+    if (!selectedCourseId) {
+        showToast('Select a course before exporting CSV.', 'warn');
+        return;
+    }
+    const url = `/canvas/courses/${selectedCourseId}/accessibility/export.csv`;
+    window.open(url, '_blank');
+}
+
+function loadAccessibilityTab() {
+    renderAccessibilityPanelSkeleton();
+    if (accessibilityLastReport) {
+        renderAccessibilityReport(accessibilityLastReport);
+        return;
+    }
 }
 
 async function onAccStateChange() {

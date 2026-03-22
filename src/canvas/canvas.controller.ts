@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, ParseIntPipe, Body, Query, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, ParseIntPipe, Body, Query, HttpException, HttpStatus, Header } from '@nestjs/common';
 import { CanvasService } from './canvas.service';
 @Controller('canvas')
 export class CanvasController {
@@ -198,6 +198,40 @@ export class CanvasController {
   @Get('courses/:id/accreditation/outcomes')
   async getCourseOutcomeLinks(@Param('id', ParseIntPipe) id: number) {
     return this.canvasService.getCourseOutcomeLinks(id);
+  }
+
+  @Get('courses/:id/accessibility/scan')
+  async getAccessibilityScan(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('baseline_ms') baselineMsRaw?: string,
+    @Query('resource_types') resourceTypesRaw?: string,
+  ): Promise<any> {
+    const baselineMs = baselineMsRaw != null && baselineMsRaw !== '' ? Number(baselineMsRaw) : undefined;
+    const resourceTypes = (resourceTypesRaw || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+    return this.canvasService.getAccessibilityScan(id, {
+      canvasNativeBaselineMs: Number.isFinite(baselineMs as number) ? (baselineMs as number) : undefined,
+      resourceTypes: resourceTypes.length ? resourceTypes : undefined,
+    });
+  }
+
+  @Get('courses/:id/accessibility/export.csv')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="accessibility_report.csv"')
+  async exportAccessibilityCsv(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('resource_types') resourceTypesRaw?: string,
+  ): Promise<string> {
+    const resourceTypes = (resourceTypesRaw || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+    const report = await this.canvasService.getAccessibilityScan(id, {
+      resourceTypes: resourceTypes.length ? resourceTypes : undefined,
+    });
+    return this.canvasService.buildAccessibilityCsv(report);
   }
 
   @Put('outcomes/:outcomeId/standards')
