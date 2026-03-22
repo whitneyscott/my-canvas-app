@@ -1469,6 +1469,69 @@ async function loadStandardsSyncTab() {
         const focusChecked = focusEl ? Array.from(focusEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value).filter(Boolean) : [];
         return (focusChecked[0] || programCip4) || '';
     };
+    const sourceLabel = (s) => {
+        const v = String(s || '').toLowerCase();
+        if (v === 'db') return 'Database';
+        if (v === 'api') return 'API';
+        if (v === 'file') return 'File';
+        if (v === 'scrape') return 'Scrape';
+        if (v === 'ai') return 'AI fallback';
+        if (v === 'lookup_service') return 'Lookup service';
+        if (v === 'stub') return 'Stub';
+        return v ? v : 'Unknown';
+    };
+    const formatConfidence = (n) => {
+        const v = Number(n);
+        if (!Number.isFinite(v)) return 'n/a';
+        return Math.max(0, Math.min(100, Math.round(v * 100))) + '%';
+    };
+    const buildStandardsBlockHtml = (payload, selectedIds, prevChecked) => {
+        const preferred = prevChecked && prevChecked.size ? prevChecked : new Set(Array.isArray(selectedIds) ? selectedIds : []);
+        const orgs = Array.isArray(payload?.organizations) ? payload.organizations : [];
+        const total = Number(payload?.total_standards) || 0;
+        const fallbackMsg = total === 0 ? '<div class="acc-source-notice">No standards were retrieved. Showing organization-level fallback IDs.</div>' : '';
+        if (!orgs.length) {
+            return '<h4 class="acc-standards-heading">Accreditation standards for this course</h4><p class="acc-no-focus">No accreditation standards found for this program focus. Select a different program or focus above.</p>';
+        }
+        const groupsHtml = orgs.map(org => {
+            const orgId = (org?.id || '').toString();
+            const orgLabel = escapeHtml((org?.abbreviation ? org.abbreviation + ' — ' : '') + (org?.name || orgId || 'Organization'));
+            const orgSource = sourceLabel(org?.standards_source || payload?.accreditors_source);
+            const orgConfidence = formatConfidence(org?.standards_confidence);
+            const warnings = Array.isArray(org?.warnings) && org.warnings.length
+                ? '<div style="font-size:12px;color:#7a4b00;margin:2px 0 6px 0;">' + escapeHtml(org.warnings.join(' | ')) + '</div>'
+                : '';
+            const standards = Array.isArray(org?.standards) && org.standards.length
+                ? org.standards
+                : [{ id: orgId, title: org?.name || orgId, sourceType: org?.standards_source || payload?.accreditors_source, confidence: org?.standards_confidence }];
+            const itemsHtml = standards.map(std => {
+                const sid = (std?.id || '').toString();
+                const stitle = (std?.title || sid || 'Untitled standard').toString();
+                const checked = preferred.has(sid) ? ' checked' : '';
+                const stdSource = sourceLabel(std?.sourceType || org?.standards_source || payload?.accreditors_source);
+                const stdConf = formatConfidence(std?.confidence ?? org?.standards_confidence);
+                return '<label class="acc-focus-check" style="display:block;margin:4px 0;">' +
+                    '<input type="checkbox" name="accStd" value="' + escapeHtml(sid) + '"' + checked + '> ' +
+                    '<span style="font-weight:600;">' + escapeHtml(sid) + '</span>' +
+                    (stitle && stitle !== sid ? ' — ' + escapeHtml(stitle) : '') +
+                    '<span style="margin-left:8px;font-size:12px;color:#666;">[' + escapeHtml(stdSource) + ', ' + escapeHtml(stdConf) + ']</span>' +
+                    '</label>';
+            }).join('');
+            return '<div class="acc-org-block" style="border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin:8px 0;">' +
+                '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">' +
+                '<strong>' + orgLabel + '</strong>' +
+                '<span style="font-size:12px;color:#555;">source: ' + escapeHtml(orgSource) + ' | confidence: ' + escapeHtml(orgConfidence) + '</span>' +
+                '</div>' +
+                warnings +
+                '<div class="acc-org-standards" style="margin-top:6px;">' + itemsHtml + '</div>' +
+                '</div>';
+        }).join('');
+        return '<h4 class="acc-standards-heading">Accreditation standards for this course</h4>' +
+            fallbackMsg +
+            '<p class="acc-standards-hint">Select standards to apply to this course.</p>' +
+            '<div id="accStandardsList" class="acc-program-focus">' + groupsHtml + '</div>' +
+            '<button type="button" class="primary-btn" onclick="applyAccreditationStandards()" style="margin-top: 0.75rem;">Apply to course</button>';
+    };
     const refreshAccreditorsStandards = async (keepSelections) => {
         if (!selectedCourseId || !outcomesEl) return;
         const cip = getEffectiveCip();
@@ -1478,23 +1541,30 @@ async function loadStandardsSyncTab() {
         const listEl = document.getElementById('accStandardsList');
         const prevChecked = keepSelections && listEl ? new Set(Array.from(listEl.querySelectorAll('input[name="accStd"]:checked')).map(cb => cb.value)) : new Set();
         try {
-            const url = `/canvas/courses/${selectedCourseId}/accreditation/accreditors?cip=${encodeURIComponent(cip)}`;
-            const res = await fetch(url);
-            const data = res.ok ? await res.json() : {};
-            const list = Array.isArray(data?.accreditors) ? data.accreditors : (Array.isArray(data) ? data : []);
-            const source = data?.source || 'stub';
-            const sourceBanner = source === 'lookup_service' ? '<div class="acc-source-notice">Accreditation standards loaded from database</div>' : '';
-            const hint = '<p class="acc-standards-hint">Select standards to apply to this course.</p>';
-            const checkboxesHtml = list.length ? list.map(a => {
-                const id = (a.id || a.name || '').toString();
-                const label = escapeHtml((a.abbreviation ? a.abbreviation + ' — ' : '') + (a.name || id));
-                const checked = prevChecked.has(id) ? ' checked' : '';
-                return '<label class="acc-focus-check"><input type="checkbox" name="accStd" value="' + escapeHtml(id) + '"' + checked + '> ' + label + '</label>';
-            }).join('') : '';
-            const inner = list.length
-                ? '<h4 class="acc-standards-heading">Accreditation standards for this course</h4>' + sourceBanner + hint + '<div id="accStandardsList" class="acc-program-focus">' + checkboxesHtml + '</div>' + '<button type="button" class="primary-btn" onclick="applyAccreditationStandards()" style="margin-top: 0.75rem;">Apply to course</button>'
-                : '<h4 class="acc-standards-heading">Accreditation standards for this course</h4>' + sourceBanner + '<p class="acc-no-focus">No accreditation standards found for this program focus. Select a different program or focus above.</p>';
-            block.innerHTML = inner;
+            const standardsUrl = `/canvas/courses/${selectedCourseId}/accreditation/standards?cip=${encodeURIComponent(cip)}`;
+            let payload = {};
+            const res = await fetch(standardsUrl);
+            if (res.ok) {
+                payload = await res.json();
+            } else {
+                const accreditorsUrl = `/canvas/courses/${selectedCourseId}/accreditation/accreditors?cip=${encodeURIComponent(cip)}`;
+                const accRes = await fetch(accreditorsUrl);
+                const acc = accRes.ok ? await accRes.json() : {};
+                payload = {
+                    accreditors_source: acc?.source || 'stub',
+                    organizations: Array.isArray(acc?.accreditors) ? acc.accreditors.map(a => ({
+                        id: a.id,
+                        name: a.name,
+                        abbreviation: a.abbreviation,
+                        standards_source: acc?.source || 'stub',
+                        standards_confidence: 0.25,
+                        warnings: ['standards endpoint unavailable; using organization fallback'],
+                        standards: [{ id: a.id, title: a.name, sourceType: acc?.source || 'stub', confidence: 0.25 }]
+                    })) : [],
+                    total_standards: 0
+                };
+            }
+            block.innerHTML = buildStandardsBlockHtml(payload, [], prevChecked);
         } catch (_) {}
     };
     const loadProfile = async () => {
@@ -1595,35 +1665,33 @@ async function loadStandardsSyncTab() {
         if (!outcomesEl) return;
         const cip = (Array.isArray(profile?.programFocusCip6) && profile.programFocusCip6[0]) || profile?.programCip4 || profile?.program || '';
         try {
-            const accreditorsUrl = `/canvas/courses/${selectedCourseId}/accreditation/accreditors${cip ? '?cip=' + encodeURIComponent(cip) : ''}`;
-            const [accreditorsRes, outcomesRes] = await Promise.all([
-                fetch(accreditorsUrl),
+            const standardsUrl = `/canvas/courses/${selectedCourseId}/accreditation/standards${cip ? '?cip=' + encodeURIComponent(cip) : ''}`;
+            const [standardsRes, outcomesRes] = await Promise.all([
+                fetch(standardsUrl),
                 fetch(`/canvas/courses/${selectedCourseId}/accreditation/outcomes`)
             ]);
-            const accreditorsPayload = accreditorsRes.ok ? await accreditorsRes.json() : {};
-            const accreditorsList = Array.isArray(accreditorsPayload?.accreditors) ? accreditorsPayload.accreditors : (Array.isArray(accreditorsPayload) ? accreditorsPayload : []);
-            const accreditorsSource = accreditorsPayload?.source || 'stub';
+            let standardsPayload = standardsRes.ok ? await standardsRes.json() : null;
+            if (!standardsPayload) {
+                const accreditorsUrl = `/canvas/courses/${selectedCourseId}/accreditation/accreditors${cip ? '?cip=' + encodeURIComponent(cip) : ''}`;
+                const accreditorsRes = await fetch(accreditorsUrl);
+                const acc = accreditorsRes.ok ? await accreditorsRes.json() : {};
+                standardsPayload = {
+                    accreditors_source: acc?.source || 'stub',
+                    organizations: Array.isArray(acc?.accreditors) ? acc.accreditors.map(a => ({
+                        id: a.id,
+                        name: a.name,
+                        abbreviation: a.abbreviation,
+                        standards_source: acc?.source || 'stub',
+                        standards_confidence: 0.25,
+                        warnings: ['standards endpoint unavailable; using organization fallback'],
+                        standards: [{ id: a.id, title: a.name, sourceType: acc?.source || 'stub', confidence: 0.25 }]
+                    })) : [],
+                    total_standards: 0
+                };
+            }
             const outcomes = outcomesRes.ok ? await outcomesRes.json() : [];
             const selectedIds = Array.isArray(profile?.selectedStandards) ? profile.selectedStandards : [];
-            const sourceBanner = accreditorsSource === 'lookup_service' ? '<div class="acc-source-notice">Accreditation standards loaded from database</div>' : '';
-            const standardsHtml = '<div class="acc-standards-block">' +
-                '<h4 class="acc-standards-heading">Accreditation standards for this course</h4>' +
-                sourceBanner +
-                (accreditorsList.length ? (
-                    '<p class="acc-standards-hint">Select standards to apply to this course.</p>' +
-                    '<div id="accStandardsList" class="acc-program-focus">' +
-                    accreditorsList.map(a => {
-                        const id = (a.id || a.name || '').toString();
-                        const label = escapeHtml((a.abbreviation ? a.abbreviation + ' — ' : '') + (a.name || id));
-                        const checked = selectedIds.includes(id) ? ' checked' : '';
-                        return '<label class="acc-focus-check"><input type="checkbox" name="accStd" value="' + escapeHtml(id) + '"' + checked + '> ' + label + '</label>';
-                    }).join('') +
-                    '</div>' +
-                    '<button type="button" class="primary-btn" onclick="applyAccreditationStandards()" style="margin-top: 0.75rem;">Apply to course</button>'
-                ) : (
-                    '<p class="acc-no-focus">Set Program in the Accreditation Profile above, then save. If the accreditation lookup service is running, standards for your program will appear here.</p>'
-                )) +
-                '</div>';
+            const standardsHtml = '<div class="acc-standards-block">' + buildStandardsBlockHtml(standardsPayload, selectedIds, null) + '</div>';
             const outcomesHtml = !Array.isArray(outcomes) || !outcomes.length
                 ? '<p>No learning outcomes in this course.</p>'
                 : '<h4 class="acc-outcomes-heading">Course outcomes</h4>' + outcomes.map(o => {
@@ -1852,7 +1920,7 @@ async function saveAccreditationProfileForm() {
 async function applyAccreditationStandards() {
     if (!selectedCourseId) return;
     const checkboxes = document.querySelectorAll('#accStandardsList input[name="accStd"]:checked');
-    const selectedStandards = Array.from(checkboxes).map(cb => cb.value);
+    const selectedStandards = Array.from(new Set(Array.from(checkboxes).map(cb => cb.value).filter(Boolean)));
     try {
         const getRes = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`);
         if (!getRes.ok) throw new Error(getRes.statusText);
@@ -4100,8 +4168,8 @@ function applyAppMode(mode) {
 
         case 'demo':
         default:
-            // Only assignments tab active, debug panel hidden
-            tabInterceptionEnabled = true;
+            // Demo keeps debug hidden but should not block Standards Sync/profile flows
+            tabInterceptionEnabled = false;
             if (debugPanel) debugPanel.style.display = 'none';
             break;
     }

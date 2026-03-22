@@ -186,6 +186,15 @@ export class CanvasController {
     return this.canvasService.getAccreditorsForCourse(id, cip || undefined, degreeLevel || undefined);
   }
 
+  @Get('courses/:id/accreditation/standards')
+  async getAccreditationStandards(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('cip') cip: string,
+    @Query('degree_level') degreeLevel: string,
+  ) {
+    return this.canvasService.getAccreditationStandardsForCourse(id, cip || undefined, degreeLevel || undefined);
+  }
+
   @Get('courses/:id/accreditation/outcomes')
   async getCourseOutcomeLinks(@Param('id', ParseIntPipe) id: number) {
     return this.canvasService.getCourseOutcomeLinks(id);

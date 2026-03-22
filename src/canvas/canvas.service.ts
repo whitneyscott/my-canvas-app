@@ -1,6 +1,8 @@
 import { Injectable, Scope, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { REQUEST } from '@nestjs/core';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 
 interface CanvasCourse {
   id: number;
@@ -11,6 +13,28 @@ interface CanvasCourse {
   start_at?: string;
   end_at?: string;
   created_at?: string;
+}
+
+interface AccreditationStandardNode {
+  id: string;
+  title: string;
+  description?: string | null;
+  version?: string | null;
+  effectiveDate?: string | null;
+  parentId?: string | null;
+  sourceType?: 'db' | 'api' | 'file' | 'scrape' | 'ai';
+  sourceUri?: string | null;
+  confidence?: number;
+  retrievedAt?: string;
+}
+
+interface StandardsResolutionResult {
+  sourceType: 'db' | 'api' | 'file' | 'scrape' | 'ai' | 'none';
+  standards: AccreditationStandardNode[];
+  sourceUri?: string | null;
+  confidence: number;
+  usedAiFallback: boolean;
+  warnings: string[];
 }
 
 const CLEARABLE_CONTENT_KEYS = new Set(['description', 'message', 'body', 'instructions']);
@@ -3300,6 +3324,24 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     ],
   };
 
+  private static readonly STUB_STANDARDS_BY_ORG: Record<string, AccreditationStandardNode[]> = {
+    QM: [
+      { id: 'QM-1', title: 'Course Overview and Introduction' },
+      { id: 'QM-2', title: 'Learning Objectives (Competencies)' },
+      { id: 'QM-3', title: 'Assessment and Measurement' },
+    ],
+    ACTFL: [
+      { id: 'ACTFL-C', title: 'Communication' },
+      { id: 'ACTFL-CU', title: 'Cultures' },
+      { id: 'ACTFL-CO', title: 'Connections' },
+    ],
+    ASLTA: [
+      { id: 'ASLTA-1', title: 'Language Knowledge and Performance' },
+      { id: 'ASLTA-2', title: 'Instructional Planning and Delivery' },
+      { id: 'ASLTA-3', title: 'Assessment and Professional Practice' },
+    ],
+  };
+
   private static mergeWithGeneralAccreditors(list: Array<{ id: string; name: string; abbreviation?: string }>): Array<{ id: string; name: string; abbreviation?: string }> {
     const ids = new Set(list.map(a => a.id));
     const general = CanvasService.GENERAL_ACCREDITORS.filter(a => !ids.has(a.id));
@@ -3356,6 +3398,317 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const merged = CanvasService.mergeWithGeneralAccreditors(stub);
     console.log('[Accreditation] Using stub:', { cipKey, cip4Key, stubCount: stub.length });
     return { accreditors: merged, source: 'stub' };
+  }
+
+  private static normalizeOrgId(orgId: string): string {
+    return String(orgId || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9._-]/g, '');
+  }
+
+  private async getEffectiveCip(courseId: number, cip?: string): Promise<string> {
+    const requested = (cip || '').trim();
+    if (requested) return requested;
+    const profile = await this.getAccreditationProfile(courseId);
+    const p = profile as Record<string, unknown>;
+    return ((p?.programCip4 as string) || (p?.program as string) || '').trim();
+  }
+
+  private static normalizeStandardsNodes(
+    raw: any[],
+    sourceType: 'db' | 'api' | 'file' | 'scrape' | 'ai',
+    sourceUri?: string | null,
+    defaultConfidence = 0.9,
+  ): AccreditationStandardNode[] {
+    const now = new Date().toISOString();
+    const out: AccreditationStandardNode[] = [];
+    for (const item of raw || []) {
+      const id = String(item?.id ?? item?.standardId ?? item?.code ?? '').trim();
+      const title = String(item?.title ?? item?.name ?? item?.label ?? '').trim();
+      if (!id || !title) continue;
+      out.push({
+        id,
+        title,
+        description: item?.description ? String(item.description) : null,
+        version: item?.version ? String(item.version) : null,
+        effectiveDate: item?.effectiveDate ? String(item.effectiveDate) : null,
+        parentId: item?.parentId ? String(item.parentId) : null,
+        sourceType,
+        sourceUri: sourceUri ?? null,
+        confidence: typeof item?.confidence === 'number' ? item.confidence : defaultConfidence,
+        retrievedAt: now,
+      });
+    }
+    return out;
+  }
+
+  private async resolveStandardsFromLookupDb(
+    orgId: string,
+    cip?: string,
+    degreeLevel?: string,
+  ): Promise<{ standards: AccreditationStandardNode[]; sourceUri?: string }> {
+    const base = (this.config.get<string>('ACCREDITATION_LOOKUP_URL') || '').replace(/\/$/, '');
+    if (!base) return { standards: [] };
+    const params = new URLSearchParams({ org: orgId });
+    if (cip) params.set('cip', cip);
+    if (degreeLevel) params.set('degree_level', degreeLevel);
+    const url = `${base}/standards?${params.toString()}`;
+    const res = await fetch(url);
+    if (!res.ok) return { standards: [] };
+    const payload = await res.json();
+    const arr = Array.isArray(payload?.standards) ? payload.standards : (Array.isArray(payload) ? payload : []);
+    return { standards: CanvasService.normalizeStandardsNodes(arr, 'db', url, 0.95), sourceUri: url };
+  }
+
+  private async resolveStandardsFromApi(
+    orgId: string,
+    cip?: string,
+    degreeLevel?: string,
+  ): Promise<{ standards: AccreditationStandardNode[]; sourceUri?: string }> {
+    const template = (this.config.get<string>('ACCREDITATION_STANDARDS_API_TEMPLATE') || '').trim();
+    if (!template) return { standards: [] };
+    const url = template
+      .replace(/\{org\}/g, encodeURIComponent(orgId))
+      .replace(/\{cip\}/g, encodeURIComponent(cip || ''))
+      .replace(/\{degree_level\}/g, encodeURIComponent(degreeLevel || ''));
+    const res = await fetch(url);
+    if (!res.ok) return { standards: [] };
+    const payload = await res.json();
+    const arr = Array.isArray(payload?.standards) ? payload.standards : (Array.isArray(payload) ? payload : []);
+    return { standards: CanvasService.normalizeStandardsNodes(arr, 'api', url, 0.9), sourceUri: url };
+  }
+
+  private async resolveStandardsFromFile(orgId: string): Promise<{ standards: AccreditationStandardNode[]; sourceUri?: string }> {
+    const configured = (this.config.get<string>('ACCREDITATION_STANDARDS_FILE') || '').trim();
+    const candidatePaths = [
+      configured,
+      path.join(process.cwd(), 'data', 'accreditation-standards.json'),
+      path.join(process.cwd(), 'services', 'accreditation-lookup', 'data', 'standards.json'),
+    ].filter(Boolean);
+    for (const filePath of candidatePaths) {
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        const payload = JSON.parse(content);
+        let arr: any[] = [];
+        if (Array.isArray(payload?.standards)) {
+          arr = payload.standards.filter((x: any) => CanvasService.normalizeOrgId(x?.orgId || x?.organization || '') === orgId);
+        } else if (payload?.organizations && Array.isArray(payload.organizations?.[orgId])) {
+          arr = payload.organizations[orgId];
+        } else if (Array.isArray(payload?.[orgId])) {
+          arr = payload[orgId];
+        }
+        const standards = CanvasService.normalizeStandardsNodes(arr, 'file', filePath, 0.85);
+        if (standards.length) return { standards, sourceUri: filePath };
+      } catch (_) {
+        // ignore unreadable/missing files and continue fallback chain
+      }
+    }
+    return { standards: [] };
+  }
+
+  private static extractStandardsFromText(
+    orgId: string,
+    text: string,
+    sourceType: 'scrape' | 'ai',
+    sourceUri?: string,
+  ): AccreditationStandardNode[] {
+    const lines = String(text || '')
+      .split(/\r?\n/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+    const out: AccreditationStandardNode[] = [];
+    for (const line of lines) {
+      const m = line.match(/^([A-Z]{2,}[A-Z0-9._-]*\d*[A-Z0-9._-]*)\s*[:\-]\s*(.+)$/);
+      if (m) {
+        out.push({ id: m[1].trim(), title: m[2].trim(), sourceType, sourceUri: sourceUri ?? null, confidence: sourceType === 'ai' ? 0.5 : 0.7, retrievedAt: new Date().toISOString() });
+      }
+    }
+    if (out.length) return out;
+    // Fallback: treat sentence-like bullets as titles and synthesize IDs
+    const bullets = lines.filter((x) => /^[-*•]\s+/.test(x)).slice(0, 20).map((x) => x.replace(/^[-*•]\s+/, '').trim());
+    return bullets.map((title, idx) => ({
+      id: `${orgId}-${idx + 1}`,
+      title: title.slice(0, 200),
+      sourceType,
+      sourceUri: sourceUri ?? null,
+      confidence: sourceType === 'ai' ? 0.45 : 0.6,
+      retrievedAt: new Date().toISOString(),
+    }));
+  }
+
+  private async resolveStandardsFromScrape(orgId: string): Promise<{ standards: AccreditationStandardNode[]; sourceUri?: string; rawText?: string }> {
+    const template = (this.config.get<string>('ACCREDITATION_STANDARDS_SCRAPE_TEMPLATE') || '').trim();
+    if (!template) return { standards: [] };
+    const url = template.replace(/\{org\}/g, encodeURIComponent(orgId));
+    const res = await fetch(url);
+    if (!res.ok) return { standards: [] };
+    const html = await res.text();
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, '\n')
+      .replace(/\n{2,}/g, '\n');
+    const standards = CanvasService.extractStandardsFromText(orgId, text, 'scrape', url);
+    return { standards, sourceUri: url, rawText: text };
+  }
+
+  private static extractJsonBlock(text: string): string | null {
+    const trimmed = String(text || '').trim();
+    if (!trimmed) return null;
+    const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fence?.[1]) return fence[1].trim();
+    const arr = trimmed.match(/\[[\s\S]*\]/);
+    if (arr?.[0]) return arr[0];
+    const obj = trimmed.match(/\{[\s\S]*\}/);
+    if (obj?.[0]) return obj[0];
+    return null;
+  }
+
+  private async resolveStandardsWithAiFallback(
+    orgId: string,
+    orgName: string,
+    cip?: string,
+    contextText?: string,
+  ): Promise<AccreditationStandardNode[]> {
+    const key = (this.config.get<string>('ANTHROPIC_API_KEY') || '').trim();
+    if (!key) return [];
+    const model = (this.config.get<string>('CLAUDE_MODEL') || 'claude-sonnet-4-6').trim();
+    const prompt = [
+      'Return JSON only.',
+      'Task: infer a minimal standards list for an accrediting body.',
+      'Output schema: [{ "id": "ORG-1", "title": "Standard title", "description": "optional" }]',
+      `Organization ID: ${orgId}`,
+      `Organization Name: ${orgName}`,
+      `CIP (if known): ${cip || '(unknown)'}`,
+      `Context:\n${(contextText || '').slice(0, 12000) || '(none)'}`,
+    ].join('\n');
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 1200,
+        temperature: 0.1,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!res.ok) return [];
+    const payload = await res.json() as { content?: Array<{ type?: string; text?: string }> };
+    const text = Array.isArray(payload?.content)
+      ? payload.content.filter((c) => c?.type === 'text' && c?.text).map((c) => c.text).join('\n')
+      : '';
+    const jsonBlock = CanvasService.extractJsonBlock(text);
+    if (!jsonBlock) return [];
+    try {
+      const parsed = JSON.parse(jsonBlock);
+      const arr = Array.isArray(parsed) ? parsed : (Array.isArray((parsed as any)?.standards) ? (parsed as any).standards : []);
+      return CanvasService.normalizeStandardsNodes(arr, 'ai', null, 0.5);
+    } catch {
+      return [];
+    }
+  }
+
+  private async resolveStandardsForOrganization(
+    org: { id: string; name: string; abbreviation?: string },
+    cip?: string,
+    degreeLevel?: string,
+  ): Promise<StandardsResolutionResult> {
+    const orgId = CanvasService.normalizeOrgId(org.id || org.abbreviation || org.name);
+    const warnings: string[] = [];
+
+    try {
+      const db = await this.resolveStandardsFromLookupDb(orgId, cip, degreeLevel);
+      if (db.standards.length) {
+        return { sourceType: 'db', standards: db.standards, sourceUri: db.sourceUri ?? null, confidence: 0.95, usedAiFallback: false, warnings };
+      }
+    } catch (e: any) {
+      warnings.push(`db lookup failed: ${e?.message || 'unknown error'}`);
+    }
+
+    try {
+      const api = await this.resolveStandardsFromApi(orgId, cip, degreeLevel);
+      if (api.standards.length) {
+        return { sourceType: 'api', standards: api.standards, sourceUri: api.sourceUri ?? null, confidence: 0.9, usedAiFallback: false, warnings };
+      }
+    } catch (e: any) {
+      warnings.push(`api lookup failed: ${e?.message || 'unknown error'}`);
+    }
+
+    try {
+      const file = await this.resolveStandardsFromFile(orgId);
+      if (file.standards.length) {
+        return { sourceType: 'file', standards: file.standards, sourceUri: file.sourceUri ?? null, confidence: 0.85, usedAiFallback: false, warnings };
+      }
+    } catch (e: any) {
+      warnings.push(`file lookup failed: ${e?.message || 'unknown error'}`);
+    }
+
+    let scrapeRawText = '';
+    try {
+      const scrape = await this.resolveStandardsFromScrape(orgId);
+      if (scrape.standards.length) {
+        return { sourceType: 'scrape', standards: scrape.standards, sourceUri: scrape.sourceUri ?? null, confidence: 0.7, usedAiFallback: false, warnings };
+      }
+      scrapeRawText = scrape.rawText || '';
+    } catch (e: any) {
+      warnings.push(`scrape lookup failed: ${e?.message || 'unknown error'}`);
+    }
+
+    try {
+      const ai = await this.resolveStandardsWithAiFallback(orgId, org.name, cip, scrapeRawText);
+      if (ai.length) {
+        warnings.push('ai fallback used');
+        return { sourceType: 'ai', standards: ai, sourceUri: null, confidence: 0.5, usedAiFallback: true, warnings };
+      }
+    } catch (e: any) {
+      warnings.push(`ai fallback failed: ${e?.message || 'unknown error'}`);
+    }
+
+    const stub = CanvasService.STUB_STANDARDS_BY_ORG[orgId] || [];
+    if (stub.length) {
+      const standards = CanvasService.normalizeStandardsNodes(stub, 'file', 'stub', 0.4);
+      warnings.push('stub standards used');
+      return { sourceType: 'file', standards, sourceUri: 'stub', confidence: 0.4, usedAiFallback: false, warnings };
+    }
+
+    return { sourceType: 'none', standards: [], sourceUri: null, confidence: 0, usedAiFallback: false, warnings };
+  }
+
+  async getAccreditationStandardsForCourse(
+    courseId: number,
+    cip?: string,
+    degreeLevel?: string,
+  ) {
+    const effectiveCip = await this.getEffectiveCip(courseId, cip);
+    const accreditorsPayload = await this.getAccreditorsForCourse(courseId, effectiveCip || undefined, degreeLevel);
+    const organizations = await Promise.all(
+      (accreditorsPayload.accreditors || []).map(async (org) => {
+        const resolved = await this.resolveStandardsForOrganization(org, effectiveCip || undefined, degreeLevel);
+        return {
+          id: org.id,
+          name: org.name,
+          abbreviation: org.abbreviation ?? null,
+          standards_source: resolved.sourceType,
+          standards_source_uri: resolved.sourceUri ?? null,
+          standards_confidence: resolved.confidence,
+          used_ai_fallback: resolved.usedAiFallback,
+          warnings: resolved.warnings,
+          standards: resolved.standards,
+        };
+      }),
+    );
+    const totalStandards = organizations.reduce((sum, org) => sum + (Array.isArray(org.standards) ? org.standards.length : 0), 0);
+    return {
+      cip: effectiveCip || null,
+      accreditors_source: accreditorsPayload.source,
+      organizations,
+      total_standards: totalStandards,
+    };
   }
 
   private static readonly STANDARDS_PREFIX_REGEX = /\|STANDARDS:([^|]+)\|/;
