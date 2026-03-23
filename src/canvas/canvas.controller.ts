@@ -223,6 +223,34 @@ export class CanvasController {
     });
   }
 
+  @Post('courses/:id/accessibility/fix-preview')
+  async getAccessibilityFixPreview(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { findings?: Array<{ resource_type: string; resource_id: string; resource_title?: string; rule_id: string; snippet?: string | null }> },
+  ) {
+    const findings = Array.isArray(body?.findings) ? body.findings : [];
+    return this.canvasService.getAccessibilityFixPreview(id, findings);
+  }
+
+  @Post('courses/:id/accessibility/fix-apply')
+  async applyAccessibilityFixes(
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    body: {
+      actions?: Array<{
+        action_id: string;
+        resource_type: string;
+        resource_id: string;
+        update_key: string;
+        rule_id: string;
+        content_hash: string;
+      }>;
+    },
+  ) {
+    const actions = Array.isArray(body?.actions) ? body.actions : [];
+    return this.canvasService.applyAccessibilityFixes(id, actions);
+  }
+
   @Get('courses/:id/accessibility/export.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="accessibility_report.csv"')

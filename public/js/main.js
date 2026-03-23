@@ -548,6 +548,7 @@ let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, select
 let accessibilityLastReport = null;
 const ACCESSIBILITY_RUN_HISTORY_KEY = 'accessibility:runHistory:v1';
 let accessibilityGridApi = null;
+let accessibilityFixPreviewActions = null;
 const ACCESSIBILITY_CANVAS_PARITY_RULES = [
     'adjacent_duplicate_links',
     'heading_skipped_level',
@@ -1457,14 +1458,26 @@ function switchTab(tabName) {
             destroyAccessibilityGrid();
         }
 
-        const mergeMenuItem = document.getElementById('mergeMenuItem');
-        if (mergeMenuItem) mergeMenuItem.style.display = (tabName === 'modules') ? 'block' : 'none';
-        const timeLimitMenuItem = document.getElementById('timeLimitMenuItem');
-        if (timeLimitMenuItem) timeLimitMenuItem.style.display = (tabName === 'quizzes') ? 'block' : 'none';
-        const allowedAttemptsMenuItem = document.getElementById('allowedAttemptsMenuItem');
-        if (allowedAttemptsMenuItem) allowedAttemptsMenuItem.style.display = (tabName === 'quizzes') ? 'block' : 'none';
-        const allowRatingMenuItem = document.getElementById('allowRatingMenuItem');
-        if (allowRatingMenuItem) allowRatingMenuItem.style.display = (tabName === 'discussions') ? 'block' : 'none';
+        const fixMenuItem = document.getElementById('fixMenuItem');
+        const isAdaTab = tabName === 'ada_compliance';
+        if (fixMenuItem) fixMenuItem.style.display = isAdaTab ? 'block' : 'none';
+        const bulkDropdown = document.getElementById('bulkActionsDropdown');
+        if (bulkDropdown) {
+            bulkDropdown.querySelectorAll('.dropdown-item').forEach((el) => {
+                if (el.id === 'fixMenuItem') return;
+                el.style.display = isAdaTab ? 'none' : '';
+            });
+        }
+        if (!isAdaTab) {
+            const mergeMenuItem = document.getElementById('mergeMenuItem');
+            if (mergeMenuItem) mergeMenuItem.style.display = (tabName === 'modules') ? 'block' : 'none';
+            const timeLimitMenuItem = document.getElementById('timeLimitMenuItem');
+            if (timeLimitMenuItem) timeLimitMenuItem.style.display = (tabName === 'quizzes') ? 'block' : 'none';
+            const allowedAttemptsMenuItem = document.getElementById('allowedAttemptsMenuItem');
+            if (allowedAttemptsMenuItem) allowedAttemptsMenuItem.style.display = (tabName === 'quizzes') ? 'block' : 'none';
+            const allowRatingMenuItem = document.getElementById('allowRatingMenuItem');
+            if (allowRatingMenuItem) allowRatingMenuItem.style.display = (tabName === 'discussions') ? 'block' : 'none';
+        }
         updatePointsUiLabels(tabName);
         updateSyncHistoryIndicator();
         updateDeleteMenuState();
@@ -2060,9 +2073,20 @@ function renderAccessibilityReport(report) {
         findingsEl.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
                 <div><strong>Rows:</strong> ${findings.length}</div>
-                <input id="accessibilityQuickFilter" type="text" placeholder="Quick filter findings..." style="min-width:260px;max-width:420px;" />
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button id="generateFixPreviewBtn" class="primary-btn">Generate Fix Preview</button>
+                    <input id="accessibilityQuickFilter" type="text" placeholder="Quick filter findings..." style="min-width:260px;max-width:420px;" />
+                </div>
             </div>
-            <div id="accessibilityResultsGrid" class="ag-theme-quartz" style="height: 520px; width: 100%;"></div>
+            <div id="accessibilityResultsGrid" class="ag-theme-quartz" style="height: 420px; width: 100%;"></div>
+            <div id="accessibilityFixQueue" style="display:none;margin-top:16px;border:1px solid #ddd;border-radius:6px;padding:12px;">
+                <h4 style="margin:0 0 8px 0;">Fix Queue</h4>
+                <div id="accessibilityFixQueueTableWrap" style="overflow:auto;max-height:240px;margin-bottom:8px;"></div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button id="applyApprovedFixesBtn" class="primary-btn" disabled>Apply Approved Fixes</button>
+                    <span id="accessibilityFixQueueStatus"></span>
+                </div>
+            </div>
         `;
         initializeAccessibilityGrid(findings);
         const quickFilterEl = document.getElementById('accessibilityQuickFilter');
@@ -2071,6 +2095,8 @@ function renderAccessibilityReport(report) {
                 if (accessibilityGridApi) accessibilityGridApi.setGridOption('quickFilterText', quickFilterEl.value || '');
             });
         }
+        const genFixBtn = document.getElementById('generateFixPreviewBtn');
+        if (genFixBtn) genFixBtn.onclick = () => generateAccessibilityFixPreview();
     }
 
     const runBtn = document.getElementById('runAccessibilityScanBtn');
@@ -2154,6 +2180,144 @@ function downloadAccessibilityCsv() {
     const qs = parts.length ? `?${parts.join('&')}` : '';
     const url = `/canvas/courses/${selectedCourseId}/accessibility/export.csv${qs}`;
     window.open(url, '_blank');
+}
+
+async function generateAccessibilityFixPreview() {
+    if (!selectedCourseId) {
+        showToast('Select a course first.', 'warn');
+        return;
+    }
+    const findings = Array.isArray(accessibilityLastReport?.findings) ? accessibilityLastReport.findings : [];
+    let rowsData = findings;
+    if (accessibilityGridApi && typeof accessibilityGridApi.forEachNodeAfterFilterAndSort === 'function') {
+        rowsData = [];
+        accessibilityGridApi.forEachNodeAfterFilterAndSort((node) => { if (node?.data) rowsData.push(node.data); });
+    }
+    const rows = rowsData.map((r) => ({
+        resource_type: r?.resource_type || '',
+        resource_id: r?.resource_id || '',
+        resource_title: r?.resource_title || '',
+        rule_id: r?.rule_id || '',
+        snippet: r?.snippet || null
+    }));
+    if (!rows.length) {
+        showToast('No findings to fix. Run a scan first.', 'warn');
+        return;
+    }
+    const btn = document.getElementById('generateFixPreviewBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating preview...'; }
+    try {
+        const res = await fetch(`/canvas/courses/${selectedCourseId}/accessibility/fix-preview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ findings: rows })
+        });
+        if (!res.ok) throw new Error(await res.text().catch(() => res.statusText));
+        const data = await res.json();
+        accessibilityFixPreviewActions = data?.actions || [];
+        renderAccessibilityFixQueue(accessibilityFixPreviewActions);
+        if (!accessibilityFixPreviewActions.length) {
+            showToast('No auto-fixable actions for current findings.', 'info');
+        }
+    } catch (e) {
+        showToast('Fix preview failed: ' + (e?.message || String(e)), 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Generate Fix Preview'; }
+    }
+}
+
+function renderAccessibilityFixQueue(actions) {
+    const wrap = document.getElementById('accessibilityFixQueueTableWrap');
+    const queue = document.getElementById('accessibilityFixQueue');
+    const applyBtn = document.getElementById('applyApprovedFixesBtn');
+    const statusEl = document.getElementById('accessibilityFixQueueStatus');
+    if (!wrap || !queue) return;
+    if (!actions || !actions.length) {
+        queue.style.display = 'none';
+        return;
+    }
+    queue.style.display = 'block';
+    const rows = actions.map((a, i) => `
+        <tr>
+            <td style="padding:6px;"><input type="checkbox" class="acc-fix-approve" data-action-id="${escapeHtml(a.action_id)}" data-index="${i}" checked></td>
+            <td style="padding:6px;">${escapeHtml(ACCESSIBILITY_RULE_LABELS[a.rule_id] || a.rule_id)}</td>
+            <td style="padding:6px;">${escapeHtml(a.resource_type)}</td>
+            <td style="padding:6px;">${escapeHtml(a.resource_title || '').slice(0, 60)}</td>
+            <td style="padding:6px;">${escapeHtml(String(a.risk))}</td>
+            <td style="padding:6px;max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(a.before_snippet || '')}">${escapeHtml(String(a.before_snippet || '').slice(0, 80))}…</td>
+            <td style="padding:6px;max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(a.after_snippet || '')}">${escapeHtml(String(a.after_snippet || '').slice(0, 80))}…</td>
+        </tr>
+    `).join('');
+    wrap.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead>
+                <tr style="background:#f8f8f8;">
+                    <th style="text-align:left;padding:6px;"><input type="checkbox" id="accFixSelectAll" checked></th>
+                    <th style="text-align:left;padding:6px;">Rule</th>
+                    <th style="text-align:left;padding:6px;">Type</th>
+                    <th style="text-align:left;padding:6px;">Resource</th>
+                    <th style="text-align:left;padding:6px;">Risk</th>
+                    <th style="text-align:left;padding:6px;">Before</th>
+                    <th style="text-align:left;padding:6px;">After</th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>
+    `;
+    const selectAll = document.getElementById('accFixSelectAll');
+    if (selectAll) selectAll.onchange = () => wrap.querySelectorAll('.acc-fix-approve').forEach((cb) => { cb.checked = selectAll.checked; updateApplyButtonState(); });
+    wrap.querySelectorAll('.acc-fix-approve').forEach((cb) => { cb.onchange = updateApplyButtonState; });
+    if (applyBtn) {
+        applyBtn.disabled = false;
+        applyBtn.onclick = applyApprovedAccessibilityFixes;
+    }
+    if (statusEl) statusEl.textContent = `${actions.length} fix(es) ready`;
+}
+
+function updateApplyButtonState() {
+    const checked = document.querySelectorAll('.acc-fix-approve:checked');
+    const applyBtn = document.getElementById('applyApprovedFixesBtn');
+    if (applyBtn) applyBtn.disabled = !checked.length;
+}
+
+async function applyApprovedAccessibilityFixes() {
+    if (!selectedCourseId || !accessibilityFixPreviewActions?.length) return;
+    const checked = document.querySelectorAll('.acc-fix-approve:checked');
+    const approvedIds = new Set(Array.from(checked).map((el) => el.getAttribute('data-action-id')));
+    const approved = accessibilityFixPreviewActions.filter((a) => approvedIds.has(a.action_id));
+    if (!approved.length) {
+        showToast('Select at least one fix to apply.', 'warn');
+        return;
+    }
+    const applyBtn = document.getElementById('applyApprovedFixesBtn');
+    const statusEl = document.getElementById('accessibilityFixQueueStatus');
+    if (applyBtn) applyBtn.disabled = true;
+    if (statusEl) statusEl.textContent = 'Applying...';
+    try {
+        const res = await fetch(`/canvas/courses/${selectedCourseId}/accessibility/fix-apply`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ actions: approved })
+        });
+        if (!res.ok) throw new Error(await res.text().catch(() => res.statusText));
+        const data = await res.json();
+        const { fixed = 0, skipped = 0, failed = 0 } = data;
+        const beforeCount = accessibilityLastReport?.summary?.total_findings ?? 0;
+        if (statusEl) statusEl.textContent = `Fixed: ${fixed}, Skipped: ${skipped}, Failed: ${failed}`;
+        showToast(`Applied fixes: ${fixed} fixed, ${skipped} skipped, ${failed} failed.`, fixed > 0 ? 'success' : 'info');
+        if (fixed > 0) {
+            await runAccessibilityScan();
+            const afterCount = accessibilityLastReport?.summary?.total_findings ?? 0;
+            if (statusEl) statusEl.textContent = `Before: ${beforeCount} findings → After: ${afterCount} findings. Fixed: ${fixed}, Skipped: ${skipped}, Failed: ${failed}`;
+        }
+    } catch (e) {
+        showToast('Apply failed: ' + (e?.message || String(e)), 'error');
+        if (statusEl) statusEl.textContent = 'Apply failed';
+    } finally {
+        if (applyBtn) applyBtn.disabled = false;
+    }
 }
 
 function loadAccessibilityTab() {

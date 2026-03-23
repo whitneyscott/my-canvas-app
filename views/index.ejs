@@ -114,6 +114,7 @@
                                 <div class="dropdown-item" onclick="handleCloneClick(); closeDropdown('bulkActionsDropdown')">Clone</div>
                                 <div id="mergeMenuItem" class="dropdown-item" onclick="populateMergeSelector(); openModal('mergeModal'); closeDropdown('bulkActionsDropdown')" style="display: none;">Merge Modules</div>
                                 <div id="deleteMenuItem" class="dropdown-item" onclick="handleDeleteClick(); closeDropdown('bulkActionsDropdown')">Delete</div>
+                                <div id="fixMenuItem" class="dropdown-item" onclick="generateAccessibilityFixPreview(); closeDropdown('bulkActionsDropdown')" style="display: none;">Fix</div>
                             </div>
                         </div>
                         <button class="primary-btn" onclick="openModal('columnVisibilityModal')">Columns</button>

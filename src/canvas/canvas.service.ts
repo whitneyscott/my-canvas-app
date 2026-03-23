@@ -34,6 +34,64 @@ interface AccessibilityScanOptions {
   ruleIds?: string[];
 }
 
+type FixRisk = 'low' | 'medium' | 'high';
+
+interface AccessibilityFixabilityContract {
+  auto_fixable: boolean;
+  risk: FixRisk;
+  fix_type: string;
+  supports_preview: boolean;
+  requires_content_fetch: boolean;
+}
+
+const ACCESSIBILITY_FIXABILITY_MAP: Record<string, AccessibilityFixabilityContract> = {
+  adjacent_duplicate_links: { auto_fixable: true, risk: 'low', fix_type: 'merge_duplicate_links', supports_preview: true, requires_content_fetch: true },
+  list_empty_item: { auto_fixable: true, risk: 'low', fix_type: 'remove_empty_li', supports_preview: true, requires_content_fetch: true },
+  heading_empty: { auto_fixable: true, risk: 'low', fix_type: 'remove_empty_heading', supports_preview: true, requires_content_fetch: true },
+  link_new_tab_no_warning: { auto_fixable: true, risk: 'low', fix_type: 'append_new_tab_warning', supports_preview: true, requires_content_fetch: true },
+  img_missing_alt: { auto_fixable: false, risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  img_alt_too_long: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  img_alt_filename: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  small_text_contrast: { auto_fixable: false, risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  large_text_contrast: { auto_fixable: false, risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  table_missing_caption: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  table_missing_header: { auto_fixable: false, risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  table_header_scope_missing: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  heading_skipped_level: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  heading_h1_in_body: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  heading_too_long: { auto_fixable: false, risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  list_not_semantic: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  link_split_or_broken: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  link_empty_name: { auto_fixable: false, risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  link_ambiguous_text: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  link_file_missing_type_size_hint: { auto_fixable: false, risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  heading_duplicate_h1: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  heading_visual_only_style: { auto_fixable: false, risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  landmark_structure_quality: { auto_fixable: false, risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  table_layout_heuristic: { auto_fixable: false, risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  table_complex_assoc_missing: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  img_decorative_misuse: { auto_fixable: false, risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  img_meaningful_empty_alt: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  img_text_in_image_warning: { auto_fixable: false, risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  video_missing_captions: { auto_fixable: false, risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  audio_missing_transcript: { auto_fixable: false, risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  media_autoplay: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  motion_gif_warning: { auto_fixable: false, risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  video_embed_caption_unknown: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  form_control_missing_label: { auto_fixable: false, risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  form_placeholder_as_label: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  form_required_not_programmatic: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  form_error_unassociated: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  aria_invalid_role: { auto_fixable: false, risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  aria_hidden_focusable: { auto_fixable: false, risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  duplicate_id: { auto_fixable: false, risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  keyboard_focus_trap_heuristic: { auto_fixable: false, risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  doc_pdf_accessibility_unknown: { auto_fixable: false, risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  doc_office_structure_unknown: { auto_fixable: false, risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  doc_spreadsheet_headers_unknown: { auto_fixable: false, risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  button_empty_name: { auto_fixable: false, risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+};
+
 interface AccreditationStandardNode {
   id: string;
   title: string;
@@ -4378,5 +4436,287 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       lines.push(row.join(','));
     }
     return lines.join('\n');
+  }
+
+  private async fetchAccessibilityResourceContent(
+    courseId: number,
+    resourceType: string,
+    resourceId: string,
+  ): Promise<{ html: string; updateKey: string; resourceTitle: string } | null> {
+    if (resourceType === 'pages') {
+      const pages = await this.getCoursePages(courseId);
+      const page = (Array.isArray(pages) ? pages : []).find(
+        (p: any) => String(p?.id ?? p?.page_id ?? '') === resourceId || (p?.url ?? '') === resourceId,
+      );
+      if (!page?.url) return null;
+      const full = await this.getPage(courseId, page.url);
+      const { token, baseUrl } = await this.getAuthHeaders();
+      const body = await this.resolveWikiPageBodyForGrid(courseId, page.url, full, token, baseUrl);
+      const html = typeof body === 'string' ? body : String(full?.body ?? '');
+      return { html, updateKey: page.url, resourceTitle: page.title || page.url };
+    }
+    if (resourceType === 'assignments') {
+      const a = await this.getAssignment(courseId, Number(resourceId));
+      const html = String(a?.description ?? '');
+      return html ? { html, updateKey: resourceId, resourceTitle: a?.name ?? '' } : null;
+    }
+    if (resourceType === 'announcements' || resourceType === 'discussions') {
+      const d = await this.getDiscussion(courseId, Number(resourceId));
+      const html = String(d?.message ?? '');
+      return html ? { html, updateKey: resourceId, resourceTitle: d?.title ?? '' } : null;
+    }
+    if (resourceType === 'syllabus') {
+      const course = await this.getCourseDetails(courseId);
+      const html = String((course as any)?.syllabus_body ?? '');
+      return html ? { html, updateKey: String(courseId), resourceTitle: 'Course Syllabus' } : null;
+    }
+    return null;
+  }
+
+  private applyMergeDuplicateLinks(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } {
+    const changes: Array<{ before: string; after: string }> = [];
+    const regex = /<a\b([^>]*href\s*=\s*("([^"]*)"|'([^']*)')[^>]*)>([\s\S]*?)<\/a>\s*(?:&nbsp;|\s|<span[^>]*>\s*<\/span>|<br[^>]*>)*<a\b([^>]*href\s*=\s*("([^"]*)"|'([^']*)')[^>]*)>([\s\S]*?)<\/a>/gi;
+    let newHtml = html;
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(html)) !== null) {
+      const h1 = (m[3] ?? m[4] ?? '').trim();
+      const h2 = (m[8] ?? m[9] ?? '').trim();
+      if (h1 && h2 && h1 === h2) {
+        const fullMatch = m[0];
+        const inner1 = (m[5] ?? '').trim();
+        const inner2 = (m[10] ?? '').trim();
+        const merged = `<a ${m[1].trim()}>${inner1} ${inner2}</a>`;
+        changes.push({ before: fullMatch, after: merged });
+        newHtml = newHtml.replace(fullMatch, merged);
+      }
+    }
+    return { newHtml, changes };
+  }
+
+  private applyRemoveEmptyLi(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } {
+    const changes: Array<{ before: string; after: string }> = [];
+    const regex = /<li\b[^>]*>\s*(?:&nbsp;|\s|<br[^>]*>|<\/?span[^>]*>)*<\/li>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(html)) !== null) {
+      changes.push({ before: m[0], after: '(removed)' });
+    }
+    const newHtml = html.replace(regex, '');
+    return { newHtml, changes };
+  }
+
+  private applyRemoveEmptyHeading(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } {
+    const changes: Array<{ before: string; after: string }> = [];
+    const regex = /<(h[1-6])\b[^>]*>\s*(?:&nbsp;|\s)*<\/\1>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(html)) !== null) {
+      changes.push({ before: m[0], after: '(removed)' });
+    }
+    const newHtml = html.replace(regex, '');
+    return { newHtml, changes };
+  }
+
+  private applyAppendNewTabWarning(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } {
+    const changes: Array<{ before: string; after: string }> = [];
+    const regex = /<a\b([^>]*)\btarget\s*=\s*["']_blank["'][^>]*>([\s\S]*?)<\/a>/gi;
+    const suffix = ' (opens in new tab)';
+    let newHtml = html;
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(html)) !== null) {
+      const full = m[0];
+      const inner = m[2] ?? '';
+      if (!/\b(new tab|opens in new tab)\b/i.test(inner)) {
+        const after = full.replace(/([\s\S]*?)<\/a>$/i, `$1${suffix}</a>`);
+        changes.push({ before: full, after });
+        newHtml = newHtml.replace(full, after);
+      }
+    }
+    return { newHtml, changes };
+  }
+
+  private runFixExecutor(html: string, fixType: string): { newHtml: string; changes: Array<{ before: string; after: string }> } | null {
+    switch (fixType) {
+      case 'merge_duplicate_links':
+        return this.applyMergeDuplicateLinks(html);
+      case 'remove_empty_li':
+        return this.applyRemoveEmptyLi(html);
+      case 'remove_empty_heading':
+        return this.applyRemoveEmptyHeading(html);
+      case 'append_new_tab_warning':
+        return this.applyAppendNewTabWarning(html);
+      default:
+        return null;
+    }
+  }
+
+  async getAccessibilityFixPreview(
+    courseId: number,
+    findings: Array<{
+      resource_type: string;
+      resource_id: string;
+      resource_title?: string;
+      rule_id: string;
+      snippet?: string | null;
+    }>,
+  ): Promise<{
+    actions: Array<{
+      action_id: string;
+      resource_type: string;
+      resource_id: string;
+      update_key: string;
+      resource_title: string;
+      rule_id: string;
+      fix_type: string;
+      risk: FixRisk;
+      before_snippet: string;
+      after_snippet: string;
+      content_hash: string;
+    }>;
+  }> {
+    const seen = new Set<string>();
+    const actions: Array<any> = [];
+    const crypto = await import('crypto');
+    const hash = (s: string) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
+
+    for (const f of findings) {
+      const contract = ACCESSIBILITY_FIXABILITY_MAP[f.rule_id];
+      if (!contract?.auto_fixable || !contract.supports_preview) continue;
+
+      const key = `${f.resource_type}:${f.resource_id}:${f.rule_id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const content = await this.fetchAccessibilityResourceContent(courseId, f.resource_type, f.resource_id);
+      if (!content) continue;
+
+      const result = this.runFixExecutor(content.html, contract.fix_type);
+      if (!result || result.changes.length === 0) continue;
+
+      const beforeSnippet = result.changes.map((c) => c.before).join('\n---\n');
+      const afterSnippet = result.changes.map((c) => c.after).join('\n---\n');
+      const actionId = `${hash(content.html)}:${f.resource_type}:${f.resource_id}:${f.rule_id}`;
+
+      actions.push({
+        action_id: actionId,
+        resource_type: f.resource_type,
+        resource_id: f.resource_id,
+        update_key: content.updateKey,
+        resource_title: content.resourceTitle || f.resource_title || '',
+        rule_id: f.rule_id,
+        fix_type: contract.fix_type,
+        risk: contract.risk,
+        before_snippet: beforeSnippet.slice(0, 1000),
+        after_snippet: afterSnippet.slice(0, 1000),
+        content_hash: hash(content.html),
+      });
+    }
+
+    return { actions };
+  }
+
+  async applyAccessibilityFixes(
+    courseId: number,
+    approvedActions: Array<{
+      action_id: string;
+      resource_type: string;
+      resource_id: string;
+      update_key: string;
+      rule_id: string;
+      content_hash: string;
+    }>,
+  ): Promise<{
+    fixed: number;
+    skipped: number;
+    failed: number;
+    results: Array<{
+      action_id: string;
+      resource_type: string;
+      resource_id: string;
+      status: 'fixed' | 'skipped' | 'failed';
+      error?: string;
+    }>;
+  }> {
+    const crypto = await import('crypto');
+    const hash = (s: string) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
+    const results: Array<{ action_id: string; resource_type: string; resource_id: string; status: 'fixed' | 'skipped' | 'failed'; error?: string }> = [];
+    let fixed = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    const byResource = new Map<string, { actions: typeof approvedActions; html: string; updateKey: string; resourceType: string }>();
+    for (const a of approvedActions) {
+      const key = `${a.resource_type}:${a.resource_id}`;
+      if (!byResource.has(key)) {
+        const content = await this.fetchAccessibilityResourceContent(courseId, a.resource_type, a.resource_id);
+        if (!content) {
+          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, status: 'failed', error: 'Could not fetch resource content' });
+          failed++;
+          continue;
+        }
+        if (hash(content.html) !== a.content_hash) {
+          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, status: 'skipped', error: 'Content changed since preview' });
+          skipped++;
+          continue;
+        }
+        byResource.set(key, { actions: [], html: content.html, updateKey: content.updateKey, resourceType: a.resource_type });
+      }
+      const entry = byResource.get(key)!;
+      if (hash(entry.html) !== a.content_hash) {
+        results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, status: 'skipped', error: 'Content hash mismatch' });
+        skipped++;
+        continue;
+      }
+      entry.actions.push(a);
+    }
+
+    for (const [, entry] of byResource) {
+      let html = entry.html;
+      const contract = ACCESSIBILITY_FIXABILITY_MAP[entry.actions[0]?.rule_id];
+      if (!contract?.auto_fixable) continue;
+
+      for (const a of entry.actions) {
+        const c = ACCESSIBILITY_FIXABILITY_MAP[a.rule_id];
+        if (!c?.auto_fixable) continue;
+        const result = this.runFixExecutor(html, c.fix_type);
+        if (result) html = result.newHtml;
+      }
+
+      try {
+        if (entry.resourceType === 'pages') {
+          await this.updatePage(courseId, entry.updateKey, { wiki_page: { body: html } });
+        } else if (entry.resourceType === 'assignments') {
+          await this.updateAssignment(courseId, Number(entry.updateKey), { description: html });
+        } else if (entry.resourceType === 'announcements' || entry.resourceType === 'discussions') {
+          await this.updateDiscussion(courseId, Number(entry.updateKey), { message: html });
+        } else if (entry.resourceType === 'syllabus') {
+          const { token, baseUrl } = await this.getAuthHeaders();
+          const r = await fetch(`${baseUrl}/courses/${courseId}`, {
+            method: 'PUT',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ course: { syllabus_body: html } }),
+          });
+          if (!r.ok) throw new Error(`Syllabus update failed: ${r.status}`);
+        } else {
+          for (const a of entry.actions) {
+            results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, status: 'failed', error: 'Unsupported resource type' });
+            failed++;
+          }
+          continue;
+        }
+        for (const a of entry.actions) {
+          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, status: 'fixed' });
+          fixed++;
+        }
+      } catch (e: any) {
+        for (const a of entry.actions) {
+          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, status: 'failed', error: e?.message ?? 'Update failed' });
+          failed++;
+        }
+      }
+    }
+
+    return { fixed, skipped, failed, results };
   }
 }
