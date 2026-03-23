@@ -3855,7 +3855,9 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         id: o.abbreviation ?? o.id,
         source: o.standards_source,
         count: Array.isArray(o.standards) ? o.standards.length : 0,
-        has_parent_ids: Array.isArray(o.standards) ? o.standards.some((s) => (s.parentId ?? s.parent_id) != null) : false,
+        has_parent_ids: Array.isArray(o.standards)
+          ? o.standards.some((s) => (s.parentId ?? (s as { parent_id?: string | null }).parent_id) != null)
+          : false,
       })),
       first_standard_keys: firstStd ? Object.keys(firstStd) : [],
     };
