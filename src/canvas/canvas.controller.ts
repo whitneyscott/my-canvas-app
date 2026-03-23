@@ -235,16 +235,23 @@ export class CanvasController {
   @Post('courses/:id/accreditation/outcomes/sync-org')
   async syncOutcomesForOrg(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { orgId: string; orgAbbrev: string; orgName: string; cip?: string },
+    @Body() body: { orgId: string; orgAbbrev: string; orgName: string; cip?: string; selectedStandardIds?: string[] },
   ) {
-    return this.canvasService.syncOutcomesForOrg(
-      id,
-      body.orgId,
-      body.orgAbbrev || body.orgId,
-      body.orgName || body.orgId,
-      body.cip,
-      undefined,
-    );
+    try {
+      return await this.canvasService.syncOutcomesForOrg(
+        id,
+        body.orgId,
+        body.orgAbbrev || body.orgId,
+        body.orgName || body.orgId,
+        body.cip,
+        undefined,
+        body.selectedStandardIds,
+      );
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      console.error('[sync-org]', id, body.orgAbbrev || body.orgId, msg, e?.stack);
+      throw new HttpException(msg, 500);
+    }
   }
 
   @Post('courses/:id/accreditation/outcomes/sync')

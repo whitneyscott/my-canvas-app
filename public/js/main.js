@@ -1932,6 +1932,8 @@ async function loadStandardsSyncTab() {
                     const preview = previewRes.ok ? await previewRes.json() : {};
                     const orgs = Array.isArray(preview?.orgs) ? preview.orgs : [];
                     if (orgs.length) {
+                        window.__accPreviewOrgs = {};
+                        orgs.forEach(o => { window.__accPreviewOrgs[o.orgId] = o; });
                         previewHtml = '<div class="acc-outcomes-preview" style="margin-top:1rem;padding:10px;border:1px solid #e5e7eb;border-radius:8px;">' +
                             '<h4 style="margin:0 0 8px 0;">Submit outcomes by org</h4>' +
                             orgs.map(o => {
@@ -1940,7 +1942,7 @@ async function loadStandardsSyncTab() {
                                 const label = (o.orgAbbrev || o.orgId || '') + ': ' + n + ' to create' + (exist ? ', ' + exist + ' exist' : '') + '.';
                                 return '<div style="display:flex;align-items:center;gap:8px;margin:6px 0;">' +
                                     '<span>' + escapeHtml(label) + '</span>' +
-                                    '<button type="button" class="primary-btn" onclick="submitOutcomesForOrg(\'' + escapeHtml(o.orgId || '') + '\', \'' + escapeHtml(o.orgAbbrev || '') + '\', \'' + escapeHtml(o.orgName || '').replace(/'/g, "\\'") + '\', ' + n + ')"' + (n === 0 ? ' disabled' : '') + '>Submit to Canvas</button>' +
+                                    '<button type="button" class="primary-btn" onclick="openOutcomeSelectModal(\'' + escapeHtml(o.orgId || '') + '\', \'' + escapeHtml(o.orgAbbrev || '') + '\', \'' + escapeHtml(o.orgName || '').replace(/'/g, "\\'") + '\')"' + (n === 0 ? ' disabled' : '') + '>Submit to Canvas</button>' +
                                     '</div>';
                             }).join('') + '</div>';
                     }
@@ -3052,44 +3054,6 @@ async function loadAccreditationAlignment(profile) {
             '<div class="acc-align-section"><h4>Rubric Suggestions</h4>' + rubricsHtml + withoutRubricsHtml + '</div>' +
             '<div class="acc-align-section"><h4>Resource Suggestions</h4>' + resourcesHtml + '</div>' +
             (quizHtml ? '<div class="acc-align-section">' + quizHtml + '</div>' : '');
-        host.querySelectorAll('.acc-apply-tag').forEach(btn => {
-            btn.onclick = function() {
-                const type = this.getAttribute('data-type');
-                const id = this.getAttribute('data-id');
-                let stds = [];
-                try { stds = JSON.parse(this.getAttribute('data-standards') || '[]'); } catch (_) {}
-                if (type && id && stds.length) applyAccreditationTagging(type, id, stds);
-            };
-        });
-        host.querySelectorAll('.acc-apply-quiz-tag').forEach(btn => {
-            btn.onclick = function() {
-                const quizType = this.getAttribute('data-quiz-type');
-                const id = this.getAttribute('data-id');
-                let stds = [];
-                try { stds = JSON.parse(this.getAttribute('data-standards') || '[]'); } catch (_) {}
-                if (quizType && id && stds.length) applyQuizAccreditationTagging(quizType, id, stds);
-            };
-        });
-        host.querySelectorAll('.acc-create-rubric').forEach(btn => {
-            btn.onclick = async function() {
-                let pl = {};
-                try { pl = JSON.parse(this.getAttribute('data-payload') || '{}'); } catch (_) {}
-                if (pl.resource_type && pl.resource_id && Array.isArray(pl.criteria) && pl.criteria.length) {
-                    try {
-                        const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/rubrics/create', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(pl)
-                        });
-                        if (!res.ok) throw new Error(await res.text());
-                        if (typeof showToast === 'function') showToast('Rubric created.', 'success');
-                        loadAccreditationAlignment({});
-                    } catch (e) {
-                        if (typeof showToast === 'function') showToast('Failed: ' + (e?.message || e), 'error');
-                    }
-                }
-            };
-        });
     } catch (e) {
         host.innerHTML = '<p style="color:#c62828;">Alignment analysis failed: ' + escapeHtml(e?.message || String(e)) + '</p>';
     }
@@ -3293,29 +3257,78 @@ async function createOutcomesFromSelectedStandards() {
     }
 }
 
-async function submitOutcomesForOrg(orgId, orgAbbrev, orgName, toCreateCount) {
-    if (!selectedCourseId) return;
-    const msg = 'Ready to create ' + (toCreateCount || 0) + ' outcomes in the ' + (orgAbbrev || orgId) + ' group. Proceed?';
-    if (!confirm(msg)) return;
+function openOutcomeSelectModal(orgId, orgAbbrev, orgName) {
+    const orgs = window.__accPreviewOrgs || {};
+    const org = orgs[orgId];
+    const toCreate = Array.isArray(org?.toCreate) ? org.toCreate : [];
+    if (!toCreate.length) {
+        if (typeof showToast === 'function') showToast('No outcomes to create for this org.', 'warn');
+        else alert('No outcomes to create.');
+        return;
+    }
+    window.__accOutcomeSelectOrg = { orgId, orgAbbrev, orgName };
+    const titleEl = document.getElementById('accOutcomeSelectModalTitle');
+    if (titleEl) titleEl.textContent = 'Select outcomes to create — ' + (orgAbbrev || orgId);
+    const bodyEl = document.getElementById('accOutcomeSelectModalBody');
+    if (bodyEl) {
+        bodyEl.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;">' +
+            toCreate.map(s => '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;"><input type="checkbox" name="accOutcomeStd" value="' + escapeHtml(s.id) + '" checked> <span>' + escapeHtml(s.id + ' — ' + (s.title || '')) + '</span></label>').join('') +
+            '</div>';
+    }
+    const createBtn = document.getElementById('accOutcomeSelectCreateBtn');
+    if (createBtn) {
+        createBtn.onclick = doCreateSelectedOutcomes;
+    }
+    if (typeof openModal === 'function') openModal('accOutcomeSelectModal');
+}
+
+async function doCreateSelectedOutcomes() {
+    const info = window.__accOutcomeSelectOrg;
+    if (!info || !selectedCourseId) return;
+    const checkboxes = document.querySelectorAll('#accOutcomeSelectModalBody input[name="accOutcomeStd"]:checked');
+    const selectedStandardIds = Array.from(checkboxes).map(cb => cb.value).filter(Boolean);
+    if (!selectedStandardIds.length) {
+        if (typeof showToast === 'function') showToast('Select at least one outcome to create.', 'warn');
+        else alert('Select at least one outcome.');
+        return;
+    }
     const cip = getAccreditationEffectiveCip();
+    const createBtn = document.getElementById('accOutcomeSelectCreateBtn');
+    const orig = createBtn ? createBtn.innerHTML : '';
+    if (createBtn) { createBtn.disabled = true; createBtn.innerHTML = 'Creating...'; }
     try {
         const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/outcomes/sync-org', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orgId, orgAbbrev, orgName, cip: cip || undefined })
+            body: JSON.stringify({ orgId: info.orgId, orgAbbrev: info.orgAbbrev, orgName: info.orgName, cip: cip || undefined, selectedStandardIds })
         });
-        if (!res.ok) throw new Error(res.statusText || 'Failed');
-        const result = await res.json();
+        const bodyText = await res.text();
+        let result;
+        try { result = bodyText ? JSON.parse(bodyText) : {}; } catch { result = {}; }
+        if (!res.ok) {
+            const errMsg = result?.message || result?.error || bodyText || res.statusText || 'Failed';
+            if (typeof debugLog === 'function') debugLog('sync-org failed: ' + res.status + ' — ' + errMsg, 'error');
+            throw new Error(errMsg);
+        }
         const created = Number(result?.summary?.created || 0);
         const skipped = Number(result?.summary?.skipped || 0);
         const failed = Number(result?.summary?.failed || 0);
-        if (typeof showToast === 'function') showToast(orgAbbrev + ': ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.', failed ? 'warn' : 'success');
-        else alert(orgAbbrev + ': ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.');
+        if (typeof showToast === 'function') showToast(info.orgAbbrev + ': ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.', failed ? 'warn' : 'success');
+        else alert(info.orgAbbrev + ': ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.');
+        if (typeof closeActiveModal === 'function') closeActiveModal();
         await loadStandardsSyncTab();
     } catch (e) {
-        if (typeof showToast === 'function') showToast('Submit failed: ' + (e?.message || e), 'error');
-        else alert('Submit failed: ' + (e?.message || e));
+        const msg = e?.message || String(e);
+        if (typeof debugLog === 'function') debugLog('sync-org error: ' + msg, 'error');
+        if (typeof showToast === 'function') showToast('Submit failed: ' + msg, 'error');
+        else alert('Submit failed: ' + msg);
+    } finally {
+        if (createBtn) { createBtn.disabled = false; createBtn.innerHTML = orig || 'Create selected'; }
     }
+}
+
+async function submitOutcomesForOrg(orgId, orgAbbrev, orgName, toCreateCount) {
+    openOutcomeSelectModal(orgId, orgAbbrev, orgName);
 }
 
 async function finalizeStandards() {
@@ -5620,6 +5633,71 @@ document.addEventListener('click', function(event) {
         });
     }
 });
+
+document.addEventListener('click', function(event) {
+    const btn = event.target.closest('.acc-create-rubric, .acc-apply-tag, .acc-apply-quiz-tag');
+    if (!btn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (btn.classList.contains('acc-create-rubric')) {
+        let pl = {};
+        try { pl = JSON.parse(btn.getAttribute('data-payload') || '{}'); } catch (_) {}
+        if (!pl.resource_type || !pl.resource_id || !Array.isArray(pl.criteria) || !pl.criteria.length) {
+            if (typeof showToast === 'function') showToast('Invalid rubric data. Try refreshing.', 'error');
+            else alert('Invalid rubric data.');
+            return;
+        }
+        handleCreateRubric(pl);
+    } else if (btn.classList.contains('acc-apply-tag')) {
+        const type = btn.getAttribute('data-type');
+        const id = btn.getAttribute('data-id');
+        let stds = [];
+        try { stds = JSON.parse(btn.getAttribute('data-standards') || '[]'); } catch (_) {}
+        if (!type || !id || !stds.length) {
+            if (typeof showToast === 'function') showToast('No standards to apply. Try refreshing.', 'error');
+            else alert('No standards to apply.');
+            return;
+        }
+        applyAccreditationTagging(type, id, stds);
+    } else if (btn.classList.contains('acc-apply-quiz-tag')) {
+        const quizType = btn.getAttribute('data-quiz-type');
+        const id = btn.getAttribute('data-id');
+        let stds = [];
+        try { stds = JSON.parse(btn.getAttribute('data-standards') || '[]'); } catch (_) {}
+        if (!quizType || !id || !stds.length) {
+            if (typeof showToast === 'function') showToast('No standards to apply. Try refreshing.', 'error');
+            else alert('No standards to apply.');
+            return;
+        }
+        applyQuizAccreditationTagging(quizType, id, stds);
+    }
+});
+
+async function handleCreateRubric(pl) {
+    if (!selectedCourseId) {
+        if (typeof showToast === 'function') showToast('No course selected.', 'error');
+        return;
+    }
+    try {
+        const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/rubrics/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(pl)
+        });
+        const text = await res.text();
+        if (!res.ok) {
+            if (typeof showToast === 'function') showToast('Failed: ' + (text || res.statusText), 'error');
+            else alert('Failed: ' + (text || res.statusText));
+            return;
+        }
+        if (typeof showToast === 'function') showToast('Rubric created.', 'success');
+        if (typeof loadAccreditationAlignment === 'function') loadAccreditationAlignment({});
+    } catch (e) {
+        const msg = e?.message || String(e);
+        if (typeof showToast === 'function') showToast('Failed: ' + msg, 'error');
+        else alert('Failed: ' + msg);
+    }
+}
 
 // Application Mode Management
 let currentAppMode = localStorage.getItem('appMode') || 'demo';

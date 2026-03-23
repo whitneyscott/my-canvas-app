@@ -4314,7 +4314,9 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     orgName: string,
     cip?: string,
     degreeLevel?: string,
+    selectedStandardIds?: string[],
   ) {
+    console.log('[syncOutcomesForOrg] start', { courseId, orgId, orgAbbrev, orgName, cip, selectedStandardIds: selectedStandardIds?.length });
     const { token, baseUrl } = await this.getAuthHeaders();
     const profile = await this.getAccreditationProfile(courseId);
     const p = profile as Record<string, unknown>;
@@ -4326,9 +4328,22 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const byOrg = this.buildStandardsByOrg(organizations, selectedIds, false);
     const orgKey = orgAbbrev || orgId;
     const entry = byOrg.get(orgKey);
-    if (!entry) return { created: [], skipped: [], failed: [], message: 'No standards for this org.' };
-    const { standards } = entry;
-    const existingOutcomes = await this.getCourseOutcomeLinks(courseId);
+    if (!entry) {
+      console.error('[syncOutcomesForOrg] No entry for orgKey', orgKey, 'keys:', Array.from(byOrg.keys()));
+      return { summary: { created: 0, skipped: 0, failed: 0 }, created: [], skipped: [], failed: [], message: 'No standards for this org.' };
+    }
+    let { standards } = entry;
+    if (Array.isArray(selectedStandardIds) && selectedStandardIds.length) {
+      const wantSet = new Set(selectedStandardIds.map((s) => String(s || '').trim()).filter(Boolean));
+      standards = standards.filter((s) => wantSet.has(String(s?.id || '').trim()));
+    }
+    let existingOutcomes: any;
+    try {
+      existingOutcomes = await this.getCourseOutcomeLinks(courseId);
+    } catch (e: any) {
+      console.error('[syncOutcomesForOrg] getCourseOutcomeLinks failed', e?.message, e?.stack);
+      throw e;
+    }
     const existingByStd = new Map<string, any>();
     const existingTitles = new Set<string>();
     (existingOutcomes || []).forEach((o: any) => {
@@ -4338,7 +4353,14 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         if (key) existingByStd.set(key, o);
       });
     });
-    const groupId = await this.ensureOutcomeGroupForOrg(courseId, orgAbbrev, orgName, token, baseUrl);
+    let groupId: number;
+    try {
+      groupId = await this.ensureOutcomeGroupForOrg(courseId, orgAbbrev, orgName, token, baseUrl);
+      console.log('[syncOutcomesForOrg] groupId', groupId, 'orgKey', orgKey);
+    } catch (e: any) {
+      console.error('[syncOutcomesForOrg] ensureOutcomeGroupForOrg failed', orgKey, e?.message, e?.stack);
+      throw e;
+    }
     const created: Array<{ standard_id: string; outcome_id: number | null; title: string }> = [];
     const skipped: Array<{ standard_id: string; reason: string }> = [];
     const failed: Array<{ standard_id: string; error: string }> = [];
