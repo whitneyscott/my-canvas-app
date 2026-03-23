@@ -1,0 +1,96 @@
+{
+  "org_key": "AACSB",
+  "name": "Association to Advance Collegiate Schools of Business",
+  "display_name": "AACSB",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "AACSB-G-STRAT",
+      "parent_public_id": null,
+      "group_code": "STRAT",
+      "title": "Strategic Management",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "AACSB-STRAT-01",
+      "parent_public_id": "AACSB-G-STRAT",
+      "group_code": "STRAT",
+      "title": "Mission",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "AACSB-STRAT-02",
+      "parent_public_id": "AACSB-G-STRAT",
+      "group_code": "STRAT",
+      "title": "Innovation",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "AACSB-STRAT-03",
+      "parent_public_id": "AACSB-G-STRAT",
+      "group_code": "STRAT",
+      "title": "Engagement",
+      "kind": "leaf",
+      "sort_order": 13
+    },
+    {
+      "public_id": "AACSB-G-PART",
+      "parent_public_id": null,
+      "group_code": "PART",
+      "title": "Participants",
+      "kind": "group",
+      "sort_order": 19
+    },
+    {
+      "public_id": "AACSB-PART-01",
+      "parent_public_id": "AACSB-G-PART",
+      "group_code": "PART",
+      "title": "Students",
+      "kind": "leaf",
+      "sort_order": 20
+    },
+    {
+      "public_id": "AACSB-PART-02",
+      "parent_public_id": "AACSB-G-PART",
+      "group_code": "PART",
+      "title": "Faculty",
+      "kind": "leaf",
+      "sort_order": 21
+    },
+    {
+      "public_id": "AACSB-PART-03",
+      "parent_public_id": "AACSB-G-PART",
+      "group_code": "PART",
+      "title": "Staff",
+      "kind": "leaf",
+      "sort_order": 22
+    },
+    {
+      "public_id": "AACSB-G-LRN",
+      "parent_public_id": null,
+      "group_code": "LRN",
+      "title": "Learning and Teaching",
+      "kind": "group",
+      "sort_order": 28
+    },
+    {
+      "public_id": "AACSB-LRN-01",
+      "parent_public_id": "AACSB-G-LRN",
+      "group_code": "LRN",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 29
+    },
+    {
+      "public_id": "AACSB-LRN-02",
+      "parent_public_id": "AACSB-G-LRN",
+      "group_code": "LRN",
+      "title": "Assurance of learning",
+      "kind": "leaf",
+      "sort_order": 30
+    }
+  ]
+}

@@ -29,8 +29,13 @@ docker compose up -d db
 - First run: pulls `postgres:16-alpine`, creates the `accreditation` database and `pgdata` volume.
 - Subsequent runs: container starts quickly from the existing volume.
 
-## 2. Run migrations
+## 2. Run migrations and seed
 
+```bash
+npm run db:standards-complete
+```
+
+Or step-by-step:
 ```bash
 npm run db:migrate
 npm run db:migrate-standards
@@ -38,7 +43,7 @@ npm run db:seed-standards
 ```
 
 - Creates tables: `accreditors`, `cip_accreditor_mappings`, `institution_accreditations`, `sync_log`, plus `standards_organization`, `standard_node`, `standards_sync_state`.
-- Seeds **ASLTA** and **BEI** hierarchies from `data/standards/*.json`.
+- Seeds all 70+ org hierarchies from `data/standards/*.json` (ABET, AACSB, ACEN, CAEP, BEI, ASLTA, etc.).
 - Idempotent: safe to run multiple times.
 
 ## 3. Configure .env

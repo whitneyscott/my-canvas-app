@@ -1,0 +1,27 @@
+{
+  "org_key": "CEC",
+  "name": "Council for Exceptional Children",
+  "display_name": "CEC",
+  "source_note": "CEC Initial Preparation Standards and Deaf/HH specialty set (revalidated 2018); verify against cec.sped.org.",
+  "nodes": [
+    { "public_id": "CEC-1", "parent_public_id": null, "group_code": "INIT", "title": "Learner Development and Individual Learning Differences", "description": "Understanding how learners grow and differ.", "kind": "group", "sort_order": 10 },
+    { "public_id": "CEC-1-1", "parent_public_id": "CEC-1", "group_code": "INIT", "title": "Apply understanding of development and learning differences", "kind": "leaf", "sort_order": 11 },
+    { "public_id": "CEC-2", "parent_public_id": null, "group_code": "INIT", "title": "Learning Environments", "description": "Creating safe, inclusive, culturally responsive environments.", "kind": "group", "sort_order": 20 },
+    { "public_id": "CEC-2-1", "parent_public_id": "CEC-2", "group_code": "INIT", "title": "Establish safe and inclusive learning environments", "kind": "leaf", "sort_order": 21 },
+    { "public_id": "CEC-2-2", "parent_public_id": "CEC-2", "group_code": "INIT", "title": "Create culturally responsive environments", "kind": "leaf", "sort_order": 22 },
+    { "public_id": "CEC-3", "parent_public_id": null, "group_code": "INIT", "title": "Curricular Content Knowledge", "description": "Using knowledge of general and specialized curricula.", "kind": "group", "sort_order": 30 },
+    { "public_id": "CEC-3-1", "parent_public_id": "CEC-3", "group_code": "INIT", "title": "Use general and specialized curricula for individuals with exceptionalities", "kind": "leaf", "sort_order": 31 },
+    { "public_id": "CEC-4", "parent_public_id": null, "group_code": "INIT", "title": "Assessment", "description": "Using multiple methods of assessment.", "kind": "group", "sort_order": 40 },
+    { "public_id": "CEC-4-1", "parent_public_id": "CEC-4", "group_code": "INIT", "title": "Select and use technically sound assessments", "kind": "leaf", "sort_order": 41 },
+    { "public_id": "CEC-4-2", "parent_public_id": "CEC-4", "group_code": "INIT", "title": "Use assessment data to make educational decisions", "kind": "leaf", "sort_order": 42 },
+    { "public_id": "CEC-5", "parent_public_id": null, "group_code": "INIT", "title": "Instructional Planning and Strategies", "description": "Using research to select and implement instruction.", "kind": "group", "sort_order": 50 },
+    { "public_id": "CEC-5-1", "parent_public_id": "CEC-5", "group_code": "INIT", "title": "Use evidence-based instructional strategies", "kind": "leaf", "sort_order": 51 },
+    { "public_id": "CEC-5-2", "parent_public_id": "CEC-5", "group_code": "INIT", "title": "Use assistive and instructional technologies", "kind": "leaf", "sort_order": 52 },
+    { "public_id": "CEC-6", "parent_public_id": null, "group_code": "INIT", "title": "Professional Learning and Ethical Practice", "description": "Engaging in professional learning and ethical practice.", "kind": "group", "sort_order": 60 },
+    { "public_id": "CEC-6-1", "parent_public_id": "CEC-6", "group_code": "INIT", "title": "Engage in professional learning", "kind": "leaf", "sort_order": 61 },
+    { "public_id": "CEC-6-2", "parent_public_id": "CEC-6", "group_code": "INIT", "title": "Uphold ethical standards", "kind": "leaf", "sort_order": 62 },
+    { "public_id": "CEC-7", "parent_public_id": null, "group_code": "INIT", "title": "Collaboration", "description": "Collaborating with families and other professionals.", "kind": "group", "sort_order": 70 },
+    { "public_id": "CEC-7-1", "parent_public_id": "CEC-7", "group_code": "INIT", "title": "Collaborate with families", "kind": "leaf", "sort_order": 71 },
+    { "public_id": "CEC-7-2", "parent_public_id": "CEC-7", "group_code": "INIT", "title": "Collaborate with other professionals", "kind": "leaf", "sort_order": 72 }
+  ]
+}

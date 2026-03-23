@@ -1,0 +1,29 @@
+{
+  "org_key": "RID",
+  "name": "Registry of Interpreters for the Deaf",
+  "display_name": "RID",
+  "source_note": "NAD-RID Code of Professional Conduct (2005); verify against RID.org.",
+  "nodes": [
+    { "public_id": "RID-1", "parent_public_id": null, "group_code": "CPC", "title": "Confidentiality", "description": "Hold in confidence information obtained in interpreting assignments.", "kind": "group", "sort_order": 10 },
+    { "public_id": "RID-1-1", "parent_public_id": "RID-1", "group_code": "CPC", "title": "Share assignment-related information only on a confidential basis", "kind": "leaf", "sort_order": 11 },
+    { "public_id": "RID-1-2", "parent_public_id": "RID-1", "group_code": "CPC", "title": "Manage confidential consumer information appropriately", "kind": "leaf", "sort_order": 12 },
+    { "public_id": "RID-2", "parent_public_id": null, "group_code": "CPC", "title": "Professionalism", "description": "Conduct oneself professionally.", "kind": "group", "sort_order": 20 },
+    { "public_id": "RID-2-1", "parent_public_id": "RID-2", "group_code": "CPC", "title": "Provide quality interpretation; use professional discretion", "kind": "leaf", "sort_order": 21 },
+    { "public_id": "RID-2-2", "parent_public_id": "RID-2", "group_code": "CPC", "title": "Accept assignments using professional discretion", "kind": "leaf", "sort_order": 22 },
+    { "public_id": "RID-3", "parent_public_id": null, "group_code": "CPC", "title": "Conduct", "description": "Conduct oneself appropriately in interpreting situations.", "kind": "group", "sort_order": 30 },
+    { "public_id": "RID-3-1", "parent_public_id": "RID-3", "group_code": "CPC", "title": "Refrain from providing counsel or advice", "kind": "leaf", "sort_order": 31 },
+    { "public_id": "RID-3-2", "parent_public_id": "RID-3", "group_code": "CPC", "title": "Render all messages faithfully", "kind": "leaf", "sort_order": 32 },
+    { "public_id": "RID-4", "parent_public_id": null, "group_code": "CPC", "title": "Respect for Consumers", "description": "Respect consumers who are deaf, deaf-blind, hard of hearing, and hearing.", "kind": "group", "sort_order": 40 },
+    { "public_id": "RID-4-1", "parent_public_id": "RID-4", "group_code": "CPC", "title": "Facilitate communication access and equality", "kind": "leaf", "sort_order": 41 },
+    { "public_id": "RID-4-2", "parent_public_id": "RID-4", "group_code": "CPC", "title": "Honor consumer preferences in interpreting", "kind": "leaf", "sort_order": 42 },
+    { "public_id": "RID-5", "parent_public_id": null, "group_code": "CPC", "title": "Respect for Colleagues", "description": "Respect colleagues, interns, and students.", "kind": "group", "sort_order": 50 },
+    { "public_id": "RID-5-1", "parent_public_id": "RID-5", "group_code": "CPC", "title": "Collaborate with colleagues to foster professional growth", "kind": "leaf", "sort_order": 51 },
+    { "public_id": "RID-5-2", "parent_public_id": "RID-5", "group_code": "CPC", "title": "Refrain from inappropriate involvement in mentorship", "kind": "leaf", "sort_order": 52 },
+    { "public_id": "RID-6", "parent_public_id": null, "group_code": "CPC", "title": "Business Practices", "description": "Conduct business in a professional manner.", "kind": "group", "sort_order": 60 },
+    { "public_id": "RID-6-1", "parent_public_id": "RID-6", "group_code": "CPC", "title": "Conduct business with integrity", "kind": "leaf", "sort_order": 61 },
+    { "public_id": "RID-6-2", "parent_public_id": "RID-6", "group_code": "CPC", "title": "Honor professional commitments", "kind": "leaf", "sort_order": 62 },
+    { "public_id": "RID-7", "parent_public_id": null, "group_code": "CPC", "title": "Professional Development", "description": "Engage in professional development.", "kind": "group", "sort_order": 70 },
+    { "public_id": "RID-7-1", "parent_public_id": "RID-7", "group_code": "CPC", "title": "Maintain and enhance professional skills", "kind": "leaf", "sort_order": 71 },
+    { "public_id": "RID-7-2", "parent_public_id": "RID-7", "group_code": "CPC", "title": "Stay current on best practices", "kind": "leaf", "sort_order": 72 }
+  ]
+}

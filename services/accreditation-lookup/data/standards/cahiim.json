@@ -1,0 +1,32 @@
+{
+  "org_key": "CAHIIM",
+  "name": "Commission on Accreditation for Health Informatics and Information Management",
+  "display_name": "CAHIIM",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "CAHIIM-G-CURR",
+      "parent_public_id": null,
+      "group_code": "CURR",
+      "title": "Curriculum",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "CAHIIM-CURR-01",
+      "parent_public_id": "CAHIIM-G-CURR",
+      "group_code": "CURR",
+      "title": "Core competencies",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "CAHIIM-CURR-02",
+      "parent_public_id": "CAHIIM-G-CURR",
+      "group_code": "CURR",
+      "title": "Assessment",
+      "kind": "leaf",
+      "sort_order": 12
+    }
+  ]
+}

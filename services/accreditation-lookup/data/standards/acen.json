@@ -1,0 +1,88 @@
+{
+  "org_key": "ACEN",
+  "name": "Accreditation Commission for Education in Nursing",
+  "display_name": "ACEN",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "ACEN-G-MISSION",
+      "parent_public_id": null,
+      "group_code": "MISSION",
+      "title": "Mission and Administration",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "ACEN-MISSION-01",
+      "parent_public_id": "ACEN-G-MISSION",
+      "group_code": "MISSION",
+      "title": "Mission",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "ACEN-MISSION-02",
+      "parent_public_id": "ACEN-G-MISSION",
+      "group_code": "MISSION",
+      "title": "Governance",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "ACEN-MISSION-03",
+      "parent_public_id": "ACEN-G-MISSION",
+      "group_code": "MISSION",
+      "title": "Resources",
+      "kind": "leaf",
+      "sort_order": 13
+    },
+    {
+      "public_id": "ACEN-G-CURR",
+      "parent_public_id": null,
+      "group_code": "CURR",
+      "title": "Curriculum",
+      "kind": "group",
+      "sort_order": 19
+    },
+    {
+      "public_id": "ACEN-CURR-01",
+      "parent_public_id": "ACEN-G-CURR",
+      "group_code": "CURR",
+      "title": "Program outcomes",
+      "kind": "leaf",
+      "sort_order": 20
+    },
+    {
+      "public_id": "ACEN-CURR-02",
+      "parent_public_id": "ACEN-G-CURR",
+      "group_code": "CURR",
+      "title": "Clinical experiences",
+      "kind": "leaf",
+      "sort_order": 21
+    },
+    {
+      "public_id": "ACEN-G-FAC",
+      "parent_public_id": null,
+      "group_code": "FAC",
+      "title": "Faculty and Students",
+      "kind": "group",
+      "sort_order": 27
+    },
+    {
+      "public_id": "ACEN-FAC-01",
+      "parent_public_id": "ACEN-G-FAC",
+      "group_code": "FAC",
+      "title": "Faculty qualifications",
+      "kind": "leaf",
+      "sort_order": 28
+    },
+    {
+      "public_id": "ACEN-FAC-02",
+      "parent_public_id": "ACEN-G-FAC",
+      "group_code": "FAC",
+      "title": "Student services",
+      "kind": "leaf",
+      "sort_order": 29
+    }
+  ]
+}

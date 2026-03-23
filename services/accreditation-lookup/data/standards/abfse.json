@@ -1,0 +1,40 @@
+{
+  "org_key": "ABFSE",
+  "name": "American Board of Funeral Service Education",
+  "display_name": "ABFSE",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "ABFSE-G-PROG",
+      "parent_public_id": null,
+      "group_code": "PROG",
+      "title": "Program Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "ABFSE-PROG-01",
+      "parent_public_id": "ABFSE-G-PROG",
+      "group_code": "PROG",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "ABFSE-PROG-02",
+      "parent_public_id": "ABFSE-G-PROG",
+      "group_code": "PROG",
+      "title": "Faculty",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "ABFSE-PROG-03",
+      "parent_public_id": "ABFSE-G-PROG",
+      "group_code": "PROG",
+      "title": "Facilities",
+      "kind": "leaf",
+      "sort_order": 13
+    }
+  ]
+}

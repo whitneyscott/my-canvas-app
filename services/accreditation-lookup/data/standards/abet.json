@@ -1,0 +1,88 @@
+{
+  "org_key": "ABET",
+  "name": "Accreditation Board for Engineering and Technology",
+  "display_name": "ABET",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "ABET-G-SO",
+      "parent_public_id": null,
+      "group_code": "SO",
+      "title": "Student Outcomes",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "ABET-SO-01",
+      "parent_public_id": "ABET-G-SO",
+      "group_code": "SO",
+      "title": "SO-1 Apply knowledge",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "ABET-SO-02",
+      "parent_public_id": "ABET-G-SO",
+      "group_code": "SO",
+      "title": "SO-2 Design and conduct experiments",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "ABET-SO-03",
+      "parent_public_id": "ABET-G-SO",
+      "group_code": "SO",
+      "title": "SO-3 Design system/component",
+      "kind": "leaf",
+      "sort_order": 13
+    },
+    {
+      "public_id": "ABET-G-PC",
+      "parent_public_id": null,
+      "group_code": "PC",
+      "title": "Program Criteria",
+      "kind": "group",
+      "sort_order": 19
+    },
+    {
+      "public_id": "ABET-PC-01",
+      "parent_public_id": "ABET-G-PC",
+      "group_code": "PC",
+      "title": "Program-specific criteria apply",
+      "kind": "leaf",
+      "sort_order": 20
+    },
+    {
+      "public_id": "ABET-G-CURR",
+      "parent_public_id": null,
+      "group_code": "CURR",
+      "title": "Curriculum",
+      "kind": "group",
+      "sort_order": 26
+    },
+    {
+      "public_id": "ABET-CURR-01",
+      "parent_public_id": "ABET-G-CURR",
+      "group_code": "CURR",
+      "title": "Mathematics and basic sciences",
+      "kind": "leaf",
+      "sort_order": 27
+    },
+    {
+      "public_id": "ABET-CURR-02",
+      "parent_public_id": "ABET-G-CURR",
+      "group_code": "CURR",
+      "title": "Engineering topics",
+      "kind": "leaf",
+      "sort_order": 28
+    },
+    {
+      "public_id": "ABET-CURR-03",
+      "parent_public_id": "ABET-G-CURR",
+      "group_code": "CURR",
+      "title": "General education",
+      "kind": "leaf",
+      "sort_order": 29
+    }
+  ]
+}

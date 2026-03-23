@@ -1,0 +1,40 @@
+{
+  "org_key": "ACAE",
+  "name": "American Council for Acupuncture and Oriental Medicine",
+  "display_name": "ACAE",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "ACAE-G-PROG",
+      "parent_public_id": null,
+      "group_code": "PROG",
+      "title": "Program Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "ACAE-PROG-01",
+      "parent_public_id": "ACAE-G-PROG",
+      "group_code": "PROG",
+      "title": "Curriculum structure",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "ACAE-PROG-02",
+      "parent_public_id": "ACAE-G-PROG",
+      "group_code": "PROG",
+      "title": "Clinical training",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "ACAE-PROG-03",
+      "parent_public_id": "ACAE-G-PROG",
+      "group_code": "PROG",
+      "title": "Faculty qualifications",
+      "kind": "leaf",
+      "sort_order": 13
+    }
+  ]
+}

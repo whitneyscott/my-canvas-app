@@ -1,0 +1,32 @@
+{
+  "org_key": "PCSAS",
+  "name": "Psychological Clinical Science Accreditation System",
+  "display_name": "PCSAS",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "PCSAS-G-SCI",
+      "parent_public_id": null,
+      "group_code": "SCI",
+      "title": "Clinical Science",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "PCSAS-SCI-01",
+      "parent_public_id": "PCSAS-G-SCI",
+      "group_code": "SCI",
+      "title": "Scientific training",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "PCSAS-SCI-02",
+      "parent_public_id": "PCSAS-G-SCI",
+      "group_code": "SCI",
+      "title": "Clinical competency",
+      "kind": "leaf",
+      "sort_order": 12
+    }
+  ]
+}

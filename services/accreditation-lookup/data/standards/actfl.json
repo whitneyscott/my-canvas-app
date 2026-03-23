@@ -1,0 +1,24 @@
+{
+  "org_key": "ACTFL",
+  "name": "American Council on the Teaching of Foreign Languages",
+  "display_name": "ACTFL",
+  "source_note": "ACTFL World-Readiness Standards for Learning Languages (5 Cs); verify against official publication.",
+  "nodes": [
+    { "public_id": "ACTFL-C", "parent_public_id": null, "group_code": "5C", "title": "Communication", "description": "Communicate effectively in more than one language.", "kind": "group", "sort_order": 10 },
+    { "public_id": "ACTFL-C-1", "parent_public_id": "ACTFL-C", "group_code": "5C", "title": "Interpersonal: interact and negotiate meaning", "kind": "leaf", "sort_order": 11 },
+    { "public_id": "ACTFL-C-2", "parent_public_id": "ACTFL-C", "group_code": "5C", "title": "Interpretive: understand and interpret written and spoken language", "kind": "leaf", "sort_order": 12 },
+    { "public_id": "ACTFL-C-3", "parent_public_id": "ACTFL-C", "group_code": "5C", "title": "Presentational: present information to audiences", "kind": "leaf", "sort_order": 13 },
+    { "public_id": "ACTFL-CU", "parent_public_id": null, "group_code": "5C", "title": "Cultures", "description": "Interact with cultural competence.", "kind": "group", "sort_order": 20 },
+    { "public_id": "ACTFL-CU-1", "parent_public_id": "ACTFL-CU", "group_code": "5C", "title": "Relating cultural practices to perspectives", "kind": "leaf", "sort_order": 21 },
+    { "public_id": "ACTFL-CU-2", "parent_public_id": "ACTFL-CU", "group_code": "5C", "title": "Relating cultural products to perspectives", "kind": "leaf", "sort_order": 22 },
+    { "public_id": "ACTFL-CO", "parent_public_id": null, "group_code": "5C", "title": "Connections", "description": "Connect with other disciplines and acquire information.", "kind": "group", "sort_order": 30 },
+    { "public_id": "ACTFL-CO-1", "parent_public_id": "ACTFL-CO", "group_code": "5C", "title": "Making connections to other disciplines", "kind": "leaf", "sort_order": 31 },
+    { "public_id": "ACTFL-CO-2", "parent_public_id": "ACTFL-CO", "group_code": "5C", "title": "Acquiring information through language and culture", "kind": "leaf", "sort_order": 32 },
+    { "public_id": "ACTFL-COMP", "parent_public_id": null, "group_code": "5C", "title": "Comparisons", "description": "Develop insight through language and culture comparison.", "kind": "group", "sort_order": 40 },
+    { "public_id": "ACTFL-COMP-1", "parent_public_id": "ACTFL-COMP", "group_code": "5C", "title": "Language comparisons", "kind": "leaf", "sort_order": 41 },
+    { "public_id": "ACTFL-COMP-2", "parent_public_id": "ACTFL-COMP", "group_code": "5C", "title": "Cultural comparisons", "kind": "leaf", "sort_order": 42 },
+    { "public_id": "ACTFL-COMM", "parent_public_id": null, "group_code": "5C", "title": "Communities", "description": "Participate in multilingual communities.", "kind": "group", "sort_order": 50 },
+    { "public_id": "ACTFL-COMM-1", "parent_public_id": "ACTFL-COMM", "group_code": "5C", "title": "Language use beyond the classroom", "kind": "leaf", "sort_order": 51 },
+    { "public_id": "ACTFL-COMM-2", "parent_public_id": "ACTFL-COMM", "group_code": "5C", "title": "Lifelong learning", "kind": "leaf", "sort_order": 52 }
+  ]
+}

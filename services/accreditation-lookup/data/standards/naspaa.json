@@ -1,0 +1,48 @@
+{
+  "org_key": "NASPAA",
+  "name": "Network of Schools of Public Policy, Affairs, and Administration",
+  "display_name": "NASPAA",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "NASPAA-G-COPRA",
+      "parent_public_id": null,
+      "group_code": "COPRA",
+      "title": "COPRA Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "NASPAA-COPRA-01",
+      "parent_public_id": "NASPAA-G-COPRA",
+      "group_code": "COPRA",
+      "title": "Mission",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "NASPAA-COPRA-02",
+      "parent_public_id": "NASPAA-G-COPRA",
+      "group_code": "COPRA",
+      "title": "Governance",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "NASPAA-COPRA-03",
+      "parent_public_id": "NASPAA-G-COPRA",
+      "group_code": "COPRA",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 13
+    },
+    {
+      "public_id": "NASPAA-COPRA-04",
+      "parent_public_id": "NASPAA-G-COPRA",
+      "group_code": "COPRA",
+      "title": "Faculty",
+      "kind": "leaf",
+      "sort_order": 14
+    }
+  ]
+}

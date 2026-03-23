@@ -1,0 +1,40 @@
+{
+  "org_key": "CAMPEP",
+  "name": "Commission on Accreditation of Medical Physics Education Programs",
+  "display_name": "CAMPEP",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "CAMPEP-G-PROG",
+      "parent_public_id": null,
+      "group_code": "PROG",
+      "title": "Program Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "CAMPEP-PROG-01",
+      "parent_public_id": "CAMPEP-G-PROG",
+      "group_code": "PROG",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "CAMPEP-PROG-02",
+      "parent_public_id": "CAMPEP-G-PROG",
+      "group_code": "PROG",
+      "title": "Clinical",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "CAMPEP-PROG-03",
+      "parent_public_id": "CAMPEP-G-PROG",
+      "group_code": "PROG",
+      "title": "Faculty",
+      "kind": "leaf",
+      "sort_order": 13
+    }
+  ]
+}

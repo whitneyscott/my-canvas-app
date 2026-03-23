@@ -1,0 +1,16 @@
+{
+  "org_key": "SACSCOC",
+  "name": "Southern Association of Colleges and Schools Commission on Colleges",
+  "display_name": "SACSCOC",
+  "source_note": "Principles of Accreditation; institutional-level; verify against sacscoc.org.",
+  "nodes": [
+    { "public_id": "SACS-1", "parent_public_id": null, "group_code": "PRIN", "title": "Integrity", "description": "Institutional integrity in all endeavors.", "kind": "group", "sort_order": 10 },
+    { "public_id": "SACS-1-1", "parent_public_id": "SACS-1", "group_code": "PRIN", "title": "Integrity in representation to publics", "kind": "leaf", "sort_order": 11 },
+    { "public_id": "SACS-2", "parent_public_id": null, "group_code": "PRIN", "title": "Mission", "description": "Clear and appropriate mission.", "kind": "group", "sort_order": 20 },
+    { "public_id": "SACS-2-1", "parent_public_id": "SACS-2", "group_code": "PRIN", "title": "Mission statement and institutional effectiveness", "kind": "leaf", "sort_order": 21 },
+    { "public_id": "SACS-3", "parent_public_id": null, "group_code": "PRIN", "title": "Comprehensive Standards", "description": "Core requirements and comprehensive standards.", "kind": "group", "sort_order": 30 },
+    { "public_id": "SACS-3-1", "parent_public_id": "SACS-3", "group_code": "PRIN", "title": "Governance and administration", "kind": "leaf", "sort_order": 31 },
+    { "public_id": "SACS-3-2", "parent_public_id": "SACS-3", "group_code": "PRIN", "title": "Programs and curriculum", "kind": "leaf", "sort_order": 32 },
+    { "public_id": "SACS-3-3", "parent_public_id": "SACS-3", "group_code": "PRIN", "title": "Faculty and resources", "kind": "leaf", "sort_order": 33 }
+  ]
+}

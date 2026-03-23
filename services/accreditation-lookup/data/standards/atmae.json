@@ -1,0 +1,40 @@
+{
+  "org_key": "ATMAE",
+  "name": "Association of Technology, Management, and Applied Engineering",
+  "display_name": "ATMAE",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "ATMAE-G-CURR",
+      "parent_public_id": null,
+      "group_code": "CURR",
+      "title": "Curriculum",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "ATMAE-CURR-01",
+      "parent_public_id": "ATMAE-G-CURR",
+      "group_code": "CURR",
+      "title": "Technical content",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "ATMAE-CURR-02",
+      "parent_public_id": "ATMAE-G-CURR",
+      "group_code": "CURR",
+      "title": "Management",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "ATMAE-CURR-03",
+      "parent_public_id": "ATMAE-G-CURR",
+      "group_code": "CURR",
+      "title": "Assessment",
+      "kind": "leaf",
+      "sort_order": 13
+    }
+  ]
+}

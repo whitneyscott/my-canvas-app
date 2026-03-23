@@ -3488,6 +3488,12 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return [...general, ...list];
   }
 
+  private getAccreditationLookupBase(): string {
+    const raw = (this.config.get<string>('ACCREDITATION_LOOKUP_URL') || '').replace(/\/$/, '');
+    if (!raw) return '';
+    return /^https?:\/\//i.test(raw) ? raw : `http://${raw}`;
+  }
+
   async getAccreditorsForCourse(
     courseId: number,
     cip?: string,
@@ -3507,7 +3513,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       return { accreditors: general, source: 'stub' };
     }
     const cipKey = cipParam.includes('.') ? cipParam : cipParam.replace(/^(\d{2})(\d{2})$/, '$1.$2');
-    const base = (this.config.get<string>('ACCREDITATION_LOOKUP_URL') || '').replace(/\/$/, '');
+    const base = this.getAccreditationLookupBase();
     console.log('[Accreditation] Lookup config:', { base: base ? base + ' (set)' : '(not set)', cipParam, cipKey });
     if (base) {
       const params = new URLSearchParams({ cip: cipParam });
@@ -3591,7 +3597,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     cip?: string,
     degreeLevel?: string,
   ): Promise<{ standards: AccreditationStandardNode[]; sourceUri?: string }> {
-    const base = (this.config.get<string>('ACCREDITATION_LOOKUP_URL') || '').replace(/\/$/, '');
+    const base = this.getAccreditationLookupBase();
     if (!base) return { standards: [] };
     const params = new URLSearchParams({ org: orgId });
     if (cip) params.set('cip', cip);

@@ -1,0 +1,40 @@
+{
+  "org_key": "CCE",
+  "name": "Council on Chiropractic Education",
+  "display_name": "CCE",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "CCE-G-STAND",
+      "parent_public_id": null,
+      "group_code": "STAND",
+      "title": "Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "CCE-STAND-01",
+      "parent_public_id": "CCE-G-STAND",
+      "group_code": "STAND",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "CCE-STAND-02",
+      "parent_public_id": "CCE-G-STAND",
+      "group_code": "STAND",
+      "title": "Clinical",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "CCE-STAND-03",
+      "parent_public_id": "CCE-G-STAND",
+      "group_code": "STAND",
+      "title": "Faculty",
+      "kind": "leaf",
+      "sort_order": 13
+    }
+  ]
+}

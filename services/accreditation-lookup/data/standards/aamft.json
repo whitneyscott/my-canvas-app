@@ -1,0 +1,40 @@
+{
+  "org_key": "AAMFT",
+  "name": "American Association for Marriage and Family Therapy",
+  "display_name": "AAMFT",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "AAMFT-G-COAMFTE",
+      "parent_public_id": null,
+      "group_code": "COAMFTE",
+      "title": "COAMFTE Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "AAMFT-COAMFTE-01",
+      "parent_public_id": "AAMFT-G-COAMFTE",
+      "group_code": "COAMFTE",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "AAMFT-COAMFTE-02",
+      "parent_public_id": "AAMFT-G-COAMFTE",
+      "group_code": "COAMFTE",
+      "title": "Clinical",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "AAMFT-COAMFTE-03",
+      "parent_public_id": "AAMFT-G-COAMFTE",
+      "group_code": "COAMFTE",
+      "title": "Faculty",
+      "kind": "leaf",
+      "sort_order": 13
+    }
+  ]
+}

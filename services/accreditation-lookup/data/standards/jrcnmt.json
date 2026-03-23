@@ -1,0 +1,40 @@
+{
+  "org_key": "JRCNMT",
+  "name": "Joint Review Committee on Educational Programs in Nuclear Medicine Technology",
+  "display_name": "JRCNMT",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "JRCNMT-G-PROG",
+      "parent_public_id": null,
+      "group_code": "PROG",
+      "title": "Program Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "JRCNMT-PROG-01",
+      "parent_public_id": "JRCNMT-G-PROG",
+      "group_code": "PROG",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "JRCNMT-PROG-02",
+      "parent_public_id": "JRCNMT-G-PROG",
+      "group_code": "PROG",
+      "title": "Clinical",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "JRCNMT-PROG-03",
+      "parent_public_id": "JRCNMT-G-PROG",
+      "group_code": "PROG",
+      "title": "Faculty",
+      "kind": "leaf",
+      "sort_order": 13
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "org_key": "AAQEP",
+  "name": "Association for Advancing Quality in Educator Preparation",
+  "display_name": "AAQEP",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "AAQEP-G-QUAL",
+      "parent_public_id": null,
+      "group_code": "QUAL",
+      "title": "Quality Principles",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "AAQEP-QUAL-01",
+      "parent_public_id": "AAQEP-G-QUAL",
+      "group_code": "QUAL",
+      "title": "Program design",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "AAQEP-QUAL-02",
+      "parent_public_id": "AAQEP-G-QUAL",
+      "group_code": "QUAL",
+      "title": "Evidence",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "AAQEP-QUAL-03",
+      "parent_public_id": "AAQEP-G-QUAL",
+      "group_code": "QUAL",
+      "title": "Improvement",
+      "kind": "leaf",
+      "sort_order": 13
+    }
+  ]
+}

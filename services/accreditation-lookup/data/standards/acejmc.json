@@ -1,0 +1,56 @@
+{
+  "org_key": "ACEJMC",
+  "name": "Accrediting Council on Education in Journalism and Mass Communications",
+  "display_name": "ACEJMC",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "ACEJMC-G-CURR",
+      "parent_public_id": null,
+      "group_code": "CURR",
+      "title": "Curriculum",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "ACEJMC-CURR-01",
+      "parent_public_id": "ACEJMC-G-CURR",
+      "group_code": "CURR",
+      "title": "Core competencies",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "ACEJMC-CURR-02",
+      "parent_public_id": "ACEJMC-G-CURR",
+      "group_code": "CURR",
+      "title": "Professional values",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "ACEJMC-G-DIV",
+      "parent_public_id": null,
+      "group_code": "DIV",
+      "title": "Diversity and Inclusion",
+      "kind": "group",
+      "sort_order": 18
+    },
+    {
+      "public_id": "ACEJMC-DIV-01",
+      "parent_public_id": "ACEJMC-G-DIV",
+      "group_code": "DIV",
+      "title": "Recruitment",
+      "kind": "leaf",
+      "sort_order": 19
+    },
+    {
+      "public_id": "ACEJMC-DIV-02",
+      "parent_public_id": "ACEJMC-G-DIV",
+      "group_code": "DIV",
+      "title": "Retention",
+      "kind": "leaf",
+      "sort_order": 20
+    }
+  ]
+}

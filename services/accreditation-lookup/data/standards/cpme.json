@@ -1,0 +1,40 @@
+{
+  "org_key": "CPME",
+  "name": "Council on Podiatric Medical Education",
+  "display_name": "CPME",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "CPME-G-PROG",
+      "parent_public_id": null,
+      "group_code": "PROG",
+      "title": "Program Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "CPME-PROG-01",
+      "parent_public_id": "CPME-G-PROG",
+      "group_code": "PROG",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "CPME-PROG-02",
+      "parent_public_id": "CPME-G-PROG",
+      "group_code": "PROG",
+      "title": "Faculty",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "CPME-PROG-03",
+      "parent_public_id": "CPME-G-PROG",
+      "group_code": "PROG",
+      "title": "Resources",
+      "kind": "leaf",
+      "sort_order": 13
+    }
+  ]
+}

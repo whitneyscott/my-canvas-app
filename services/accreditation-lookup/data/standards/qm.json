@@ -1,0 +1,32 @@
+{
+  "org_key": "QM",
+  "name": "Quality Matters",
+  "display_name": "QM",
+  "source_note": "QM Higher Education Rubric 7th edition; verify against official PDF.",
+  "nodes": [
+    { "public_id": "QM-1", "parent_public_id": null, "group_code": "GEN", "title": "Course Overview and Introduction", "description": "Getting started, structure, communication guidelines, policies, technology.", "kind": "group", "sort_order": 10 },
+    { "public_id": "QM-1-1", "parent_public_id": "QM-1", "group_code": "GEN", "title": "Course navigational instructions make organization transparent", "kind": "leaf", "sort_order": 11 },
+    { "public_id": "QM-1-2", "parent_public_id": "QM-1", "group_code": "GEN", "title": "Communication expectations and netiquette guidelines stated", "kind": "leaf", "sort_order": 12 },
+    { "public_id": "QM-1-3", "parent_public_id": "QM-1", "group_code": "GEN", "title": "Technology and accessibility requirements clearly communicated", "kind": "leaf", "sort_order": 13 },
+    { "public_id": "QM-1-4", "parent_public_id": "QM-1", "group_code": "GEN", "title": "Instructor and learner introductions supported", "kind": "leaf", "sort_order": 14 },
+    { "public_id": "QM-2", "parent_public_id": null, "group_code": "GEN", "title": "Learning Objectives (Competencies)", "description": "Measurable, learner-centered objectives aligned with course level.", "kind": "group", "sort_order": 20 },
+    { "public_id": "QM-2-1", "parent_public_id": "QM-2", "group_code": "GEN", "title": "Objectives measurable and appropriately written for level", "kind": "leaf", "sort_order": 21 },
+    { "public_id": "QM-2-2", "parent_public_id": "QM-2", "group_code": "GEN", "title": "Module/unit objectives aligned with course objectives", "kind": "leaf", "sort_order": 22 },
+    { "public_id": "QM-3", "parent_public_id": null, "group_code": "GEN", "title": "Assessment and Measurement", "description": "Alignment with objectives, grading policies, evaluation criteria.", "kind": "group", "sort_order": 30 },
+    { "public_id": "QM-3-1", "parent_public_id": "QM-3", "group_code": "GEN", "title": "Assessments aligned with learning objectives", "kind": "leaf", "sort_order": 31 },
+    { "public_id": "QM-3-2", "parent_public_id": "QM-3", "group_code": "GEN", "title": "Grading policy clearly stated", "kind": "leaf", "sort_order": 32 },
+    { "public_id": "QM-3-3", "parent_public_id": "QM-3", "group_code": "GEN", "title": "Multiple assessment types and timely feedback", "kind": "leaf", "sort_order": 33 },
+    { "public_id": "QM-4", "parent_public_id": null, "group_code": "GEN", "title": "Instructional Materials", "description": "Materials supporting learning objectives and academic integrity.", "kind": "group", "sort_order": 40 },
+    { "public_id": "QM-4-1", "parent_public_id": "QM-4", "group_code": "GEN", "title": "Materials support learning objectives", "kind": "leaf", "sort_order": 41 },
+    { "public_id": "QM-4-2", "parent_public_id": "QM-4", "group_code": "GEN", "title": "Variety of instructional materials; purpose clear", "kind": "leaf", "sort_order": 42 },
+    { "public_id": "QM-4-3", "parent_public_id": "QM-4", "group_code": "GEN", "title": "Copyright and accessibility addressed", "kind": "leaf", "sort_order": 43 },
+    { "public_id": "QM-5", "parent_public_id": null, "group_code": "GEN", "title": "Learning Activities and Learner Interaction", "description": "Active learning and instructor interaction.", "kind": "group", "sort_order": 50 },
+    { "public_id": "QM-5-1", "parent_public_id": "QM-5", "group_code": "GEN", "title": "Activities promote achievement of objectives", "kind": "leaf", "sort_order": 51 },
+    { "public_id": "QM-5-2", "parent_public_id": "QM-5", "group_code": "GEN", "title": "Instructor participation plan evident", "kind": "leaf", "sort_order": 52 },
+    { "public_id": "QM-5-3", "parent_public_id": "QM-5", "group_code": "GEN", "title": "Learner interaction supported", "kind": "leaf", "sort_order": 53 },
+    { "public_id": "QM-6", "parent_public_id": null, "group_code": "GEN", "title": "Course Technology", "description": "Tools supporting learning objectives and engagement.", "kind": "group", "sort_order": 60 },
+    { "public_id": "QM-6-1", "parent_public_id": "QM-6", "group_code": "GEN", "title": "Technology supports learning objectives", "kind": "leaf", "sort_order": 61 },
+    { "public_id": "QM-6-2", "parent_public_id": "QM-6", "group_code": "GEN", "title": "Tools promote learner engagement", "kind": "leaf", "sort_order": 62 },
+    { "public_id": "QM-6-3", "parent_public_id": "QM-6", "group_code": "GEN", "title": "Technologies accessible", "kind": "leaf", "sort_order": 63 }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "org_key": "LAAB",
+  "name": "Landscape Architectural Accreditation Board",
+  "display_name": "LAAB",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "LAAB-G-STAND",
+      "parent_public_id": null,
+      "group_code": "STAND",
+      "title": "Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "LAAB-STAND-01",
+      "parent_public_id": "LAAB-G-STAND",
+      "group_code": "STAND",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "LAAB-STAND-02",
+      "parent_public_id": "LAAB-G-STAND",
+      "group_code": "STAND",
+      "title": "Faculty",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "LAAB-STAND-03",
+      "parent_public_id": "LAAB-G-STAND",
+      "group_code": "STAND",
+      "title": "Resources",
+      "kind": "leaf",
+      "sort_order": 13
+    }
+  ]
+}

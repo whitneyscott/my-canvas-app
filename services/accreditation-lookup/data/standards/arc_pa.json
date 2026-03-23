@@ -1,0 +1,72 @@
+{
+  "org_key": "ARC_PA",
+  "name": "Accreditation Review Commission on Education for the Physician Assistant",
+  "display_name": "ARC_PA",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "ARC_PA-G-CURR",
+      "parent_public_id": null,
+      "group_code": "CURR",
+      "title": "Curriculum",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "ARC_PA-CURR-01",
+      "parent_public_id": "ARC_PA-G-CURR",
+      "group_code": "CURR",
+      "title": "Didactic",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "ARC_PA-CURR-02",
+      "parent_public_id": "ARC_PA-G-CURR",
+      "group_code": "CURR",
+      "title": "Clinical",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "ARC_PA-CURR-03",
+      "parent_public_id": "ARC_PA-G-CURR",
+      "group_code": "CURR",
+      "title": "Assessment",
+      "kind": "leaf",
+      "sort_order": 13
+    },
+    {
+      "public_id": "ARC_PA-G-ADMIN",
+      "parent_public_id": null,
+      "group_code": "ADMIN",
+      "title": "Administration",
+      "kind": "group",
+      "sort_order": 19
+    },
+    {
+      "public_id": "ARC_PA-ADMIN-01",
+      "parent_public_id": "ARC_PA-G-ADMIN",
+      "group_code": "ADMIN",
+      "title": "Faculty",
+      "kind": "leaf",
+      "sort_order": 20
+    },
+    {
+      "public_id": "ARC_PA-ADMIN-02",
+      "parent_public_id": "ARC_PA-G-ADMIN",
+      "group_code": "ADMIN",
+      "title": "Resources",
+      "kind": "leaf",
+      "sort_order": 21
+    },
+    {
+      "public_id": "ARC_PA-ADMIN-03",
+      "parent_public_id": "ARC_PA-G-ADMIN",
+      "group_code": "ADMIN",
+      "title": "Students",
+      "kind": "leaf",
+      "sort_order": 22
+    }
+  ]
+}

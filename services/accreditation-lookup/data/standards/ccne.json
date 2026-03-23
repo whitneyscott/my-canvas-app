@@ -1,0 +1,80 @@
+{
+  "org_key": "CCNE",
+  "name": "Commission on Collegiate Nursing Education",
+  "display_name": "CCNE",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "CCNE-G-I",
+      "parent_public_id": null,
+      "group_code": "I",
+      "title": "Program Quality",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "CCNE-I-01",
+      "parent_public_id": "CCNE-G-I",
+      "group_code": "I",
+      "title": "Mission and governance",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "CCNE-I-02",
+      "parent_public_id": "CCNE-G-I",
+      "group_code": "I",
+      "title": "Institutional commitment",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "CCNE-G-II",
+      "parent_public_id": null,
+      "group_code": "II",
+      "title": "Program Quality",
+      "kind": "group",
+      "sort_order": 18
+    },
+    {
+      "public_id": "CCNE-II-01",
+      "parent_public_id": "CCNE-G-II",
+      "group_code": "II",
+      "title": "Curriculum and teaching-learning",
+      "kind": "leaf",
+      "sort_order": 19
+    },
+    {
+      "public_id": "CCNE-II-02",
+      "parent_public_id": "CCNE-G-II",
+      "group_code": "II",
+      "title": "Student outcomes",
+      "kind": "leaf",
+      "sort_order": 20
+    },
+    {
+      "public_id": "CCNE-G-III",
+      "parent_public_id": null,
+      "group_code": "III",
+      "title": "Program Quality",
+      "kind": "group",
+      "sort_order": 26
+    },
+    {
+      "public_id": "CCNE-III-01",
+      "parent_public_id": "CCNE-G-III",
+      "group_code": "III",
+      "title": "Faculty and staff",
+      "kind": "leaf",
+      "sort_order": 27
+    },
+    {
+      "public_id": "CCNE-III-02",
+      "parent_public_id": "CCNE-G-III",
+      "group_code": "III",
+      "title": "Resources",
+      "kind": "leaf",
+      "sort_order": 28
+    }
+  ]
+}

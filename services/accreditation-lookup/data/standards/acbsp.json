@@ -1,0 +1,56 @@
+{
+  "org_key": "ACBSP",
+  "name": "Accreditation Council for Business Schools and Programs",
+  "display_name": "ACBSP",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "ACBSP-G-LEAD",
+      "parent_public_id": null,
+      "group_code": "LEAD",
+      "title": "Leadership",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "ACBSP-LEAD-01",
+      "parent_public_id": "ACBSP-G-LEAD",
+      "group_code": "LEAD",
+      "title": "Strategic planning",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "ACBSP-LEAD-02",
+      "parent_public_id": "ACBSP-G-LEAD",
+      "group_code": "LEAD",
+      "title": "Stakeholder focus",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "ACBSP-G-STU",
+      "parent_public_id": null,
+      "group_code": "STU",
+      "title": "Student Learning",
+      "kind": "group",
+      "sort_order": 18
+    },
+    {
+      "public_id": "ACBSP-STU-01",
+      "parent_public_id": "ACBSP-G-STU",
+      "group_code": "STU",
+      "title": "Outcomes assessment",
+      "kind": "leaf",
+      "sort_order": 19
+    },
+    {
+      "public_id": "ACBSP-STU-02",
+      "parent_public_id": "ACBSP-G-STU",
+      "group_code": "STU",
+      "title": "Continuous improvement",
+      "kind": "leaf",
+      "sort_order": 20
+    }
+  ]
+}

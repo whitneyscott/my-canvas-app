@@ -1,0 +1,48 @@
+{
+  "org_key": "AVMA",
+  "name": "American Veterinary Medical Association",
+  "display_name": "AVMA",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "AVMA-G-STAND",
+      "parent_public_id": null,
+      "group_code": "STAND",
+      "title": "Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "AVMA-STAND-01",
+      "parent_public_id": "AVMA-G-STAND",
+      "group_code": "STAND",
+      "title": "Organization",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "AVMA-STAND-02",
+      "parent_public_id": "AVMA-G-STAND",
+      "group_code": "STAND",
+      "title": "Resources",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "AVMA-STAND-03",
+      "parent_public_id": "AVMA-G-STAND",
+      "group_code": "STAND",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 13
+    },
+    {
+      "public_id": "AVMA-STAND-04",
+      "parent_public_id": "AVMA-G-STAND",
+      "group_code": "STAND",
+      "title": "Outcomes",
+      "kind": "leaf",
+      "sort_order": 14
+    }
+  ]
+}

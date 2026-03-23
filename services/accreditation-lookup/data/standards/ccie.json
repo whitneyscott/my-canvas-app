@@ -1,0 +1,23 @@
+{
+  "org_key": "CCIE",
+  "name": "Commission on Collegiate Interpreter Education",
+  "display_name": "CCIE",
+  "source_note": "CCIE program standards for interpreter education; verify against official CCIE publications.",
+  "nodes": [
+    { "public_id": "CCIE-1", "parent_public_id": null, "group_code": "PROG", "title": "Program Mission and Goals", "description": "Program alignment with interpreter education goals.", "kind": "group", "sort_order": 10 },
+    { "public_id": "CCIE-1-1", "parent_public_id": "CCIE-1", "group_code": "PROG", "title": "Mission and goals reflect interpreter education standards", "kind": "leaf", "sort_order": 11 },
+    { "public_id": "CCIE-2", "parent_public_id": null, "group_code": "PROG", "title": "Curriculum", "description": "Curriculum design and content.", "kind": "group", "sort_order": 20 },
+    { "public_id": "CCIE-2-1", "parent_public_id": "CCIE-2", "group_code": "PROG", "title": "ASL and interpreting coursework sequenced appropriately", "kind": "leaf", "sort_order": 21 },
+    { "public_id": "CCIE-2-2", "parent_public_id": "CCIE-2", "group_code": "PROG", "title": "Deaf culture and linguistics included", "kind": "leaf", "sort_order": 22 },
+    { "public_id": "CCIE-2-3", "parent_public_id": "CCIE-2", "group_code": "PROG", "title": "Ethics and professional practice integrated", "kind": "leaf", "sort_order": 23 },
+    { "public_id": "CCIE-3", "parent_public_id": null, "group_code": "PROG", "title": "Faculty and Staff", "description": "Faculty qualifications and support.", "kind": "group", "sort_order": 30 },
+    { "public_id": "CCIE-3-1", "parent_public_id": "CCIE-3", "group_code": "PROG", "title": "Faculty possess appropriate credentials and experience", "kind": "leaf", "sort_order": 31 },
+    { "public_id": "CCIE-3-2", "parent_public_id": "CCIE-3", "group_code": "PROG", "title": "Deaf and hearing faculty balance", "kind": "leaf", "sort_order": 32 },
+    { "public_id": "CCIE-4", "parent_public_id": null, "group_code": "PROG", "title": "Assessment and Continuous Improvement", "description": "Program evaluation and improvement.", "kind": "group", "sort_order": 40 },
+    { "public_id": "CCIE-4-1", "parent_public_id": "CCIE-4", "group_code": "PROG", "title": "Student outcomes assessed systematically", "kind": "leaf", "sort_order": 41 },
+    { "public_id": "CCIE-4-2", "parent_public_id": "CCIE-4", "group_code": "PROG", "title": "Assessment drives program improvement", "kind": "leaf", "sort_order": 42 },
+    { "public_id": "CCIE-5", "parent_public_id": null, "group_code": "PROG", "title": "Resources and Support", "description": "Adequate resources for program delivery.", "kind": "group", "sort_order": 50 },
+    { "public_id": "CCIE-5-1", "parent_public_id": "CCIE-5", "group_code": "PROG", "title": "Adequate interpreting lab and technology", "kind": "leaf", "sort_order": 51 },
+    { "public_id": "CCIE-5-2", "parent_public_id": "CCIE-5", "group_code": "PROG", "title": "Practicum and internship opportunities", "kind": "leaf", "sort_order": 52 }
+  ]
+}

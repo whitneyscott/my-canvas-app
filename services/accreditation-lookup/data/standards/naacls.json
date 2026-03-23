@@ -1,0 +1,40 @@
+{
+  "org_key": "NAACLS",
+  "name": "National Accrediting Agency for Clinical Laboratory Sciences",
+  "display_name": "NAACLS",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "NAACLS-G-STAND",
+      "parent_public_id": null,
+      "group_code": "STAND",
+      "title": "Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "NAACLS-STAND-01",
+      "parent_public_id": "NAACLS-G-STAND",
+      "group_code": "STAND",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "NAACLS-STAND-02",
+      "parent_public_id": "NAACLS-G-STAND",
+      "group_code": "STAND",
+      "title": "Clinical",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "NAACLS-STAND-03",
+      "parent_public_id": "NAACLS-G-STAND",
+      "group_code": "STAND",
+      "title": "Faculty",
+      "kind": "leaf",
+      "sort_order": 13
+    }
+  ]
+}

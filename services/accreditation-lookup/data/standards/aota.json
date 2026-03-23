@@ -1,0 +1,40 @@
+{
+  "org_key": "AOTA",
+  "name": "American Occupational Therapy Association",
+  "display_name": "AOTA",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "AOTA-G-ACOTE",
+      "parent_public_id": null,
+      "group_code": "ACOTE",
+      "title": "ACOTE Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "AOTA-ACOTE-01",
+      "parent_public_id": "AOTA-G-ACOTE",
+      "group_code": "ACOTE",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "AOTA-ACOTE-02",
+      "parent_public_id": "AOTA-G-ACOTE",
+      "group_code": "ACOTE",
+      "title": "Fieldwork",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "AOTA-ACOTE-03",
+      "parent_public_id": "AOTA-G-ACOTE",
+      "group_code": "ACOTE",
+      "title": "Faculty",
+      "kind": "leaf",
+      "sort_order": 13
+    }
+  ]
+}

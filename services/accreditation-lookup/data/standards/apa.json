@@ -1,0 +1,64 @@
+{
+  "org_key": "APA",
+  "name": "American Psychological Association",
+  "display_name": "APA",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "APA-G-DOM",
+      "parent_public_id": null,
+      "group_code": "DOM",
+      "title": "Domains",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "APA-DOM-01",
+      "parent_public_id": "APA-G-DOM",
+      "group_code": "DOM",
+      "title": "Knowledge",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "APA-DOM-02",
+      "parent_public_id": "APA-G-DOM",
+      "group_code": "DOM",
+      "title": "Skills",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "APA-DOM-03",
+      "parent_public_id": "APA-G-DOM",
+      "group_code": "DOM",
+      "title": "Values",
+      "kind": "leaf",
+      "sort_order": 13
+    },
+    {
+      "public_id": "APA-G-IMPL",
+      "parent_public_id": null,
+      "group_code": "IMPL",
+      "title": "Implementation",
+      "kind": "group",
+      "sort_order": 19
+    },
+    {
+      "public_id": "APA-IMPL-01",
+      "parent_public_id": "APA-G-IMPL",
+      "group_code": "IMPL",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 20
+    },
+    {
+      "public_id": "APA-IMPL-02",
+      "parent_public_id": "APA-G-IMPL",
+      "group_code": "IMPL",
+      "title": "Competency assessment",
+      "kind": "leaf",
+      "sort_order": 21
+    }
+  ]
+}

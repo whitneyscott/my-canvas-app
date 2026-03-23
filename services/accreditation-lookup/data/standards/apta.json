@@ -1,0 +1,32 @@
+{
+  "org_key": "APTA",
+  "name": "American Physical Therapy Association",
+  "display_name": "APTA",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "APTA-G-CAPTE",
+      "parent_public_id": null,
+      "group_code": "CAPTE",
+      "title": "CAPTE Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "APTA-CAPTE-01",
+      "parent_public_id": "APTA-G-CAPTE",
+      "group_code": "CAPTE",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "APTA-CAPTE-02",
+      "parent_public_id": "APTA-G-CAPTE",
+      "group_code": "CAPTE",
+      "title": "Clinical education",
+      "kind": "leaf",
+      "sort_order": 12
+    }
+  ]
+}

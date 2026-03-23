@@ -1,0 +1,32 @@
+{
+  "org_key": "APMA",
+  "name": "American Podiatric Medical Association",
+  "display_name": "APMA",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "APMA-G-CPME",
+      "parent_public_id": null,
+      "group_code": "CPME",
+      "title": "CPME Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "APMA-CPME-01",
+      "parent_public_id": "APMA-G-CPME",
+      "group_code": "CPME",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "APMA-CPME-02",
+      "parent_public_id": "APMA-G-CPME",
+      "group_code": "CPME",
+      "title": "Clinical",
+      "kind": "leaf",
+      "sort_order": 12
+    }
+  ]
+}

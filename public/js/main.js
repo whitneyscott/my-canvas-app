@@ -1686,10 +1686,17 @@ async function loadStandardsSyncTab() {
             const warnings = Array.isArray(org?.warnings) && org.warnings.length
                 ? '<div style="font-size:12px;color:#7a4b00;margin:2px 0 6px 0;">' + escapeHtml(org.warnings.join(' | ')) + '</div>'
                 : '';
-            const standards = Array.isArray(org?.standards) && org.standards.length
+            let standards = Array.isArray(org?.standards) && org.standards.length
                 ? org.standards
                 : [{ id: orgId, title: org?.name || orgId, sourceType: org?.standards_source || payload?.accreditors_source, confidence: org?.standards_confidence }];
-            const itemsHtml = standards.map(std => {
+            const branches = standards.filter(s => (s.kind || '').toLowerCase() === 'group' || (!(s.parentId ?? s.parent_id) && standards.some(c => String(c.parentId ?? c.parent_id || '') === String(s.id || ''))));
+            const displayStandards = branches.length ? branches : standards;
+            const abbrev = (org?.abbreviation || orgId || 'org').toString();
+            const allSelected = displayStandards.every(s => preferred.has(String(s.id || '')));
+            const selectAllHtml = displayStandards.length > 1 ? '<label class="acc-focus-check" style="display:block;margin:4px 0 6px 0;padding-bottom:4px;border-bottom:1px solid #e5e7eb;">' +
+                '<input type="checkbox" class="acc-org-select-all" ' + (allSelected ? 'checked' : '') + ' onchange="var b=this.closest(\'.acc-org-block\');if(b)b.querySelectorAll(\'input[name=accStd]\').forEach(function(c){c.checked=this.checked},this)"> ' +
+                '<span style="font-weight:600;">Select all ' + escapeHtml(abbrev) + (branches.length ? ' branches' : '') + '</span></label>' : '';
+            const itemsHtml = displayStandards.map(std => {
                 const sid = (std?.id || '').toString();
                 const stitle = (std?.title || sid || 'Untitled standard').toString();
                 const checked = preferred.has(sid) ? ' checked' : '';
@@ -1708,12 +1715,12 @@ async function loadStandardsSyncTab() {
                 '<span style="font-size:12px;color:#555;">source: ' + escapeHtml(orgSource) + ' | confidence: ' + escapeHtml(orgConfidence) + '</span>' +
                 '</div>' +
                 warnings +
-                '<div class="acc-org-standards" style="margin-top:6px;">' + itemsHtml + '</div>' +
+                '<div class="acc-org-standards" style="margin-top:6px;">' + selectAllHtml + itemsHtml + '</div>' +
                 '</div>';
         }).join('');
         return '<h4 class="acc-standards-heading">Accreditation standards for this course</h4>' +
             fallbackMsg +
-            '<p class="acc-standards-hint">Select standards to apply to this course.</p>' +
+            '<p class="acc-standards-hint">Select branches (full tree appears in Apply to course for leaf selection).</p>' +
             '<div id="accStandardsList" class="acc-program-focus">' + groupsHtml + '</div>' +
             '<button type="button" id="accApplyStandardsBtn" class="primary-btn" onclick="applyAccreditationStandards()" style="margin-top: 0.75rem;">Apply to course</button>';
     };

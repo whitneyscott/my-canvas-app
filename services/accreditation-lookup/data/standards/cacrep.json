@@ -1,0 +1,56 @@
+{
+  "org_key": "CACREP",
+  "name": "Council for Accreditation of Counseling and Related Educational Programs",
+  "display_name": "CACREP",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "CACREP-G-CURR",
+      "parent_public_id": null,
+      "group_code": "CURR",
+      "title": "Curriculum",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "CACREP-CURR-01",
+      "parent_public_id": "CACREP-G-CURR",
+      "group_code": "CURR",
+      "title": "Core areas",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "CACREP-CURR-02",
+      "parent_public_id": "CACREP-G-CURR",
+      "group_code": "CURR",
+      "title": "Specialty",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "CACREP-G-CLIN",
+      "parent_public_id": null,
+      "group_code": "CLIN",
+      "title": "Clinical",
+      "kind": "group",
+      "sort_order": 18
+    },
+    {
+      "public_id": "CACREP-CLIN-01",
+      "parent_public_id": "CACREP-G-CLIN",
+      "group_code": "CLIN",
+      "title": "Practicum",
+      "kind": "leaf",
+      "sort_order": 19
+    },
+    {
+      "public_id": "CACREP-CLIN-02",
+      "parent_public_id": "CACREP-G-CLIN",
+      "group_code": "CLIN",
+      "title": "Internship",
+      "kind": "leaf",
+      "sort_order": 20
+    }
+  ]
+}

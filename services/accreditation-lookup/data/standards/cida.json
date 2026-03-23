@@ -1,0 +1,40 @@
+{
+  "org_key": "CIDA",
+  "name": "Council for Interior Design Accreditation",
+  "display_name": "CIDA",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "CIDA-G-STAND",
+      "parent_public_id": null,
+      "group_code": "STAND",
+      "title": "Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "CIDA-STAND-01",
+      "parent_public_id": "CIDA-G-STAND",
+      "group_code": "STAND",
+      "title": "Curriculum",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "CIDA-STAND-02",
+      "parent_public_id": "CIDA-G-STAND",
+      "group_code": "STAND",
+      "title": "Faculty",
+      "kind": "leaf",
+      "sort_order": 12
+    },
+    {
+      "public_id": "CIDA-STAND-03",
+      "parent_public_id": "CIDA-G-STAND",
+      "group_code": "STAND",
+      "title": "Resources",
+      "kind": "leaf",
+      "sort_order": 13
+    }
+  ]
+}

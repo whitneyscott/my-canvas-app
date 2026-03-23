@@ -12,6 +12,8 @@
     "db:migrate": "ts-node src/db/migrate.ts",
     "db:migrate-standards": "ts-node src/db/migrate-standards.ts",
     "db:seed-standards": "ts-node src/db/seed-standards.ts",
+    "db:standards-complete": "npm run db:migrate && npm run db:migrate-cip6 && npm run db:migrate-standards && npm run db:seed-standards",
+    "generate-all-standards-seeds": "ts-node scripts/generate-all-standards-seeds.ts",
     "generate-admin-secret": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
     "apply-proposed-chea": "ts-node scripts/apply-proposed-chea.ts",
     "db:setup": "ts-node scripts/db-setup-with-scraper.ts",

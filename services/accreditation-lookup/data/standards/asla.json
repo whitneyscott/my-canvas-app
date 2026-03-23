@@ -1,0 +1,32 @@
+{
+  "org_key": "ASLA",
+  "name": "American Society of Landscape Architects",
+  "display_name": "ASLA",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "ASLA-G-LAAB",
+      "parent_public_id": null,
+      "group_code": "LAAB",
+      "title": "LAAB Standards",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "ASLA-LAAB-01",
+      "parent_public_id": "ASLA-G-LAAB",
+      "group_code": "LAAB",
+      "title": "Program criteria",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "ASLA-LAAB-02",
+      "parent_public_id": "ASLA-G-LAAB",
+      "group_code": "LAAB",
+      "title": "Assessment",
+      "kind": "leaf",
+      "sort_order": 12
+    }
+  ]
+}

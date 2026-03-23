@@ -1,0 +1,32 @@
+{
+  "org_key": "MPCAC",
+  "name": "Master’s in Psychology and Counseling Accreditation Council",
+  "display_name": "MPCAC",
+  "source_note": "Template structure; refine against official publications.",
+  "nodes": [
+    {
+      "public_id": "MPCAC-G-CURR",
+      "parent_public_id": null,
+      "group_code": "CURR",
+      "title": "Curriculum",
+      "kind": "group",
+      "sort_order": 10
+    },
+    {
+      "public_id": "MPCAC-CURR-01",
+      "parent_public_id": "MPCAC-G-CURR",
+      "group_code": "CURR",
+      "title": "Core content",
+      "kind": "leaf",
+      "sort_order": 11
+    },
+    {
+      "public_id": "MPCAC-CURR-02",
+      "parent_public_id": "MPCAC-G-CURR",
+      "group_code": "CURR",
+      "title": "Practicum",
+      "kind": "leaf",
+      "sort_order": 12
+    }
+  ]
+}
