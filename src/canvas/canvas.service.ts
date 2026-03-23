@@ -26,6 +26,7 @@ interface AccessibilityFinding {
   severity: AccessibilitySeverity;
   message: string;
   snippet?: string | null;
+  fix_strategy?: FixStrategy;
 }
 
 interface AccessibilityScanOptions {
@@ -53,7 +54,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<string, AccessibilityFixabilityContra
   list_empty_item: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'remove_empty_li', supports_preview: true, requires_content_fetch: true },
   heading_empty: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'remove_empty_heading', supports_preview: true, requires_content_fetch: true },
   link_new_tab_no_warning: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'append_new_tab_warning', supports_preview: true, requires_content_fetch: true },
-  img_missing_alt: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  img_missing_alt: { auto_fixable: true, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_generate_alt_text', supports_preview: true, requires_content_fetch: true },
   img_alt_too_long: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   img_alt_filename: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   small_text_contrast: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
@@ -67,7 +68,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<string, AccessibilityFixabilityContra
   list_not_semantic: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   link_split_or_broken: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   link_empty_name: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  link_ambiguous_text: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  link_ambiguous_text: { auto_fixable: true, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_replace_ambiguous_link_text', supports_preview: true, requires_content_fetch: true },
   link_file_missing_type_size_hint: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   heading_duplicate_h1: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   heading_visual_only_style: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
@@ -94,12 +95,12 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<string, AccessibilityFixabilityContra
   doc_office_structure_unknown: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   doc_spreadsheet_headers_unknown: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   button_empty_name: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  lang_missing: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'set_html_lang', supports_preview: false, requires_content_fetch: true },
+  lang_missing: { auto_fixable: true, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'set_html_lang', supports_preview: true, requires_content_fetch: true },
   lang_invalid: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'suggested', supports_preview: false, requires_content_fetch: true },
   lang_inline_missing: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: true },
   color_only_information: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: true },
   sensory_only_instructions: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: true },
-  text_justified: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'remove_text_justify', supports_preview: false, requires_content_fetch: true },
+  text_justified: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'remove_text_justify', supports_preview: true, requires_content_fetch: true },
   font_size_too_small: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'suggested', supports_preview: false, requires_content_fetch: true },
   iframe_missing_title: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'suggested', supports_preview: false, requires_content_fetch: true },
   session_timeout_no_warning: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: true },
@@ -4365,16 +4366,20 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const effectiveFindings = requestedRuleSet.size
       ? findings.filter((f) => requestedRuleSet.has(f.rule_id))
       : findings;
+    const enrichedFindings = effectiveFindings.map((f) => ({
+      ...f,
+      fix_strategy: ACCESSIBILITY_FIXABILITY_MAP[f.rule_id]?.fix_strategy ?? 'manual_only',
+    }));
 
-    const bySeverity = effectiveFindings.reduce((acc: Record<string, number>, f) => {
+    const bySeverity = enrichedFindings.reduce((acc: Record<string, number>, f) => {
       acc[f.severity] = (acc[f.severity] || 0) + 1;
       return acc;
     }, {});
-    const byRule = effectiveFindings.reduce((acc: Record<string, number>, f) => {
+    const byRule = enrichedFindings.reduce((acc: Record<string, number>, f) => {
       acc[f.rule_id] = (acc[f.rule_id] || 0) + 1;
       return acc;
     }, {});
-    const byResourceType = effectiveFindings.reduce((acc: Record<string, number>, f) => {
+    const byResourceType = enrichedFindings.reduce((acc: Record<string, number>, f) => {
       acc[f.resource_type] = (acc[f.resource_type] || 0) + 1;
       return acc;
     }, {});
@@ -4391,7 +4396,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       requested_rule_ids: requestedRuleIds,
       summary: {
         course_id: courseId,
-        total_findings: effectiveFindings.length,
+        total_findings: enrichedFindings.length,
         resources_scanned: resources.length,
         resources_scanned_by_type: resourcesScannedByType,
         by_severity: {
@@ -4412,7 +4417,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         slower_than_canvas: hasBaseline ? totalMs > baseline : null,
         ratio_vs_canvas: hasBaseline ? Number((totalMs / baseline).toFixed(3)) : null,
       },
-      findings: effectiveFindings,
+      findings: enrichedFindings,
       warnings,
       rule_version: 'tier2-v1',
     };
@@ -4487,6 +4492,164 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return null;
   }
 
+  private looksNonEnglishText(text: string): boolean {
+    const sample = String(text || '').slice(0, 4000);
+    if (!sample.trim()) return false;
+    if (/[^\u0000-\u007F]/.test(sample)) return true;
+    const lower = sample.toLowerCase();
+    const nonEnglishSignals = [
+      /\b(hola|bonjour|merci|gracias|adios|por favor|guten tag|danke|ciao|buongiorno|obrigado|ol[aá]|namaste|privet)\b/i,
+      /\b(el|la|los|las|le|les|des|und|der|die|das|que|qui|pour|con|sin)\b/i,
+    ];
+    return nonEnglishSignals.some((rx) => rx.test(lower));
+  }
+
+  private async callClaudeSingleLine(prompt: string, maxTokens: number): Promise<string> {
+    const key = (this.config.get<string>('ANTHROPIC_API_KEY') || '').trim();
+    if (!key) throw new Error('ANTHROPIC_API_KEY not configured');
+    const model = (this.config.get<string>('CLAUDE_MODEL') || 'claude-sonnet-4-6').trim();
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        temperature: 0.1,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`Claude API failed (${res.status}): ${String(text).slice(0, 300)}`);
+    }
+    const payload = await res.json() as { content?: Array<{ type?: string; text?: string }> };
+    const text = Array.isArray(payload?.content)
+      ? payload.content.filter((c) => c?.type === 'text' && c?.text).map((c) => c.text || '').join('\n')
+      : '';
+    const line = String(text || '').replace(/```[\s\S]*?```/g, '').replace(/\s+/g, ' ').trim();
+    if (!line) throw new Error('Claude returned empty response');
+    return line;
+  }
+
+  private applySetHtmlLang(html: string): { newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string } {
+    const match = html.match(/<html\b[^>]*>/i);
+    if (!match) return { newHtml: html, changes: [], errorNote: 'No root <html> element found in content.' };
+    const before = match[0];
+    if (/\blang\s*=\s*["'][^"']+["']/i.test(before)) return { newHtml: html, changes: [] };
+    const after = before.replace(/<html\b/i, '<html lang="en"');
+    return { newHtml: html.replace(before, after), changes: [{ before, after }] };
+  }
+
+  private applyRemoveTextJustify(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } {
+    const changes: Array<{ before: string; after: string }> = [];
+    const styleAttrRegex = /\bstyle\s*=\s*("([^"]*)"|'([^']*)')/gi;
+    let newHtml = html;
+    let m: RegExpExecArray | null;
+    while ((m = styleAttrRegex.exec(html)) !== null) {
+      const fullAttr = m[0];
+      const styleValue = (m[2] ?? m[3] ?? '').trim();
+      if (!/text-align\s*:\s*justify/i.test(styleValue)) continue;
+      const updatedStyle = styleValue
+        .replace(/(?:^|;)\s*text-align\s*:\s*justify\s*;?/gi, ';')
+        .replace(/;;+/g, ';')
+        .replace(/^\s*;\s*|\s*;\s*$/g, '')
+        .trim();
+      const after = updatedStyle ? `style="${updatedStyle}"` : '';
+      changes.push({ before: fullAttr, after: after || '(style removed)' });
+      newHtml = after
+        ? newHtml.replace(fullAttr, after)
+        : newHtml.replace(/\s+\bstyle\s*=\s*("([^"]*)"|'([^']*)')/i, '');
+    }
+    return { newHtml, changes };
+  }
+
+  private async buildAiAltTextFix(
+    html: string,
+    resourceTitle: string,
+  ): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const imgRegex = /<img\b[^>]*>/i;
+    const img = imgRegex.exec(html);
+    if (!img) return { newHtml: html, changes: [], errorNote: 'No image tag found for missing alt text.' };
+    const imgTag = img[0];
+    if (/\balt\s*=\s*("([^"]*)"|'([^']*)'|[^\s>]+)/i.test(imgTag)) return { newHtml: html, changes: [] };
+    const srcMatch = imgTag.match(/\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+    const src = (srcMatch?.[2] ?? srcMatch?.[3] ?? srcMatch?.[4] ?? '').trim();
+    if (!src || !/^https?:\/\//i.test(src)) {
+      return { newHtml: html, changes: [], errorNote: 'Image src is not accessible for AI alt-text generation.' };
+    }
+    try {
+      const check = await fetch(src, { method: 'GET' });
+      if (!check.ok) return { newHtml: html, changes: [], errorNote: `Image src returned HTTP ${check.status}.` };
+    } catch (e: any) {
+      return { newHtml: html, changes: [], errorNote: `Image src fetch failed: ${e?.message || 'unknown error'}` };
+    }
+
+    const contextWindow = html.slice(Math.max(0, img.index - 300), Math.min(html.length, img.index + imgTag.length + 300));
+    const contextText = contextWindow.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const prompt = [
+      'Return plain text only.',
+      'Generate a single alt text string under 125 characters.',
+      'Be descriptive and specific for WCAG 2.1 AA course content.',
+      'No quotes. No preamble.',
+      `Image src: ${src}`,
+      `Page or assignment title: ${resourceTitle || '(unknown)'}`,
+      `Surrounding context: ${contextText || '(none)'}`,
+    ].join('\n');
+
+    try {
+      let alt = await this.callClaudeSingleLine(prompt, 120);
+      alt = alt.replace(/^["']|["']$/g, '').trim();
+      if (alt.length > 125) alt = alt.slice(0, 125).trim();
+      if (!alt) return { newHtml: html, changes: [], errorNote: 'Claude returned empty alt text.' };
+      const withAlt = imgTag.replace(/<img\b/i, `<img alt="${alt.replace(/"/g, '&quot;')}"`);
+      return { newHtml: html.replace(imgTag, withAlt), changes: [{ before: imgTag, after: withAlt }] };
+    } catch (e: any) {
+      return { newHtml: html, changes: [], errorNote: e?.message || 'Claude alt-text generation failed.' };
+    }
+  }
+
+  private async buildAiAmbiguousLinkFix(
+    html: string,
+  ): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const ambiguous = /^(click here|read more|learn more|more|here|this link)$/i;
+    const linkRegex = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = linkRegex.exec(html)) !== null) {
+      const attrs = m[1] || '';
+      const inner = m[2] || '';
+      const text = inner.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!ambiguous.test(text)) continue;
+      const hrefMatch = attrs.match(/\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const href = (hrefMatch?.[2] ?? hrefMatch?.[3] ?? hrefMatch?.[4] ?? '').trim();
+      const contextWindow = html.slice(Math.max(0, m.index - 300), Math.min(html.length, m.index + m[0].length + 300));
+      const contextText = contextWindow.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const prompt = [
+        'Return plain text only.',
+        'Return one suggested link text string under 80 characters.',
+        'No quotes. No preamble.',
+        `Current link text: ${text}`,
+        `Link href: ${href || '(missing)'}`,
+        `Surrounding context: ${contextText || '(none)'}`,
+      ].join('\n');
+      try {
+        let suggested = await this.callClaudeSingleLine(prompt, 80);
+        suggested = suggested.replace(/^["']|["']$/g, '').trim();
+        if (suggested.length > 80) suggested = suggested.slice(0, 80).trim();
+        if (!suggested) return { newHtml: html, changes: [], errorNote: 'Claude returned empty link text.' };
+        const before = m[0];
+        const after = `<a${attrs}>${suggested}</a>`;
+        return { newHtml: html.replace(before, after), changes: [{ before, after }] };
+      } catch (e: any) {
+        return { newHtml: html, changes: [], errorNote: e?.message || 'Claude link-text generation failed.' };
+      }
+    }
+    return { newHtml: html, changes: [], errorNote: 'No ambiguous link text found in content.' };
+  }
+
   private applyMergeDuplicateLinks(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } {
     const changes: Array<{ before: string; after: string }> = [];
     const regex = /<a\b([^>]*href\s*=\s*("([^"]*)"|'([^']*)')[^>]*)>([\s\S]*?)<\/a>\s*(?:&nbsp;|\s|<span[^>]*>\s*<\/span>|<br[^>]*>)*<a\b([^>]*href\s*=\s*("([^"]*)"|'([^']*)')[^>]*)>([\s\S]*?)<\/a>/gi;
@@ -4557,6 +4720,12 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         return this.applyRemoveEmptyHeading(html);
       case 'append_new_tab_warning':
         return this.applyAppendNewTabWarning(html);
+      case 'set_html_lang': {
+        const r = this.applySetHtmlLang(html);
+        return { newHtml: r.newHtml, changes: r.changes };
+      }
+      case 'remove_text_justify':
+        return this.applyRemoveTextJustify(html);
       default:
         return null;
     }
@@ -4580,10 +4749,17 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       resource_title: string;
       rule_id: string;
       fix_type: string;
+      fix_strategy: FixStrategy;
       risk: FixRisk;
+      before_html: string;
+      after_html: string;
+      beforeHtml: string;
+      afterHtml: string;
       before_snippet: string;
       after_snippet: string;
       content_hash: string;
+      proposed_html?: string;
+      error_note?: string;
     }>;
   }> {
     const seen = new Set<string>();
@@ -4602,12 +4778,31 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       const content = await this.fetchAccessibilityResourceContent(courseId, f.resource_type, f.resource_id);
       if (!content) continue;
 
-      const result = this.runFixExecutor(content.html, contract.fix_type);
-      if (!result || result.changes.length === 0) continue;
+      let result: { newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string } | null = null;
+      if (contract.fix_type === 'ai_generate_alt_text') {
+        result = await this.buildAiAltTextFix(content.html, content.resourceTitle || f.resource_title || '');
+      } else if (contract.fix_type === 'ai_replace_ambiguous_link_text') {
+        result = await this.buildAiAmbiguousLinkFix(content.html);
+      } else if (contract.fix_type === 'set_html_lang') {
+        const nonEnglish = this.looksNonEnglishText(content.html.replace(/<[^>]+>/g, ' '));
+        if (nonEnglish) {
+          result = { newHtml: content.html, changes: [], errorNote: 'Possible non-English content detected. Human review required before setting a default language.' };
+        } else {
+          result = this.applySetHtmlLang(content.html);
+        }
+      } else {
+        const syncResult = this.runFixExecutor(content.html, contract.fix_type);
+        result = syncResult ? { ...syncResult } : null;
+      }
+      if (!result || (result.changes.length === 0 && !result.errorNote)) continue;
 
       const beforeSnippet = result.changes.map((c) => c.before).join('\n---\n');
       const afterSnippet = result.changes.map((c) => c.after).join('\n---\n');
       const actionId = `${hash(content.html)}:${f.resource_type}:${f.resource_id}:${f.rule_id}`;
+      const hasError = !!result.errorNote;
+      const effectiveStrategy: FixStrategy = hasError ? 'manual_only' : contract.fix_strategy;
+      const beforeHtml = beforeSnippet;
+      const afterHtml = hasError ? '' : afterSnippet;
 
       actions.push({
         action_id: actionId,
@@ -4617,10 +4812,17 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         resource_title: content.resourceTitle || f.resource_title || '',
         rule_id: f.rule_id,
         fix_type: contract.fix_type,
+        fix_strategy: effectiveStrategy,
         risk: contract.risk,
-        before_snippet: beforeSnippet.slice(0, 1000),
-        after_snippet: afterSnippet.slice(0, 1000),
+        before_html: beforeHtml,
+        after_html: afterHtml,
+        beforeHtml,
+        afterHtml,
+        before_snippet: (beforeHtml || (result.errorNote || '')).slice(0, 1000),
+        after_snippet: (afterHtml || (result.errorNote || '')).slice(0, 1000),
         content_hash: hash(content.html),
+        proposed_html: hasError ? undefined : result.newHtml,
+        error_note: result.errorNote,
       });
     }
 
@@ -4636,6 +4838,11 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       update_key: string;
       rule_id: string;
       content_hash: string;
+      fix_strategy?: FixStrategy;
+      before_html?: string;
+      after_html?: string;
+      proposed_html?: string;
+      error_note?: string;
     }>,
   ): Promise<{
     fixed: number;
@@ -4688,8 +4895,21 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       if (!contract?.auto_fixable) continue;
 
       for (const a of entry.actions) {
+        if (a.fix_strategy === 'manual_only') {
+          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, status: 'skipped', error: a.error_note || 'Marked manual_only in preview' });
+          skipped++;
+          continue;
+        }
         const c = ACCESSIBILITY_FIXABILITY_MAP[a.rule_id];
         if (!c?.auto_fixable) continue;
+        if (a.before_html && typeof a.after_html === 'string' && html.includes(a.before_html)) {
+          html = html.replace(a.before_html, a.after_html);
+          continue;
+        }
+        if (typeof a.proposed_html === 'string' && a.proposed_html.trim()) {
+          html = a.proposed_html;
+          continue;
+        }
         const result = this.runFixExecutor(html, c.fix_type);
         if (result) html = result.newHtml;
       }
