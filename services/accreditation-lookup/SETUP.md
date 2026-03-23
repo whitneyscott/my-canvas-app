@@ -33,9 +33,12 @@ docker compose up -d db
 
 ```bash
 npm run db:migrate
+npm run db:migrate-standards
+npm run db:seed-standards
 ```
 
-- Creates tables: `accreditors`, `cip_accreditor_mappings`, `institution_accreditations`, `sync_log`.
+- Creates tables: `accreditors`, `cip_accreditor_mappings`, `institution_accreditations`, `sync_log`, plus `standards_organization`, `standard_node`, `standards_sync_state`.
+- Seeds **ASLTA** and **BEI** hierarchies from `data/standards/*.json`.
 - Idempotent: safe to run multiple times.
 
 ## 3. Configure .env

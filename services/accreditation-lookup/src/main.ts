@@ -29,6 +29,19 @@ async function runDapipSyncCron() {
   }
 }
 
+async function runStandardsSyncCron() {
+  if (!process.env.ADMIN_SYNC_SECRET) return;
+  try {
+    const pool = getPool();
+    const r = await pool.query("INSERT INTO sync_log (source, status) VALUES ('standards', 'PENDING') RETURNING id");
+    const { runStandardsSync } = await import('./sync/standards.sync');
+    const result = await runStandardsSync(r.rows[0].id);
+    console.log('[Cron] Standards sync:', result.status, result.orgs?.join(',') ?? '');
+  } catch (e) {
+    console.error('[Cron] Standards sync failed:', e);
+  }
+}
+
 const app = express();
 app.use(express.json());
 const port = Number(process.env.PORT) || 3001;
@@ -135,6 +148,32 @@ app.get('/accreditors/:id', async (req, res) => {
   }
 });
 
+app.get('/standards', async (req, res) => {
+  const orgRaw = ((req.query.org as string) || '').trim();
+  const org = orgRaw.toUpperCase().replace(/[^A-Z0-9._-]/g, '');
+  if (!org) return res.status(400).json({ error: 'org query parameter required' });
+  try {
+    const pool = getPool();
+    const r = await pool.query(
+      `SELECT public_id, parent_public_id, group_code, title, description, kind, sort_order
+       FROM standard_node WHERE org_key = $1 ORDER BY sort_order ASC, public_id ASC`,
+      [org],
+    );
+    const standards = r.rows.map((row: Record<string, unknown>) => ({
+      id: row.public_id,
+      parentId: row.parent_public_id ?? null,
+      title: row.title,
+      description: row.description ?? null,
+      groupCode: row.group_code ?? null,
+      kind: row.kind ?? 'leaf',
+      sortOrder: row.sort_order ?? 0,
+    }));
+    res.json({ standards, org_key: org, source: 'database' });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Internal error' });
+  }
+});
+
 app.get('/institution/:unitid/accreditations', async (req, res) => {
   const unitId = req.params.unitid;
   if (!unitId) return res.status(400).json({ error: 'unitid required' });
@@ -154,15 +193,22 @@ app.get('/institution/:unitid/accreditations', async (req, res) => {
   }
 });
 
-const VALID_SOURCES = ['chea', 'dapip', 'all'];
+const VALID_SOURCES = ['chea', 'dapip', 'all', 'standards'];
 app.post('/admin/sync', async (req, res) => {
   if (requireAdminAuth(req, res) === null) return;
   const source = (req.body?.source ?? req.query?.source ?? '').toString().toLowerCase();
   if (!VALID_SOURCES.includes(source)) {
-    return res.status(400).json({ error: 'source must be chea, dapip, or all' });
+    return res.status(400).json({ error: 'source must be chea, dapip, all, or standards' });
   }
   try {
     const pool = getPool();
+    if (source === 'standards') {
+      const r = await pool.query("INSERT INTO sync_log (source, status) VALUES ('standards', 'PENDING') RETURNING id");
+      const syncId = r.rows[0]?.id;
+      const { runStandardsSync } = await import('./sync/standards.sync');
+      const result = await runStandardsSync(syncId);
+      return res.status(202).json({ source: 'standards', ...result });
+    }
     const r = await pool.query(
       'INSERT INTO sync_log (source, status) VALUES ($1, $2) RETURNING id',
       [source === 'all' ? 'chea' : source, 'PENDING']
@@ -187,6 +233,7 @@ app.post('/admin/sync', async (req, res) => {
 const cronOpts = { scheduled: true, timezone: 'UTC' };
 cron.schedule('0 2 * * 1', runCheaSyncCron, cronOpts);
 cron.schedule('0 3 1 1,4,7,10 *', runDapipSyncCron, cronOpts);
+cron.schedule('0 5 * * 1', runStandardsSyncCron, cronOpts);
 
 app.listen(port, () => {
   console.log(`[Startup] Stage 3: Accreditation Lookup Service listening on port ${port}`);

@@ -12,5 +12,15 @@ if ! node dist/db/migrate-cip6.js; then
   exit 1
 fi
 
+if ! node dist/db/migrate-standards.js; then
+  echo "[Startup] ERROR: Standards migration failed. Service will not start."
+  exit 1
+fi
+
+if ! node dist/db/seed-standards.js; then
+  echo "[Startup] ERROR: Standards seed failed. Service will not start."
+  exit 1
+fi
+
 echo "[Startup] Stage 2: Migrations complete. Starting API..."
 exec node dist/main.js

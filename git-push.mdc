@@ -1,0 +1,13 @@
+---
+description: Always push to git after completing edits
+alwaysApply: true
+---
+
+# Git Push
+
+**Every time** you complete an editing session, **push to git**:
+
+1. Run `git status` - if there are uncommitted changes, stage and commit them
+2. Run `git push`
+
+Do not end an editing session without pushing. The user has stated this explicitly; do not skip it or wait to be asked.

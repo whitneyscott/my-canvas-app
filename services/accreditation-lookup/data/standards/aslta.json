@@ -1,0 +1,25 @@
+{
+  "org_key": "ASLTA",
+  "name": "American Sign Language Teachers Association / NCIEC",
+  "display_name": "ASLTA",
+  "source_note": "Template hierarchy for teacher standards; refine against official ASLTA publications.",
+  "nodes": [
+    { "public_id": "ASLTA-1", "parent_public_id": null, "group_code": "DOMAIN", "title": "Language Knowledge and Performance", "description": "Domain 1: ASL proficiency and linguistic knowledge applied to teaching.", "kind": "group", "sort_order": 10 },
+    { "public_id": "ASLTA-1-01", "parent_public_id": "ASLTA-1", "group_code": "DOMAIN", "title": "Demonstrates advanced ASL proficiency for instructional contexts", "kind": "leaf", "sort_order": 11 },
+    { "public_id": "ASLTA-1-02", "parent_public_id": "ASLTA-1", "group_code": "DOMAIN", "title": "Applies knowledge of ASL linguistics to instruction and feedback", "kind": "leaf", "sort_order": 12 },
+    { "public_id": "ASLTA-1-03", "parent_public_id": "ASLTA-1", "group_code": "DOMAIN", "title": "Models varied registers and discourse in ASL as appropriate to learners", "kind": "leaf", "sort_order": 13 },
+    { "public_id": "ASLTA-1-04", "parent_public_id": "ASLTA-1", "group_code": "DOMAIN", "title": "Integrates Deaf cultural perspectives into language teaching", "kind": "leaf", "sort_order": 14 },
+
+    { "public_id": "ASLTA-2", "parent_public_id": null, "group_code": "DOMAIN", "title": "Instructional Planning and Delivery", "description": "Domain 2: Curriculum, lesson design, and teaching practice.", "kind": "group", "sort_order": 20 },
+    { "public_id": "ASLTA-2-01", "parent_public_id": "ASLTA-2", "group_code": "DOMAIN", "title": "Aligns learning objectives, activities, and assessments", "kind": "leaf", "sort_order": 21 },
+    { "public_id": "ASLTA-2-02", "parent_public_id": "ASLTA-2", "group_code": "DOMAIN", "title": "Uses evidence-based instructional strategies for ASL acquisition", "kind": "leaf", "sort_order": 22 },
+    { "public_id": "ASLTA-2-03", "parent_public_id": "ASLTA-2", "group_code": "DOMAIN", "title": "Differentiates instruction to meet diverse learner needs", "kind": "leaf", "sort_order": 23 },
+    { "public_id": "ASLTA-2-04", "parent_public_id": "ASLTA-2", "group_code": "DOMAIN", "title": "Uses technology and materials effectively in ASL instruction", "kind": "leaf", "sort_order": 24 },
+
+    { "public_id": "ASLTA-3", "parent_public_id": null, "group_code": "DOMAIN", "title": "Assessment and Professional Practice", "description": "Domain 3: Assessment literacy and professional responsibilities.", "kind": "group", "sort_order": 30 },
+    { "public_id": "ASLTA-3-01", "parent_public_id": "ASLTA-3", "group_code": "DOMAIN", "title": "Designs and uses valid formative and summative assessments", "kind": "leaf", "sort_order": 31 },
+    { "public_id": "ASLTA-3-02", "parent_public_id": "ASLTA-3", "group_code": "DOMAIN", "title": "Provides constructive feedback aligned to learning goals", "kind": "leaf", "sort_order": 32 },
+    { "public_id": "ASLTA-3-03", "parent_public_id": "ASLTA-3", "group_code": "DOMAIN", "title": "Engages in reflection and continuous improvement", "kind": "leaf", "sort_order": 33 },
+    { "public_id": "ASLTA-3-04", "parent_public_id": "ASLTA-3", "group_code": "DOMAIN", "title": "Upholds ethical and professional obligations to learners and field", "kind": "leaf", "sort_order": 34 }
+  ]
+}

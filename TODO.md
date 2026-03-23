@@ -1,88 +1,119 @@
 # Canvas Bulk Editor - TODO List
 
-## ✅ COMPLETED
-
-1. **Fix Delete Function** - Fixed URL structure bug
-2. **Add Mode Selector** - Password-protected Dev/Prod/Demo modes
-3. **Fix undo detection false positive** - Fixed timing bug in checkIfRowReturnedToOriginal (commit 4279371)
-4. **Simplify Edit Tracking System** - Replace complex two-function approach with unified checkEditStatus()
-   - Fixes undo detection issues
-   - Fixes manual edit marking issues
-   - Simplifies codebase with single source of truth
-   - Eliminates timing bugs by always comparing to originalData
-5. **LTI 1.3 migration** - User-authorized access only, no hardcoded API key
-
----
-
-## 🧪 PENDING TESTING
-
-- **Test all edit tracking scenarios** - 17 test cases documented in plan file
-- **Test executeMerge() for modules** - Implemented, needs testing with 2+ modules
-
----
-
 ## 🔥 HIGH Priority (Broken or incomplete features)
-
-1. **Implement executeAssignTo()** - Modal exists but no function
-2. **Implement executeAccommodations()** - Modal exists but no function
 
 ---
 
 ## 📋 MEDIUM Priority (Missing UI access)
 
-3. **Add Publish/Unpublish button** to Bulk Actions dropdown
-4. **Add Insert/Paste button** to Bulk Actions dropdown
-5. **Add Bulk Edit button** to Bulk Actions dropdown
-6. **Add Export button** to toolbar
-7. **Add Assign To button** to Bulk Actions dropdown (after implementing function)
-8. **Add Accommodations button** to Bulk Actions dropdown (after implementing function)
+3. **Add Insert/Paste button** to Bulk Actions dropdown
+4. **Add Bulk Edit button** to Bulk Actions dropdown
+5. **Add Export button** to toolbar
+6. **Add Assign To button** to Bulk Actions dropdown (after implementing function)
+
+---
+
+## ♿ ADA / ACCOMMODATIONS (Consolidated)
+
+- **Implement executeAssignTo()** - Modal exists but no function.
+- **Implement executeAccommodations()** - Modal exists but no function.
+- **Add Accommodations button** to Bulk Actions dropdown (after implementing function).
+- **Re-enable ADA Compliance tab flow**:
+  - Add `ada_compliance` to `allowedTabs` in `switchTab()`.
+  - Implement ADA tab loading flow (`FIELD_DEFINITIONS + loadTabData` or custom panel flow).
+- **ADA Compliance QA / implementation**:
+  - Tab opens without error.
+  - If grid remains empty, complete `ada_compliance` load/config flow.
+- **Accommodation workflow details**:
+  - LPI tool prompt
+  - "Everyone else" workaround
+  - FERPA-safe behavior (IDs only, custom column)
+- **Backend/API dependency**:
+  - Keep/verify `custom_gradebook_columns` path usage for accommodation flow.
+- **Checker roadmap**:
+  - Use the Canvas Accessibility Checker to guide my custom checker and automatically apply fixes using AI suggestions where needed.
+  - Fix tiers (Auto / Suggested / Manual): [`ACCESSIBILITY_CHECKPOINTS.md`](./ACCESSIBILITY_CHECKPOINTS.md).
 
 ---
 
 ## 🧹 LOW Priority (Cleanup/Refactoring)
 
-11. **Integrate useful helpers.js functions**:
-    - Use `markRowAsSynced()` to clean up sync code
-    - Extract `statusCellRenderer()` and `booleanCellRenderer()` for reusability
-    - Consider using `fetchJSON()` to centralize error handling
-12. **Remove unused helpers.js functions** - Dead code cleanup
+11. **Prune stale helpers.js functions** - Remove or deprecate helper utilities no longer aligned with current edit-status/undo architecture
+12. **Audit duplicate renderer logic** - Keep a single authoritative implementation for status/boolean rendering (only if behavior parity is maintained)
+13. **Design a modern fetch wrapper (optional)** - Only if it preserves current detailed error parsing and `credentials: 'include'` behavior
 
 ---
 
 ## 🔌 DISCONNECTED FUNCTIONS (Wire to endpoints)
 
-### Frontend → Backend path mismatches
-| Frontend (main.js) | Backend route | Fix | Status |
-|--------------------|---------------|-----|--------|
-| `discussion_topics` | `/canvas/courses/:id/discussions` | Use `discussions` in frontend config | ✅ Done |
-| `/canvas/courses/:id/folders` (GET, POST) | No folders route | Backend uses `/files`; add folders endpoint or update frontend | |
-| `/canvas/courses/:id/modules/:itemId/full-delete` | `DELETE .../modules/:moduleId/items/:itemId` | Fix path and body (type, content_id) | ✅ Done |
-| `/canvas/modules/:courseId/:moduleId/items` | `/canvas/courses/:courseId/modules/:moduleId/items` | Add `courses` segment to path | ✅ Done |
-
 ### Backend endpoints not used by frontend
 | Endpoint | Notes |
 |----------|-------|
 | GET `courses/:id` (getCourseDetails) | Never called |
-| PUT `.../assignments/bulk`, `quizzes/bulk`, etc. | Frontend syncs one-by-one; could batch |
 | POST `.../content_exports` | No frontend call |
-| GET `.../custom_gradebook_columns` | Only in accommodation flow |
 | GET `.../bulk_user_tags` | No frontend call |
-
-### Tabs without data config
-| Tab | Fix |
-|-----|-----|
-| `ada_compliance` | Add FIELD_DEFINITIONS so loadTabData loads data |
-| `standards_sync` | Same |
 
 ---
 
 ## 📚 BACKLOG (from To Do)
 
-- Accommodations: LPI tool prompt, "Everyone else" workaround, FERPA (IDs only, custom column)
 - Assignment groups: show group name in Quizzes, Discussions, Assignments
 - Tabs: Module Items, Course management, Rubrics, Outcomes
 - "Adjust ALL dates" feature
 - V2: Course audit (alt tags, broken links, standards), duplicate file finder, app settings (themes, API key)
+
+---
+
+## ✅ QA MIGRATION (unchecked items moved from TEACHER_QA_CHECKLIST.md)
+
+- **Standards Sync QA**:
+  - Tab shows Accreditation Profile form (state → city → institution → program → focus).
+  - Save Profile persists via API.
+  - Outcomes & Standards list loads; per-outcome standards Save updates outcome description.
+  - Apply-to-course standards checkboxes save `selectedStandards` and refresh.
+- **Assign To expected-fail validation**: confirm current known gap behavior while `executeAssignTo` is unimplemented.
+
+## 🗺️ POST V1 ALPHA AUDIT (merged from NEXT_PLAN.md)
+
+### Medium Priority
+
+1. **Token setup safety copy in login overlay**
+   - Add inline guidance near token input:
+     - treat token like password
+     - store in password manager
+     - re-enter when revoked/expired
+
+2. **Label consistency and clarity**
+   - Align menu/modal language:
+     - "Add Rating" vs "Allow Rating"
+     - points/position wording consistency
+   - Simplify high-density warning text into shorter scan-friendly lines.
+
+3. **Revert scope visibility**
+   - Make non-revertable bulk-action limitation more prominent before sync/revert actions.
+
+4. **Delete failure UX**
+   - Add copy-friendly failure modal for delete errors (parity with sync error detail quality).
+
+5. **Runtime logging hygiene**
+   - Gate non-essential controller/service logs behind a debug flag.
+
+6. **AG Grid Enterprise upgrade ($999)**
+   - Upgrade from Community to Enterprise edition.
+   - Implement/standardize keyboard productivity actions: `CTRL+D` and `CTRL+DOWN`.
+
+### Low Priority
+
+1. **Quick Start discoverability**
+   - Add direct "Quick Start" link on first-run/token entry flow.
+
+2. **Workflow click reduction**
+   - Add "repeat last clone settings" shortcut for frequent clone operations.
+
+### Deferred / Hold
+
+1. **Standards Sync**
+   - Held per product direction for V1 alpha focus.
 
 ---
 

@@ -14,6 +14,7 @@ Re-run a full pass over **every** accessibility check we ship (`ACCESSIBILITY_CH
 - Anything that is **really deterministic** must be **treated as such in code**: `auto_fixable: true`, `fix_strategy: 'auto'`, a real `fix_type` executor (or merge into an existing one), and preview/apply behavior consistent with other auto rules—not left as `manual_only` or “suggested” unless there is a documented reason.
 - Fix mismatches: tighten the map, implement missing executors, and remove false “high risk” labels where the transform is purely mechanical (e.g. inline contrast when both colors are known in `style=""`).
 - Cross-check against `ACCESSIBILITY_CHECKS_QA_PLAN.md` **strict** vs **best-effort** tiers so tests and product expectations stay aligned.
+- Align `ACCESSIBILITY_FIXABILITY_MAP` and executors with [`ACCESSIBILITY_CHECKPOINTS.md`](./ACCESSIBILITY_CHECKPOINTS.md) (Auto vs Suggested vs Manual-only tiers).
 
 This audit is a **blocking hygiene step** whenever we add or change rules—not optional polish.
 

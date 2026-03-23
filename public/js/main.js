@@ -1637,6 +1637,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 async function loadStandardsSyncTab() {
+    debugLog('[AccStandards] loadStandardsSyncTab started', 'info');
     const profileEl = document.getElementById('accProfileContent');
     const outcomesEl = document.getElementById('accOutcomesContent');
     if (!selectedCourseId) {
@@ -1724,13 +1725,17 @@ async function loadStandardsSyncTab() {
         if (!block) return;
         const listEl = document.getElementById('accStandardsList');
         const prevChecked = keepSelections && listEl ? new Set(Array.from(listEl.querySelectorAll('input[name="accStd"]:checked')).map(cb => cb.value)) : new Set();
+        const standardsUrl = `/canvas/courses/${selectedCourseId}/accreditation/standards?cip=${encodeURIComponent(cip)}`;
+        debugLog('[AccStandards] refreshAccreditorsStandards fetching: ' + standardsUrl, 'info');
         try {
-            const standardsUrl = `/canvas/courses/${selectedCourseId}/accreditation/standards?cip=${encodeURIComponent(cip)}`;
             let payload = {};
             const res = await fetch(standardsUrl);
             if (res.ok) {
                 payload = await res.json();
+                const orgs = Array.isArray(payload?.organizations) ? payload.organizations : [];
+                debugLog('[AccStandards] refreshAccreditorsStandards received: orgs=' + orgs.length + ', total=' + (payload?.total_standards ?? 0), 'info');
             } else {
+                debugLog('[AccStandards] refreshAccreditorsStandards failed: status=' + res.status + ', falling back to accreditors', 'warn');
                 const accreditorsUrl = `/canvas/courses/${selectedCourseId}/accreditation/accreditors?cip=${encodeURIComponent(cip)}`;
                 const accRes = await fetch(accreditorsUrl);
                 const acc = accRes.ok ? await accRes.json() : {};
@@ -1751,12 +1756,9 @@ async function loadStandardsSyncTab() {
             block.innerHTML = buildStandardsBlockHtml(payload, [], prevChecked);
         } catch (_) {}
     };
-    const loadProfile = async () => {
+    const loadProfile = async (profile) => {
         if (!profileEl) return null;
         try {
-            const res = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`);
-            if (!res.ok) throw new Error(res.statusText);
-            const profile = await res.json();
             const states = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'];
             const stateOpts = states.map(s => '<option value="' + s + '"' + (profile.state === s ? ' selected' : '') + '>' + s + '</option>').join('');
             profileEl.innerHTML = '<div class="acc-profile-form">' +
@@ -1845,17 +1847,43 @@ async function loadStandardsSyncTab() {
             return null;
         }
     };
-    const loadOutcomes = async (profile) => {
+    const loadOutcomes = async (profile, outcomesPreloaded) => {
         if (!outcomesEl) return;
-        const cip = (Array.isArray(profile?.programFocusCip6) && profile.programFocusCip6[0]) || profile?.programCip4 || profile?.program || '';
+        const cip = getAccreditationCipFromProfile(profile);
+        const standardsUrl = `/canvas/courses/${selectedCourseId}/accreditation/standards${cip ? '?cip=' + encodeURIComponent(cip) : ''}`;
+        debugLog('[AccStandards] loadOutcomes fetching standards: ' + standardsUrl, 'info');
         try {
-            const standardsUrl = `/canvas/courses/${selectedCourseId}/accreditation/standards${cip ? '?cip=' + encodeURIComponent(cip) : ''}`;
-            const [standardsRes, outcomesRes] = await Promise.all([
-                fetch(standardsUrl),
-                fetch(`/canvas/courses/${selectedCourseId}/accreditation/outcomes`)
-            ]);
+            let standardsRes;
+            let outcomesRes;
+            if (outcomesPreloaded !== undefined) {
+                standardsRes = await fetch(standardsUrl);
+                outcomesRes = { ok: true };
+            } else {
+                [standardsRes, outcomesRes] = await Promise.all([
+                    fetch(standardsUrl),
+                    fetch(`/canvas/courses/${selectedCourseId}/accreditation/outcomes`)
+                ]);
+            }
             let standardsPayload = standardsRes.ok ? await standardsRes.json() : null;
+            if (!standardsRes.ok) {
+                debugLog('[AccStandards] Standards fetch failed: status=' + standardsRes.status, 'error');
+            } else if (standardsPayload) {
+                const orgs = Array.isArray(standardsPayload?.organizations) ? standardsPayload.organizations : [];
+                const total = Number(standardsPayload?.total_standards) ?? 0;
+                const sources = orgs.map(o => (o.abbreviation || o.id) + ':' + (o.standards_source || '?')).join('; ');
+                debugLog('[AccStandards] Standards received: orgs=' + orgs.length + ', total_standards=' + total + ', sources=' + sources, 'info');
+                const firstOrg = orgs[0];
+                const firstStd = Array.isArray(firstOrg?.standards) ? firstOrg.standards[0] : null;
+                if (firstStd) {
+                    const hasParentId = (firstStd.parentId ?? firstStd.parent_id) != null;
+                    debugLog('[AccStandards] First standard sample: id=' + (firstStd.id || '?') + ', hasParentId=' + hasParentId + ', keys=' + Object.keys(firstStd).join(','), 'info');
+                }
+                if (standardsPayload._debug) {
+                    debugLog('[AccStandards] Backend _debug: ' + JSON.stringify(standardsPayload._debug), 'info');
+                }
+            }
             if (!standardsPayload) {
+                debugLog('[AccStandards] Using accreditors fallback (standards endpoint failed or returned null)', 'warn');
                 const accreditorsUrl = `/canvas/courses/${selectedCourseId}/accreditation/accreditors${cip ? '?cip=' + encodeURIComponent(cip) : ''}`;
                 const accreditorsRes = await fetch(accreditorsUrl);
                 const acc = accreditorsRes.ok ? await accreditorsRes.json() : {};
@@ -1873,7 +1901,9 @@ async function loadStandardsSyncTab() {
                     total_standards: 0
                 };
             }
-            const outcomes = outcomesRes.ok ? await outcomesRes.json() : [];
+            const outcomes = outcomesPreloaded !== undefined
+                ? (Array.isArray(outcomesPreloaded) ? outcomesPreloaded : [])
+                : (outcomesRes.ok ? await outcomesRes.json() : []);
             const selectedIds = Array.isArray(profile?.selectedStandards) ? profile.selectedStandards : [];
             const standardsHtml = '<div class="acc-standards-block">' + buildStandardsBlockHtml(standardsPayload, selectedIds, null) + '</div>';
             const outcomesHtml = !Array.isArray(outcomes) || !outcomes.length
@@ -1892,8 +1922,20 @@ async function loadStandardsSyncTab() {
             outcomesEl.innerHTML = '<p style="color:#c62828;">Failed to load: ' + escapeHtml(e.message) + '</p>';
         }
     };
-    const profile = await loadProfile();
-    await loadOutcomes(profile);
+    const [profileRes, outcomesRes] = await Promise.all([
+        fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`),
+        fetch(`/canvas/courses/${selectedCourseId}/accreditation/outcomes`)
+    ]);
+    if (!profileRes.ok) {
+        const msg = profileRes.statusText;
+        if (profileEl) profileEl.innerHTML = '<p style="color:#c62828;">Failed to load profile: ' + escapeHtml(msg) + '</p>';
+        if (outcomesEl) outcomesEl.innerHTML = '<p style="color:#c62828;">Failed to load profile.</p>';
+        return;
+    }
+    const profile = await profileRes.json();
+    const outcomesPreloaded = outcomesRes.ok ? await outcomesRes.json() : [];
+    await loadProfile(profile);
+    await loadOutcomes(profile, outcomesPreloaded);
 }
 
 function renderAccessibilityPanelSkeleton() {
@@ -2736,12 +2778,19 @@ function getAccreditationEffectiveCip() {
     return (focusChecked[0] || programCip4) || '';
 }
 
+function getAccreditationCipFromProfile(profile) {
+    if (!profile || typeof profile !== 'object') return '';
+    return (Array.isArray(profile.programFocusCip6) && profile.programFocusCip6[0]) || profile.programCip4 || profile.program || '';
+}
+
 function buildParsedStandardsPreviewHtml(payload) {
     if (!payload || typeof payload !== 'object') {
+        debugLog('[AccStandards] buildParsedStandardsPreviewHtml: no payload', 'warn');
         return '<p style="color:#666;">No standards payload.</p>';
     }
     const orgs = Array.isArray(payload.organizations) ? payload.organizations : [];
     if (!orgs.length) {
+        debugLog('[AccStandards] buildParsedStandardsPreviewHtml: no organizations in payload', 'warn');
         return '<p style="color:#666;">No organizations in standards response.</p><details style="margin-top:8px;"><summary>Raw JSON</summary><pre style="font-size:11px;overflow:auto;max-height:240px;">' +
             escapeHtml(JSON.stringify(payload, null, 2)) + '</pre></details>';
     }
@@ -2809,8 +2858,10 @@ function buildParsedStandardsPreviewHtml(payload) {
 
 async function applyAccreditationStandards() {
     if (!selectedCourseId) return;
+    debugLog('[AccApply] Apply to course clicked', 'info');
     const checkboxes = document.querySelectorAll('#accStandardsList input[name="accStd"]:checked');
     const selectedStandards = Array.from(new Set(Array.from(checkboxes).map(cb => cb.value).filter(Boolean)));
+    debugLog('[AccApply] Selected standards count: ' + selectedStandards.length + ' — ids: ' + selectedStandards.slice(0, 5).join(', ') + (selectedStandards.length > 5 ? '...' : ''), 'info');
     const btn = document.getElementById('accApplyStandardsBtn');
     const origHtml = btn ? btn.innerHTML : '';
     if (btn) {
@@ -2818,29 +2869,56 @@ async function applyAccreditationStandards() {
         btn.innerHTML = '<span class="acc-card-loading" style="display: inline-flex; align-items: center; gap: 0.35rem;"><span class="acc-card-spinner" style="width: 16px; height: 16px;"></span>Applying...</span>';
     }
     try {
+        debugLog('[AccApply] 1. Fetching profile GET /accreditation/profile', 'info');
         const getRes = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`);
         if (!getRes.ok) throw new Error(getRes.statusText);
         const profile = await getRes.json();
         profile.selectedStandards = selectedStandards;
+        debugLog('[AccApply] 2. Profile loaded, writing via PUT with selectedStandards', 'info');
         const putRes = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ profile })
         });
         if (!putRes.ok) throw new Error(putRes.statusText);
+        debugLog('[AccApply] 3. Profile PUT success status=' + putRes.status, 'success');
+        debugLog('[AccApply] 4. Calling loadStandardsSyncTab (loads profile + outcomes + standards)', 'info');
         await loadStandardsSyncTab();
-        const cip = getAccreditationEffectiveCip();
+        const cip = getAccreditationCipFromProfile(profile);
+        const cipDom = getAccreditationEffectiveCip();
+        if (cip !== cipDom) {
+            debugLog('[AccApply] CIP from profile (' + cip + ') differs from DOM (' + cipDom + '); using profile (same as standards tab)', 'warn');
+        }
         const qs = cip ? ('?cip=' + encodeURIComponent(cip)) : '';
-        const stdRes = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/standards${qs}`);
+        const standardsUrl = `/canvas/courses/${selectedCourseId}/accreditation/standards${qs}`;
+        debugLog('[AccApply] 5. Fetching standards: ' + standardsUrl, 'info');
+        const stdRes = await fetch(standardsUrl);
         const bodyEl = document.getElementById('accParsedStandardsModalBody');
         if (stdRes.ok && bodyEl) {
             const payload = await stdRes.json();
+            const orgs = Array.isArray(payload?.organizations) ? payload.organizations : [];
+            const total = Number(payload?.total_standards) ?? 0;
+            const sources = orgs.map(o => (o.abbreviation || o.id) + ':' + (o.standards_source || '?')).join('; ');
+            debugLog('[AccApply] 6a. Standards response: orgs=' + orgs.length + ', total_standards=' + total + ', sources=' + sources, 'info');
+            orgs.forEach((org, i) => {
+                const stds = Array.isArray(org.standards) ? org.standards : [];
+                const sample = stds[0];
+                const keys = sample ? Object.keys(sample).join(',') : 'none';
+                const hasParent = stds.some(s => (s.parentId ?? s.parent_id) != null);
+                debugLog('[AccApply] 6b. Org[' + i + '] ' + (org.abbreviation || org.id) + ': standards=' + stds.length + ', hasParentId=' + hasParent + ', firstStd keys=' + keys, 'info');
+            });
+            if (payload._debug) {
+                debugLog('[AccApply] 6c. Backend _debug: ' + JSON.stringify(payload._debug), 'info');
+            }
             bodyEl.innerHTML = buildParsedStandardsPreviewHtml(payload);
+            debugLog('[AccApply] 7. Modal body built, opening accParsedStandardsModal', 'info');
             if (typeof openModal === 'function') openModal('accParsedStandardsModal');
-        } else if (typeof openModal === 'function') {
-            openModal('profileSavedModal');
+        } else {
+            debugLog('[AccApply] 6. Standards fetch failed: status=' + stdRes.status + (bodyEl ? '' : ' (no bodyEl)'), 'error');
+            if (typeof openModal === 'function') openModal('profileSavedModal');
         }
     } catch (e) {
+        debugLog('[AccApply] Error: ' + (e?.message || e), 'error');
         alert('Apply failed: ' + e.message);
         if (btn) {
             btn.disabled = false;

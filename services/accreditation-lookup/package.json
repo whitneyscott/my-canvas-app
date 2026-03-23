@@ -10,6 +10,8 @@
     "start:api": "node dist/main.js",
     "dev": "ts-node-dev --respawn src/main.ts",
     "db:migrate": "ts-node src/db/migrate.ts",
+    "db:migrate-standards": "ts-node src/db/migrate-standards.ts",
+    "db:seed-standards": "ts-node src/db/seed-standards.ts",
     "generate-admin-secret": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
     "apply-proposed-chea": "ts-node scripts/apply-proposed-chea.ts",
     "db:setup": "ts-node scripts/db-setup-with-scraper.ts",

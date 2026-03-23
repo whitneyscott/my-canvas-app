@@ -147,6 +147,9 @@ interface AccreditationStandardNode {
   version?: string | null;
   effectiveDate?: string | null;
   parentId?: string | null;
+  kind?: string;
+  groupCode?: string | null;
+  sortOrder?: number;
   sourceType?: 'db' | 'api' | 'file' | 'scrape' | 'ai';
   sourceUri?: string | null;
   confidence?: number;
@@ -1745,6 +1748,22 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     
     // If we get here, all retries failed with 404
     throw lastError || new Error(`Failed to get page: Resource not found after retries`);
+  }
+
+  private async tryGetPageByUrl(courseId: number, pageUrl: string): Promise<Record<string, unknown> | null> {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const response = await fetch(
+      `${baseUrl}/courses/${courseId}/pages/${encodeURIComponent(pageUrl)}?include[]=body`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (response.ok) {
+      return (await response.json()) as Record<string, unknown>;
+    }
+    if (response.status === 404) {
+      return null;
+    }
+    const errorText = await response.text();
+    throw new Error(`Failed to get page: ${response.status} ${response.statusText} - ${errorText}`);
   }
 
   async getAnnouncement(courseId: number, announcementId: number) {
@@ -3389,46 +3408,42 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   async getOrCreateAccreditationProfilePage(courseId: number) {
     const startHere = await this.ensureStartHereModule(courseId);
-    const pages = await this.getCoursePages(courseId);
-    const existing = pages.find(
-      (p: { url?: string }) => (p.url ?? '').toLowerCase() === CanvasService.ACCREDITATION_PROFILE_PAGE_URL.toLowerCase()
-    );
-    if (existing) {
-      const items = await this.getModuleItems(courseId, startHere.id);
-      const inModule = items.some(
-        (i: { type?: string; page_url?: string }) =>
-          i.type === 'Page' && (i.page_url ?? '').toLowerCase() === CanvasService.ACCREDITATION_PROFILE_PAGE_URL.toLowerCase()
-      );
-      if (!inModule) {
-        await this.createModuleItem(courseId, startHere.id, {
-          type: 'Page',
-          page_url: existing.url || CanvasService.ACCREDITATION_PROFILE_PAGE_URL,
-        });
-      }
-      return { page: existing, module: startHere };
+    const slug = CanvasService.ACCREDITATION_PROFILE_PAGE_URL;
+    let existing = await this.tryGetPageByUrl(courseId, slug);
+    if (!existing) {
+      const initialBody = CanvasService.buildAccreditationBlock({ v: 1 });
+      const created = await this.createPage(courseId, {
+        wiki_page: { title: 'Accreditation Profile', body: initialBody, url: slug },
+      });
+      const pageUrl = (created.url as string) ?? slug;
+      await this.createModuleItem(courseId, startHere.id, { type: 'Page', page_url: pageUrl });
+      return { page: created as Record<string, unknown>, module: startHere };
     }
-    const initialBody = CanvasService.buildAccreditationBlock({ v: 1 });
-    const created = await this.createPage(courseId, {
-      wiki_page: { title: 'Accreditation Profile', body: initialBody },
-    });
-    const pageUrl = created.url ?? CanvasService.ACCREDITATION_PROFILE_PAGE_URL;
-    await this.createModuleItem(courseId, startHere.id, { type: 'Page', page_url: pageUrl });
-    return { page: created, module: startHere };
+    const items = await this.getModuleItems(courseId, startHere.id);
+    const inModule = items.some(
+      (i: { type?: string; page_url?: string }) =>
+        i.type === 'Page' && (i.page_url ?? '').toLowerCase() === slug.toLowerCase()
+    );
+    if (!inModule) {
+      await this.createModuleItem(courseId, startHere.id, {
+        type: 'Page',
+        page_url: (existing.url as string) || slug,
+      });
+    }
+    return { page: existing, module: startHere };
   }
 
   async getAccreditationProfile(courseId: number) {
-    await this.getOrCreateAccreditationProfilePage(courseId);
-    const page = await this.getPage(courseId, CanvasService.ACCREDITATION_PROFILE_PAGE_URL);
-    const body = page?.body ?? '';
+    const { page } = await this.getOrCreateAccreditationProfilePage(courseId);
+    const body = (page?.body as string) ?? '';
     const profile = CanvasService.parseAccreditationBlock(body);
     return profile ?? { v: 1 };
   }
 
   async saveAccreditationProfile(courseId: number, profile: Record<string, unknown>) {
-    await this.getOrCreateAccreditationProfilePage(courseId);
+    const { page } = await this.getOrCreateAccreditationProfilePage(courseId);
     const pageUrl = CanvasService.ACCREDITATION_PROFILE_PAGE_URL;
-    const page = await this.getPage(courseId, pageUrl);
-    const merged = CanvasService.mergeAccreditationBlockInBody(page?.body ?? '', profile);
+    const merged = CanvasService.mergeAccreditationBlockInBody((page?.body as string) ?? '', profile);
     return this.updatePage(courseId, pageUrl, { wiki_page: { body: merged } });
   }
 
@@ -3559,6 +3574,9 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         version: item?.version ? String(item.version) : null,
         effectiveDate: item?.effectiveDate ? String(item.effectiveDate) : null,
         parentId: item?.parentId ? String(item.parentId) : null,
+        kind: item?.kind != null && item.kind !== '' ? String(item.kind) : undefined,
+        groupCode: item?.groupCode != null && item.groupCode !== '' ? String(item.groupCode) : null,
+        sortOrder: typeof item?.sortOrder === 'number' ? item.sortOrder : undefined,
         sourceType,
         sourceUri: sourceUri ?? null,
         confidence: typeof item?.confidence === 'number' ? item.confidence : defaultConfidence,
@@ -3743,7 +3761,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     cip?: string,
     degreeLevel?: string,
   ): Promise<StandardsResolutionResult> {
-    const orgId = CanvasService.normalizeOrgId(org.id || org.abbreviation || org.name);
+    const orgId = CanvasService.normalizeOrgId(org.abbreviation || org.id || org.name);
     const warnings: string[] = [];
 
     try {
@@ -3828,11 +3846,25 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       }),
     );
     const totalStandards = organizations.reduce((sum, org) => sum + (Array.isArray(org.standards) ? org.standards.length : 0), 0);
+    const firstOrg = organizations[0];
+    const firstStd = Array.isArray(firstOrg?.standards) ? firstOrg.standards[0] : null;
+    const _debug = {
+      effectiveCip: effectiveCip ?? null,
+      accreditors_source: accreditorsPayload.source,
+      org_sources: organizations.map((o) => ({
+        id: o.abbreviation ?? o.id,
+        source: o.standards_source,
+        count: Array.isArray(o.standards) ? o.standards.length : 0,
+        has_parent_ids: Array.isArray(o.standards) ? o.standards.some((s) => (s.parentId ?? s.parent_id) != null) : false,
+      })),
+      first_standard_keys: firstStd ? Object.keys(firstStd) : [],
+    };
     return {
       cip: effectiveCip || null,
       accreditors_source: accreditorsPayload.source,
       organizations,
       total_standards: totalStandards,
+      _debug,
     };
   }
 
