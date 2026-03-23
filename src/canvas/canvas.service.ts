@@ -4256,6 +4256,9 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
             const payload = await createRes.json();
             const groupId = Number(payload?.id ?? payload?.outcome_group?.id);
             if (Number.isFinite(groupId)) return groupId;
+          } else {
+            const text = await createRes.text();
+            console.error('[ensureOutcomeGroupForOrg] account subgroup create failed', createRes.status, text || createRes.statusText);
           }
         }
       } catch { /* fall through to course-level */ }
@@ -4267,7 +4270,10 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: form.toString(),
     });
-    if (!res.ok) throw new Error(`Failed to create outcome group: ${res.statusText}`);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to create outcome group: ${res.status} ${res.statusText} ${text || ''}`.trim());
+    }
     const payload = await res.json();
     const groupId = Number(payload?.id ?? payload?.outcome_group?.id);
     if (!Number.isFinite(groupId)) throw new Error('Failed to create outcome group');
@@ -4284,6 +4290,13 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const standardsPayload = await this.getAccreditationStandardsForCourse(courseId, cip || undefined, degreeLevel);
     const organizations = Array.isArray(standardsPayload?.organizations) ? standardsPayload.organizations : [];
     const byOrg = this.buildStandardsByOrg(organizations, selectedIds, false);
+    const orgRawByKey = new Map<string, any>();
+    organizations.forEach((o: any) => {
+      const id = String(o?.id || '').trim();
+      const abbr = String(o?.abbreviation || '').trim();
+      if (id) orgRawByKey.set(id.toLowerCase(), o);
+      if (abbr) orgRawByKey.set(abbr.toLowerCase(), o);
+    });
     const existingOutcomes = await this.getCourseOutcomeLinks(courseId);
     const existingByStd = new Map<string, any>();
     (existingOutcomes || []).forEach((o: any) => {
@@ -4295,13 +4308,51 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const orgs = Array.from(byOrg.entries()).map(([key, { org, standards }]) => {
       const toCreate = standards.filter((s) => !existingByStd.has(String(s.id)));
       const existing = standards.filter((s) => existingByStd.has(String(s.id)));
+      const rawOrg = orgRawByKey.get(String(key || '').trim().toLowerCase()) ||
+        orgRawByKey.get(String(org?.abbreviation || '').trim().toLowerCase()) ||
+        orgRawByKey.get(String(org?.id || '').trim().toLowerCase());
+      const orgStandards = Array.isArray(rawOrg?.standards) ? rawOrg.standards : [];
+      const nodeById = new Map<string, { id: string; title: string; parentId: string | null; kind?: string }>();
+      orgStandards.forEach((s: any) => {
+        const id = String(s?.id || '').trim();
+        if (!id) return;
+        nodeById.set(id, {
+          id,
+          title: String(s?.title || s?.id || '').trim() || id,
+          parentId: s?.parentId != null ? String(s.parentId) : (s?.parent_id != null ? String(s.parent_id) : null),
+          kind: s?.kind ? String(s.kind) : undefined,
+        });
+      });
+      const toCreateIds = new Set<string>(toCreate.map((s) => String(s.id || '').trim()).filter(Boolean));
+      const includeIds = new Set<string>(Array.from(toCreateIds));
+      toCreate.forEach((s) => {
+        let pid = String(s?.parentId || '').trim();
+        const seen = new Set<string>();
+        while (pid && nodeById.has(pid) && !seen.has(pid)) {
+          includeIds.add(pid);
+          seen.add(pid);
+          const p = nodeById.get(pid);
+          pid = String(p?.parentId || '').trim();
+        }
+      });
+      const toCreateTree = Array.from(includeIds).map((id) => {
+        const n = nodeById.get(id);
+        return {
+          id,
+          title: n?.title || id,
+          parentId: n?.parentId || null,
+          kind: n?.kind,
+          isLeaf: toCreateIds.has(id),
+        };
+      });
       return {
         orgId: org.id,
         orgAbbrev: org.abbreviation,
         orgName: org.name,
         toCreateCount: toCreate.length,
         existingCount: existing.length,
-        toCreate: toCreate.map((s) => ({ id: s.id, title: s.title })),
+        toCreate: toCreate.map((s) => ({ id: s.id, title: s.title, parentId: s.parentId ?? null, kind: s.kind ?? null })),
+        toCreateTree,
       };
     });
     return { orgs };
@@ -4327,7 +4378,9 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const organizations = Array.isArray(standardsPayload?.organizations) ? standardsPayload.organizations : [];
     const byOrg = this.buildStandardsByOrg(organizations, selectedIds, false);
     const orgKey = orgAbbrev || orgId;
-    const entry = byOrg.get(orgKey);
+    const entry = byOrg.get(orgKey) ||
+      byOrg.get(String(orgId || '').trim()) ||
+      Array.from(byOrg.entries()).find(([k]) => String(k || '').trim().toLowerCase() === String(orgKey || '').trim().toLowerCase())?.[1];
     if (!entry) {
       console.error('[syncOutcomesForOrg] No entry for orgKey', orgKey, 'keys:', Array.from(byOrg.keys()));
       return { summary: { created: 0, skipped: 0, failed: 0 }, created: [], skipped: [], failed: [], message: 'No standards for this org.' };
@@ -4336,6 +4389,10 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     if (Array.isArray(selectedStandardIds) && selectedStandardIds.length) {
       const wantSet = new Set(selectedStandardIds.map((s) => String(s || '').trim()).filter(Boolean));
       standards = standards.filter((s) => wantSet.has(String(s?.id || '').trim()));
+    }
+    if (!standards.length) {
+      console.warn('[syncOutcomesForOrg] zero standards after filtering', { orgKey, selectedStandardIds: selectedStandardIds?.length || 0 });
+      return { summary: { created: 0, skipped: 0, failed: 0 }, created: [], skipped: [], failed: [], message: 'No selected leaf standards to create for this org.' };
     }
     let existingOutcomes: any;
     try {

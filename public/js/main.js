@@ -3257,6 +3257,104 @@ async function createOutcomesFromSelectedStandards() {
     }
 }
 
+function getOutcomeSelectTree(org) {
+    const toCreate = Array.isArray(org?.toCreate) ? org.toCreate : [];
+    const rawTree = Array.isArray(org?.toCreateTree) ? org.toCreateTree : [];
+    const nodeById = new Map();
+    rawTree.forEach(n => {
+        const id = String(n?.id || '').trim();
+        if (!id) return;
+        nodeById.set(id, {
+            id,
+            title: String(n?.title || id),
+            parentId: n?.parentId != null ? String(n.parentId).trim() : '',
+            isLeaf: !!n?.isLeaf
+        });
+    });
+    toCreate.forEach(s => {
+        const id = String(s?.id || '').trim();
+        if (!id) return;
+        if (!nodeById.has(id)) {
+            nodeById.set(id, {
+                id,
+                title: String(s?.title || id),
+                parentId: s?.parentId != null ? String(s.parentId).trim() : '',
+                isLeaf: true
+            });
+        } else {
+            nodeById.get(id).isLeaf = true;
+        }
+    });
+    const children = new Map();
+    nodeById.forEach(n => {
+        const pid = n.parentId || '';
+        if (!pid || !nodeById.has(pid)) return;
+        if (!children.has(pid)) children.set(pid, []);
+        children.get(pid).push(n.id);
+    });
+    const roots = [];
+    nodeById.forEach(n => {
+        if (!n.parentId || !nodeById.has(n.parentId)) roots.push(n.id);
+    });
+    roots.sort((a, b) => a.localeCompare(b));
+    children.forEach((arr, k) => children.set(k, arr.sort((a, b) => a.localeCompare(b))));
+    return { nodeById, children, roots };
+}
+
+function getOutcomeLeafIds(tree, startId) {
+    const out = [];
+    const stack = [startId];
+    const visited = new Set();
+    while (stack.length) {
+        const id = stack.pop();
+        if (!id || visited.has(id)) continue;
+        visited.add(id);
+        const kids = tree.children.get(id) || [];
+        if (!kids.length && tree.nodeById.get(id)?.isLeaf) out.push(id);
+        kids.forEach(k => stack.push(k));
+    }
+    return out;
+}
+
+function updateOutcomeBranchStates() {
+    const bodyEl = document.getElementById('accOutcomeSelectModalBody');
+    if (!bodyEl) return;
+    const branchBoxes = bodyEl.querySelectorAll('input[data-role="branch"]');
+    branchBoxes.forEach(branch => {
+        const nodeId = branch.getAttribute('data-node-id');
+        if (!nodeId) return;
+        const leafBoxes = bodyEl.querySelectorAll('input[name="accOutcomeStd"][data-ancestor="' + nodeId + '"]');
+        if (!leafBoxes.length) {
+            branch.checked = false;
+            branch.indeterminate = false;
+            return;
+        }
+        const checked = Array.from(leafBoxes).filter(cb => cb.checked).length;
+        branch.checked = checked > 0 && checked === leafBoxes.length;
+        branch.indeterminate = checked > 0 && checked < leafBoxes.length;
+    });
+}
+
+function setOutcomeTreeExpanded(bodyEl, expanded) {
+    if (!bodyEl) return;
+    bodyEl.querySelectorAll('[data-children-for]').forEach(el => {
+        el.style.display = expanded ? 'block' : 'none';
+    });
+    bodyEl.querySelectorAll('.acc-outcome-toggle').forEach(btn => {
+        btn.textContent = expanded ? '▾' : '▸';
+    });
+}
+
+function toggleOutcomeTreeNode(bodyEl, nodeId) {
+    if (!bodyEl || !nodeId) return;
+    const target = Array.from(bodyEl.querySelectorAll('[data-children-for]')).find(el => el.getAttribute('data-children-for') === nodeId);
+    if (!target) return;
+    const isOpen = target.style.display !== 'none';
+    target.style.display = isOpen ? 'none' : 'block';
+    const toggleBtn = Array.from(bodyEl.querySelectorAll('.acc-outcome-toggle')).find(el => el.getAttribute('data-node-id') === nodeId);
+    if (toggleBtn) toggleBtn.textContent = isOpen ? '▸' : '▾';
+}
+
 function openOutcomeSelectModal(orgId, orgAbbrev, orgName) {
     const orgs = window.__accPreviewOrgs || {};
     const org = orgs[orgId];
@@ -3269,16 +3367,74 @@ function openOutcomeSelectModal(orgId, orgAbbrev, orgName) {
     window.__accOutcomeSelectOrg = { orgId, orgAbbrev, orgName };
     const titleEl = document.getElementById('accOutcomeSelectModalTitle');
     if (titleEl) titleEl.textContent = 'Select outcomes to create — ' + (orgAbbrev || orgId);
+    const tree = getOutcomeSelectTree(org);
+    const leafSet = new Set(toCreate.map(s => String(s?.id || '').trim()).filter(Boolean));
+    const renderNode = (id, depth, ancestors) => {
+        const n = tree.nodeById.get(id);
+        if (!n) return '';
+        const kids = tree.children.get(id) || [];
+        const pad = Math.max(0, depth) * 16;
+        if (!kids.length && n.isLeaf) {
+            const dataAnc = ancestors.map(a => ' data-ancestor="' + escapeHtml(a) + '"').join('');
+            return '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding-left:' + pad + 'px;"><input type="checkbox" name="accOutcomeStd" class="acc-outcome-leaf" value="' + escapeHtml(n.id) + '" checked' + dataAnc + '> <span>' + escapeHtml(n.id + ' — ' + (n.title || '')) + '</span></label>';
+        }
+        const descendants = getOutcomeLeafIds(tree, n.id).filter(x => leafSet.has(x));
+        const branchChecked = descendants.length > 0;
+        const row = '<div style="display:flex;align-items:flex-start;gap:8px;padding-left:' + pad + 'px;">' +
+            '<button type="button" class="secondary-btn acc-outcome-toggle" data-node-id="' + escapeHtml(n.id) + '" style="min-width:24px;padding:2px 6px;">▾</button>' +
+            '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">' +
+            '<input type="checkbox" data-role="branch" data-node-id="' + escapeHtml(n.id) + '"' + (branchChecked ? ' checked' : '') + '> ' +
+            '<span style="font-weight:600;">' + escapeHtml(n.id + ' — ' + (n.title || '')) + '</span>' +
+            '</label>' +
+            '</div>';
+        return row + '<div data-children-for="' + escapeHtml(n.id) + '">' + kids.map(k => renderNode(k, depth + 1, ancestors.concat(n.id))).join('') + '</div>';
+    };
     const bodyEl = document.getElementById('accOutcomeSelectModalBody');
     if (bodyEl) {
-        bodyEl.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;">' +
-            toCreate.map(s => '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;"><input type="checkbox" name="accOutcomeStd" value="' + escapeHtml(s.id) + '" checked> <span>' + escapeHtml(s.id + ' — ' + (s.title || '')) + '</span></label>').join('') +
-            '</div>';
+        const treeHtml = tree.roots.map(id => renderNode(id, 0, [])).join('');
+        bodyEl.innerHTML = '<div style="display:flex;gap:8px;margin-bottom:8px;">' +
+            '<button type="button" class="secondary-btn" id="accOutcomeExpandAllBtn">Expand all</button>' +
+            '<button type="button" class="secondary-btn" id="accOutcomeCollapseAllBtn">Collapse all</button>' +
+            '<button type="button" class="secondary-btn" id="accOutcomeSelectAllBtn">Select all</button>' +
+            '<button type="button" class="secondary-btn" id="accOutcomeSelectNoneBtn">Clear all</button>' +
+            '</div>' +
+            '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;">' + treeHtml + '</div>';
+        const onLeafChange = () => updateOutcomeBranchStates();
+        bodyEl.querySelectorAll('input[name="accOutcomeStd"]').forEach(cb => cb.addEventListener('change', onLeafChange));
+        bodyEl.querySelectorAll('input[data-role="branch"]').forEach(branch => {
+            branch.addEventListener('change', function() {
+                const nodeId = this.getAttribute('data-node-id');
+                if (!nodeId) return;
+                const leaves = bodyEl.querySelectorAll('input[name="accOutcomeStd"][data-ancestor="' + nodeId + '"]');
+                leaves.forEach(leaf => { leaf.checked = this.checked; });
+                updateOutcomeBranchStates();
+            });
+        });
+        bodyEl.querySelectorAll('.acc-outcome-toggle').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const nodeId = this.getAttribute('data-node-id');
+                if (!nodeId) return;
+                toggleOutcomeTreeNode(bodyEl, nodeId);
+            });
+        });
+        const expandBtn = document.getElementById('accOutcomeExpandAllBtn');
+        if (expandBtn) expandBtn.onclick = () => setOutcomeTreeExpanded(bodyEl, true);
+        const collapseBtn = document.getElementById('accOutcomeCollapseAllBtn');
+        if (collapseBtn) collapseBtn.onclick = () => setOutcomeTreeExpanded(bodyEl, false);
+        const allBtn = document.getElementById('accOutcomeSelectAllBtn');
+        if (allBtn) allBtn.onclick = () => {
+            bodyEl.querySelectorAll('input[name="accOutcomeStd"]').forEach(cb => { cb.checked = true; });
+            updateOutcomeBranchStates();
+        };
+        const noneBtn = document.getElementById('accOutcomeSelectNoneBtn');
+        if (noneBtn) noneBtn.onclick = () => {
+            bodyEl.querySelectorAll('input[name="accOutcomeStd"]').forEach(cb => { cb.checked = false; });
+            updateOutcomeBranchStates();
+        };
+        updateOutcomeBranchStates();
     }
     const createBtn = document.getElementById('accOutcomeSelectCreateBtn');
-    if (createBtn) {
-        createBtn.onclick = doCreateSelectedOutcomes;
-    }
+    if (createBtn) createBtn.onclick = doCreateSelectedOutcomes;
     if (typeof openModal === 'function') openModal('accOutcomeSelectModal');
 }
 
@@ -3296,6 +3452,7 @@ async function doCreateSelectedOutcomes() {
     const createBtn = document.getElementById('accOutcomeSelectCreateBtn');
     const orig = createBtn ? createBtn.innerHTML : '';
     if (createBtn) { createBtn.disabled = true; createBtn.innerHTML = 'Creating...'; }
+    if (typeof debugLog === 'function') debugLog('[sync-org] submit ' + (info.orgAbbrev || info.orgId) + ' selected=' + selectedStandardIds.length, 'info');
     try {
         const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/outcomes/sync-org', {
             method: 'POST',
@@ -3313,6 +3470,7 @@ async function doCreateSelectedOutcomes() {
         const created = Number(result?.summary?.created || 0);
         const skipped = Number(result?.summary?.skipped || 0);
         const failed = Number(result?.summary?.failed || 0);
+        if (typeof debugLog === 'function') debugLog('[sync-org] result created=' + created + ' skipped=' + skipped + ' failed=' + failed, failed ? 'warn' : 'success');
         if (typeof showToast === 'function') showToast(info.orgAbbrev + ': ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.', failed ? 'warn' : 'success');
         else alert(info.orgAbbrev + ': ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.');
         if (typeof closeActiveModal === 'function') closeActiveModal();
