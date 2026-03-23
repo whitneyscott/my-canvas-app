@@ -154,11 +154,22 @@ app.get('/standards', async (req, res) => {
   if (!org) return res.status(400).json({ error: 'org query parameter required' });
   try {
     const pool = getPool();
-    const r = await pool.query(
+    let r = await pool.query(
       `SELECT public_id, parent_public_id, group_code, title, description, kind, sort_order
        FROM standard_node WHERE org_key = $1 ORDER BY sort_order ASC, public_id ASC`,
       [org],
     );
+    if (r.rows.length === 0) {
+      const { seedSingleOrgFromFile } = await import('./db/seed-standards');
+      const seeded = await seedSingleOrgFromFile(org);
+      if (seeded.success) {
+        r = await pool.query(
+          `SELECT public_id, parent_public_id, group_code, title, description, kind, sort_order
+           FROM standard_node WHERE org_key = $1 ORDER BY sort_order ASC, public_id ASC`,
+          [org],
+        );
+      }
+    }
     const standards = r.rows.map((row: Record<string, unknown>) => ({
       id: row.public_id,
       parentId: row.parent_public_id ?? null,

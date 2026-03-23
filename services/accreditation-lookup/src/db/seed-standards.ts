@@ -86,6 +86,38 @@ export async function seedStandardsFromDataDir(dataDir: string): Promise<{ orgs:
   return { orgs, fingerprints };
 }
 
+export async function seedSingleOrgFromFile(orgKey: string): Promise<{ success: boolean; count: number }> {
+  const dataDir = getDefaultStandardsDataDir();
+  const file = path.join(dataDir, `${orgKey.toLowerCase()}.json`);
+  if (!fs.existsSync(file)) return { success: false, count: 0 };
+  const raw = fs.readFileSync(file, 'utf8');
+  const data = JSON.parse(raw) as StandardsOrgFile;
+  const key = data.org_key?.trim();
+  if (!key || !data.name || !Array.isArray(data.nodes)) return { success: false, count: 0 };
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO standards_organization (org_key, name, display_name, updated_at)
+       VALUES ($1, $2, $3, now())
+       ON CONFLICT (org_key) DO UPDATE SET name = EXCLUDED.name, display_name = EXCLUDED.display_name, updated_at = now()`,
+      [key, data.name, data.display_name ?? key],
+    );
+    await client.query('DELETE FROM standard_node WHERE org_key = $1', [key]);
+    for (const n of data.nodes) {
+      const kind = n.kind === 'group' || n.kind === 'leaf' ? n.kind : 'leaf';
+      await client.query(
+        `INSERT INTO standard_node (org_key, public_id, parent_public_id, group_code, title, description, kind, sort_order, source_uri)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [key, n.public_id, n.parent_public_id ?? null, n.group_code ?? null, n.title, n.description ?? null, kind, n.sort_order ?? 0, null],
+      );
+    }
+    return { success: true, count: data.nodes.length };
+  } finally {
+    client.release();
+  }
+}
+
 async function cli() {
   const dir = process.argv[2] || getDefaultStandardsDataDir();
   const { orgs } = await seedStandardsFromDataDir(dir);

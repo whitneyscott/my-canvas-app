@@ -3628,6 +3628,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       configured,
       path.join(process.cwd(), 'data', 'accreditation-standards.json'),
       path.join(process.cwd(), 'services', 'accreditation-lookup', 'data', 'standards.json'),
+      path.join(process.cwd(), 'services', 'accreditation-lookup', 'data', 'standards', `${orgId.toLowerCase()}.json`),
     ].filter(Boolean);
     for (const filePath of candidatePaths) {
       try {
@@ -3640,6 +3641,20 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
           arr = payload.organizations[orgId];
         } else if (Array.isArray(payload?.[orgId])) {
           arr = payload[orgId];
+        } else if (
+          payload?.org_key &&
+          CanvasService.normalizeOrgId(String(payload.org_key)) === orgId &&
+          Array.isArray(payload?.nodes)
+        ) {
+          arr = (payload.nodes as any[]).map((n: any) => ({
+            id: n.public_id,
+            parentId: n.parent_public_id,
+            title: n.title,
+            description: n.description,
+            groupCode: n.group_code,
+            kind: n.kind,
+            sortOrder: n.sort_order,
+          }));
         }
         const standards = CanvasService.normalizeStandardsNodes(arr, 'file', filePath, 0.85);
         if (standards.length) return { standards, sourceUri: filePath };
