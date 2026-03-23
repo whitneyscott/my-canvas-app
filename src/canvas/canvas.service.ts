@@ -3942,6 +3942,288 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return putRes.json();
   }
 
+  private static normalizeAlignmentText(input: unknown): string {
+    return String(input ?? '')
+      .replace(CanvasService.STANDARDS_PREFIX_REGEX, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private static tokenizeAlignmentText(input: unknown): string[] {
+    const text = CanvasService.normalizeAlignmentText(input).toLowerCase();
+    if (!text) return [];
+    return text
+      .split(/[^a-z0-9]+/g)
+      .map((x) => x.trim())
+      .filter((x) => x.length >= 3 && !/^\d+$/.test(x));
+  }
+
+  private static suggestStandardsForText(
+    input: unknown,
+    standards: AccreditationStandardNode[],
+    topN = 3,
+  ): Array<{ id: string; title: string; score: number; matched_terms: string[]; reason: string }> {
+    const text = CanvasService.normalizeAlignmentText(input);
+    const lower = text.toLowerCase();
+    if (!text) return [];
+    const tokenSet = new Set(CanvasService.tokenizeAlignmentText(text));
+    const scored = standards
+      .map((std) => {
+        const id = String(std?.id || '').trim();
+        if (!id) return null;
+        const title = String(std?.title || id).trim();
+        const idMentioned = new RegExp(`\\b${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').toLowerCase()}\\b`, 'i').test(lower);
+        const standardTokens = Array.from(new Set(CanvasService.tokenizeAlignmentText(`${id} ${title} ${std?.description || ''}`)));
+        const overlaps = standardTokens.filter((t) => tokenSet.has(t));
+        const overlapScore = standardTokens.length ? overlaps.length / Math.max(4, Math.min(16, standardTokens.length)) : 0;
+        const titleMatch = title && lower.includes(title.toLowerCase()) ? 0.25 : 0;
+        const score = Math.min(1, (idMentioned ? 0.75 : 0.15) + overlapScore + titleMatch);
+        if (!idMentioned && score < 0.22) return null;
+        return {
+          id,
+          title,
+          score: Number(score.toFixed(3)),
+          matched_terms: overlaps.slice(0, 6),
+          reason: idMentioned
+            ? `Direct standard ID mention (${id})`
+            : `Matched terms: ${overlaps.slice(0, 6).join(', ') || 'semantic overlap'}`,
+        };
+      })
+      .filter((x): x is { id: string; title: string; score: number; matched_terms: string[]; reason: string } => Boolean(x))
+      .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
+    return scored.slice(0, topN);
+  }
+
+  private extractRubricCriteriaText(rubric: any): Array<{ id: string; text: string }> {
+    const rawCriteria = Array.isArray(rubric?.data)
+      ? rubric.data
+      : (Array.isArray(rubric?.criteria) ? rubric.criteria : []);
+    return rawCriteria
+      .map((c: any, idx: number) => {
+        const cid = String(c?.id || c?.criterion_id || `criterion_${idx + 1}`);
+        const text = String(c?.long_description || c?.description || c?.title || '').trim();
+        if (!text) return null;
+        return { id: cid, text };
+      })
+      .filter(Boolean) as Array<{ id: string; text: string }>;
+  }
+
+  private async getCourseRubricAlignmentRows(courseId: number): Promise<any[]> {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const htmlBase = this.canvasHtmlBase(baseUrl);
+    const rows = await this.fetchPaginatedData(`${baseUrl}/courses/${courseId}/rubrics?per_page=100&include[]=associations`, token);
+    return rows
+      .map((r: any) => {
+        const id = Number(r?.id);
+        if (!Number.isFinite(id)) return null;
+        const title = String(r?.title || `Rubric ${id}`);
+        const criteria = this.extractRubricCriteriaText(r);
+        const associations = (Array.isArray(r?.associations) ? r.associations : [])
+          .filter((a: any) => String(a?.association_type || '') === 'Assignment')
+          .map((a: any) => Number(a?.association_id))
+          .filter((n: number) => Number.isFinite(n));
+        return {
+          id,
+          title,
+          url: `${htmlBase}/courses/${courseId}/rubrics/${id}`,
+          criteria,
+          assignment_ids: associations,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  private async getCourseAlignmentResources(courseId: number): Promise<Array<{ resource_type: string; resource_id: string; title: string; text: string; url: string | null }>> {
+    const { baseUrl } = await this.getAuthHeaders();
+    const htmlBase = this.canvasHtmlBase(baseUrl);
+    const [assignments, pages, discussions, announcements, modules, files] = await Promise.all([
+      this.getCourseAssignments(courseId),
+      this.getCoursePages(courseId),
+      this.getCourseDiscussions(courseId),
+      this.getCourseAnnouncements(courseId),
+      this.getCourseModules(courseId),
+      this.getCourseFiles(courseId),
+    ]);
+    const resources: Array<{ resource_type: string; resource_id: string; title: string; text: string; url: string | null }> = [];
+    (assignments || []).forEach((a: any) => {
+      const id = Number(a?.id);
+      if (!Number.isFinite(id)) return;
+      const title = String(a?.name || `Assignment ${id}`);
+      const desc = String(a?.description || '');
+      resources.push({
+        resource_type: 'assignment',
+        resource_id: String(id),
+        title,
+        text: `${title} ${desc}`.trim(),
+        url: `${htmlBase}/courses/${courseId}/assignments/${id}`,
+      });
+    });
+    (pages || []).forEach((p: any) => {
+      const slug = String(p?.url || p?.page_id || '').trim();
+      if (!slug) return;
+      const title = String(p?.title || slug);
+      const body = String(p?.body || '');
+      resources.push({
+        resource_type: 'page',
+        resource_id: slug,
+        title,
+        text: `${title} ${body}`.trim(),
+        url: p?.html_url ? String(p.html_url) : `${htmlBase}/courses/${courseId}/pages/${encodeURIComponent(slug)}`,
+      });
+    });
+    (discussions || []).forEach((d: any) => {
+      const id = Number(d?.id);
+      if (!Number.isFinite(id)) return;
+      const title = String(d?.title || `Discussion ${id}`);
+      const body = String(d?.message || '');
+      resources.push({
+        resource_type: 'discussion',
+        resource_id: String(id),
+        title,
+        text: `${title} ${body}`.trim(),
+        url: `${htmlBase}/courses/${courseId}/discussion_topics/${id}`,
+      });
+    });
+    (announcements || []).forEach((a: any) => {
+      const id = Number(a?.id);
+      if (!Number.isFinite(id)) return;
+      const title = String(a?.title || `Announcement ${id}`);
+      const body = String(a?.message || '');
+      resources.push({
+        resource_type: 'announcement',
+        resource_id: String(id),
+        title,
+        text: `${title} ${body}`.trim(),
+        url: `${htmlBase}/courses/${courseId}/discussion_topics/${id}`,
+      });
+    });
+    (modules || []).forEach((m: any) => {
+      const id = Number(m?.id);
+      if (!Number.isFinite(id)) return;
+      const title = String(m?.name || `Module ${id}`);
+      const items = Array.isArray(m?.items)
+        ? m.items.map((i: any) => String(i?.title || i?.type || '')).filter(Boolean).join(' ')
+        : '';
+      resources.push({
+        resource_type: 'module',
+        resource_id: String(id),
+        title,
+        text: `${title} ${items}`.trim(),
+        url: `${htmlBase}/courses/${courseId}/modules/${id}`,
+      });
+    });
+    (files || []).forEach((f: any) => {
+      if (f?.is_folder) return;
+      const id = Number(f?.id);
+      if (!Number.isFinite(id)) return;
+      const title = String(f?.display_name || f?.filename || `File ${id}`);
+      const text = `${title} ${String(f?.content_type || '')} ${String(f?.folder_path || '')}`.trim();
+      resources.push({
+        resource_type: 'file',
+        resource_id: String(id),
+        title,
+        text,
+        url: f?.url ? String(f.url) : null,
+      });
+    });
+    return resources;
+  }
+
+  async getAccreditationAlignment(courseId: number, cip?: string, degreeLevel?: string) {
+    const profile = await this.getAccreditationProfile(courseId);
+    const p = profile as Record<string, unknown>;
+    const profileCip = ((Array.isArray(p?.programFocusCip6) && (p.programFocusCip6 as string[])[0]) || (p?.programCip4 as string) || (p?.program as string) || '').trim();
+    const effectiveCip = (cip || '').trim() || profileCip || await this.getEffectiveCip(courseId);
+    const standardsPayload = await this.getAccreditationStandardsForCourse(courseId, effectiveCip || undefined, degreeLevel);
+    const selectedStandardIds = new Set<string>(
+      Array.isArray(p?.selectedStandards)
+        ? (p.selectedStandards as unknown[]).map((x) => String(x || '').trim()).filter(Boolean)
+        : [],
+    );
+    const allStandards = (Array.isArray(standardsPayload?.organizations) ? standardsPayload.organizations : [])
+      .flatMap((o: any) => (Array.isArray(o?.standards) ? o.standards : []))
+      .map((s: any) => ({
+        id: String(s?.id || '').trim(),
+        title: String(s?.title || s?.id || '').trim(),
+        description: s?.description ? String(s.description) : null,
+        kind: s?.kind ? String(s.kind) : undefined,
+      }))
+      .filter((s: AccreditationStandardNode) => s.id && s.title);
+    const byId = new Map<string, AccreditationStandardNode>();
+    allStandards.forEach((s) => { if (!byId.has(s.id)) byId.set(s.id, s); });
+    const standards = (selectedStandardIds.size
+      ? Array.from(selectedStandardIds).map((id) => byId.get(id)).filter(Boolean)
+      : Array.from(byId.values())
+    ).slice(0, 800) as AccreditationStandardNode[];
+    const outcomes = await this.getCourseOutcomeLinks(courseId);
+    const outcome_mappings = outcomes.map((o: any) => {
+      const existing = Array.isArray(o?.standards) ? o.standards.map((x: unknown) => String(x || '').trim()).filter(Boolean) : [];
+      const suggestions = CanvasService.suggestStandardsForText(`${o?.title || ''} ${o?.description || ''}`, standards, 4)
+        .filter((s) => !existing.includes(s.id));
+      return {
+        outcome_id: Number(o?.id),
+        title: String(o?.title || ''),
+        existing_standards: existing,
+        suggested_standards: suggestions,
+      };
+    });
+    const rubrics = await this.getCourseRubricAlignmentRows(courseId);
+    const rubric_mappings = rubrics.map((r: any) => {
+      const criteria = Array.isArray(r?.criteria) ? r.criteria : [];
+      const criterion_mappings = criteria.map((c: any) => ({
+        criterion_id: String(c?.id || ''),
+        text: String(c?.text || ''),
+        suggested_standards: CanvasService.suggestStandardsForText(c?.text || '', standards, 3),
+      }));
+      const summaryText = `${String(r?.title || '')} ${criteria.map((c: any) => String(c?.text || '')).join(' ')}`;
+      return {
+        rubric_id: Number(r?.id),
+        title: String(r?.title || ''),
+        url: r?.url ? String(r.url) : null,
+        assignment_ids: Array.isArray(r?.assignment_ids) ? r.assignment_ids : [],
+        suggested_standards: CanvasService.suggestStandardsForText(summaryText, standards, 4),
+        criteria: criterion_mappings,
+      };
+    });
+    const resources = await this.getCourseAlignmentResources(courseId);
+    const resource_mappings = resources
+      .map((r) => {
+        const suggested = CanvasService.suggestStandardsForText(r.text, standards, 3);
+        if (!suggested.length) return null;
+        return {
+          resource_type: r.resource_type,
+          resource_id: r.resource_id,
+          title: r.title,
+          url: r.url,
+          suggested_standards: suggested,
+        };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => (b?.suggested_standards?.[0]?.score || 0) - (a?.suggested_standards?.[0]?.score || 0))
+      .slice(0, 120);
+    return {
+      cip: effectiveCip || null,
+      standards_considered: standards.length,
+      selected_standards: Array.from(selectedStandardIds),
+      outcome_mappings,
+      rubric_mappings,
+      resource_mappings,
+      summary: {
+        outcomes: outcome_mappings.length,
+        outcomes_with_suggestions: outcome_mappings.filter((x: any) => Array.isArray(x.suggested_standards) && x.suggested_standards.length > 0).length,
+        rubrics: rubric_mappings.length,
+        rubric_criteria: rubric_mappings.reduce((n: number, r: any) => n + (Array.isArray(r.criteria) ? r.criteria.length : 0), 0),
+        resources_scanned: resources.length,
+        resources_with_suggestions: resource_mappings.length,
+      },
+    };
+  }
+
   private static readonly ACCESSIBILITY_SUPPORTED_TYPES = ['pages', 'assignments', 'announcements', 'syllabus', 'discussions'] as const;
 
   private resolveAccessibilityResourceTypes(resourceTypes?: string[]): string[] {

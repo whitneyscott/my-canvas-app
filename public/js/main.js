@@ -1640,13 +1640,16 @@ async function loadStandardsSyncTab() {
     debugLog('[AccStandards] loadStandardsSyncTab started', 'info');
     const profileEl = document.getElementById('accProfileContent');
     const outcomesEl = document.getElementById('accOutcomesContent');
+    const alignmentEl = document.getElementById('accAlignmentContent');
     if (!selectedCourseId) {
         if (profileEl) profileEl.innerHTML = '<p>Select a course to view the accreditation profile.</p>';
         if (outcomesEl) outcomesEl.innerHTML = '<p>Select a course to view outcomes.</p>';
+        if (alignmentEl) alignmentEl.innerHTML = '<p>Select a course to analyze content alignment.</p>';
         return;
     }
     if (profileEl) profileEl.innerHTML = '<div class="acc-card-loading" style="padding: 2rem;"><div class="acc-card-spinner" style="width: 32px; height: 32px;"></div><span style="margin-left: 0.5rem;">Loading profile...</span></div>';
     if (outcomesEl) outcomesEl.innerHTML = '<div class="acc-card-loading" style="padding: 2rem;"><div class="acc-card-spinner" style="width: 32px; height: 32px;"></div><span style="margin-left: 0.5rem;">Loading outcomes...</span></div>';
+    if (alignmentEl) alignmentEl.innerHTML = '<div class="acc-card-loading" style="padding: 2rem;"><div class="acc-card-spinner" style="width: 32px; height: 32px;"></div><span style="margin-left: 0.5rem;">Analyzing outcomes, rubrics, and resources...</span></div>';
     const getEffectiveCip = () => {
         const progEl = document.getElementById('accProgram');
         const focusEl = document.getElementById('accProgramFocus');
@@ -1925,6 +1928,7 @@ async function loadStandardsSyncTab() {
                         '</div></div>';
                 }).join('');
             outcomesEl.innerHTML = standardsHtml + '<div class="acc-outcomes-block" style="margin-top: 1.5rem;">' + outcomesHtml + '</div>';
+            await loadAccreditationAlignment(profile);
         } catch (e) {
             outcomesEl.innerHTML = '<p style="color:#c62828;">Failed to load: ' + escapeHtml(e.message) + '</p>';
         }
@@ -2788,6 +2792,145 @@ function getAccreditationEffectiveCip() {
 function getAccreditationCipFromProfile(profile) {
     if (!profile || typeof profile !== 'object') return '';
     return (Array.isArray(profile.programFocusCip6) && profile.programFocusCip6[0]) || profile.programCip4 || profile.program || '';
+}
+
+function formatAccScore(score) {
+    const v = Number(score);
+    if (!Number.isFinite(v)) return 'n/a';
+    return Math.max(0, Math.min(100, Math.round(v * 100))) + '%';
+}
+
+function parseStandardsInputValue(input) {
+    return Array.from(new Set(String(input || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)));
+}
+
+function setOutcomeStandardsInput(outcomeId, standards) {
+    const row = document.querySelector('.acc-outcome-row[data-outcome-id="' + outcomeId + '"]');
+    if (!row) return false;
+    const input = row.querySelector('.acc-std-input');
+    if (!input) return false;
+    input.value = Array.isArray(standards) ? standards.join(', ') : '';
+    return true;
+}
+
+function applySuggestedOutcomeStandards(outcomeId, standardsCsv) {
+    const standards = parseStandardsInputValue(standardsCsv);
+    const ok = setOutcomeStandardsInput(outcomeId, standards);
+    if (!ok) return;
+    if (typeof showToast === 'function') showToast('Applied suggested standards to outcome input. Click Save to persist.', 'success');
+}
+
+async function saveOutcomeStandards(outcomeId) {
+    const row = document.querySelector('.acc-outcome-row[data-outcome-id="' + outcomeId + '"]');
+    if (!row) return;
+    const input = row.querySelector('.acc-std-input');
+    const btn = row.querySelector('.acc-save-std');
+    if (!input || !btn) return;
+    const standards = parseStandardsInputValue(input.value);
+    const prev = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = 'Saving...';
+    try {
+        const res = await fetch('/canvas/outcomes/' + encodeURIComponent(outcomeId) + '/standards', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ standards })
+        });
+        if (!res.ok) throw new Error(res.statusText || ('HTTP ' + res.status));
+        if (typeof showToast === 'function') showToast('Outcome standards saved.', 'success');
+    } catch (e) {
+        if (typeof showToast === 'function') showToast('Failed to save outcome standards: ' + (e?.message || e), 'error');
+        else alert('Failed to save outcome standards: ' + (e?.message || e));
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = prev || 'Save';
+    }
+}
+
+function renderAccSuggestionBadges(items) {
+    const arr = Array.isArray(items) ? items : [];
+    if (!arr.length) return '<span class="acc-align-muted">No strong matches</span>';
+    return arr.map(s => {
+        const id = escapeHtml(String(s?.id || ''));
+        const title = escapeHtml(String(s?.title || id));
+        const score = escapeHtml(formatAccScore(s?.score));
+        const reason = escapeHtml(String(s?.reason || ''));
+        return '<span class="acc-align-badge" title="' + reason + '"><strong>' + id + '</strong> · ' + title + ' (' + score + ')</span>';
+    }).join('');
+}
+
+async function loadAccreditationAlignment(profile) {
+    const host = document.getElementById('accAlignmentContent');
+    if (!host) return;
+    if (!selectedCourseId) {
+        host.innerHTML = '<p>Select a course to analyze content alignment.</p>';
+        return;
+    }
+    const cip = getAccreditationCipFromProfile(profile) || getAccreditationEffectiveCip();
+    const qs = cip ? ('?cip=' + encodeURIComponent(cip)) : '';
+    host.innerHTML = '<div class="acc-card-loading"><div class="acc-card-spinner"></div><span>Analyzing outcomes, rubrics, and resources...</span></div>';
+    try {
+        const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/alignment' + qs);
+        if (!res.ok) throw new Error(res.statusText || ('HTTP ' + res.status));
+        const payload = await res.json();
+        const outcomes = Array.isArray(payload?.outcome_mappings) ? payload.outcome_mappings : [];
+        const rubrics = Array.isArray(payload?.rubric_mappings) ? payload.rubric_mappings : [];
+        const resources = Array.isArray(payload?.resource_mappings) ? payload.resource_mappings : [];
+        const summary = payload?.summary || {};
+        const outcomesHtml = outcomes.length
+            ? outcomes.map(o => {
+                const existing = Array.isArray(o?.existing_standards) ? o.existing_standards : [];
+                const suggested = Array.isArray(o?.suggested_standards) ? o.suggested_standards : [];
+                const suggestedCsv = suggested.map(s => String(s?.id || '')).filter(Boolean).join(', ');
+                const applyBtn = suggestedCsv
+                    ? '<button type="button" class="primary-btn acc-use-suggested-btn" onclick="applySuggestedOutcomeStandards(' + Number(o?.outcome_id || 0) + ', \'' + escapeHtml(suggestedCsv).replace(/'/g, '&#39;') + '\')">Use suggested</button>'
+                    : '';
+                return '<div class="acc-align-row">' +
+                    '<div><strong>' + escapeHtml(String(o?.title || 'Untitled outcome')) + '</strong></div>' +
+                    '<div class="acc-align-kv"><span class="acc-align-key">Current</span><span>' + (existing.length ? escapeHtml(existing.join(', ')) : '<span class="acc-align-muted">None</span>') + '</span></div>' +
+                    '<div class="acc-align-kv"><span class="acc-align-key">Suggested</span><span class="acc-align-badges">' + renderAccSuggestionBadges(suggested) + '</span></div>' +
+                    (applyBtn ? '<div style="margin-top:6px;">' + applyBtn + '</div>' : '') +
+                    '</div>';
+            }).join('')
+            : '<p class="acc-align-muted">No outcomes found.</p>';
+        const rubricsHtml = rubrics.length
+            ? rubrics.map(r => {
+                const criteria = Array.isArray(r?.criteria) ? r.criteria : [];
+                const criteriaWithSuggestions = criteria.filter(c => Array.isArray(c?.suggested_standards) && c.suggested_standards.length);
+                return '<div class="acc-align-row">' +
+                    '<div><strong>' + escapeHtml(String(r?.title || 'Untitled rubric')) + '</strong></div>' +
+                    '<div class="acc-align-kv"><span class="acc-align-key">Rubric-level suggested</span><span class="acc-align-badges">' + renderAccSuggestionBadges(r?.suggested_standards || []) + '</span></div>' +
+                    '<div class="acc-align-kv"><span class="acc-align-key">Criteria with matches</span><span>' + escapeHtml(String(criteriaWithSuggestions.length)) + ' of ' + escapeHtml(String(criteria.length)) + '</span></div>' +
+                    '</div>';
+            }).join('')
+            : '<p class="acc-align-muted">No rubrics found.</p>';
+        const resourcesHtml = resources.length
+            ? resources.map(r => {
+                const label = (String(r?.resource_type || '').toUpperCase() || 'RESOURCE') + ' #' + String(r?.resource_id || '');
+                const title = escapeHtml(String(r?.title || label));
+                const url = r?.url ? String(r.url) : '';
+                const link = url ? '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer">Open</a>' : '<span class="acc-align-muted">No URL</span>';
+                return '<div class="acc-align-row">' +
+                    '<div><strong>' + title + '</strong> <span class="acc-align-muted">(' + escapeHtml(label) + ')</span></div>' +
+                    '<div class="acc-align-kv"><span class="acc-align-key">Suggested</span><span class="acc-align-badges">' + renderAccSuggestionBadges(r?.suggested_standards || []) + '</span></div>' +
+                    '<div class="acc-align-kv"><span class="acc-align-key">Link</span><span>' + link + '</span></div>' +
+                    '</div>';
+            }).join('')
+            : '<p class="acc-align-muted">No resource matches found yet.</p>';
+        host.innerHTML = '<div class="acc-align-summary">' +
+            '<span class="acc-align-pill">Standards considered: ' + escapeHtml(String(payload?.standards_considered || 0)) + '</span>' +
+            '<span class="acc-align-pill">Outcomes mapped: ' + escapeHtml(String(summary?.outcomes_with_suggestions || 0)) + '/' + escapeHtml(String(summary?.outcomes || 0)) + '</span>' +
+            '<span class="acc-align-pill">Resources mapped: ' + escapeHtml(String(summary?.resources_with_suggestions || 0)) + '/' + escapeHtml(String(summary?.resources_scanned || 0)) + '</span>' +
+            '</div>' +
+            '<div class="acc-align-section"><h4>Outcome Suggestions</h4>' + outcomesHtml + '</div>' +
+            '<div class="acc-align-section"><h4>Rubric Suggestions</h4>' + rubricsHtml + '</div>' +
+            '<div class="acc-align-section"><h4>Resource Suggestions</h4>' + resourcesHtml + '</div>';
+    } catch (e) {
+        host.innerHTML = '<p style="color:#c62828;">Alignment analysis failed: ' + escapeHtml(e?.message || String(e)) + '</p>';
+    }
 }
 
 function buildParsedStandardsPreviewHtml(payload) {

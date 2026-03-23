@@ -200,6 +200,15 @@ export class CanvasController {
     return this.canvasService.getCourseOutcomeLinks(id);
   }
 
+  @Get('courses/:id/accreditation/alignment')
+  async getAccreditationAlignment(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('cip') cip: string,
+    @Query('degree_level') degreeLevel: string,
+  ) {
+    return this.canvasService.getAccreditationAlignment(id, cip || undefined, degreeLevel || undefined);
+  }
+
   @Get('courses/:id/accessibility/scan')
   async getAccessibilityScan(
     @Param('id', ParseIntPipe) id: number,
