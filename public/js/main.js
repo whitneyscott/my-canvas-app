@@ -1689,7 +1689,7 @@ async function loadStandardsSyncTab() {
             let standards = Array.isArray(org?.standards) && org.standards.length
                 ? org.standards
                 : [{ id: orgId, title: org?.name || orgId, sourceType: org?.standards_source || payload?.accreditors_source, confidence: org?.standards_confidence }];
-            const branches = standards.filter(s => (s.kind || '').toLowerCase() === 'group' || (!(s.parentId ?? s.parent_id) && standards.some(c => String(c.parentId ?? c.parent_id || '') === String(s.id || ''))));
+            const branches = standards.filter(s => (s.kind || '').toLowerCase() === 'group' || (!(s.parentId ?? s.parent_id) && standards.some(c => String((c.parentId ?? c.parent_id) || '') === String(s.id || ''))));
             const displayStandards = branches.length ? branches : standards;
             const abbrev = (org?.abbreviation || orgId || 'org').toString();
             const allSelected = displayStandards.every(s => preferred.has(String(s.id || '')));
