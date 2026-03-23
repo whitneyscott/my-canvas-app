@@ -31,6 +31,7 @@ interface AccessibilityFinding {
 interface AccessibilityScanOptions {
   canvasNativeBaselineMs?: number;
   resourceTypes?: string[];
+  ruleIds?: string[];
 }
 
 interface AccreditationStandardNode {
@@ -4285,16 +4286,23 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       }
       return all;
     });
+    const requestedRuleIds = Array.isArray(options.ruleIds)
+      ? options.ruleIds.map((x) => String(x || '').trim()).filter(Boolean)
+      : [];
+    const requestedRuleSet = new Set(requestedRuleIds);
+    const effectiveFindings = requestedRuleSet.size
+      ? findings.filter((f) => requestedRuleSet.has(f.rule_id))
+      : findings;
 
-    const bySeverity = findings.reduce((acc: Record<string, number>, f) => {
+    const bySeverity = effectiveFindings.reduce((acc: Record<string, number>, f) => {
       acc[f.severity] = (acc[f.severity] || 0) + 1;
       return acc;
     }, {});
-    const byRule = findings.reduce((acc: Record<string, number>, f) => {
+    const byRule = effectiveFindings.reduce((acc: Record<string, number>, f) => {
       acc[f.rule_id] = (acc[f.rule_id] || 0) + 1;
       return acc;
     }, {});
-    const byResourceType = findings.reduce((acc: Record<string, number>, f) => {
+    const byResourceType = effectiveFindings.reduce((acc: Record<string, number>, f) => {
       acc[f.resource_type] = (acc[f.resource_type] || 0) + 1;
       return acc;
     }, {});
@@ -4308,9 +4316,10 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
     return {
       requested_resource_types: types,
+      requested_rule_ids: requestedRuleIds,
       summary: {
         course_id: courseId,
-        total_findings: findings.length,
+        total_findings: effectiveFindings.length,
         resources_scanned: resources.length,
         resources_scanned_by_type: resourcesScannedByType,
         by_severity: {
@@ -4331,7 +4340,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         slower_than_canvas: hasBaseline ? totalMs > baseline : null,
         ratio_vs_canvas: hasBaseline ? Number((totalMs / baseline).toFixed(3)) : null,
       },
-      findings,
+      findings: effectiveFindings,
       warnings,
       rule_version: 'tier2-v1',
     };

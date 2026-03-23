@@ -205,15 +205,21 @@ export class CanvasController {
     @Param('id', ParseIntPipe) id: number,
     @Query('baseline_ms') baselineMsRaw?: string,
     @Query('resource_types') resourceTypesRaw?: string,
+    @Query('rule_ids') ruleIdsRaw?: string,
   ): Promise<any> {
     const baselineMs = baselineMsRaw != null && baselineMsRaw !== '' ? Number(baselineMsRaw) : undefined;
     const resourceTypes = (resourceTypesRaw || '')
       .split(',')
       .map((x) => x.trim())
       .filter(Boolean);
+    const ruleIds = (ruleIdsRaw || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
     return this.canvasService.getAccessibilityScan(id, {
       canvasNativeBaselineMs: Number.isFinite(baselineMs as number) ? (baselineMs as number) : undefined,
       resourceTypes: resourceTypes.length ? resourceTypes : undefined,
+      ruleIds: ruleIds.length ? ruleIds : undefined,
     });
   }
 
@@ -223,13 +229,19 @@ export class CanvasController {
   async exportAccessibilityCsv(
     @Param('id', ParseIntPipe) id: number,
     @Query('resource_types') resourceTypesRaw?: string,
+    @Query('rule_ids') ruleIdsRaw?: string,
   ): Promise<string> {
     const resourceTypes = (resourceTypesRaw || '')
       .split(',')
       .map((x) => x.trim())
       .filter(Boolean);
+    const ruleIds = (ruleIdsRaw || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
     const report = await this.canvasService.getAccessibilityScan(id, {
       resourceTypes: resourceTypes.length ? resourceTypes : undefined,
+      ruleIds: ruleIds.length ? ruleIds : undefined,
     });
     return this.canvasService.buildAccessibilityCsv(report);
   }

@@ -548,6 +548,102 @@ let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, select
 let accessibilityLastReport = null;
 const ACCESSIBILITY_RUN_HISTORY_KEY = 'accessibility:runHistory:v1';
 let accessibilityGridApi = null;
+const ACCESSIBILITY_CANVAS_PARITY_RULES = [
+    'adjacent_duplicate_links',
+    'heading_skipped_level',
+    'img_missing_alt',
+    'img_alt_too_long',
+    'img_alt_filename',
+    'small_text_contrast',
+    'large_text_contrast',
+    'table_missing_caption',
+    'table_missing_header'
+];
+const ACCESSIBILITY_ADDITIONAL_RULES = [
+    'table_header_scope_missing',
+    'heading_h1_in_body',
+    'heading_too_long',
+    'list_not_semantic',
+    'link_split_or_broken',
+    'link_empty_name',
+    'link_ambiguous_text',
+    'link_new_tab_no_warning',
+    'link_file_missing_type_size_hint',
+    'heading_empty',
+    'heading_duplicate_h1',
+    'heading_visual_only_style',
+    'landmark_structure_quality',
+    'list_empty_item',
+    'table_layout_heuristic',
+    'table_complex_assoc_missing',
+    'img_decorative_misuse',
+    'img_meaningful_empty_alt',
+    'img_text_in_image_warning',
+    'video_missing_captions',
+    'audio_missing_transcript',
+    'media_autoplay',
+    'motion_gif_warning',
+    'video_embed_caption_unknown',
+    'form_control_missing_label',
+    'form_placeholder_as_label',
+    'form_required_not_programmatic',
+    'form_error_unassociated',
+    'aria_invalid_role',
+    'aria_hidden_focusable',
+    'duplicate_id',
+    'keyboard_focus_trap_heuristic',
+    'doc_pdf_accessibility_unknown',
+    'doc_office_structure_unknown',
+    'doc_spreadsheet_headers_unknown',
+    'button_empty_name'
+];
+const ACCESSIBILITY_RULE_LABELS = {
+    adjacent_duplicate_links: 'Duplicate links',
+    heading_skipped_level: 'Skipped headings',
+    img_missing_alt: 'Missing image alt',
+    img_alt_too_long: 'Image alt too long',
+    img_alt_filename: 'Image alt is filename',
+    small_text_contrast: 'Small text contrast',
+    large_text_contrast: 'Large text contrast',
+    table_missing_caption: 'Missing table captions',
+    table_missing_header: 'Missing table headers',
+    table_header_scope_missing: 'Missing table header scope',
+    heading_h1_in_body: 'H1 in body',
+    heading_too_long: 'Heading too long',
+    list_not_semantic: 'Non-semantic list',
+    link_split_or_broken: 'Split/broken link',
+    link_empty_name: 'Empty link name',
+    link_ambiguous_text: 'Ambiguous link text',
+    link_new_tab_no_warning: 'New-tab warning missing',
+    link_file_missing_type_size_hint: 'File link hint missing',
+    heading_empty: 'Empty heading',
+    heading_duplicate_h1: 'Duplicate H1',
+    heading_visual_only_style: 'Visual heading style only',
+    landmark_structure_quality: 'Landmark quality',
+    list_empty_item: 'Empty list item',
+    table_layout_heuristic: 'Layout table heuristic',
+    table_complex_assoc_missing: 'Complex table associations',
+    img_decorative_misuse: 'Decorative image misuse',
+    img_meaningful_empty_alt: 'Meaningful image empty alt',
+    img_text_in_image_warning: 'Text-in-image warning',
+    video_missing_captions: 'Video captions missing',
+    audio_missing_transcript: 'Audio transcript missing',
+    media_autoplay: 'Autoplay media',
+    motion_gif_warning: 'Motion GIF warning',
+    video_embed_caption_unknown: 'Embedded video caption unknown',
+    form_control_missing_label: 'Form control missing label',
+    form_placeholder_as_label: 'Placeholder as label',
+    form_required_not_programmatic: 'Required state not programmatic',
+    form_error_unassociated: 'Error not associated to control',
+    aria_invalid_role: 'Invalid ARIA role',
+    aria_hidden_focusable: 'aria-hidden focusable element',
+    duplicate_id: 'Duplicate IDs',
+    keyboard_focus_trap_heuristic: 'Keyboard focus-trap heuristic',
+    doc_pdf_accessibility_unknown: 'PDF accessibility unknown',
+    doc_office_structure_unknown: 'Office file accessibility unknown',
+    doc_spreadsheet_headers_unknown: 'Spreadsheet accessibility unknown',
+    button_empty_name: 'Empty button name'
+};
 
 function DurationPickerCellEditor() {}
 DurationPickerCellEditor.prototype.init = function(params) {
@@ -1747,6 +1843,21 @@ function renderAccessibilityPanelSkeleton() {
             <label><input type="checkbox" class="acc-type-checkbox" value="announcements"> Announcements</label>
             <label><input type="checkbox" class="acc-type-checkbox" value="discussions"> Discussions</label>
             <label><input type="checkbox" class="acc-type-checkbox" value="syllabus"> Syllabus</label>
+            <button type="button" id="accTypeSelectAllBtn" class="primary-btn">Select all</button>
+            <button type="button" id="accTypeUnselectAllBtn" class="primary-btn">Unselect all</button>
+        </div>
+        <div id="accessibilityRuleControls" style="margin-top:8px;display:flex;flex-direction:column;gap:8px;"></div>
+        <div id="accessibilityRuleControlsCanvas" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <strong style="font-size:13px;">Canvas parity checks:</strong>
+            <button type="button" id="accCanvasSelectAllBtn" class="primary-btn">Select all</button>
+            <button type="button" id="accCanvasUnselectAllBtn" class="primary-btn">Unselect all</button>
+            ${ACCESSIBILITY_CANVAS_PARITY_RULES.map((id) => `<label><input type="checkbox" class="acc-rule-checkbox acc-rule-canvas" value="${id}" checked> ${escapeHtml(ACCESSIBILITY_RULE_LABELS[id] || id)}</label>`).join('')}
+        </div>
+        <div id="accessibilityRuleControlsAdditional" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <strong style="font-size:13px;">Additional checks:</strong>
+            <button type="button" id="accAdditionalSelectAllBtn" class="primary-btn">Select all</button>
+            <button type="button" id="accAdditionalUnselectAllBtn" class="primary-btn">Unselect all</button>
+            ${ACCESSIBILITY_ADDITIONAL_RULES.map((id) => `<label><input type="checkbox" class="acc-rule-checkbox acc-rule-additional" value="${id}" checked> ${escapeHtml(ACCESSIBILITY_RULE_LABELS[id] || id)}</label>`).join('')}
         </div>
         <div id="accessibilityMetrics" style="margin-top:10px;color:#444;">Ready to scan.</div>
         <div id="accessibilityRunHistory" style="margin-top:10px;"></div>
@@ -1757,6 +1868,7 @@ function renderAccessibilityPanelSkeleton() {
     const exportBtn = document.getElementById('exportAccessibilityCsvBtn');
     if (runBtn) runBtn.onclick = () => runAccessibilityScan();
     if (exportBtn) exportBtn.onclick = () => downloadAccessibilityCsv();
+    wireAccessibilityOptionToggles();
 }
 
 function loadAccessibilityRunHistory() {
@@ -1837,8 +1949,52 @@ function renderAccessibilityRunHistory() {
 }
 
 function getSelectedAccessibilityTypes() {
-    const selected = Array.from(document.querySelectorAll('.acc-type-checkbox:checked')).map((el) => el.value);
-    return selected.length ? selected : ['pages', 'assignments'];
+    return Array.from(document.querySelectorAll('.acc-type-checkbox:checked')).map((el) => el.value);
+}
+
+function getAllAccessibilityRuleIds() {
+    return Array.from(new Set([...ACCESSIBILITY_CANVAS_PARITY_RULES, ...ACCESSIBILITY_ADDITIONAL_RULES]));
+}
+
+function getSelectedAccessibilityRuleIds() {
+    return Array.from(document.querySelectorAll('.acc-rule-checkbox:checked')).map((el) => el.value);
+}
+
+function buildAccessibilityRuleControls(selectedRuleIds) {
+    const all = getAllAccessibilityRuleIds();
+    const selected = new Set(Array.isArray(selectedRuleIds) && selectedRuleIds.length ? selectedRuleIds : all);
+    const renderRule = (id, cls) => `<label><input type="checkbox" class="acc-rule-checkbox ${cls}" value="${id}" ${selected.has(id) ? 'checked' : ''}> ${escapeHtml(ACCESSIBILITY_RULE_LABELS[id] || id)}</label>`;
+    return `
+        <div id="accessibilityRuleControlsCanvas" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <strong style="font-size:13px;">Canvas parity checks:</strong>
+            <button type="button" id="accCanvasSelectAllBtn" class="primary-btn">Select all</button>
+            <button type="button" id="accCanvasUnselectAllBtn" class="primary-btn">Unselect all</button>
+            ${ACCESSIBILITY_CANVAS_PARITY_RULES.map((id) => renderRule(id, 'acc-rule-canvas')).join('')}
+        </div>
+        <div id="accessibilityRuleControlsAdditional" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <strong style="font-size:13px;">Additional checks:</strong>
+            <button type="button" id="accAdditionalSelectAllBtn" class="primary-btn">Select all</button>
+            <button type="button" id="accAdditionalUnselectAllBtn" class="primary-btn">Unselect all</button>
+            ${ACCESSIBILITY_ADDITIONAL_RULES.map((id) => renderRule(id, 'acc-rule-additional')).join('')}
+        </div>
+    `;
+}
+
+function setCheckedBySelector(selector, checked) {
+    document.querySelectorAll(selector).forEach((el) => { el.checked = checked; });
+}
+
+function wireAccessibilityOptionToggles() {
+    const bind = (id, fn) => {
+        const el = document.getElementById(id);
+        if (el) el.onclick = fn;
+    };
+    bind('accTypeSelectAllBtn', () => setCheckedBySelector('.acc-type-checkbox', true));
+    bind('accTypeUnselectAllBtn', () => setCheckedBySelector('.acc-type-checkbox', false));
+    bind('accCanvasSelectAllBtn', () => setCheckedBySelector('.acc-rule-canvas', true));
+    bind('accCanvasUnselectAllBtn', () => setCheckedBySelector('.acc-rule-canvas', false));
+    bind('accAdditionalSelectAllBtn', () => setCheckedBySelector('.acc-rule-additional', true));
+    bind('accAdditionalUnselectAllBtn', () => setCheckedBySelector('.acc-rule-additional', false));
 }
 
 function buildAccessibilityTypesControls(selectedTypes) {
@@ -1866,6 +2022,7 @@ function renderAccessibilityReport(report) {
     const benchmark = report?.benchmark || {};
     const bySeverity = summary.by_severity || {};
     const selectedTypes = report?.requested_resource_types || Object.keys(summary.resources_scanned_by_type || {});
+    const selectedRuleIds = report?.requested_rule_ids || getAllAccessibilityRuleIds();
     const metricsHtml = `
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <label for="accessibilityBaselineMs" style="font-size:13px;">Canvas baseline (ms, optional):</label>
@@ -1874,6 +2031,9 @@ function renderAccessibilityReport(report) {
             <button id="exportAccessibilityCsvBtn" class="primary-btn">Export CSV</button>
         </div>
         ${buildAccessibilityTypesControls(selectedTypes)}
+        <div id="accessibilityRuleControls" style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
+            ${buildAccessibilityRuleControls(selectedRuleIds)}
+        </div>
         <div id="accessibilityMetrics" style="margin-top:10px;line-height:1.5;">
             <strong>Findings:</strong> ${summary.total_findings || 0}
             &nbsp;|&nbsp; <strong>High:</strong> ${bySeverity.high || 0}
@@ -1918,6 +2078,7 @@ function renderAccessibilityReport(report) {
     if (runBtn) runBtn.onclick = () => runAccessibilityScan();
     if (newExportBtn) newExportBtn.onclick = () => downloadAccessibilityCsv();
     if (exportBtn) exportBtn.disabled = false;
+    wireAccessibilityOptionToggles();
 }
 
 async function runAccessibilityScan() {
@@ -1930,12 +2091,24 @@ async function runAccessibilityScan() {
     const baselineInput = document.getElementById('accessibilityBaselineMs');
     const baselineMs = baselineInput && baselineInput.value ? Number(baselineInput.value) : null;
     const selectedTypes = getSelectedAccessibilityTypes();
+    const selectedRuleIds = getSelectedAccessibilityRuleIds();
+    if (!selectedTypes.length) {
+        showToast('Select at least one resource type.', 'warn');
+        return;
+    }
+    if (!selectedRuleIds.length) {
+        showToast('Select at least one accessibility check.', 'warn');
+        return;
+    }
     const queryParts = [];
     if (baselineMs && Number.isFinite(baselineMs) && baselineMs > 0) {
         queryParts.push(`baseline_ms=${encodeURIComponent(String(baselineMs))}`);
     }
     if (selectedTypes.length) {
         queryParts.push(`resource_types=${encodeURIComponent(selectedTypes.join(','))}`);
+    }
+    if (selectedRuleIds.length) {
+        queryParts.push(`rule_ids=${encodeURIComponent(selectedRuleIds.join(','))}`);
     }
     const qs = queryParts.length ? `?${queryParts.join('&')}` : '';
     if (summaryEl) {
@@ -1966,7 +2139,19 @@ function downloadAccessibilityCsv() {
         return;
     }
     const selectedTypes = getSelectedAccessibilityTypes();
-    const qs = selectedTypes.length ? `?resource_types=${encodeURIComponent(selectedTypes.join(','))}` : '';
+    const selectedRuleIds = getSelectedAccessibilityRuleIds();
+    if (!selectedTypes.length) {
+        showToast('Select at least one resource type before export.', 'warn');
+        return;
+    }
+    if (!selectedRuleIds.length) {
+        showToast('Select at least one accessibility check before export.', 'warn');
+        return;
+    }
+    const parts = [];
+    if (selectedTypes.length) parts.push(`resource_types=${encodeURIComponent(selectedTypes.join(','))}`);
+    if (selectedRuleIds.length) parts.push(`rule_ids=${encodeURIComponent(selectedRuleIds.join(','))}`);
+    const qs = parts.length ? `?${parts.join('&')}` : '';
     const url = `/canvas/courses/${selectedCourseId}/accessibility/export.csv${qs}`;
     window.open(url, '_blank');
 }
