@@ -57,6 +57,12 @@ Then expand to:
 - Generic/ambiguous link text ("click here", "read more") without context
 - New-tab links without warning text/indicator
 - File links without type/size hint (PDF/DOC/PPT)
+- Broken links (HTTP error responses such as 404/403/500)
+
+### Language and internationalization
+- Missing document language (`lang` on root HTML)
+- Invalid or unrecognized language code in `lang`
+- Missing inline language override for mixed-language content
 
 ### Heading and structure quality
 - Duplicate H1 or empty headings
@@ -77,6 +83,16 @@ Then expand to:
 - Audio-only without transcript
 - Autoplay media
 - Motion/animation warning flags (e.g., GIF-heavy content)
+- Session timeout without warning/extension mechanism
+
+### Color, sensory, and readability
+- Information conveyed by color alone
+- Instructions based only on sensory cues (left/right/red/etc.)
+- Fully justified paragraph text
+- Inline hardcoded font sizes below 10px
+
+### Embedded content
+- Iframes without meaningful `title`
 
 ### Forms and interactive controls
 - Inputs/selects/textareas without labels
@@ -107,9 +123,21 @@ Each rule should define:
 - `wcag_ref` (if applicable)
 - `resource_types`
 - `auto_fixable` (true/false)
+- `fix_strategy` (`auto` | `suggested` | `manual_only`)
 - `false_positive_risk` (low/medium/high)
 - `default_enabled` (true/false)
 - `rule_version`
+
+`fix_strategy` definitions:
+- `auto`: tool applies fix automatically
+- `suggested`: tool proposes fix/value for human review and approval
+- `manual_only`: tool flags only; human judgment required
+
+Assignment guideline:
+- `auto_fixable: true` + `false_positive_risk: low` -> `fix_strategy: auto`
+- `auto_fixable: true` + `false_positive_risk: medium` -> `fix_strategy: suggested`
+- `auto_fixable: false` + `false_positive_risk: low` -> `fix_strategy: suggested`
+- `auto_fixable: false` + `false_positive_risk: medium|high` -> `fix_strategy: manual_only`
 
 ---
 

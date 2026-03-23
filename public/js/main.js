@@ -564,6 +564,16 @@ const ACCESSIBILITY_ADDITIONAL_RULES = [
     'table_header_scope_missing',
     'heading_h1_in_body',
     'heading_too_long',
+    'lang_missing',
+    'lang_invalid',
+    'lang_inline_missing',
+    'color_only_information',
+    'sensory_only_instructions',
+    'text_justified',
+    'font_size_too_small',
+    'iframe_missing_title',
+    'session_timeout_no_warning',
+    'link_broken',
     'list_not_semantic',
     'link_split_or_broken',
     'link_empty_name',
@@ -611,6 +621,16 @@ const ACCESSIBILITY_RULE_LABELS = {
     table_header_scope_missing: 'Missing table header scope',
     heading_h1_in_body: 'H1 in body',
     heading_too_long: 'Heading too long',
+    lang_missing: 'Missing document language',
+    lang_invalid: 'Invalid document language',
+    lang_inline_missing: 'Missing inline language override',
+    color_only_information: 'Color-only information',
+    sensory_only_instructions: 'Sensory-only instructions',
+    text_justified: 'Justified text',
+    font_size_too_small: 'Font size too small',
+    iframe_missing_title: 'Iframe missing title',
+    session_timeout_no_warning: 'Session timeout without warning',
+    link_broken: 'Broken link',
     list_not_semantic: 'Non-semantic list',
     link_split_or_broken: 'Split/broken link',
     link_empty_name: 'Empty link name',
@@ -2269,6 +2289,7 @@ function renderAccessibilityFixQueue(actions) {
             <td style="padding:6px;">${escapeHtml(a.resource_type)}</td>
             <td style="padding:6px;">${escapeHtml(a.resource_title || '').slice(0, 60)}</td>
             <td style="padding:6px;">${escapeHtml(String(a.risk))}</td>
+            <td style="padding:6px;"><a href="#" onclick="openAccessibilityFixPreviewTab('${escapeHtml(a.action_id)}'); return false;">Open Preview</a></td>
             <td style="padding:6px;max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(a.before_snippet || '')}">${escapeHtml(String(a.before_snippet || '').slice(0, 80))}…</td>
             <td style="padding:6px;max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(a.after_snippet || '')}">${escapeHtml(String(a.after_snippet || '').slice(0, 80))}…</td>
         </tr>
@@ -2282,6 +2303,7 @@ function renderAccessibilityFixQueue(actions) {
                     <th style="text-align:left;padding:6px;">Type</th>
                     <th style="text-align:left;padding:6px;">Resource</th>
                     <th style="text-align:left;padding:6px;">Risk</th>
+                    <th style="text-align:left;padding:6px;">Preview</th>
                     <th style="text-align:left;padding:6px;">Before</th>
                     <th style="text-align:left;padding:6px;">After</th>
                 </tr>
@@ -2297,6 +2319,29 @@ function renderAccessibilityFixQueue(actions) {
         applyBtn.onclick = applyApprovedAccessibilityFixes;
     }
     if (statusEl) statusEl.textContent = `${actions.length} fix(es) ready`;
+}
+
+function openAccessibilityFixPreviewTab(actionId) {
+    const actions = Array.isArray(accessibilityFixPreviewActions) ? accessibilityFixPreviewActions : [];
+    const action = actions.find((x) => String(x?.action_id) === String(actionId));
+    if (!action) {
+        showToast('Preview not found for this action.', 'warn');
+        if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Preview tab failed: action not found ' + String(actionId), 'warn');
+        return;
+    }
+    const win = window.open('', '_blank', 'noopener,noreferrer');
+    if (!win) {
+        showToast('Pop-up blocked. Allow pop-ups to open preview.', 'warn');
+        if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Preview tab blocked by browser pop-up settings', 'warn');
+        return;
+    }
+    const title = `${ACCESSIBILITY_RULE_LABELS[action.rule_id] || action.rule_id} • ${action.resource_type}`;
+    const before = escapeHtml(String(action.before_snippet || ''));
+    const after = escapeHtml(String(action.after_snippet || ''));
+    win.document.open();
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;margin:20px;line-height:1.45}h1{font-size:18px;margin:0 0 6px}h2{font-size:14px;margin:14px 0 6px}pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;border:1px solid #ddd;border-radius:6px;padding:12px} .meta{color:#444;margin-bottom:10px;font-size:13px}</style></head><body><h1>${escapeHtml(title)}</h1><div class="meta">Resource: ${escapeHtml(String(action.resource_title || ''))}</div><div class="meta">Risk: ${escapeHtml(String(action.risk || ''))}</div><h2>Before</h2><pre>${before}</pre><h2>After</h2><pre>${after}</pre></body></html>`);
+    win.document.close();
+    if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Opened preview tab for action ' + String(actionId), 'info');
 }
 
 function updateApplyButtonState() {
