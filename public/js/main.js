@@ -2439,6 +2439,7 @@ function initializeAccessibilityGrid(findings) {
     destroyAccessibilityGrid();
     const rowData = (Array.isArray(findings) ? findings : []).map((f) => ({
         resource_id: f?.resource_id || '',
+        tier: f?.tier != null ? f.tier : '',
         severity: f?.severity || '',
         fix_strategy: f?.fix_strategy || 'manual_only',
         rule_id: f?.rule_id || '',
@@ -2465,8 +2466,20 @@ function initializeAccessibilityGrid(findings) {
             headerCheckboxSelection: true,
             headerCheckboxSelectionFilteredOnly: true,
         },
+        { field: 'tier', headerName: 'Tier', width: 72 },
         { field: 'severity', headerName: 'Severity', width: 120, sort: 'asc' },
-        { field: 'fix_strategy', headerName: 'Fix Strategy', width: 140 },
+        {
+            field: 'fix_strategy',
+            headerName: 'Fix Strategy',
+            width: 160,
+            valueFormatter: (p) => {
+                const v = p.value || '';
+                if (v === 'manual_only') return 'Manual only (open URL)';
+                if (v === 'auto') return 'Auto';
+                if (v === 'suggested') return 'Suggested (AI preview)';
+                return v;
+            },
+        },
         { field: 'rule_id', headerName: 'Rule', minWidth: 180 },
         { field: 'resource_type', headerName: 'Type', width: 140 },
         { field: 'resource_title', headerName: 'Resource', minWidth: 220 },

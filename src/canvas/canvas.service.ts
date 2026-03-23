@@ -23,6 +23,7 @@ interface AccessibilityFinding {
   resource_title: string;
   resource_url?: string | null;
   rule_id: string;
+  tier: 1 | 2;
   severity: AccessibilitySeverity;
   message: string;
   snippet?: string | null;
@@ -49,63 +50,95 @@ interface AccessibilityFixabilityContract {
   requires_content_fetch: boolean;
 }
 
+const ACCESSIBILITY_TIER1_RULE_IDS = new Set<string>([
+  'adjacent_duplicate_links',
+  'heading_h1_in_body',
+  'heading_skipped_level',
+  'heading_too_long',
+  'img_alt_filename',
+  'img_alt_too_long',
+  'img_missing_alt',
+  'large_text_contrast',
+  'link_split_or_broken',
+  'list_not_semantic',
+  'small_text_contrast',
+  'table_header_scope_missing',
+  'table_missing_caption',
+  'table_missing_header',
+]);
+
+function accessibilityTierForRuleId(ruleId: string): 1 | 2 {
+  return ACCESSIBILITY_TIER1_RULE_IDS.has(ruleId) ? 1 : 2;
+}
+
 const ACCESSIBILITY_FIXABILITY_MAP: Record<string, AccessibilityFixabilityContract> = {
   adjacent_duplicate_links: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'merge_duplicate_links', supports_preview: true, requires_content_fetch: true },
   list_empty_item: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'remove_empty_li', supports_preview: true, requires_content_fetch: true },
   heading_empty: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'remove_empty_heading', supports_preview: true, requires_content_fetch: true },
   link_new_tab_no_warning: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'append_new_tab_warning', supports_preview: true, requires_content_fetch: true },
-  img_missing_alt: { auto_fixable: true, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_generate_alt_text', supports_preview: true, requires_content_fetch: true },
-  img_alt_too_long: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'img_alt_truncate', supports_preview: true, requires_content_fetch: true },
-  img_alt_filename: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'img_alt_filename_suggest', supports_preview: true, requires_content_fetch: true },
+  font_size_too_small: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'font_size_min_12', supports_preview: true, requires_content_fetch: true },
+  media_autoplay: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'medium', risk: 'medium', fix_type: 'remove_media_autoplay', supports_preview: true, requires_content_fetch: true },
+  text_justified: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'remove_text_justify', supports_preview: true, requires_content_fetch: true },
+  lang_missing: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'set_html_lang', supports_preview: true, requires_content_fetch: true },
+  duplicate_id: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'high', risk: 'high', fix_type: 'duplicate_id_suffix', supports_preview: true, requires_content_fetch: true },
+  form_required_not_programmatic: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'medium', risk: 'medium', fix_type: 'form_required_programmatic', supports_preview: true, requires_content_fetch: true },
+  form_error_unassociated: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'medium', risk: 'medium', fix_type: 'form_error_aria_describedby', supports_preview: true, requires_content_fetch: true },
   small_text_contrast: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'medium', risk: 'medium', fix_type: 'fix_inline_text_contrast', supports_preview: true, requires_content_fetch: true },
   large_text_contrast: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'medium', risk: 'medium', fix_type: 'fix_inline_text_contrast', supports_preview: true, requires_content_fetch: true },
+  img_missing_alt: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_generate_alt_text', supports_preview: true, requires_content_fetch: true },
+  img_alt_too_long: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'img_alt_truncate', supports_preview: true, requires_content_fetch: true },
+  img_alt_filename: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'img_alt_filename_suggest', supports_preview: true, requires_content_fetch: true },
+  img_decorative_misuse: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_img_decorative', supports_preview: true, requires_content_fetch: true },
+  img_meaningful_empty_alt: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_img_meaningful_alt', supports_preview: true, requires_content_fetch: true },
+  img_text_in_image_warning: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_img_text_in_image', supports_preview: true, requires_content_fetch: true },
+  link_ambiguous_text: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_replace_ambiguous_link_text', supports_preview: true, requires_content_fetch: true },
+  link_empty_name: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_link_text', supports_preview: true, requires_content_fetch: true },
+  link_split_or_broken: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_link_reconstruct', supports_preview: true, requires_content_fetch: true },
+  link_file_missing_type_size_hint: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_link_file_hint', supports_preview: true, requires_content_fetch: true },
+  link_broken: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_link_broken', supports_preview: true, requires_content_fetch: true },
+  heading_too_long: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_heading_shorten', supports_preview: true, requires_content_fetch: true },
+  heading_skipped_level: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'heading_scope_fix', supports_preview: true, requires_content_fetch: true },
+  heading_h1_in_body: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'heading_h1_demote', supports_preview: true, requires_content_fetch: true },
+  heading_duplicate_h1: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'heading_duplicate_h1_demote', supports_preview: true, requires_content_fetch: true },
+  heading_visual_only_style: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_heading_visual', supports_preview: true, requires_content_fetch: true },
+  list_not_semantic: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_list_semantic', supports_preview: true, requires_content_fetch: true },
   table_missing_caption: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_table_caption', supports_preview: true, requires_content_fetch: true },
   table_missing_header: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_table_header', supports_preview: true, requires_content_fetch: true },
   table_header_scope_missing: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'table_scope_fix', supports_preview: true, requires_content_fetch: true },
-  heading_skipped_level: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'heading_scope_fix', supports_preview: true, requires_content_fetch: true },
-  heading_h1_in_body: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'heading_h1_demote', supports_preview: true, requires_content_fetch: true },
-  heading_too_long: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_heading_shorten', supports_preview: true, requires_content_fetch: true },
-  list_not_semantic: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_list_semantic', supports_preview: true, requires_content_fetch: true },
-  link_split_or_broken: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_link_reconstruct', supports_preview: true, requires_content_fetch: true },
-  link_empty_name: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_link_text', supports_preview: true, requires_content_fetch: true },
-  link_ambiguous_text: { auto_fixable: true, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_replace_ambiguous_link_text', supports_preview: true, requires_content_fetch: true },
-  link_file_missing_type_size_hint: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_link_file_hint', supports_preview: true, requires_content_fetch: true },
-  heading_duplicate_h1: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'heading_duplicate_h1_demote', supports_preview: true, requires_content_fetch: true },
-  heading_visual_only_style: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_heading_visual', supports_preview: true, requires_content_fetch: true },
-  landmark_structure_quality: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  table_layout_heuristic: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  table_complex_assoc_missing: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  img_decorative_misuse: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_img_decorative', supports_preview: true, requires_content_fetch: true },
-  img_meaningful_empty_alt: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_img_meaningful_alt', supports_preview: true, requires_content_fetch: true },
-  img_text_in_image_warning: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  video_missing_captions: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  audio_missing_transcript: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  media_autoplay: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  motion_gif_warning: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  video_embed_caption_unknown: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  iframe_missing_title: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'iframe_title_suggest', supports_preview: true, requires_content_fetch: true },
+  button_empty_name: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_button_label', supports_preview: true, requires_content_fetch: true },
   form_control_missing_label: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_form_label', supports_preview: true, requires_content_fetch: true },
   form_placeholder_as_label: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'form_placeholder_to_label', supports_preview: true, requires_content_fetch: true },
-  form_required_not_programmatic: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  form_error_unassociated: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  aria_invalid_role: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  aria_hidden_focusable: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  duplicate_id: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'duplicate_id_suffix', supports_preview: true, requires_content_fetch: true },
-  keyboard_focus_trap_heuristic: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  doc_pdf_accessibility_unknown: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  doc_office_structure_unknown: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  doc_spreadsheet_headers_unknown: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  button_empty_name: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_button_label', supports_preview: true, requires_content_fetch: true },
-  lang_missing: { auto_fixable: true, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'set_html_lang', supports_preview: true, requires_content_fetch: true },
-  lang_invalid: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'suggested', supports_preview: false, requires_content_fetch: true },
-  lang_inline_missing: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: true },
-  color_only_information: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: true },
-  sensory_only_instructions: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: true },
-  text_justified: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'remove_text_justify', supports_preview: true, requires_content_fetch: true },
-  font_size_too_small: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'font_size_min_12', supports_preview: true, requires_content_fetch: true },
-  iframe_missing_title: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'iframe_title_suggest', supports_preview: true, requires_content_fetch: true },
+  aria_invalid_role: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_aria_invalid_role', supports_preview: true, requires_content_fetch: true },
+  aria_hidden_focusable: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_aria_hidden_focusable', supports_preview: true, requires_content_fetch: true },
+  lang_invalid: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_lang_invalid', supports_preview: true, requires_content_fetch: true },
+  lang_inline_missing: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_lang_inline', supports_preview: true, requires_content_fetch: true },
+  color_only_information: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_color_only_information', supports_preview: true, requires_content_fetch: true },
+  sensory_only_instructions: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_sensory_only_instructions', supports_preview: true, requires_content_fetch: true },
+  landmark_structure_quality: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_landmark_structure', supports_preview: true, requires_content_fetch: true },
+  table_layout_heuristic: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  table_complex_assoc_missing: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  video_missing_captions: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  audio_missing_transcript: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  motion_gif_warning: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  video_embed_caption_unknown: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  doc_pdf_accessibility_unknown: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  doc_office_structure_unknown: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  doc_spreadsheet_headers_unknown: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   session_timeout_no_warning: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: true },
-  link_broken: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_link_broken', supports_preview: true, requires_content_fetch: true },
+  keyboard_focus_trap_heuristic: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
 };
+
+const ACCESSIBILITY_AI_GUIDED_FIX_TYPES = new Set<string>([
+  'ai_landmark_structure',
+  'ai_img_text_in_image',
+  'ai_aria_invalid_role',
+  'ai_aria_hidden_focusable',
+  'ai_lang_invalid',
+  'ai_lang_inline',
+  'ai_color_only_information',
+  'ai_sensory_only_instructions',
+]);
 
 interface AccreditationStandardNode {
   id: string;
@@ -3876,7 +3909,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   private addFinding(
     findings: AccessibilityFinding[],
-    base: Omit<AccessibilityFinding, 'rule_id' | 'severity' | 'message' | 'snippet'>,
+    base: Omit<AccessibilityFinding, 'rule_id' | 'tier' | 'severity' | 'message' | 'snippet'>,
     rule_id: string,
     severity: AccessibilitySeverity,
     message: string,
@@ -3885,6 +3918,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     findings.push({
       ...base,
       rule_id,
+      tier: accessibilityTierForRuleId(rule_id),
       severity,
       message,
       snippet: snippet ? this.snippet(snippet) : null,
@@ -3930,7 +3964,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   private evaluateAccessibilityTier1ForHtml(
-    base: Omit<AccessibilityFinding, 'rule_id' | 'severity' | 'message' | 'snippet'>,
+    base: Omit<AccessibilityFinding, 'rule_id' | 'tier' | 'severity' | 'message' | 'snippet'>,
     html: string,
   ): AccessibilityFinding[] {
     const findings: AccessibilityFinding[] = [];
@@ -4051,7 +4085,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   private evaluateAccessibilityTier2ForHtml(
-    base: Omit<AccessibilityFinding, 'rule_id' | 'severity' | 'message' | 'snippet'>,
+    base: Omit<AccessibilityFinding, 'rule_id' | 'tier' | 'severity' | 'message' | 'snippet'>,
     html: string,
   ): AccessibilityFinding[] {
     const findings: AccessibilityFinding[] = [];
@@ -4431,6 +4465,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       'resource_title',
       'resource_url',
       'rule_id',
+      'tier',
       'severity',
       'message',
       'snippet',
@@ -4446,6 +4481,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         this.escapeCsvCell(r?.resource_title ?? ''),
         this.escapeCsvCell(r?.resource_url ?? ''),
         this.escapeCsvCell(r?.rule_id ?? ''),
+        this.escapeCsvCell(r?.tier != null ? String(r.tier) : ''),
         this.escapeCsvCell(r?.severity ?? ''),
         this.escapeCsvCell(r?.message ?? ''),
         this.escapeCsvCell(r?.snippet ?? ''),
@@ -5127,6 +5163,46 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     }
   }
 
+  private async buildAiCheckpointGuidedFix(
+    html: string,
+    resourceTitle: string,
+    kind: string,
+  ): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const TASK: Record<string, string> = {
+      ai_landmark_structure:
+        'Add or adjust semantic landmarks: use <main> for primary content, <nav> for navigation blocks, and region roles where appropriate. Preserve all text and meaning.',
+      ai_img_text_in_image:
+        'For images that may contain important text (banners, posters, infographics), improve alt text to describe essential text or state that text appears in the image. Update only relevant <img> tags.',
+      ai_aria_invalid_role:
+        'Replace invalid ARIA role values with valid roles that match element semantics. Make minimal structural changes.',
+      ai_aria_hidden_focusable:
+        'Resolve conflicts where focusable elements have aria-hidden="true": remove aria-hidden from interactive elements or restructure so focusable controls are not hidden from assistive technology.',
+      ai_lang_invalid:
+        'Correct invalid or unrecognized lang attributes to valid BCP 47 language tags on <html> or inline elements as appropriate.',
+      ai_lang_inline:
+        'Add lang attributes to mark up mixed-language phrases or sentences correctly.',
+      ai_color_only_information:
+        'Revise content so required information is not conveyed by color alone; add text or non-color cues where needed.',
+      ai_sensory_only_instructions:
+        'Rewrite instructions that rely only on sensory characteristics (e.g. position or color alone) to include structural or text-based cues.',
+    };
+    const task = TASK[kind];
+    if (!task) return { newHtml: html, changes: [], errorNote: `Unknown guided fix kind: ${kind}` };
+    if (html.length > 24000) {
+      return { newHtml: html, changes: [], errorNote: 'Content exceeds AI fix size limit (24k). Edit manually in Canvas.' };
+    }
+    const prompt = `You are an accessibility expert. ${task}\n\nReturn ONLY the full corrected HTML document. Do not wrap in markdown code fences.\n\nPage title: ${resourceTitle}\n\nHTML:\n${html}`;
+    try {
+      let out = await this.callClaudeWithRetry(prompt, 12000);
+      out = out.replace(/^```html?\s*/i, '').replace(/\s*```$/i, '').trim();
+      if (!out || out.length < 20) return { newHtml: html, changes: [], errorNote: 'Empty AI response.' };
+      if (out === html) return { newHtml: html, changes: [], errorNote: 'No changes suggested.' };
+      return { newHtml: out, changes: [{ before: html, after: out }] };
+    } catch (e: any) {
+      return { newHtml: html, changes: [], errorNote: e?.message || 'Claude failed.' };
+    }
+  }
+
   private applyMergeDuplicateLinks(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } {
     const changes: Array<{ before: string; after: string }> = [];
     const regex = /<a\b([^>]*href\s*=\s*("([^"]*)"|'([^']*)')[^>]*)>([\s\S]*?)<\/a>\s*(?:&nbsp;|\s|<span[^>]*>\s*<\/span>|<br[^>]*>)*<a\b([^>]*href\s*=\s*("([^"]*)"|'([^']*)')[^>]*)>([\s\S]*?)<\/a>/gi;
@@ -5303,6 +5379,77 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return { newHtml, changes };
   }
 
+  private applyRemoveMediaAutoplay(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } {
+    const changes: Array<{ before: string; after: string }> = [];
+    const re = /<(video|audio)\b([^>]*)>/gi;
+    let newHtml = html;
+    let m: RegExpExecArray | null;
+    const orig = html;
+    while ((m = re.exec(orig)) !== null) {
+      const full = m[0];
+      if (!/\bautoplay\b/i.test(full)) continue;
+      const after = full.replace(/\s+\bautoplay\b(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?/gi, '');
+      if (after === full) continue;
+      changes.push({ before: full, after });
+      newHtml = newHtml.replace(full, after);
+    }
+    return { newHtml, changes };
+  }
+
+  private applyFormRequiredProgrammatic(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } | null {
+    const re = /<(input|select|textarea)\b([^>]*)>/gi;
+    const replacements: Array<{ idx: number; len: number; after: string }> = [];
+    const changes: Array<{ before: string; after: string }> = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) !== null) {
+      const attrs = m[2] || '';
+      if (!/\b(class|data-required)\s*=\s*["'][^"']*required[^"']*["']/i.test(attrs)) continue;
+      if (/\b(required|aria-required)\s*=/i.test(attrs)) continue;
+      const full = m[0];
+      const fixed = full.replace(/>$/, ' required aria-required="true">');
+      replacements.push({ idx: m.index, len: full.length, after: fixed });
+      changes.push({ before: full, after: fixed });
+    }
+    if (!replacements.length) return null;
+    let newHtml = html;
+    replacements.sort((a, b) => b.idx - a.idx);
+    for (const r of replacements) {
+      newHtml = newHtml.slice(0, r.idx) + r.after + newHtml.slice(r.idx + r.len);
+    }
+    return { newHtml, changes };
+  }
+
+  private applyFormErrorAriaDescribedby(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } | null {
+    const re = /<(input|select|textarea)\b([^>]*)>/gi;
+    const replacements: Array<{ idx: number; len: number; after: string }> = [];
+    const changes: Array<{ before: string; after: string }> = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) !== null) {
+      const attrs = m[2] || '';
+      if (!/\baria-invalid\s*=\s*["']true["']/i.test(attrs)) continue;
+      if (/\baria-describedby\s*=\s*["'][^"']+["']/i.test(attrs)) continue;
+      const full = m[0];
+      const rest = html.slice(m.index + full.length, m.index + full.length + 2500);
+      const nextOpening = rest.match(/<\s*(\w+)\b[^>]*>/);
+      if (!nextOpening) continue;
+      const cand = nextOpening[0];
+      const idM = cand.match(/\bid\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const nid = idM ? (idM[2] ?? idM[3] ?? idM[4] ?? '').trim() : '';
+      if (!nid) continue;
+      const fixed = full.replace(/>$/, ` aria-describedby="${nid.replace(/"/g, '&quot;')}">`);
+      if (fixed === full) continue;
+      replacements.push({ idx: m.index, len: full.length, after: fixed });
+      changes.push({ before: full, after: fixed });
+    }
+    if (!replacements.length) return null;
+    let newHtml = html;
+    replacements.sort((a, b) => b.idx - a.idx);
+    for (const r of replacements) {
+      newHtml = newHtml.slice(0, r.idx) + r.after + newHtml.slice(r.idx + r.len);
+    }
+    return { newHtml, changes };
+  }
+
   private runFixExecutor(html: string, fixType: string): { newHtml: string; changes: Array<{ before: string; after: string }> } | null {
     switch (fixType) {
       case 'merge_duplicate_links':
@@ -5323,6 +5470,16 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         return this.applyFontSizeMin12(html);
       case 'fix_inline_text_contrast':
         return this.applyFixInlineTextContrast(html);
+      case 'remove_media_autoplay':
+        return this.applyRemoveMediaAutoplay(html);
+      case 'form_required_programmatic': {
+        const r = this.applyFormRequiredProgrammatic(html);
+        return r ? { newHtml: r.newHtml, changes: r.changes } : null;
+      }
+      case 'form_error_aria_describedby': {
+        const r = this.applyFormErrorAriaDescribedby(html);
+        return r ? { newHtml: r.newHtml, changes: r.changes } : null;
+      }
       case 'img_alt_filename_suggest': {
         const r = this.applyImgAltFilenameSuggest(html);
         return { newHtml: r.newHtml, changes: r.changes };
@@ -5562,6 +5719,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         result = await this.buildAiLinkBrokenFix(content.html, resTitle, courseId);
       } else if (contract.fix_type === 'ai_link_reconstruct') {
         result = await this.buildAiLinkSplitFix(content.html, resTitle);
+      } else if (ACCESSIBILITY_AI_GUIDED_FIX_TYPES.has(contract.fix_type)) {
+        result = await this.buildAiCheckpointGuidedFix(content.html, resTitle, contract.fix_type);
       } else if (contract.fix_type === 'set_html_lang') {
         const nonEnglish = this.looksNonEnglishText(content.html.replace(/<[^>]+>/g, ' '));
         if (nonEnglish) {
