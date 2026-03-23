@@ -1392,6 +1392,27 @@ function updateDeleteMenuState() {
     }
 }
 
+function applyBulkActionMenuVisibility(tabName) {
+    const isAdaTab = tabName === 'ada_compliance';
+    const fixMenuItem = document.getElementById('fixMenuItem');
+    const bulkDropdown = document.getElementById('bulkActionsDropdown');
+    if (!bulkDropdown) return;
+
+    bulkDropdown.querySelectorAll('.dropdown-item').forEach((el) => {
+        if (isAdaTab) {
+            el.style.display = el.id === 'fixMenuItem' ? 'block' : 'none';
+            return;
+        }
+        if (el.id === 'fixMenuItem') {
+            el.style.display = 'none';
+            return;
+        }
+        el.style.display = '';
+    });
+
+    if (fixMenuItem) fixMenuItem.style.display = isAdaTab ? 'block' : 'none';
+}
+
 function switchTab(tabName) {
     // Security Check: Enforce tab interception guard clause
     const allowedTabs = ['assignments', 'discussions', 'announcements', 'pages', 'quizzes', 'new_quizzes', 'modules', 'files', 'standards_sync', 'ada_compliance'];
@@ -1458,16 +1479,8 @@ function switchTab(tabName) {
             destroyAccessibilityGrid();
         }
 
-        const fixMenuItem = document.getElementById('fixMenuItem');
         const isAdaTab = tabName === 'ada_compliance';
-        if (fixMenuItem) fixMenuItem.style.display = isAdaTab ? 'block' : 'none';
-        const bulkDropdown = document.getElementById('bulkActionsDropdown');
-        if (bulkDropdown) {
-            bulkDropdown.querySelectorAll('.dropdown-item').forEach((el) => {
-                if (el.id === 'fixMenuItem') return;
-                el.style.display = isAdaTab ? 'none' : '';
-            });
-        }
+        applyBulkActionMenuVisibility(tabName);
         if (!isAdaTab) {
             const mergeMenuItem = document.getElementById('mergeMenuItem');
             if (mergeMenuItem) mergeMenuItem.style.display = (tabName === 'modules') ? 'block' : 'none';
@@ -1843,34 +1856,19 @@ function renderAccessibilityPanelSkeleton() {
     const findingsEl = document.getElementById('accessibilityFindingsContent');
     if (!summaryEl || !findingsEl) return;
     summaryEl.innerHTML = `
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <label for="accessibilityBaselineMs" style="font-size:13px;">Canvas baseline (ms, optional):</label>
-            <input id="accessibilityBaselineMs" type="number" min="1" step="1" style="max-width:180px;" placeholder="e.g. 120000" />
-            <button id="runAccessibilityScanBtn" class="primary-btn">Run Scan</button>
-            <button id="exportAccessibilityCsvBtn" class="primary-btn" disabled>Export CSV</button>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div style="display:flex;flex-direction:column;gap:4px;">
+                <label for="accessibilityBaselineMs" style="font-size:13px;font-weight:600;">Canvas baseline (ms, optional)</label>
+                <input id="accessibilityBaselineMs" type="number" min="1" step="1" style="max-width:200px;" placeholder="e.g. 120000" />
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <button id="runAccessibilityScanBtn" class="primary-btn">Run Scan</button>
+                <button id="exportAccessibilityCsvBtn" class="primary-btn" disabled>Export CSV</button>
+            </div>
         </div>
-        <div id="accessibilityScopeControls" style="margin-top:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-            <strong style="font-size:13px;">Scope:</strong>
-            <label><input type="checkbox" class="acc-type-checkbox" value="pages" checked> Pages</label>
-            <label><input type="checkbox" class="acc-type-checkbox" value="assignments" checked> Assignments</label>
-            <label><input type="checkbox" class="acc-type-checkbox" value="announcements"> Announcements</label>
-            <label><input type="checkbox" class="acc-type-checkbox" value="discussions"> Discussions</label>
-            <label><input type="checkbox" class="acc-type-checkbox" value="syllabus"> Syllabus</label>
-            <button type="button" id="accTypeSelectAllBtn" class="primary-btn">Select all</button>
-            <button type="button" id="accTypeUnselectAllBtn" class="primary-btn">Unselect all</button>
-        </div>
-        <div id="accessibilityRuleControls" style="margin-top:8px;display:flex;flex-direction:column;gap:8px;"></div>
-        <div id="accessibilityRuleControlsCanvas" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-            <strong style="font-size:13px;">Canvas parity checks:</strong>
-            <button type="button" id="accCanvasSelectAllBtn" class="primary-btn">Select all</button>
-            <button type="button" id="accCanvasUnselectAllBtn" class="primary-btn">Unselect all</button>
-            ${ACCESSIBILITY_CANVAS_PARITY_RULES.map((id) => `<label><input type="checkbox" class="acc-rule-checkbox acc-rule-canvas" value="${id}" checked> ${escapeHtml(ACCESSIBILITY_RULE_LABELS[id] || id)}</label>`).join('')}
-        </div>
-        <div id="accessibilityRuleControlsAdditional" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-            <strong style="font-size:13px;">Additional checks:</strong>
-            <button type="button" id="accAdditionalSelectAllBtn" class="primary-btn">Select all</button>
-            <button type="button" id="accAdditionalUnselectAllBtn" class="primary-btn">Unselect all</button>
-            ${ACCESSIBILITY_ADDITIONAL_RULES.map((id) => `<label><input type="checkbox" class="acc-rule-checkbox acc-rule-additional" value="${id}" checked> ${escapeHtml(ACCESSIBILITY_RULE_LABELS[id] || id)}</label>`).join('')}
+        <div id="accessibilityOptionsPanel" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
+            ${buildAccessibilityTypesControls(['pages', 'assignments'])}
+            ${buildAccessibilityRuleControls(getAllAccessibilityRuleIds())}
         </div>
         <div id="accessibilityMetrics" style="margin-top:10px;color:#444;">Ready to scan.</div>
         <div id="accessibilityRunHistory" style="margin-top:10px;"></div>
@@ -1976,20 +1974,33 @@ function getSelectedAccessibilityRuleIds() {
 function buildAccessibilityRuleControls(selectedRuleIds) {
     const all = getAllAccessibilityRuleIds();
     const selected = new Set(Array.isArray(selectedRuleIds) && selectedRuleIds.length ? selectedRuleIds : all);
-    const renderRule = (id, cls) => `<label><input type="checkbox" class="acc-rule-checkbox ${cls}" value="${id}" ${selected.has(id) ? 'checked' : ''}> ${escapeHtml(ACCESSIBILITY_RULE_LABELS[id] || id)}</label>`;
+    const renderRule = (id, cls) => `
+        <label style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid #e8e8e8;border-radius:6px;background:#fff;">
+            <input type="checkbox" class="acc-rule-checkbox ${cls}" value="${id}" ${selected.has(id) ? 'checked' : ''}>
+            <span>${escapeHtml(ACCESSIBILITY_RULE_LABELS[id] || id)}</span>
+        </label>
+    `;
     return `
-        <div id="accessibilityRuleControlsCanvas" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-            <strong style="font-size:13px;">Canvas parity checks:</strong>
-            <button type="button" id="accCanvasSelectAllBtn" class="primary-btn">Select all</button>
-            <button type="button" id="accCanvasUnselectAllBtn" class="primary-btn">Unselect all</button>
-            ${ACCESSIBILITY_CANVAS_PARITY_RULES.map((id) => renderRule(id, 'acc-rule-canvas')).join('')}
-        </div>
-        <div id="accessibilityRuleControlsAdditional" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-            <strong style="font-size:13px;">Additional checks:</strong>
-            <button type="button" id="accAdditionalSelectAllBtn" class="primary-btn">Select all</button>
-            <button type="button" id="accAdditionalUnselectAllBtn" class="primary-btn">Unselect all</button>
-            ${ACCESSIBILITY_ADDITIONAL_RULES.map((id) => renderRule(id, 'acc-rule-additional')).join('')}
-        </div>
+        <details id="accessibilityRuleControlsCanvas" open style="border:1px solid #ddd;border-radius:8px;padding:10px 12px;background:#fafafa;">
+            <summary style="cursor:pointer;font-weight:600;">Canvas parity checks</summary>
+            <div style="margin-top:10px;display:flex;justify-content:flex-end;gap:8px;">
+                <button type="button" id="accCanvasSelectAllBtn" class="primary-btn">Select all</button>
+                <button type="button" id="accCanvasUnselectAllBtn" class="primary-btn">Unselect all</button>
+            </div>
+            <div style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 10px;">
+                ${ACCESSIBILITY_CANVAS_PARITY_RULES.map((id) => renderRule(id, 'acc-rule-canvas')).join('')}
+            </div>
+        </details>
+        <details id="accessibilityRuleControlsAdditional" open style="border:1px solid #ddd;border-radius:8px;padding:10px 12px;background:#fafafa;">
+            <summary style="cursor:pointer;font-weight:600;">Additional checks</summary>
+            <div style="margin-top:10px;display:flex;justify-content:flex-end;gap:8px;">
+                <button type="button" id="accAdditionalSelectAllBtn" class="primary-btn">Select all</button>
+                <button type="button" id="accAdditionalUnselectAllBtn" class="primary-btn">Unselect all</button>
+            </div>
+            <div style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 10px;">
+                ${ACCESSIBILITY_ADDITIONAL_RULES.map((id) => renderRule(id, 'acc-rule-additional')).join('')}
+            </div>
+        </details>
     `;
 }
 
@@ -2012,16 +2023,27 @@ function wireAccessibilityOptionToggles() {
 
 function buildAccessibilityTypesControls(selectedTypes) {
     const selected = new Set(Array.isArray(selectedTypes) && selectedTypes.length ? selectedTypes : ['pages', 'assignments']);
-    const row = (value, label) => `<label><input type="checkbox" class="acc-type-checkbox" value="${value}" ${selected.has(value) ? 'checked' : ''}> ${label}</label>`;
+    const row = (value, label) => `
+        <label style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid #e8e8e8;border-radius:6px;background:#fff;">
+            <input type="checkbox" class="acc-type-checkbox" value="${value}" ${selected.has(value) ? 'checked' : ''}>
+            <span>${label}</span>
+        </label>
+    `;
     return `
-        <div id="accessibilityScopeControls" style="margin-top:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-            <strong style="font-size:13px;">Scope:</strong>
-            ${row('pages', 'Pages')}
-            ${row('assignments', 'Assignments')}
-            ${row('announcements', 'Announcements')}
-            ${row('discussions', 'Discussions')}
-            ${row('syllabus', 'Syllabus')}
-        </div>
+        <details id="accessibilityScopeControls" open style="border:1px solid #ddd;border-radius:8px;padding:10px 12px;background:#fafafa;">
+            <summary style="cursor:pointer;font-weight:600;">Resource types</summary>
+            <div style="margin-top:10px;display:flex;justify-content:flex-end;gap:8px;">
+                <button type="button" id="accTypeSelectAllBtn" class="primary-btn">Select all</button>
+                <button type="button" id="accTypeUnselectAllBtn" class="primary-btn">Unselect all</button>
+            </div>
+            <div style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 10px;">
+                ${row('pages', 'Pages')}
+                ${row('assignments', 'Assignments')}
+                ${row('announcements', 'Announcements')}
+                ${row('discussions', 'Discussions')}
+                ${row('syllabus', 'Syllabus')}
+            </div>
+        </details>
     `;
 }
 
@@ -2037,14 +2059,18 @@ function renderAccessibilityReport(report) {
     const selectedTypes = report?.requested_resource_types || Object.keys(summary.resources_scanned_by_type || {});
     const selectedRuleIds = report?.requested_rule_ids || getAllAccessibilityRuleIds();
     const metricsHtml = `
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <label for="accessibilityBaselineMs" style="font-size:13px;">Canvas baseline (ms, optional):</label>
-            <input id="accessibilityBaselineMs" type="number" min="1" step="1" style="max-width:180px;" value="${benchmark.canvas_native_baseline_ms || ''}" placeholder="e.g. 120000" />
-            <button id="runAccessibilityScanBtn" class="primary-btn">Run Scan</button>
-            <button id="exportAccessibilityCsvBtn" class="primary-btn">Export CSV</button>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div style="display:flex;flex-direction:column;gap:4px;">
+                <label for="accessibilityBaselineMs" style="font-size:13px;font-weight:600;">Canvas baseline (ms, optional)</label>
+                <input id="accessibilityBaselineMs" type="number" min="1" step="1" style="max-width:200px;" value="${benchmark.canvas_native_baseline_ms || ''}" placeholder="e.g. 120000" />
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <button id="runAccessibilityScanBtn" class="primary-btn">Run Scan</button>
+                <button id="exportAccessibilityCsvBtn" class="primary-btn">Export CSV</button>
+            </div>
         </div>
-        ${buildAccessibilityTypesControls(selectedTypes)}
-        <div id="accessibilityRuleControls" style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
+        <div id="accessibilityOptionsPanel" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
+            ${buildAccessibilityTypesControls(selectedTypes)}
             ${buildAccessibilityRuleControls(selectedRuleIds)}
         </div>
         <div id="accessibilityMetrics" style="margin-top:10px;line-height:1.5;">
@@ -2073,10 +2099,7 @@ function renderAccessibilityReport(report) {
         findingsEl.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
                 <div><strong>Rows:</strong> ${findings.length}</div>
-                <div style="display:flex;gap:8px;align-items:center;">
-                    <button id="generateFixPreviewBtn" class="primary-btn">Generate Fix Preview</button>
-                    <input id="accessibilityQuickFilter" type="text" placeholder="Quick filter findings..." style="min-width:260px;max-width:420px;" />
-                </div>
+                <button id="generateFixPreviewBtn" class="primary-btn">Generate Fix Preview</button>
             </div>
             <div id="accessibilityResultsGrid" class="ag-theme-quartz" style="height: 420px; width: 100%;"></div>
             <div id="accessibilityFixQueue" style="display:none;margin-top:16px;border:1px solid #ddd;border-radius:6px;padding:12px;">
@@ -2089,12 +2112,6 @@ function renderAccessibilityReport(report) {
             </div>
         `;
         initializeAccessibilityGrid(findings);
-        const quickFilterEl = document.getElementById('accessibilityQuickFilter');
-        if (quickFilterEl) {
-            quickFilterEl.addEventListener('input', () => {
-                if (accessibilityGridApi) accessibilityGridApi.setGridOption('quickFilterText', quickFilterEl.value || '');
-            });
-        }
         const genFixBtn = document.getElementById('generateFixPreviewBtn');
         if (genFixBtn) genFixBtn.onclick = () => generateAccessibilityFixPreview();
     }
@@ -2185,14 +2202,19 @@ function downloadAccessibilityCsv() {
 async function generateAccessibilityFixPreview() {
     if (!selectedCourseId) {
         showToast('Select a course first.', 'warn');
+        if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Preview aborted: no course selected', 'warn');
         return;
     }
-    const findings = Array.isArray(accessibilityLastReport?.findings) ? accessibilityLastReport.findings : [];
-    let rowsData = findings;
-    if (accessibilityGridApi && typeof accessibilityGridApi.forEachNodeAfterFilterAndSort === 'function') {
-        rowsData = [];
-        accessibilityGridApi.forEachNodeAfterFilterAndSort((node) => { if (node?.data) rowsData.push(node.data); });
+    let rowsData = [];
+    if (accessibilityGridApi && typeof accessibilityGridApi.getSelectedRows === 'function') {
+        rowsData = accessibilityGridApi.getSelectedRows() || [];
     }
+    if (!rowsData.length) {
+        showToast('Select at least one finding row to preview fixes.', 'warn');
+        if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Preview aborted: no accessibility rows selected', 'warn');
+        return;
+    }
+    if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Preview request starting: selected_rows=${rowsData.length}`, 'info');
     const rows = rowsData.map((r) => ({
         resource_type: r?.resource_type || '',
         resource_id: r?.resource_id || '',
@@ -2200,10 +2222,6 @@ async function generateAccessibilityFixPreview() {
         rule_id: r?.rule_id || '',
         snippet: r?.snippet || null
     }));
-    if (!rows.length) {
-        showToast('No findings to fix. Run a scan first.', 'warn');
-        return;
-    }
     const btn = document.getElementById('generateFixPreviewBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Generating preview...'; }
     try {
@@ -2213,14 +2231,20 @@ async function generateAccessibilityFixPreview() {
             credentials: 'include',
             body: JSON.stringify({ findings: rows })
         });
-        if (!res.ok) throw new Error(await res.text().catch(() => res.statusText));
+        if (!res.ok) {
+            const errText = await res.text().catch(() => res.statusText);
+            if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Preview HTTP failed: status=${res.status} body=${String(errText).slice(0, 600)}`, 'error');
+            throw new Error(errText);
+        }
         const data = await res.json();
         accessibilityFixPreviewActions = data?.actions || [];
+        if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Preview success: actions=${accessibilityFixPreviewActions.length}`, 'info');
         renderAccessibilityFixQueue(accessibilityFixPreviewActions);
         if (!accessibilityFixPreviewActions.length) {
             showToast('No auto-fixable actions for current findings.', 'info');
         }
     } catch (e) {
+        if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Preview failed: ' + (e?.stack || e?.message || String(e)), 'error');
         showToast('Fix preview failed: ' + (e?.message || String(e)), 'error');
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = 'Generate Fix Preview'; }
@@ -2294,6 +2318,7 @@ async function applyApprovedAccessibilityFixes() {
     const statusEl = document.getElementById('accessibilityFixQueueStatus');
     if (applyBtn) applyBtn.disabled = true;
     if (statusEl) statusEl.textContent = 'Applying...';
+    if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Apply request starting: approved_actions=${approved.length}`, 'info');
     try {
         const res = await fetch(`/canvas/courses/${selectedCourseId}/accessibility/fix-apply`, {
             method: 'POST',
@@ -2301,9 +2326,14 @@ async function applyApprovedAccessibilityFixes() {
             credentials: 'include',
             body: JSON.stringify({ actions: approved })
         });
-        if (!res.ok) throw new Error(await res.text().catch(() => res.statusText));
+        if (!res.ok) {
+            const errText = await res.text().catch(() => res.statusText);
+            if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Apply HTTP failed: status=${res.status} body=${String(errText).slice(0, 600)}`, 'error');
+            throw new Error(errText);
+        }
         const data = await res.json();
         const { fixed = 0, skipped = 0, failed = 0 } = data;
+        if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Apply success: fixed=${fixed} skipped=${skipped} failed=${failed}`, failed > 0 ? 'warn' : 'info');
         const beforeCount = accessibilityLastReport?.summary?.total_findings ?? 0;
         if (statusEl) statusEl.textContent = `Fixed: ${fixed}, Skipped: ${skipped}, Failed: ${failed}`;
         showToast(`Applied fixes: ${fixed} fixed, ${skipped} skipped, ${failed} failed.`, fixed > 0 ? 'success' : 'info');
@@ -2313,6 +2343,7 @@ async function applyApprovedAccessibilityFixes() {
             if (statusEl) statusEl.textContent = `Before: ${beforeCount} findings → After: ${afterCount} findings. Fixed: ${fixed}, Skipped: ${skipped}, Failed: ${failed}`;
         }
     } catch (e) {
+        if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Apply failed: ' + (e?.stack || e?.message || String(e)), 'error');
         showToast('Apply failed: ' + (e?.message || String(e)), 'error');
         if (statusEl) statusEl.textContent = 'Apply failed';
     } finally {
@@ -2341,6 +2372,7 @@ function initializeAccessibilityGrid(findings) {
     if (!gridEl) return;
     destroyAccessibilityGrid();
     const rowData = (Array.isArray(findings) ? findings : []).map((f) => ({
+        resource_id: f?.resource_id || '',
         severity: f?.severity || '',
         rule_id: f?.rule_id || '',
         resource_type: f?.resource_type || '',
@@ -2350,6 +2382,22 @@ function initializeAccessibilityGrid(findings) {
         resource_url: f?.resource_url || ''
     }));
     const columnDefs = [
+        {
+            headerName: '',
+            colId: '_acc_select',
+            width: 52,
+            minWidth: 52,
+            maxWidth: 52,
+            pinned: 'left',
+            sortable: false,
+            filter: false,
+            resizable: false,
+            editable: false,
+            suppressHeaderMenuButton: true,
+            checkboxSelection: true,
+            headerCheckboxSelection: true,
+            headerCheckboxSelectionFilteredOnly: true,
+        },
         { field: 'severity', headerName: 'Severity', width: 120, sort: 'asc' },
         { field: 'rule_id', headerName: 'Rule', minWidth: 180 },
         { field: 'resource_type', headerName: 'Type', width: 140 },
@@ -4781,6 +4829,7 @@ function applyColumnVisibilityFromModal() {
 function toggleDropdown(dropdownId) {
     const dropdown = document.getElementById(dropdownId);
     if (!dropdown) return;
+    if (dropdownId === 'bulkActionsDropdown') applyBulkActionMenuVisibility(currentTab);
     
     const isActive = dropdown.classList.contains('active');
     
