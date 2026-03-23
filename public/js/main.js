@@ -4940,28 +4940,11 @@ function applyAppMode(mode) {
     currentAppMode = mode;
     localStorage.setItem('appMode', mode);
 
+    tabInterceptionEnabled = false;
+
     const debugPanel = document.getElementById('debugPanel');
-
-    switch(mode) {
-        case 'developer':
-            // All tabs active, debug panel visible
-            tabInterceptionEnabled = false;
-            if (debugPanel) debugPanel.style.display = 'block';
-            break;
-
-        case 'production':
-            // All tabs active, debug panel hidden
-            tabInterceptionEnabled = false;
-            if (debugPanel) debugPanel.style.display = 'none';
-            break;
-
-        case 'demo':
-        default:
-            // Demo keeps debug hidden but should not block Standards Sync/profile flows
-            tabInterceptionEnabled = false;
-            if (debugPanel) debugPanel.style.display = 'none';
-            break;
-    }
+    const showDebug = mode === 'developer';
+    if (debugPanel) debugPanel.style.display = showDebug ? 'block' : 'none';
 
     // Update current mode display in modal
     const modeDisplay = document.getElementById('currentModeDisplay');
@@ -4999,7 +4982,7 @@ function executeModeChange() {
     applyAppMode(selectedMode);
     closeActiveModal();
     if (passwordInput) passwordInput.value = '';
-    location.reload(); // Reload to apply changes
+    location.reload();
 }
 
 // Event listener for mode radio buttons to show/hide password field
