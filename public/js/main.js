@@ -1639,15 +1639,18 @@ document.addEventListener('DOMContentLoaded', function() {
 async function loadStandardsSyncTab() {
     debugLog('[AccStandards] loadStandardsSyncTab started', 'info');
     const profileEl = document.getElementById('accProfileContent');
+    const workflowEl = document.getElementById('accWorkflowContent');
     const outcomesEl = document.getElementById('accOutcomesContent');
     const alignmentEl = document.getElementById('accAlignmentContent');
     if (!selectedCourseId) {
         if (profileEl) profileEl.innerHTML = '<p>Select a course to view the accreditation profile.</p>';
+        if (workflowEl) workflowEl.innerHTML = '<p>Select a course to view workflow.</p>';
         if (outcomesEl) outcomesEl.innerHTML = '<p>Select a course to view outcomes.</p>';
         if (alignmentEl) alignmentEl.innerHTML = '<p>Select a course to analyze content alignment.</p>';
         return;
     }
     if (profileEl) profileEl.innerHTML = '<div class="acc-card-loading" style="padding: 2rem;"><div class="acc-card-spinner" style="width: 32px; height: 32px;"></div><span style="margin-left: 0.5rem;">Loading profile...</span></div>';
+    if (workflowEl) workflowEl.innerHTML = '<div class="acc-card-loading" style="padding: 2rem;"><div class="acc-card-spinner" style="width: 32px; height: 32px;"></div><span style="margin-left: 0.5rem;">Loading workflow...</span></div>';
     if (outcomesEl) outcomesEl.innerHTML = '<div class="acc-card-loading" style="padding: 2rem;"><div class="acc-card-spinner" style="width: 32px; height: 32px;"></div><span style="margin-left: 0.5rem;">Loading outcomes...</span></div>';
     if (alignmentEl) alignmentEl.innerHTML = '<div class="acc-card-loading" style="padding: 2rem;"><div class="acc-card-spinner" style="width: 32px; height: 32px;"></div><span style="margin-left: 0.5rem;">Analyzing outcomes, rubrics, and resources...</span></div>';
     const getEffectiveCip = () => {
@@ -1727,6 +1730,8 @@ async function loadStandardsSyncTab() {
             '<div id="accStandardsList" class="acc-program-focus">' + groupsHtml + '</div>' +
             '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:0.75rem;">' +
             '<button type="button" id="accApplyStandardsBtn" class="primary-btn" onclick="applyAccreditationStandards()">Apply to course</button>' +
+            '<button type="button" id="accGetAiSuggestionsBtn" class="primary-btn" onclick="openAiSuggestFlow()">Get AI suggestions</button>' +
+            '<button type="button" id="accFinalizeStandardsBtn" class="primary-btn" onclick="finalizeStandards()">Finalize standards</button>' +
             '<button type="button" id="accCreateOutcomesBtn" class="primary-btn" onclick="createOutcomesFromSelectedStandards()">Approve selected & create outcomes</button>' +
             '</div>';
     };
@@ -1919,6 +1924,28 @@ async function loadStandardsSyncTab() {
                 : (outcomesRes.ok ? await outcomesRes.json() : []);
             const selectedIds = Array.isArray(profile?.selectedStandards) ? profile.selectedStandards : [];
             const standardsHtml = '<div class="acc-standards-block">' + buildStandardsBlockHtml(standardsPayload, selectedIds, null) + '</div>';
+            let previewHtml = '';
+            if (selectedIds.length) {
+                try {
+                    const cip = getAccreditationCipFromProfile(profile) || '';
+                    const previewRes = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/outcomes/preview' + (cip ? '?cip=' + encodeURIComponent(cip) : ''));
+                    const preview = previewRes.ok ? await previewRes.json() : {};
+                    const orgs = Array.isArray(preview?.orgs) ? preview.orgs : [];
+                    if (orgs.length) {
+                        previewHtml = '<div class="acc-outcomes-preview" style="margin-top:1rem;padding:10px;border:1px solid #e5e7eb;border-radius:8px;">' +
+                            '<h4 style="margin:0 0 8px 0;">Submit outcomes by org</h4>' +
+                            orgs.map(o => {
+                                const n = Number(o.toCreateCount || 0);
+                                const exist = Number(o.existingCount || 0);
+                                const label = (o.orgAbbrev || o.orgId || '') + ': ' + n + ' to create' + (exist ? ', ' + exist + ' exist' : '') + '.';
+                                return '<div style="display:flex;align-items:center;gap:8px;margin:6px 0;">' +
+                                    '<span>' + escapeHtml(label) + '</span>' +
+                                    '<button type="button" class="primary-btn" onclick="submitOutcomesForOrg(\'' + escapeHtml(o.orgId || '') + '\', \'' + escapeHtml(o.orgAbbrev || '') + '\', \'' + escapeHtml(o.orgName || '').replace(/'/g, "\\'") + '\', ' + n + ')"' + (n === 0 ? ' disabled' : '') + '>Submit to Canvas</button>' +
+                                    '</div>';
+                            }).join('') + '</div>';
+                    }
+                } catch (_) {}
+            }
             const outcomesHtml = !Array.isArray(outcomes) || !outcomes.length
                 ? '<p>No learning outcomes in this course.</p>'
                 : '<h4 class="acc-outcomes-heading">Course outcomes</h4>' + outcomes.map(o => {
@@ -1930,24 +1957,45 @@ async function loadStandardsSyncTab() {
                         '<button type="button" class="primary-btn acc-save-std" onclick="saveOutcomeStandards(' + o.id + ')">Save</button>' +
                         '</div></div>';
                 }).join('');
-            outcomesEl.innerHTML = standardsHtml + '<div class="acc-outcomes-block" style="margin-top: 1.5rem;">' + outcomesHtml + '</div>';
+            outcomesEl.innerHTML = standardsHtml + previewHtml + '<div class="acc-outcomes-block" style="margin-top: 1.5rem;">' + outcomesHtml + '</div>';
             await loadAccreditationAlignment(profile);
         } catch (e) {
             outcomesEl.innerHTML = '<p style="color:#c62828;">Failed to load: ' + escapeHtml(e.message) + '</p>';
         }
     };
-    const [profileRes, outcomesRes] = await Promise.all([
+    const [profileRes, outcomesRes, workflowRes] = await Promise.all([
         fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`),
-        fetch(`/canvas/courses/${selectedCourseId}/accreditation/outcomes`)
+        fetch(`/canvas/courses/${selectedCourseId}/accreditation/outcomes`),
+        fetch(`/canvas/courses/${selectedCourseId}/accreditation/workflow`)
     ]);
     if (!profileRes.ok) {
         const msg = profileRes.statusText;
         if (profileEl) profileEl.innerHTML = '<p style="color:#c62828;">Failed to load profile: ' + escapeHtml(msg) + '</p>';
+        if (workflowEl) workflowEl.innerHTML = '<p style="color:#c62828;">Failed to load profile.</p>';
         if (outcomesEl) outcomesEl.innerHTML = '<p style="color:#c62828;">Failed to load profile.</p>';
         return;
     }
     const profile = await profileRes.json();
     const outcomesPreloaded = outcomesRes.ok ? await outcomesRes.json() : [];
+    const workflow = workflowRes.ok ? await workflowRes.json() : { stages: {}, operationLog: [], lockInfo: {} };
+    if (workflowEl) {
+        const stages = workflow.stages || {};
+        const lockInfo = workflow.lockInfo || {};
+        const log = Array.isArray(workflow.operationLog) ? workflow.operationLog : [];
+        const stageLabels = { '0': 'Workflow', '1': 'Standards', '2': 'Outcomes', '3': 'Rubrics', '3b': 'Instruction', '4': 'Resources', '5': 'Quizzes' };
+        const stageHtml = ['0','1','2','3','3b','4','5'].map(sid => {
+            const state = stages[sid] || 'draft';
+            const info = lockInfo[sid] || {};
+            const label = stageLabels[sid] || sid;
+            const locked = info.locked ? ' <span style="font-size:11px;color:#999;">(locked)</span>' : '';
+            return '<span style="margin-right:12px;"><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(state) + locked + '</span>';
+        }).join('');
+        const logHtml = log.length
+            ? '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;">Operation log (' + log.length + ')</summary><div style="max-height:120px;overflow:auto;font-size:11px;margin-top:4px;">' +
+              log.slice(0, 20).map(e => '<div style="padding:2px 0;border-bottom:1px solid #eee;">' + escapeHtml(e.timestamp || '') + ' | ' + escapeHtml(e.operation || '') + ' (Stage ' + escapeHtml(e.stage || '') + ')</div>').join('') + '</div></details>'
+            : '<p style="font-size:12px;color:#666;margin:0;">No operations logged yet.</p>';
+        workflowEl.innerHTML = '<div style="font-size:13px;"><div>' + stageHtml + '</div>' + logHtml + '</div>';
+    }
     await loadProfile(profile);
     await loadOutcomes(profile, outcomesPreloaded);
 }
@@ -2819,6 +2867,44 @@ function setOutcomeStandardsInput(outcomeId, standards) {
     return true;
 }
 
+async function applyAccreditationTagging(resourceType, resourceId, standards) {
+    if (!selectedCourseId || !Array.isArray(standards) || !standards.length) return;
+    try {
+        const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/tagging/resource', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resource_type: resourceType, resource_id: resourceId, standards })
+        });
+        if (!res.ok) throw new Error(await res.text().then(t => t || res.statusText));
+        if (typeof showToast === 'function') showToast('Tagging applied.', 'success');
+        loadAccreditationAlignment({});
+    } catch (e) {
+        if (typeof showToast === 'function') showToast('Failed: ' + (e?.message || e), 'error');
+    }
+}
+
+async function applyQuizAccreditationTagging(quizType, id, standards) {
+    if (!selectedCourseId || !Array.isArray(standards) || !standards.length) return;
+    try {
+        const url = quizType === 'new_quiz'
+            ? '/canvas/courses/' + selectedCourseId + '/accreditation/tagging/new-quiz'
+            : '/canvas/courses/' + selectedCourseId + '/accreditation/tagging/quiz';
+        const body = quizType === 'new_quiz'
+            ? { assignment_id: Number(id), standards }
+            : { quiz_id: Number(id), standards };
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(await res.text().then(t => t || res.statusText));
+        if (typeof showToast === 'function') showToast('Tagging applied.', 'success');
+        loadAccreditationAlignment({});
+    } catch (e) {
+        if (typeof showToast === 'function') showToast('Failed: ' + (e?.message || e), 'error');
+    }
+}
+
 function applySuggestedOutcomeStandards(outcomeId, standardsCsv) {
     const standards = parseStandardsInputValue(standardsCsv);
     const ok = setOutcomeStandardsInput(outcomeId, standards);
@@ -2882,6 +2968,8 @@ async function loadAccreditationAlignment(profile) {
         const outcomes = Array.isArray(payload?.outcome_mappings) ? payload.outcome_mappings : [];
         const rubrics = Array.isArray(payload?.rubric_mappings) ? payload.rubric_mappings : [];
         const resources = Array.isArray(payload?.resource_mappings) ? payload.resource_mappings : [];
+        const quizMappings = Array.isArray(payload?.quiz_mappings) ? payload.quiz_mappings : [];
+        const newQuizMappings = Array.isArray(payload?.new_quiz_mappings) ? payload.new_quiz_mappings : [];
         const summary = payload?.summary || {};
         const outcomesHtml = outcomes.length
             ? outcomes.map(o => {
@@ -2899,6 +2987,18 @@ async function loadAccreditationAlignment(profile) {
                     '</div>';
             }).join('')
             : '<p class="acc-align-muted">No outcomes found.</p>';
+        const rubricSuggestions = payload?.rubric_suggestions;
+        const withoutRubrics = Array.isArray(rubricSuggestions?.without_rubrics) ? rubricSuggestions.without_rubrics : [];
+        const withoutRubricsHtml = withoutRubrics.length
+            ? '<div class="acc-align-subsection" style="margin-top:8px;"><strong>Resources without rubrics</strong> (assignments/discussions): ' +
+              withoutRubrics.slice(0, 15).map(r => {
+                  const stds = Array.isArray(r.suggested_standards) ? r.suggested_standards : [];
+                  const criteria = stds.slice(0, 3).map(s => ({ description: (s.id || '') + ' — ' + (s.title || ''), outcome_id: null }));
+                  const dataAttr = escapeHtml(JSON.stringify({ resource_type: r.resource_type, resource_id: r.resource_id, criteria }).replace(/"/g, '&quot;'));
+                  return '<div style="margin:4px 0;"><span>' + escapeHtml(r.title || '') + '</span> (' + escapeHtml(r.resource_type || '') + ' #' + escapeHtml(r.resource_id || '') + ') ' +
+                      '<button type="button" class="primary-btn acc-create-rubric" data-payload="' + dataAttr + '" style="margin-left:8px;">Create rubric</button></div>';
+              }).join('') + '</div>'
+            : '';
         const rubricsHtml = rubrics.length
             ? rubrics.map(r => {
                 const criteria = Array.isArray(r?.criteria) ? r.criteria : [];
@@ -2910,27 +3010,86 @@ async function loadAccreditationAlignment(profile) {
                     '</div>';
             }).join('')
             : '<p class="acc-align-muted">No rubrics found.</p>';
+        const applyTaggingBtn = (type, id, suggested) => {
+            const stds = Array.isArray(suggested) ? suggested : [];
+            if (!stds.length || !['assignment','discussion','page','announcement'].includes(type)) return '';
+            const data = stds.slice(0, 5).map(s => ({ id: String(s?.id || ''), title: String(s?.title || s?.id || '') }));
+            const dataAttr = escapeHtml(JSON.stringify(data).replace(/"/g, '&quot;'));
+            return '<button type="button" class="primary-btn acc-apply-tag" data-type="' + escapeHtml(type) + '" data-id="' + escapeHtml(String(id)) + '" data-standards="' + dataAttr + '">Apply tagging</button>';
+        };
         const resourcesHtml = resources.length
             ? resources.map(r => {
                 const label = (String(r?.resource_type || '').toUpperCase() || 'RESOURCE') + ' #' + String(r?.resource_id || '');
                 const title = escapeHtml(String(r?.title || label));
                 const url = r?.url ? String(r.url) : '';
                 const link = url ? '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer">Open</a>' : '<span class="acc-align-muted">No URL</span>';
+                const btn = applyTaggingBtn(r.resource_type, r.resource_id, r.suggested_standards);
                 return '<div class="acc-align-row">' +
                     '<div><strong>' + title + '</strong> <span class="acc-align-muted">(' + escapeHtml(label) + ')</span></div>' +
                     '<div class="acc-align-kv"><span class="acc-align-key">Suggested</span><span class="acc-align-badges">' + renderAccSuggestionBadges(r?.suggested_standards || []) + '</span></div>' +
-                    '<div class="acc-align-kv"><span class="acc-align-key">Link</span><span>' + link + '</span></div>' +
+                    '<div class="acc-align-kv"><span class="acc-align-key">Link</span><span>' + link + (btn ? ' | ' + btn : '') + '</span></div>' +
                     '</div>';
             }).join('')
             : '<p class="acc-align-muted">No resource matches found yet.</p>';
+        const quizBtn = (quizType, id, suggested) => {
+            const stds = Array.isArray(suggested) ? suggested : [];
+            if (!stds.length) return '';
+            const data = stds.slice(0, 5).map(s => ({ id: String(s?.id || ''), title: String(s?.title || s?.id || '') }));
+            const dataAttr = escapeHtml(JSON.stringify(data).replace(/"/g, '&quot;'));
+            return '<button type="button" class="primary-btn acc-apply-quiz-tag" data-quiz-type="' + escapeHtml(quizType) + '" data-id="' + escapeHtml(String(id)) + '" data-standards="' + dataAttr + '">Apply tagging</button>';
+        };
+        const quizHtml = (quizMappings.length || newQuizMappings.length)
+            ? '<h4 style="margin-top:1rem;">Quizzes</h4>' +
+              quizMappings.map(r => '<div class="acc-align-row"><strong>' + escapeHtml(r?.title || '') + '</strong> (Classic #' + escapeHtml(r?.resource_id || '') + ') ' + renderAccSuggestionBadges(r?.suggested_standards || []) + ' ' + quizBtn('quiz', r.resource_id, r.suggested_standards) + '</div>').join('') +
+              newQuizMappings.map(r => '<div class="acc-align-row"><strong>' + escapeHtml(r?.title || '') + '</strong> (New Quiz #' + escapeHtml(r?.resource_id || '') + ') ' + renderAccSuggestionBadges(r?.suggested_standards || []) + ' ' + quizBtn('new_quiz', r.resource_id, r.suggested_standards) + '</div>').join('')
+            : '';
         host.innerHTML = '<div class="acc-align-summary">' +
             '<span class="acc-align-pill">Standards considered: ' + escapeHtml(String(payload?.standards_considered || 0)) + '</span>' +
             '<span class="acc-align-pill">Outcomes mapped: ' + escapeHtml(String(summary?.outcomes_with_suggestions || 0)) + '/' + escapeHtml(String(summary?.outcomes || 0)) + '</span>' +
             '<span class="acc-align-pill">Resources mapped: ' + escapeHtml(String(summary?.resources_with_suggestions || 0)) + '/' + escapeHtml(String(summary?.resources_scanned || 0)) + '</span>' +
             '</div>' +
             '<div class="acc-align-section"><h4>Outcome Suggestions</h4>' + outcomesHtml + '</div>' +
-            '<div class="acc-align-section"><h4>Rubric Suggestions</h4>' + rubricsHtml + '</div>' +
-            '<div class="acc-align-section"><h4>Resource Suggestions</h4>' + resourcesHtml + '</div>';
+            '<div class="acc-align-section"><h4>Rubric Suggestions</h4>' + rubricsHtml + withoutRubricsHtml + '</div>' +
+            '<div class="acc-align-section"><h4>Resource Suggestions</h4>' + resourcesHtml + '</div>' +
+            (quizHtml ? '<div class="acc-align-section">' + quizHtml + '</div>' : '');
+        host.querySelectorAll('.acc-apply-tag').forEach(btn => {
+            btn.onclick = function() {
+                const type = this.getAttribute('data-type');
+                const id = this.getAttribute('data-id');
+                let stds = [];
+                try { stds = JSON.parse(this.getAttribute('data-standards') || '[]'); } catch (_) {}
+                if (type && id && stds.length) applyAccreditationTagging(type, id, stds);
+            };
+        });
+        host.querySelectorAll('.acc-apply-quiz-tag').forEach(btn => {
+            btn.onclick = function() {
+                const quizType = this.getAttribute('data-quiz-type');
+                const id = this.getAttribute('data-id');
+                let stds = [];
+                try { stds = JSON.parse(this.getAttribute('data-standards') || '[]'); } catch (_) {}
+                if (quizType && id && stds.length) applyQuizAccreditationTagging(quizType, id, stds);
+            };
+        });
+        host.querySelectorAll('.acc-create-rubric').forEach(btn => {
+            btn.onclick = async function() {
+                let pl = {};
+                try { pl = JSON.parse(this.getAttribute('data-payload') || '{}'); } catch (_) {}
+                if (pl.resource_type && pl.resource_id && Array.isArray(pl.criteria) && pl.criteria.length) {
+                    try {
+                        const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/rubrics/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(pl)
+                        });
+                        if (!res.ok) throw new Error(await res.text());
+                        if (typeof showToast === 'function') showToast('Rubric created.', 'success');
+                        loadAccreditationAlignment({});
+                    } catch (e) {
+                        if (typeof showToast === 'function') showToast('Failed: ' + (e?.message || e), 'error');
+                    }
+                }
+            };
+        });
     } catch (e) {
         host.innerHTML = '<p style="color:#c62828;">Alignment analysis failed: ' + escapeHtml(e?.message || String(e)) + '</p>';
     }
@@ -3132,6 +3291,132 @@ async function createOutcomesFromSelectedStandards() {
             btn.innerHTML = orig || 'Approve selected & create outcomes';
         }
     }
+}
+
+async function submitOutcomesForOrg(orgId, orgAbbrev, orgName, toCreateCount) {
+    if (!selectedCourseId) return;
+    const msg = 'Ready to create ' + (toCreateCount || 0) + ' outcomes in the ' + (orgAbbrev || orgId) + ' group. Proceed?';
+    if (!confirm(msg)) return;
+    const cip = getAccreditationEffectiveCip();
+    try {
+        const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/outcomes/sync-org', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orgId, orgAbbrev, orgName, cip: cip || undefined })
+        });
+        if (!res.ok) throw new Error(res.statusText || 'Failed');
+        const result = await res.json();
+        const created = Number(result?.summary?.created || 0);
+        const skipped = Number(result?.summary?.skipped || 0);
+        const failed = Number(result?.summary?.failed || 0);
+        if (typeof showToast === 'function') showToast(orgAbbrev + ': ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.', failed ? 'warn' : 'success');
+        else alert(orgAbbrev + ': ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.');
+        await loadStandardsSyncTab();
+    } catch (e) {
+        if (typeof showToast === 'function') showToast('Submit failed: ' + (e?.message || e), 'error');
+        else alert('Submit failed: ' + (e?.message || e));
+    }
+}
+
+async function finalizeStandards() {
+    if (!selectedCourseId) return;
+    const btn = document.getElementById('accFinalizeStandardsBtn');
+    const orig = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = 'Finalizing...'; }
+    try {
+        const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/standards/finalize', { method: 'POST' });
+        if (!res.ok) throw new Error(res.statusText || 'Failed');
+        if (typeof showToast === 'function') showToast('Standards finalized. Stage 2 is now unlocked.', 'success');
+        else alert('Standards finalized.');
+        await loadStandardsSyncTab();
+    } catch (e) {
+        if (typeof showToast === 'function') showToast('Finalize failed: ' + (e?.message || e), 'error');
+        else alert('Finalize failed: ' + (e?.message || e));
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = orig || 'Finalize standards'; }
+    }
+}
+
+let accAiSuggestQueue = [];
+let accAiSuggestIndex = 0;
+
+async function openAiSuggestFlow() {
+    if (!selectedCourseId) return;
+    const checkboxes = document.querySelectorAll('#accStandardsList input[name="accStd"]:checked');
+    const selectedCount = Array.from(checkboxes).filter(cb => cb.value).length;
+    if (!selectedCount) {
+        if (typeof showToast === 'function') showToast('Select standards first, then get AI suggestions.', 'warn');
+        else alert('Select standards first.');
+        return;
+    }
+    const btn = document.getElementById('accGetAiSuggestionsBtn');
+    const orig = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = 'Fetching suggestions...'; }
+    try {
+        const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/standards/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ n: 5 })
+        });
+        if (!res.ok) throw new Error(res.statusText || 'Failed');
+        const suggestions = await res.json();
+        if (!Array.isArray(suggestions) || !suggestions.length) {
+            if (typeof showToast === 'function') showToast('No additional suggestions found.', 'info');
+            else alert('No additional suggestions found.');
+            return;
+        }
+        accAiSuggestQueue = suggestions;
+        accAiSuggestIndex = 0;
+        showNextAiSuggestion();
+    } catch (e) {
+        if (typeof showToast === 'function') showToast('AI suggestions failed: ' + (e?.message || e), 'error');
+        else alert('AI suggestions failed: ' + (e?.message || e));
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = orig || 'Get AI suggestions'; }
+    }
+}
+
+function showNextAiSuggestion() {
+    if (accAiSuggestIndex >= accAiSuggestQueue.length) {
+        if (typeof closeActiveModal === 'function') closeActiveModal();
+        if (typeof showToast === 'function') showToast('Review complete. Reloading standards.', 'success');
+        loadStandardsSyncTab();
+        return;
+    }
+    const s = accAiSuggestQueue[accAiSuggestIndex];
+    const titleEl = document.getElementById('accAiSuggestModalTitle');
+    const bodyEl = document.getElementById('accAiSuggestModalBody');
+    if (titleEl) titleEl.textContent = 'AI Suggestion (' + (accAiSuggestIndex + 1) + ' of ' + accAiSuggestQueue.length + ')';
+    if (bodyEl) {
+        bodyEl.innerHTML = '<p><strong>' + escapeHtml(s.id || '') + ' — ' + escapeHtml(s.title || '') + '</strong></p>' +
+            '<p style="color:#555;">' + escapeHtml(s.reason || 'AI suggested based on course content.') + '</p>';
+    }
+    if (typeof openModal === 'function') openModal('accAiSuggestModal');
+}
+
+function applyAiSuggestAction(action) {
+    if (!selectedCourseId || accAiSuggestIndex >= accAiSuggestQueue.length) return;
+    const s = accAiSuggestQueue[accAiSuggestIndex];
+    fetch('/canvas/courses/' + selectedCourseId + '/accreditation/standards/ai-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ standardId: s.id, action: action })
+    }).then(() => {}).catch(() => {});
+    accAiSuggestIndex++;
+    if (typeof closeActiveModal === 'function') closeActiveModal();
+    if (accAiSuggestIndex >= accAiSuggestQueue.length) {
+        if (typeof showToast === 'function') showToast('Review complete. Reloading standards.', 'success');
+        loadStandardsSyncTab();
+    } else {
+        setTimeout(showNextAiSuggestion, 150);
+    }
+}
+
+function closeAiSuggestFlow() {
+    accAiSuggestQueue = [];
+    accAiSuggestIndex = 0;
+    if (typeof closeActiveModal === 'function') closeActiveModal();
+    loadStandardsSyncTab();
 }
 
 function accSpinnerHtml() {

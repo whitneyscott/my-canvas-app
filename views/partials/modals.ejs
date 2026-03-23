@@ -624,4 +624,17 @@
         </div>
     </div>
 
+    <div id="accAiSuggestModal" class="modal-content-wrapper" style="max-width: min(560px, 96vw);">
+        <div class="modal-header">
+            <h3 id="accAiSuggestModalTitle">AI Suggestion</h3>
+            <button class="close-x" onclick="closeAiSuggestFlow()">&times;</button>
+        </div>
+        <div id="accAiSuggestModalBody" class="modal-body" style="text-align: left; font-size: 14px;"></div>
+        <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button class="primary-btn" onclick="applyAiSuggestAction('accept')">Accept</button>
+            <button class="secondary-btn" onclick="applyAiSuggestAction('review_later')">Review Later</button>
+            <button class="secondary-btn" onclick="applyAiSuggestAction('reject')">Reject</button>
+        </div>
+    </div>
+
 </div>

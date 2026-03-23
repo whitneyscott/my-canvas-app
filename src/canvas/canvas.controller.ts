@@ -186,6 +186,29 @@ export class CanvasController {
     return this.canvasService.getAccreditorsForCourse(id, cip || undefined, degreeLevel || undefined);
   }
 
+  @Post('courses/:id/accreditation/standards/suggest')
+  async suggestStandards(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { n?: number },
+  ) {
+    return this.canvasService.suggestAdditionalStandardsForCourse(id, body?.n ?? 5);
+  }
+
+  @Post('courses/:id/accreditation/standards/finalize')
+  async finalizeStandards(@Param('id', ParseIntPipe) id: number) {
+    await this.canvasService.setAccreditationStageState(id, '1', 'approved');
+    await this.canvasService.logAccreditationOperation(id, 'standards_finalized', '1', {});
+    return { success: true };
+  }
+
+  @Post('courses/:id/accreditation/standards/ai-action')
+  async applyAiSuggestionAction(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { standardId: string; action: 'accept' | 'reject' | 'review_later' },
+  ) {
+    return this.canvasService.applyAiSuggestionAction(id, body.standardId, body.action);
+  }
+
   @Get('courses/:id/accreditation/standards')
   async getAccreditationStandards(
     @Param('id', ParseIntPipe) id: number,
@@ -200,12 +223,81 @@ export class CanvasController {
     return this.canvasService.getCourseOutcomeLinks(id);
   }
 
+  @Get('courses/:id/accreditation/outcomes/preview')
+  async getOutcomesPreview(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('cip') cip: string,
+    @Query('degree_level') degreeLevel: string,
+  ) {
+    return this.canvasService.getOutcomesPreviewByOrg(id, cip || undefined, degreeLevel || undefined);
+  }
+
+  @Post('courses/:id/accreditation/outcomes/sync-org')
+  async syncOutcomesForOrg(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { orgId: string; orgAbbrev: string; orgName: string; cip?: string },
+  ) {
+    return this.canvasService.syncOutcomesForOrg(
+      id,
+      body.orgId,
+      body.orgAbbrev || body.orgId,
+      body.orgName || body.orgId,
+      body.cip,
+      undefined,
+    );
+  }
+
   @Post('courses/:id/accreditation/outcomes/sync')
   async syncCourseOutcomesFromStandards(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { cip?: string; degree_level?: string; include_groups?: boolean },
   ) {
     return this.canvasService.syncCourseOutcomesFromSelectedStandards(id, body?.cip, body?.degree_level, !!body?.include_groups);
+  }
+
+  @Get('courses/:id/accreditation/workflow')
+  async getAccreditationWorkflow(@Param('id', ParseIntPipe) id: number) {
+    return this.canvasService.getAccreditationWorkflow(id);
+  }
+
+  @Get('courses/:id/accreditation/instruction-alignment')
+  async getInstructionAlignment(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('cip') cip: string,
+  ) {
+    return this.canvasService.getInstructionAlignmentSuggestions(id, cip || undefined);
+  }
+
+  @Post('courses/:id/accreditation/rubrics/create')
+  async createRubricForResource(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { resource_type: string; resource_id: string; criteria: Array<{ description: string; outcome_id?: number; points?: number }> },
+  ) {
+    return this.canvasService.createRubricForResource(id, body.resource_type, body.resource_id, body.criteria ?? []);
+  }
+
+  @Post('courses/:id/accreditation/tagging/resource')
+  async applyResourceTagging(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { resource_type: string; resource_id: string; standards: Array<{ id: string; title: string; org?: string }> },
+  ) {
+    return this.canvasService.applyResourceTagging(id, body.resource_type, body.resource_id, body.standards ?? []);
+  }
+
+  @Post('courses/:id/accreditation/tagging/quiz')
+  async applyQuizTagging(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { quiz_id: number; standards: Array<{ id: string; title: string; org?: string }> },
+  ) {
+    return this.canvasService.applyQuizTagging(id, body.quiz_id, body.standards ?? []);
+  }
+
+  @Post('courses/:id/accreditation/tagging/new-quiz')
+  async applyNewQuizTagging(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { assignment_id: number; standards: Array<{ id: string; title: string; org?: string }> },
+  ) {
+    return this.canvasService.applyNewQuizTagging(id, body.assignment_id, body.standards ?? []);
   }
 
   @Get('courses/:id/accreditation/alignment')

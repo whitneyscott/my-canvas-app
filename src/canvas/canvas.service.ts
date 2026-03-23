@@ -157,7 +157,7 @@ interface AccreditationStandardNode {
 }
 
 interface StandardsResolutionResult {
-  sourceType: 'db' | 'api' | 'file' | 'scrape' | 'ai' | 'none';
+  sourceType: 'db' | 'api' | 'file' | 'scrape' | 'ai' | 'stub' | 'none';
   standards: AccreditationStandardNode[];
   sourceUri?: string | null;
   confidence: number;
@@ -3325,6 +3325,10 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   private static readonly ACCREDITATION_PRE_CLASS = 'accreditation-profile-data';
 
+  private static readonly ACCREDITATION_STAGE_IDS = ['0', '1', '2', '3', '3b', '4', '5'] as const;
+  private static readonly ACCREDITATION_STAGE_STATES = ['draft', 'ready', 'approved', 'applied'] as const;
+  private static readonly OPERATION_LOG_CAP = 100;
+
   private static readonly PROFILE_KEYS: Array<{ key: string; label: string }> = [
     { key: 'state', label: 'State' },
     { key: 'city', label: 'City' },
@@ -3335,6 +3339,11 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     { key: 'programTitle', label: 'Program Title' },
     { key: 'programFocusCip6', label: 'Program Focus CIP6' },
     { key: 'selectedStandards', label: 'Selected Standards' },
+    { key: 'aiSuggestedAccepted', label: 'AI Suggested Accepted' },
+    { key: 'aiSuggestedRejected', label: 'AI Suggested Rejected' },
+    { key: 'aiSuggestedReviewLater', label: 'AI Suggested Review Later' },
+    { key: 'stages', label: 'Stages' },
+    { key: 'operationLog', label: 'OperationLog' },
   ];
 
   private static parseAccreditationBlock(body: string): Record<string, unknown> | null {
@@ -3364,7 +3373,18 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       if (!def || !value) continue;
       if (def.key === 'institutionId') profile[def.key] = parseInt(value, 10) || value;
       else if (def.key === 'programFocusCip6' || def.key === 'selectedStandards') profile[def.key] = value.split(',').map((s: string) => s.trim()).filter(Boolean);
-      else profile[def.key] = value;
+      else if ((def.key === 'aiSuggestedAccepted' || def.key === 'aiSuggestedRejected' || def.key === 'aiSuggestedReviewLater') && value) {
+        try {
+          const parsed = JSON.parse(value);
+          if (Array.isArray(parsed)) profile[def.key] = parsed;
+        } catch { /* skip */ }
+      } else if (def.key === 'stages' || def.key === 'operationLog') {
+        try {
+          const parsed = JSON.parse(value);
+          if (def.key === 'stages' && typeof parsed === 'object' && parsed !== null) profile[def.key] = parsed;
+          else if (def.key === 'operationLog' && Array.isArray(parsed)) profile[def.key] = parsed;
+        } catch { /* skip invalid JSON */ }
+      } else profile[def.key] = value;
     }
     return profile;
   }
@@ -3374,6 +3394,9 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         const v = profile[d.key];
         if (v == null) return null;
         if ((d.key === 'programFocusCip6' || d.key === 'selectedStandards') && Array.isArray(v)) return v.length ? `${d.label}: ${v.join(',')}` : null;
+        if ((d.key === 'aiSuggestedAccepted' || d.key === 'aiSuggestedRejected' || d.key === 'aiSuggestedReviewLater') && Array.isArray(v)) return v.length ? `${d.label}: ${JSON.stringify(v)}` : null;
+        if (d.key === 'stages' && typeof v === 'object' && v !== null) return `${d.label}: ${JSON.stringify(v)}`;
+        if (d.key === 'operationLog' && Array.isArray(v)) return v.length ? `${d.label}: ${JSON.stringify(v)}` : null;
         const s = String(v).trim();
         return s ? `${d.label}: ${s}` : null;
       })
@@ -3442,9 +3465,85 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   async saveAccreditationProfile(courseId: number, profile: Record<string, unknown>) {
     const { page } = await this.getOrCreateAccreditationProfilePage(courseId);
+    const current = CanvasService.parseAccreditationBlock((page?.body as string) ?? '') ?? { v: 1 };
+    const merged: Record<string, unknown> = { ...current };
+    for (const [k, v] of Object.entries(profile)) {
+      if (v !== undefined) merged[k] = v;
+    }
     const pageUrl = CanvasService.ACCREDITATION_PROFILE_PAGE_URL;
-    const merged = CanvasService.mergeAccreditationBlockInBody((page?.body as string) ?? '', profile);
-    return this.updatePage(courseId, pageUrl, { wiki_page: { body: merged } });
+    const body = CanvasService.mergeAccreditationBlockInBody((page?.body as string) ?? '', merged);
+    return this.updatePage(courseId, pageUrl, { wiki_page: { body } });
+  }
+
+  async logAccreditationOperation(
+    courseId: number,
+    operation: string,
+    stage: string,
+    details: Record<string, unknown>,
+  ) {
+    const profile = await this.getAccreditationProfile(courseId);
+    const p = profile as Record<string, unknown>;
+    const log = Array.isArray(p?.operationLog) ? [...(p.operationLog as any[])] : [];
+    log.unshift({
+      timestamp: new Date().toISOString(),
+      operation,
+      stage,
+      details,
+    });
+    const capped = log.slice(0, CanvasService.OPERATION_LOG_CAP);
+    await this.saveAccreditationProfile(courseId, { ...p, operationLog: capped });
+  }
+
+  async setAccreditationStageState(courseId: number, stageId: string, state: string) {
+    const profile = await this.getAccreditationProfile(courseId);
+    const p = profile as Record<string, unknown>;
+    const stages = typeof p?.stages === 'object' && p.stages !== null ? { ...(p.stages as Record<string, string>) } : {};
+    if (CanvasService.ACCREDITATION_STAGE_STATES.includes(state as any)) {
+      stages[stageId] = state;
+    }
+    await this.saveAccreditationProfile(courseId, { ...p, stages });
+  }
+
+  private static isStageUnlocked(stages: Record<string, string> | null, stageId: string, requiredPrior: string[]): boolean {
+    if (!requiredPrior.length) return true;
+    for (const prior of requiredPrior) {
+      const s = stages?.[prior];
+      if (s !== 'approved' && s !== 'applied') return false;
+    }
+    return true;
+  }
+
+  async getAccreditationWorkflow(courseId: number) {
+    const profile = await this.getAccreditationProfile(courseId);
+    const p = profile as Record<string, unknown>;
+    const stages = (typeof p?.stages === 'object' && p.stages !== null ? p.stages : {}) as Record<string, string>;
+    const operationLog = Array.isArray(p?.operationLog) ? (p.operationLog as any[]) : [];
+    const lockInfo = this.getAccreditationStageLockInfo(stages);
+    return { stages, operationLog, lockInfo };
+  }
+
+  getAccreditationStageLockInfo(stages: Record<string, string> | null): Record<string, { locked: boolean; reason?: string }> {
+    const STAGE_DEPS: Record<string, string[]> = {
+      '1': [],
+      '2': ['1'],
+      '3': ['2'],
+      '3b': ['2'],
+      '4': ['3', '3b'],
+      '5': ['4'],
+    };
+    const result: Record<string, { locked: boolean; reason?: string }> = {};
+    for (const sid of CanvasService.ACCREDITATION_STAGE_IDS) {
+      if (sid === '0') {
+        result[sid] = { locked: false };
+        continue;
+      }
+      const deps = STAGE_DEPS[sid] || [];
+      const unlocked = CanvasService.isStageUnlocked(stages || null, sid, deps);
+      result[sid] = unlocked
+        ? { locked: false }
+        : { locked: true, reason: `Complete prior stages: ${deps.join(', ')}` };
+    }
+    return result;
   }
 
   private static readonly GENERAL_ACCREDITORS: Array<{ id: string; name: string; abbreviation?: string }> = [
@@ -3836,11 +3935,108 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const stub = CanvasService.STUB_STANDARDS_BY_ORG[orgId] || [];
     if (stub.length) {
       const standards = CanvasService.normalizeStandardsNodes(stub, 'file', 'stub', 0.4);
-      warnings.push('stub standards used');
-      return { sourceType: 'file', standards, sourceUri: 'stub', confidence: 0.4, usedAiFallback: false, warnings };
+      return { sourceType: 'stub', standards, sourceUri: 'stub', confidence: 0.4, usedAiFallback: false, warnings };
     }
-
     return { sourceType: 'none', standards: [], sourceUri: null, confidence: 0, usedAiFallback: false, warnings };
+  }
+
+  async suggestAdditionalStandardsForCourse(courseId: number, n = 5): Promise<Array<{ id: string; title: string; reason: string }>> {
+    const key = (this.config.get<string>('ANTHROPIC_API_KEY') || '').trim();
+    if (!key) return [];
+    const profile = await this.getAccreditationProfile(courseId);
+    const p = profile as Record<string, unknown>;
+    const cip = ((Array.isArray(p?.programFocusCip6) && (p.programFocusCip6 as string[])[0]) || (p?.programCip4 as string) || (p?.program as string) || '').trim();
+    const selectedIds = Array.isArray(p?.selectedStandards) ? (p.selectedStandards as string[]).map((x) => String(x).trim()).filter(Boolean) : [];
+    if (!selectedIds.length) return [];
+    const standardsPayload = await this.getAccreditationStandardsForCourse(courseId, cip || undefined, undefined);
+    const allStandards = (Array.isArray(standardsPayload?.organizations) ? standardsPayload.organizations : [])
+      .flatMap((o: any) => (Array.isArray(o?.standards) ? o.standards : []))
+      .map((s: any) => ({ id: String(s?.id || '').trim(), title: String(s?.title || s?.id || '').trim() }))
+      .filter((s: { id: string }) => s.id);
+    const availableIds = new Set(allStandards.map((s: { id: string }) => s.id));
+    const candidates = allStandards.filter((s: { id: string }) => !selectedIds.includes(s.id)).slice(0, 80);
+    if (!candidates.length) return [];
+    let courseContext = '';
+    try {
+      const details = await this.getCourseDetails(courseId);
+      courseContext = [details?.name, (details as any)?.description].filter(Boolean).join('\n').slice(0, 2000);
+    } catch { /* ignore */ }
+    const model = (this.config.get<string>('CLAUDE_MODEL') || 'claude-sonnet-4-6').trim();
+    const prompt = [
+      'Return JSON only. Task: suggest up to ' + n + ' additional accreditation standards that may apply to this course.',
+      'Already selected: ' + selectedIds.join(', '),
+      'Course context: ' + (courseContext || '(none)'),
+      'Candidates (id - title): ' + candidates.map((s: { id: string; title: string }) => s.id + ' - ' + s.title).join(' | '),
+      'Output schema: [{ "id": "STD-1", "title": "...", "reason": "brief reason" }]. Only use IDs from candidates. Return at most ' + n + ' items.',
+    ].join('\n');
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 800,
+        temperature: 0.2,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!res.ok) return [];
+    const payload = await res.json() as { content?: Array<{ type?: string; text?: string }> };
+    const text = Array.isArray(payload?.content)
+      ? payload.content.filter((c) => c?.type === 'text' && c?.text).map((c) => c.text).join('\n')
+      : '';
+    const jsonBlock = CanvasService.extractJsonBlock(text);
+    if (!jsonBlock) return [];
+    try {
+      const parsed = JSON.parse(jsonBlock);
+      const arr = Array.isArray(parsed) ? parsed : [];
+      return arr
+        .filter((x: any) => x?.id && availableIds.has(String(x.id)))
+        .slice(0, n)
+        .map((x: any) => ({
+          id: String(x.id).trim(),
+          title: String(x.title || x.id).trim(),
+          reason: String(x.reason || '').trim() || 'AI suggested',
+        }));
+    } catch {
+      return [];
+    }
+  }
+
+  async applyAiSuggestionAction(courseId: number, standardId: string, action: 'accept' | 'reject' | 'review_later') {
+    const sid = String(standardId || '').trim();
+    if (!sid) return { success: false };
+    const profile = await this.getAccreditationProfile(courseId);
+    const p = profile as Record<string, unknown>;
+    const accepted = Array.isArray(p?.aiSuggestedAccepted) ? [...(p.aiSuggestedAccepted as string[])] : [];
+    const rejected = Array.isArray(p?.aiSuggestedRejected) ? [...(p.aiSuggestedRejected as string[])] : [];
+    const reviewLater = Array.isArray(p?.aiSuggestedReviewLater) ? [...(p.aiSuggestedReviewLater as string[])] : [];
+    const selected = Array.isArray(p?.selectedStandards) ? [...(p.selectedStandards as string[])] : [];
+    if (action === 'accept') {
+      if (!selected.includes(sid)) selected.push(sid);
+      if (!accepted.includes(sid)) accepted.push(sid);
+      rejected.splice(rejected.indexOf(sid), 1);
+      reviewLater.splice(reviewLater.indexOf(sid), 1);
+    } else if (action === 'reject') {
+      if (!rejected.includes(sid)) rejected.push(sid);
+      selected.splice(selected.indexOf(sid), 1);
+      accepted.splice(accepted.indexOf(sid), 1);
+      reviewLater.splice(reviewLater.indexOf(sid), 1);
+    } else {
+      if (!reviewLater.includes(sid)) reviewLater.push(sid);
+      rejected.splice(rejected.indexOf(sid), 1);
+    }
+    await this.saveAccreditationProfile(courseId, {
+      ...p,
+      selectedStandards: selected,
+      aiSuggestedAccepted: accepted,
+      aiSuggestedRejected: rejected,
+      aiSuggestedReviewLater: reviewLater,
+    });
+    return { success: true };
   }
 
   async getAccreditationStandardsForCourse(
@@ -3990,6 +4186,192 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return Array.from(dedup.values());
   }
 
+  private buildStandardsByOrg(
+    organizations: Array<{ id: string; name: string; abbreviation?: string | null; standards?: any[] }>,
+    selectedIds: string[],
+    includeGroups: boolean,
+  ): Map<string, { org: { id: string; name: string; abbreviation: string }; standards: AccreditationStandardNode[] }> {
+    const result = new Map<string, { org: { id: string; name: string; abbreviation: string }; standards: AccreditationStandardNode[] }>();
+    const orgs = organizations.map((o) => ({
+      id: String(o?.id || '').trim(),
+      name: String(o?.name || o?.id || '').trim(),
+      abbreviation: String(o?.abbreviation || o?.id || '').trim(),
+      standards: Array.isArray(o?.standards) ? o.standards : [],
+    }));
+    const stdToOrg = new Map<string, { id: string; name: string; abbreviation: string }>();
+    orgs.forEach((org) => {
+      (org.standards || []).forEach((s: any) => {
+        const sid = String(s?.id || '').trim();
+        if (sid) stdToOrg.set(sid, { id: org.id, name: org.name, abbreviation: org.abbreviation });
+      });
+    });
+    const allOrgs = organizations as Array<{ id: string; name: string; abbreviation?: string | null; standards?: any[] }>;
+    const targets = this.buildSelectedStandardsOutcomeSet(allOrgs, selectedIds, includeGroups);
+    targets.forEach((std) => {
+      const sid = String(std?.id || '').trim();
+      const org = stdToOrg.get(sid);
+      if (!org) return;
+      const key = org.abbreviation || org.id;
+      if (!result.has(key)) result.set(key, { org, standards: [] });
+      result.get(key)!.standards.push(std);
+    });
+    return result;
+  }
+
+  private async ensureOutcomeGroupForOrg(
+    courseId: number,
+    orgAbbrev: string,
+    orgName: string,
+    token: string,
+    baseUrl: string,
+  ): Promise<number> {
+    const title = `${orgAbbrev || orgName} Standards`;
+    const groups = await this.fetchPaginatedData(`${baseUrl}/courses/${courseId}/outcome_groups?per_page=100`, token);
+    const existing = (Array.isArray(groups) ? groups : []).find(
+      (g: any) => String(g?.title || '').trim().toLowerCase() === title.toLowerCase(),
+    );
+    const existingId = Number(existing?.id);
+    if (Number.isFinite(existingId)) return existingId;
+    let accountId: number | null = null;
+    try {
+      const course = await this.getCourseDetails(courseId);
+      accountId = Number((course as any)?.root_account_id ?? (course as any)?.account_id);
+    } catch { /* ignore */ }
+    if (Number.isFinite(accountId)) {
+      try {
+        const rootRes = await fetch(`${baseUrl}/accounts/${accountId}/root_outcome_group`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const root = rootRes.ok ? await rootRes.json() : null;
+        const rootId = Number(root?.id);
+        if (Number.isFinite(rootId)) {
+          const form = new URLSearchParams();
+          form.append('title', title);
+          const createRes = await fetch(`${baseUrl}/accounts/${accountId}/outcome_groups/${rootId}/subgroups`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: form.toString(),
+          });
+          if (createRes.ok) {
+            const payload = await createRes.json();
+            const groupId = Number(payload?.id ?? payload?.outcome_group?.id);
+            if (Number.isFinite(groupId)) return groupId;
+          }
+        }
+      } catch { /* fall through to course-level */ }
+    }
+    const form = new URLSearchParams();
+    form.append('title', title);
+    const res = await fetch(`${baseUrl}/courses/${courseId}/outcome_groups`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+    });
+    if (!res.ok) throw new Error(`Failed to create outcome group: ${res.statusText}`);
+    const payload = await res.json();
+    const groupId = Number(payload?.id ?? payload?.outcome_group?.id);
+    if (!Number.isFinite(groupId)) throw new Error('Failed to create outcome group');
+    return groupId;
+  }
+
+  async getOutcomesPreviewByOrg(courseId: number, cip?: string, degreeLevel?: string) {
+    const profile = await this.getAccreditationProfile(courseId);
+    const p = profile as Record<string, unknown>;
+    const selectedIds = Array.isArray(p?.selectedStandards)
+      ? (p.selectedStandards as unknown[]).map((x) => String(x || '').trim()).filter(Boolean)
+      : [];
+    if (!selectedIds.length) return { orgs: [], message: 'No selected standards.' };
+    const standardsPayload = await this.getAccreditationStandardsForCourse(courseId, cip || undefined, degreeLevel);
+    const organizations = Array.isArray(standardsPayload?.organizations) ? standardsPayload.organizations : [];
+    const byOrg = this.buildStandardsByOrg(organizations, selectedIds, false);
+    const existingOutcomes = await this.getCourseOutcomeLinks(courseId);
+    const existingByStd = new Map<string, any>();
+    (existingOutcomes || []).forEach((o: any) => {
+      (Array.isArray(o?.standards) ? o.standards : []).forEach((sid: unknown) => {
+        const key = String(sid || '').trim();
+        if (key) existingByStd.set(key, o);
+      });
+    });
+    const orgs = Array.from(byOrg.entries()).map(([key, { org, standards }]) => {
+      const toCreate = standards.filter((s) => !existingByStd.has(String(s.id)));
+      const existing = standards.filter((s) => existingByStd.has(String(s.id)));
+      return {
+        orgId: org.id,
+        orgAbbrev: org.abbreviation,
+        orgName: org.name,
+        toCreateCount: toCreate.length,
+        existingCount: existing.length,
+        toCreate: toCreate.map((s) => ({ id: s.id, title: s.title })),
+      };
+    });
+    return { orgs };
+  }
+
+  async syncOutcomesForOrg(
+    courseId: number,
+    orgId: string,
+    orgAbbrev: string,
+    orgName: string,
+    cip?: string,
+    degreeLevel?: string,
+  ) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const profile = await this.getAccreditationProfile(courseId);
+    const p = profile as Record<string, unknown>;
+    const selectedIds = Array.isArray(p?.selectedStandards)
+      ? (p.selectedStandards as unknown[]).map((x) => String(x || '').trim()).filter(Boolean)
+      : [];
+    const standardsPayload = await this.getAccreditationStandardsForCourse(courseId, cip || undefined, degreeLevel);
+    const organizations = Array.isArray(standardsPayload?.organizations) ? standardsPayload.organizations : [];
+    const byOrg = this.buildStandardsByOrg(organizations, selectedIds, false);
+    const orgKey = orgAbbrev || orgId;
+    const entry = byOrg.get(orgKey);
+    if (!entry) return { created: [], skipped: [], failed: [], message: 'No standards for this org.' };
+    const { standards } = entry;
+    const existingOutcomes = await this.getCourseOutcomeLinks(courseId);
+    const existingByStd = new Map<string, any>();
+    const existingTitles = new Set<string>();
+    (existingOutcomes || []).forEach((o: any) => {
+      existingTitles.add(String(o?.title || '').trim().toLowerCase());
+      (Array.isArray(o?.standards) ? o.standards : []).forEach((sid: unknown) => {
+        const key = String(sid || '').trim();
+        if (key) existingByStd.set(key, o);
+      });
+    });
+    const groupId = await this.ensureOutcomeGroupForOrg(courseId, orgAbbrev, orgName, token, baseUrl);
+    const created: Array<{ standard_id: string; outcome_id: number | null; title: string }> = [];
+    const skipped: Array<{ standard_id: string; reason: string }> = [];
+    const failed: Array<{ standard_id: string; error: string }> = [];
+    for (const std of standards) {
+      const sid = String(std.id || '').trim();
+      const stitle = String(std.title || sid).trim();
+      if (!sid || !stitle) continue;
+      if (existingByStd.get(sid)) {
+        skipped.push({ standard_id: sid, reason: 'already_linked' });
+        continue;
+      }
+      const outcomeTitle = `${sid} — ${stitle}`;
+      if (existingTitles.has(outcomeTitle.toLowerCase())) {
+        skipped.push({ standard_id: sid, reason: 'title_exists' });
+        continue;
+      }
+      const descParts = [std.description ? String(std.description).trim() : '', `Source standard: ${sid}`].filter(Boolean);
+      const outcomeDescription = CanvasService.mergeStandardsIntoDescription(descParts.join('\n\n'), [sid]);
+      try {
+        const out = await this.createOutcomeInGroup(groupId, outcomeTitle, outcomeDescription, token, baseUrl);
+        created.push({ standard_id: sid, outcome_id: out.id, title: out.title });
+        existingTitles.add(outcomeTitle.toLowerCase());
+      } catch (e: any) {
+        failed.push({ standard_id: sid, error: e?.message || 'failed' });
+      }
+    }
+    if (created.length > 0) {
+      await this.logAccreditationOperation(courseId, 'outcomes_sync_org', '2', { org: orgKey, created: created.length, skipped: skipped.length, failed: failed.length });
+      await this.setAccreditationStageState(courseId, '2', 'applied');
+    }
+    return { created, skipped, failed, summary: { created: created.length, skipped: skipped.length, failed: failed.length } };
+  }
+
   private async ensureCourseAccreditationOutcomeGroup(courseId: number, token: string, baseUrl: string): Promise<number> {
     const title = 'Accreditation Standards';
     const groups = await this.fetchPaginatedData(`${baseUrl}/courses/${courseId}/outcome_groups?per_page=100`, token);
@@ -4130,6 +4512,15 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       } catch (e: any) {
         failed.push({ standard_id: sid, error: e?.message || 'failed to create outcome' });
       }
+    }
+    if (created.length > 0) {
+      await this.logAccreditationOperation(courseId, 'outcomes_sync', '2', {
+        created: created.length,
+        skipped: skipped.length,
+        failed: failed.length,
+        created_ids: created.map(c => c.standard_id),
+      });
+      await this.setAccreditationStageState(courseId, '2', 'applied');
     }
     return {
       cip: effectiveCip || null,
@@ -4394,6 +4785,32 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         criteria: criterion_mappings,
       };
     });
+    const [quizzes, newQuizzes] = await Promise.all([
+      this.getCourseQuizzes(courseId),
+      this.getCourseNewQuizzes(courseId),
+    ]);
+    const quiz_mappings = (quizzes || [])
+      .map((q: any) => {
+        const id = Number(q?.id);
+        if (!Number.isFinite(id)) return null;
+        const text = `${q?.title || ''} ${q?.description || ''} ${q?.instructions || ''}`.trim();
+        const suggested = CanvasService.suggestStandardsForText(text, standards, 3);
+        if (!suggested.length) return null;
+        return { resource_type: 'quiz', resource_id: String(id), title: String(q?.title || `Quiz ${id}`), url: null, suggested_standards: suggested };
+      })
+      .filter(Boolean)
+      .slice(0, 50);
+    const new_quiz_mappings = (newQuizzes || [])
+      .map((q: any) => {
+        const id = Number(q?.id ?? q?.assignment_id);
+        if (!Number.isFinite(id)) return null;
+        const text = `${q?.title || ''} ${q?.description || ''}`.trim();
+        const suggested = CanvasService.suggestStandardsForText(text, standards, 3);
+        if (!suggested.length) return null;
+        return { resource_type: 'new_quiz', resource_id: String(id), title: String(q?.title || `New Quiz ${id}`), url: null, suggested_standards: suggested };
+      })
+      .filter(Boolean)
+      .slice(0, 50);
     const resources = await this.getCourseAlignmentResources(courseId);
     const resource_mappings = resources
       .map((r) => {
@@ -4410,6 +4827,21 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       .filter(Boolean)
       .sort((a: any, b: any) => (b?.suggested_standards?.[0]?.score || 0) - (a?.suggested_standards?.[0]?.score || 0))
       .slice(0, 120);
+    const rubricRows = await this.getCourseRubricAlignmentRows(courseId);
+    const assignmentIdsWithRubrics = new Set(
+      rubricRows.flatMap((r: any) => Array.isArray(r?.assignment_ids) ? r.assignment_ids : []),
+    );
+    const assignmentsOnly = resources.filter((r) => r.resource_type === 'assignment');
+    const discussionsOnly = resources.filter((r) => r.resource_type === 'discussion');
+    const assignmentsWithoutRubrics = assignmentsOnly.filter((r) => !assignmentIdsWithRubrics.has(Number(r.resource_id)));
+    const discussionsWithoutRubrics = discussionsOnly;
+    const rubric_suggestions = {
+      existing: rubric_mappings,
+      without_rubrics: [...assignmentsWithoutRubrics, ...discussionsWithoutRubrics].map((r) => {
+        const suggested = CanvasService.suggestStandardsForText(r.text, standards, 3);
+        return { resource_type: r.resource_type, resource_id: r.resource_id, title: r.title, url: r.url, suggested_standards: suggested };
+      }).filter((x: any) => Array.isArray(x.suggested_standards) && x.suggested_standards.length),
+    };
     return {
       cip: effectiveCip || null,
       standards_considered: standards.length,
@@ -4417,6 +4849,9 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       outcome_mappings,
       rubric_mappings,
       resource_mappings,
+      rubric_suggestions,
+      quiz_mappings: quiz_mappings || [],
+      new_quiz_mappings: new_quiz_mappings || [],
       summary: {
         outcomes: outcome_mappings.length,
         outcomes_with_suggestions: outcome_mappings.filter((x: any) => Array.isArray(x.suggested_standards) && x.suggested_standards.length > 0).length,
@@ -4426,6 +4861,139 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         resources_with_suggestions: resource_mappings.length,
       },
     };
+  }
+
+  private static buildAccreditationTagBlock(standards: Array<{ id: string; title: string; org?: string }>): string {
+    if (!standards.length) return '';
+    const lines = standards.map((s) => `• ${s.id} — ${s.title}${s.org ? ` (${s.org})` : ''}`);
+    const visible = '\n\n--- Accreditation Alignment ---\nThis activity addresses the following standards:\n' + lines.join('\n');
+    const machine = `<!-- accreditation:${JSON.stringify({ standards: standards.map((s) => s.id) })} -->`;
+    return visible + '\n' + machine;
+  }
+
+  async applyResourceTagging(
+    courseId: number,
+    resourceType: string,
+    resourceId: string,
+    standards: Array<{ id: string; title: string; org?: string }>,
+  ) {
+    if (!['assignment', 'discussion', 'page', 'announcement'].includes(resourceType) || !standards.length) {
+      throw new Error('Invalid resource type or empty standards');
+    }
+    const block = CanvasService.buildAccreditationTagBlock(standards);
+    if (resourceType === 'assignment') {
+      const a = await this.getAssignment(courseId, Number(resourceId));
+      const desc = String(a?.description || '');
+      if (desc.includes('--- Accreditation Alignment ---')) throw new Error('Tagging already applied');
+      await this.updateAssignment(courseId, Number(resourceId), { description: desc + block });
+    } else if (resourceType === 'discussion') {
+      const d = await this.getDiscussion(courseId, Number(resourceId));
+      const msg = String((d as any)?.message || '');
+      if (msg.includes('--- Accreditation Alignment ---')) throw new Error('Tagging already applied');
+      await this.updateDiscussion(courseId, Number(resourceId), { message: msg + block });
+    } else if (resourceType === 'page') {
+      const p = await this.getPage(courseId, resourceId);
+      const body = String((p as any)?.body || '');
+      if (body.includes('--- Accreditation Alignment ---')) throw new Error('Tagging already applied');
+      await this.updatePage(courseId, resourceId, { wiki_page: { body: body + block } });
+    } else if (resourceType === 'announcement') {
+      const a = await this.getAnnouncement(courseId, Number(resourceId));
+      const msg = String((a as any)?.message || '');
+      if (msg.includes('--- Accreditation Alignment ---')) throw new Error('Tagging already applied');
+      await this.updateAnnouncement(courseId, Number(resourceId), { message: msg + block });
+    }
+    await this.logAccreditationOperation(courseId, 'resource_tagging', '4', { resource_type: resourceType, resource_id: resourceId });
+    return { success: true };
+  }
+
+  async applyQuizTagging(courseId: number, quizId: number, standards: Array<{ id: string; title: string; org?: string }>) {
+    if (!standards.length) throw new Error('Empty standards');
+    const q = await this.getQuiz(courseId, quizId);
+    const desc = String((q as any)?.description || (q as any)?.instructions || '');
+    if (desc.includes('--- Accreditation Alignment ---')) throw new Error('Tagging already applied');
+    const block = CanvasService.buildAccreditationTagBlock(standards);
+    await this.updateQuiz(courseId, quizId, { description: desc + block });
+    await this.logAccreditationOperation(courseId, 'quiz_tagging', '5', { quiz_id: quizId });
+    return { success: true };
+  }
+
+  async createRubricForResource(
+    courseId: number,
+    resourceType: string,
+    resourceId: string,
+    criteria: Array<{ description: string; outcome_id?: number; points?: number }>,
+  ) {
+    if (!['assignment', 'discussion'].includes(resourceType) || !criteria.length) {
+      throw new Error('Invalid resource type or empty criteria');
+    }
+    const assocType = resourceType === 'discussion' ? 'DiscussionTopic' : 'Assignment';
+    const assocId = Number(resourceId);
+    if (!Number.isFinite(assocId)) throw new Error('Invalid resource id');
+    const title = resourceType === 'assignment' ? `Assignment ${assocId} Rubric` : `Discussion ${assocId} Rubric`;
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const htmlBase = this.canvasHtmlBase(baseUrl);
+    const params = new URLSearchParams();
+    params.append('rubric[title]', title);
+    params.append('rubric[free_form_criterion_comments]', 'true');
+    params.append('rubric_association[association_id]', String(assocId));
+    params.append('rubric_association[association_type]', assocType);
+    params.append('rubric_association[purpose]', 'grading');
+    params.append('rubric_association[use_for_grading]', 'true');
+    criteria.forEach((c, i) => {
+      const pts = Number(c.points) || 1;
+      params.append(`rubric[criteria][${i}][description]`, c.description || `Criterion ${i + 1}`);
+      params.append(`rubric[criteria][${i}][points]`, String(pts));
+      if (c.outcome_id && Number.isFinite(c.outcome_id)) {
+        params.append(`rubric[criteria][${i}][learning_outcome_id]`, String(c.outcome_id));
+      }
+      params.append(`rubric[criteria][${i}][ratings][0][description]`, 'Not met');
+      params.append(`rubric[criteria][${i}][ratings][0][points]`, '0');
+      params.append(`rubric[criteria][${i}][ratings][1][description]`, 'Met');
+      params.append(`rubric[criteria][${i}][ratings][1][points]`, String(pts));
+    });
+    const res = await fetch(`${baseUrl}/courses/${courseId}/rubrics`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    if (!res.ok) throw new Error(`Failed to create rubric: ${await res.text()}`);
+    const payload = await res.json();
+    const rubric = payload?.rubric || payload;
+    const id = Number(rubric?.id);
+    if (!Number.isFinite(id)) throw new Error('Rubric created but ID not returned');
+    await this.logAccreditationOperation(courseId, 'rubric_created', '3', { resource_type: resourceType, resource_id: resourceId, rubric_id: id });
+    return { id, title: String(rubric?.title || title), url: `${htmlBase}/courses/${courseId}/rubrics/${id}` };
+  }
+
+  async getInstructionAlignmentSuggestions(courseId: number, cip?: string) {
+    const alignment = await this.getAccreditationAlignment(courseId, cip, undefined);
+    const outcomes = (alignment?.outcome_mappings || []).map((o: any) => ({ id: o.outcome_id, title: o.title, description: '' }));
+    const resources = await this.getCourseAlignmentResources(courseId);
+    const assignAndDisc = resources.filter((r) => r.resource_type === 'assignment' || r.resource_type === 'discussion');
+    return {
+      resources: assignAndDisc.slice(0, 30).map((r) => ({
+        resource_type: r.resource_type,
+        resource_id: r.resource_id,
+        title: r.title,
+        url: r.url,
+        option_a: null,
+        option_b: null,
+      })),
+      outcomes,
+    };
+  }
+
+  async applyNewQuizTagging(courseId: number, assignmentId: number, standards: Array<{ id: string; title: string; org?: string }>) {
+    if (!standards.length) throw new Error('Empty standards');
+    const rows = await this.getCourseNewQuizzes(courseId);
+    const row = (rows || []).find((r: any) => Number(r?.id || r?.assignment_id) === assignmentId);
+    if (!row) throw new Error('New Quiz not found');
+    const desc = String(row?.description || row?.instructions || '');
+    if (desc.includes('--- Accreditation Alignment ---')) throw new Error('Tagging already applied');
+    const block = CanvasService.buildAccreditationTagBlock(standards);
+    await this.updateNewQuizRow(courseId, assignmentId, { description: desc + block });
+    await this.logAccreditationOperation(courseId, 'new_quiz_tagging', '5', { assignment_id: assignmentId });
+    return { success: true };
   }
 
   private static readonly ACCESSIBILITY_SUPPORTED_TYPES = ['pages', 'assignments', 'announcements', 'syllabus', 'discussions'] as const;
