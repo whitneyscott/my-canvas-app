@@ -3942,6 +3942,210 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return putRes.json();
   }
 
+  private buildSelectedStandardsOutcomeSet(
+    organizations: Array<{ standards?: any[] }>,
+    selectedIds: string[],
+    includeGroups: boolean,
+  ): AccreditationStandardNode[] {
+    const nodes = organizations
+      .flatMap((o) => (Array.isArray(o?.standards) ? o.standards : []))
+      .map((s: any) => ({
+        id: String(s?.id || '').trim(),
+        title: String(s?.title || s?.id || '').trim(),
+        description: s?.description ? String(s.description) : null,
+        parentId: s?.parentId != null ? String(s.parentId) : (s?.parent_id != null ? String(s.parent_id) : null),
+        kind: s?.kind ? String(s.kind) : undefined,
+      }))
+      .filter((s: AccreditationStandardNode) => s.id && s.title);
+    const byId = new Map<string, AccreditationStandardNode>();
+    const children = new Map<string, string[]>();
+    nodes.forEach((n) => {
+      if (!byId.has(n.id)) byId.set(n.id, n);
+      const pid = String(n.parentId || '').trim();
+      if (pid) {
+        if (!children.has(pid)) children.set(pid, []);
+        children.get(pid)!.push(n.id);
+      }
+    });
+    const selected = new Set<string>(selectedIds.map((x) => String(x || '').trim()).filter(Boolean));
+    const expanded = new Set<string>();
+    const queue = Array.from(selected);
+    while (queue.length) {
+      const id = queue.shift()!;
+      if (!id || expanded.has(id)) continue;
+      expanded.add(id);
+      const kids = children.get(id) || [];
+      kids.forEach((k) => {
+        if (!expanded.has(k)) queue.push(k);
+      });
+    }
+    const hasChildren = (id: string) => (children.get(id) || []).length > 0;
+    const isGroup = (n: AccreditationStandardNode) => String(n.kind || '').toLowerCase() === 'group' || hasChildren(n.id);
+    const targets = Array.from(expanded)
+      .map((id) => byId.get(id))
+      .filter((n): n is AccreditationStandardNode => Boolean(n))
+      .filter((n: AccreditationStandardNode) => includeGroups || !isGroup(n));
+    const dedup = new Map<string, AccreditationStandardNode>();
+    targets.forEach((n) => dedup.set(n.id, n));
+    return Array.from(dedup.values());
+  }
+
+  private async ensureCourseAccreditationOutcomeGroup(courseId: number, token: string, baseUrl: string): Promise<number> {
+    const title = 'Accreditation Standards';
+    const groups = await this.fetchPaginatedData(`${baseUrl}/courses/${courseId}/outcome_groups?per_page=100`, token);
+    const existing = (Array.isArray(groups) ? groups : []).find((g: any) => String(g?.title || '').trim().toLowerCase() === title.toLowerCase());
+    const existingId = Number(existing?.id);
+    if (Number.isFinite(existingId)) return existingId;
+    const form = new URLSearchParams();
+    form.append('title', title);
+    const attempts: Array<{ contentType: string; body: string }> = [
+      { contentType: 'application/x-www-form-urlencoded', body: form.toString() },
+      { contentType: 'application/json', body: JSON.stringify({ title }) },
+    ];
+    for (const a of attempts) {
+      const res = await fetch(`${baseUrl}/courses/${courseId}/outcome_groups`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': a.contentType },
+        body: a.body,
+      });
+      const text = await res.text();
+      if (!res.ok) continue;
+      try {
+        const payload = text ? JSON.parse(text) : {};
+        const groupId = Number(payload?.id ?? payload?.outcome_group?.id);
+        if (Number.isFinite(groupId)) return groupId;
+      } catch {
+        /* ignore parse error and try fallback */
+      }
+    }
+    throw new Error('Failed to create or resolve Accreditation Standards outcome group');
+  }
+
+  private async createOutcomeInGroup(
+    groupId: number,
+    title: string,
+    description: string,
+    token: string,
+    baseUrl: string,
+  ): Promise<{ id: number | null; title: string }> {
+    const form = new URLSearchParams();
+    form.append('outcome[title]', title);
+    form.append('outcome[description]', description);
+    const attempts: Array<{ contentType: string; body: string }> = [
+      { contentType: 'application/x-www-form-urlencoded', body: form.toString() },
+      { contentType: 'application/json', body: JSON.stringify({ outcome: { title, description } }) },
+      { contentType: 'application/json', body: JSON.stringify({ title, description }) },
+    ];
+    let lastError = '';
+    for (const a of attempts) {
+      const res = await fetch(`${baseUrl}/outcome_groups/${groupId}/outcomes`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': a.contentType },
+        body: a.body,
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        lastError = text || `${res.status} ${res.statusText}`;
+        continue;
+      }
+      try {
+        const payload = text ? JSON.parse(text) : {};
+        const id = Number(payload?.id ?? payload?.outcome?.id ?? payload?.outcome_id);
+        return { id: Number.isFinite(id) ? id : null, title: String(payload?.title || payload?.outcome?.title || title) };
+      } catch {
+        return { id: null, title };
+      }
+    }
+    throw new Error(`Failed to create outcome "${title}": ${lastError || 'unknown error'}`);
+  }
+
+  async syncCourseOutcomesFromSelectedStandards(
+    courseId: number,
+    cip?: string,
+    degreeLevel?: string,
+    includeGroups = false,
+  ) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const profile = await this.getAccreditationProfile(courseId);
+    const p = profile as Record<string, unknown>;
+    const profileCip = ((Array.isArray(p?.programFocusCip6) && (p.programFocusCip6 as string[])[0]) || (p?.programCip4 as string) || (p?.program as string) || '').trim();
+    const effectiveCip = (cip || '').trim() || profileCip || await this.getEffectiveCip(courseId);
+    const selectedIds = Array.isArray(p?.selectedStandards)
+      ? (p.selectedStandards as unknown[]).map((x) => String(x || '').trim()).filter(Boolean)
+      : [];
+    if (!selectedIds.length) {
+      return {
+        created: [],
+        skipped: [],
+        failed: [],
+        message: 'No selected standards found. Select standards and apply profile first.',
+      };
+    }
+    const standardsPayload = await this.getAccreditationStandardsForCourse(courseId, effectiveCip || undefined, degreeLevel);
+    const organizations = Array.isArray(standardsPayload?.organizations) ? standardsPayload.organizations : [];
+    const targetStandards = this.buildSelectedStandardsOutcomeSet(organizations, selectedIds, includeGroups);
+    if (!targetStandards.length) {
+      return {
+        created: [],
+        skipped: [],
+        failed: [],
+        message: 'Selected standards resolved to no outcome targets.',
+      };
+    }
+    const existingOutcomes = await this.getCourseOutcomeLinks(courseId);
+    const existingByStd = new Map<string, any>();
+    const existingTitles = new Set<string>();
+    (existingOutcomes || []).forEach((o: any) => {
+      existingTitles.add(String(o?.title || '').trim().toLowerCase());
+      const stds = Array.isArray(o?.standards) ? o.standards : [];
+      stds.forEach((sid: unknown) => {
+        const key = String(sid || '').trim();
+        if (key) existingByStd.set(key, o);
+      });
+    });
+    const groupId = await this.ensureCourseAccreditationOutcomeGroup(courseId, token, baseUrl);
+    const created: Array<{ standard_id: string; outcome_id: number | null; title: string }> = [];
+    const skipped: Array<{ standard_id: string; reason: string; outcome_id?: number }> = [];
+    const failed: Array<{ standard_id: string; error: string }> = [];
+    for (const std of targetStandards) {
+      const sid = String(std.id || '').trim();
+      const stitle = String(std.title || sid).trim();
+      if (!sid || !stitle) continue;
+      const existing = existingByStd.get(sid);
+      if (existing) {
+        skipped.push({ standard_id: sid, reason: 'already_linked', outcome_id: Number(existing?.id) || undefined });
+        continue;
+      }
+      const outcomeTitle = `${sid} — ${stitle}`;
+      if (existingTitles.has(outcomeTitle.toLowerCase())) {
+        skipped.push({ standard_id: sid, reason: 'title_exists' });
+        continue;
+      }
+      const descParts = [std.description ? String(std.description).trim() : '', `Source standard: ${sid}`].filter(Boolean);
+      const outcomeDescription = CanvasService.mergeStandardsIntoDescription(descParts.join('\n\n'), [sid]);
+      try {
+        const out = await this.createOutcomeInGroup(groupId, outcomeTitle, outcomeDescription, token, baseUrl);
+        created.push({ standard_id: sid, outcome_id: out.id, title: out.title });
+        existingTitles.add(outcomeTitle.toLowerCase());
+      } catch (e: any) {
+        failed.push({ standard_id: sid, error: e?.message || 'failed to create outcome' });
+      }
+    }
+    return {
+      cip: effectiveCip || null,
+      selected_count: selectedIds.length,
+      target_standard_count: targetStandards.length,
+      created,
+      skipped,
+      failed,
+      summary: {
+        created: created.length,
+        skipped: skipped.length,
+        failed: failed.length,
+      },
+    };
+  }
+
   private static normalizeAlignmentText(input: unknown): string {
     return String(input ?? '')
       .replace(CanvasService.STANDARDS_PREFIX_REGEX, ' ')

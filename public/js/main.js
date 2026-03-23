@@ -1725,7 +1725,10 @@ async function loadStandardsSyncTab() {
             fallbackMsg +
             '<p class="acc-standards-hint">Select branches (full tree appears in Apply to course for leaf selection).</p>' +
             '<div id="accStandardsList" class="acc-program-focus">' + groupsHtml + '</div>' +
-            '<button type="button" id="accApplyStandardsBtn" class="primary-btn" onclick="applyAccreditationStandards()" style="margin-top: 0.75rem;">Apply to course</button>';
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:0.75rem;">' +
+            '<button type="button" id="accApplyStandardsBtn" class="primary-btn" onclick="applyAccreditationStandards()">Apply to course</button>' +
+            '<button type="button" id="accCreateOutcomesBtn" class="primary-btn" onclick="createOutcomesFromSelectedStandards()">Approve selected & create outcomes</button>' +
+            '</div>';
     };
     const refreshAccreditorsStandards = async (keepSelections) => {
         if (!selectedCourseId || !outcomesEl) return;
@@ -3073,6 +3076,60 @@ async function applyAccreditationStandards() {
         if (btn) {
             btn.disabled = false;
             btn.innerHTML = origHtml || 'Apply to course';
+        }
+    }
+}
+
+async function createOutcomesFromSelectedStandards() {
+    if (!selectedCourseId) return;
+    const checkboxes = document.querySelectorAll('#accStandardsList input[name="accStd"]:checked');
+    const selectedStandards = Array.from(new Set(Array.from(checkboxes).map(cb => cb.value).filter(Boolean)));
+    if (!selectedStandards.length) {
+        if (typeof showToast === 'function') showToast('Select standards first.', 'warn');
+        else alert('Select standards first.');
+        return;
+    }
+    const btn = document.getElementById('accCreateOutcomesBtn');
+    const orig = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="acc-card-loading" style="display:inline-flex;align-items:center;gap:0.35rem;"><span class="acc-card-spinner" style="width:16px;height:16px;"></span>Creating outcomes...</span>';
+    }
+    try {
+        const profileRes = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/profile');
+        if (!profileRes.ok) throw new Error(profileRes.statusText || ('HTTP ' + profileRes.status));
+        const profile = await profileRes.json();
+        profile.selectedStandards = selectedStandards;
+        const putRes = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profile })
+        });
+        if (!putRes.ok) throw new Error(putRes.statusText || ('HTTP ' + putRes.status));
+        const cip = getAccreditationCipFromProfile(profile) || getAccreditationEffectiveCip();
+        const syncRes = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/outcomes/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cip: cip || undefined, include_groups: false })
+        });
+        if (!syncRes.ok) throw new Error(syncRes.statusText || ('HTTP ' + syncRes.status));
+        const result = await syncRes.json();
+        const created = Number(result?.summary?.created || 0);
+        const skipped = Number(result?.summary?.skipped || 0);
+        const failed = Number(result?.summary?.failed || 0);
+        if (typeof showToast === 'function') {
+            showToast('Outcomes sync complete: ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.', failed ? 'warn' : 'success');
+        } else {
+            alert('Outcomes sync complete: ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.');
+        }
+        await loadStandardsSyncTab();
+    } catch (e) {
+        if (typeof showToast === 'function') showToast('Failed to create outcomes: ' + (e?.message || e), 'error');
+        else alert('Failed to create outcomes: ' + (e?.message || e));
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = orig || 'Approve selected & create outcomes';
         }
     }
 }

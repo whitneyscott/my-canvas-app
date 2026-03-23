@@ -200,6 +200,14 @@ export class CanvasController {
     return this.canvasService.getCourseOutcomeLinks(id);
   }
 
+  @Post('courses/:id/accreditation/outcomes/sync')
+  async syncCourseOutcomesFromStandards(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { cip?: string; degree_level?: string; include_groups?: boolean },
+  ) {
+    return this.canvasService.syncCourseOutcomesFromSelectedStandards(id, body?.cip, body?.degree_level, !!body?.include_groups);
+  }
+
   @Get('courses/:id/accreditation/alignment')
   async getAccreditationAlignment(
     @Param('id', ParseIntPipe) id: number,
