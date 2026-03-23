@@ -1714,7 +1714,7 @@ async function loadStandardsSyncTab() {
             fallbackMsg +
             '<p class="acc-standards-hint">Select standards to apply to this course.</p>' +
             '<div id="accStandardsList" class="acc-program-focus">' + groupsHtml + '</div>' +
-            '<button type="button" class="primary-btn" onclick="applyAccreditationStandards()" style="margin-top: 0.75rem;">Apply to course</button>';
+            '<button type="button" id="accApplyStandardsBtn" class="primary-btn" onclick="applyAccreditationStandards()" style="margin-top: 0.75rem;">Apply to course</button>';
     };
     const refreshAccreditorsStandards = async (keepSelections) => {
         if (!selectedCourseId || !outcomesEl) return;
@@ -2728,10 +2728,95 @@ async function saveAccreditationProfileForm() {
     }
 }
 
+function getAccreditationEffectiveCip() {
+    const progEl = document.getElementById('accProgram');
+    const focusEl = document.getElementById('accProgramFocus');
+    const programCip4 = progEl?.value?.trim() || '';
+    const focusChecked = focusEl ? Array.from(focusEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value).filter(Boolean) : [];
+    return (focusChecked[0] || programCip4) || '';
+}
+
+function buildParsedStandardsPreviewHtml(payload) {
+    if (!payload || typeof payload !== 'object') {
+        return '<p style="color:#666;">No standards payload.</p>';
+    }
+    const orgs = Array.isArray(payload.organizations) ? payload.organizations : [];
+    if (!orgs.length) {
+        return '<p style="color:#666;">No organizations in standards response.</p><details style="margin-top:8px;"><summary>Raw JSON</summary><pre style="font-size:11px;overflow:auto;max-height:240px;">' +
+            escapeHtml(JSON.stringify(payload, null, 2)) + '</pre></details>';
+    }
+    const sortStandards = (arr) => arr.slice().sort((a, b) => {
+        const oa = a.sortOrder ?? a.sort_order ?? 0;
+        const ob = b.sortOrder ?? b.sort_order ?? 0;
+        if (oa !== ob) return Number(oa) - Number(ob);
+        return String(a.id || '').localeCompare(String(b.id || ''));
+    });
+    function renderOrgHtml(org) {
+        const orgLabel = escapeHtml((org.abbreviation ? org.abbreviation + ' — ' : '') + (org.name || org.id || 'Organization'));
+        const standards = Array.isArray(org.standards) ? org.standards : [];
+        if (!standards.length) {
+            return '<div class="acc-parsed-org" style="margin-bottom:16px;border:1px solid #e5e7eb;border-radius:8px;padding:10px;"><strong>' + orgLabel + '</strong><p style="margin:8px 0 0;color:#666;">No standards array for this org.</p></div>';
+        }
+        const byId = new Map(standards.map(s => [String(s.id || ''), s]));
+        const childrenOf = new Map();
+        standards.forEach(s => {
+            const pid = String(s.parentId || s.parent_id || '').trim();
+            const id = String(s.id || '');
+            const parentKey = !pid || !byId.has(pid) ? '__root__' : pid;
+            if (!childrenOf.has(parentKey)) childrenOf.set(parentKey, []);
+            childrenOf.get(parentKey).push(s);
+        });
+        for (const k of childrenOf.keys()) {
+            childrenOf.set(k, sortStandards(childrenOf.get(k)));
+        }
+        function rowHtml(s, depth) {
+            const id = escapeHtml(String(s.id || ''));
+            const title = escapeHtml(String(s.title || ''));
+            const kind = (s.kind != null && s.kind !== '') ? escapeHtml(String(s.kind)) : '';
+            const gc = (s.groupCode != null && s.groupCode !== '') ? escapeHtml(String(s.groupCode)) : ((s.group_code != null && s.group_code !== '') ? escapeHtml(String(s.group_code)) : '');
+            const p = (s.parentId != null && s.parentId !== '') ? escapeHtml(String(s.parentId)) : ((s.parent_id != null && s.parent_id !== '') ? escapeHtml(String(s.parent_id)) : '');
+            const meta = [kind && ('kind: ' + kind), gc && ('group: ' + gc), p && ('parentId: ' + p)].filter(Boolean).join(' · ');
+            const pad = depth * 14;
+            const desc = s.description ? '<div style="font-size:12px;color:#444;margin-top:4px;">' + escapeHtml(String(s.description)) + '</div>' : '';
+            return '<label class="acc-parsed-row" style="display:flex;gap:8px;margin:3px 0;padding-left:' + pad + 'px;align-items:flex-start;">' +
+                '<input type="checkbox" disabled tabindex="-1" aria-hidden="true">' +
+                '<span><strong>' + id + '</strong> — ' + title +
+                (meta ? '<div style="font-size:11px;color:#666;margin-top:2px;">' + meta + '</div>' : '') +
+                desc + '</span></label>';
+        }
+        function walk(parentKey, depth) {
+            const nodes = childrenOf.get(parentKey) || [];
+            let h = '';
+            nodes.forEach(s => {
+                const sid = String(s.id || '');
+                h += rowHtml(s, depth);
+                h += walk(sid, depth + 1);
+            });
+            return h;
+        }
+        const tree = walk('__root__', 0);
+        return '<div class="acc-parsed-org" style="margin-bottom:16px;border:1px solid #e5e7eb;border-radius:8px;padding:10px;">' +
+            '<strong style="display:block;margin-bottom:8px;">' + orgLabel + '</strong>' +
+            '<p style="font-size:12px;color:#666;margin:0 0 8px;">Checkboxes are preview-only (not wired yet).</p>' +
+            tree +
+            '</div>';
+    }
+    let html = orgs.map(renderOrgHtml).join('');
+    html += '<details style="margin-top:12px;"><summary style="cursor:pointer;font-size:13px;">Raw API JSON</summary><pre style="font-size:11px;overflow:auto;max-height:200px;margin-top:8px;">' +
+        escapeHtml(JSON.stringify(payload, null, 2)) + '</pre></details>';
+    return html;
+}
+
 async function applyAccreditationStandards() {
     if (!selectedCourseId) return;
     const checkboxes = document.querySelectorAll('#accStandardsList input[name="accStd"]:checked');
     const selectedStandards = Array.from(new Set(Array.from(checkboxes).map(cb => cb.value).filter(Boolean)));
+    const btn = document.getElementById('accApplyStandardsBtn');
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="acc-card-loading" style="display: inline-flex; align-items: center; gap: 0.35rem;"><span class="acc-card-spinner" style="width: 16px; height: 16px;"></span>Applying...</span>';
+    }
     try {
         const getRes = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`);
         if (!getRes.ok) throw new Error(getRes.statusText);
@@ -2743,10 +2828,24 @@ async function applyAccreditationStandards() {
             body: JSON.stringify({ profile })
         });
         if (!putRes.ok) throw new Error(putRes.statusText);
-        loadStandardsSyncTab();
-        if (typeof openModal === 'function') openModal('profileSavedModal');
+        await loadStandardsSyncTab();
+        const cip = getAccreditationEffectiveCip();
+        const qs = cip ? ('?cip=' + encodeURIComponent(cip)) : '';
+        const stdRes = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/standards${qs}`);
+        const bodyEl = document.getElementById('accParsedStandardsModalBody');
+        if (stdRes.ok && bodyEl) {
+            const payload = await stdRes.json();
+            bodyEl.innerHTML = buildParsedStandardsPreviewHtml(payload);
+            if (typeof openModal === 'function') openModal('accParsedStandardsModal');
+        } else if (typeof openModal === 'function') {
+            openModal('profileSavedModal');
+        }
     } catch (e) {
         alert('Apply failed: ' + e.message);
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml || 'Apply to course';
+        }
     }
 }
 
