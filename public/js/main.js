@@ -119,6 +119,14 @@ let pendingRevertSnapshotId = null;
 const REQUEST_CONCURRENCY_LIMIT = 6;
 const BULK_UPDATE_TABS = new Set(['assignments', 'quizzes', 'discussions', 'pages', 'announcements', 'modules']);
 
+const BULK_EDITOR_GRID_ROW_SELECTION = Object.freeze({
+    mode: 'multiRow',
+    selectAll: 'filtered',
+    headerCheckbox: true,
+    checkboxes: true,
+    enableClickSelection: false,
+});
+
 const FIELD_DEFINITIONS = window.FIELD_DEFINITIONS || window.CANVAS_CONFIG?.FIELD_DEFINITIONS || {};
 const REVERT_BLOCKED_FIELDS = new Set([
     'id', 'uuid', 'created_at', 'updated_at', 'items_count', 'items', 'html_url', 'url',
@@ -699,8 +707,7 @@ function createDurationPickerDOM(initialMinutes) {
 const gridOptions = {
     components: { durationPickerCellEditor: DurationPickerCellEditor },
     sortingOrder: ['asc', 'desc'],
-    rowSelection: 'multiple',
-    rowMultiSelectWithClick: true,
+    rowSelection: BULK_EDITOR_GRID_ROW_SELECTION,
     defaultColDef: {
         minWidth: 150,
         flex: 1,
@@ -2450,22 +2457,6 @@ function initializeAccessibilityGrid(findings) {
         resource_url: f?.resource_url || ''
     }));
     const columnDefs = [
-        {
-            headerName: '',
-            colId: '_acc_select',
-            width: 52,
-            minWidth: 52,
-            maxWidth: 52,
-            pinned: 'left',
-            sortable: false,
-            filter: false,
-            resizable: false,
-            editable: false,
-            suppressHeaderMenuButton: true,
-            checkboxSelection: true,
-            headerCheckboxSelection: true,
-            headerCheckboxSelectionFilteredOnly: true,
-        },
         { field: 'tier', headerName: 'Tier', width: 72 },
         { field: 'severity', headerName: 'Severity', width: 120, sort: 'asc' },
         {
@@ -2499,7 +2490,7 @@ function initializeAccessibilityGrid(findings) {
     const options = {
         columnDefs,
         rowData,
-        rowSelection: 'multiple',
+        rowSelection: BULK_EDITOR_GRID_ROW_SELECTION,
         defaultColDef: {
             filter: 'agTextColumnFilter',
             floatingFilter: true,
