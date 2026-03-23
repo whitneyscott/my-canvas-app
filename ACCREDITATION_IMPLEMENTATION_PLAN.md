@@ -6,6 +6,19 @@ Single source of truth for accreditation work in this repo.
 
 ## Start Here (Where we are RIGHT NOW)
 
+### Accessibility rules audit (do this before more feature work)
+
+Re-run a full pass over **every** accessibility check we ship (`ACCESSIBILITY_CHECKS.md` catalog + `ACCESSIBILITY_FIXABILITY_MAP` / `fix_type` wiring in `canvas.service.ts`).
+
+- For each `rule_id`, decide: **deterministic and reversible** (same input HTML → same safe fix) vs **needs human / AI / context**.
+- Anything that is **really deterministic** must be **treated as such in code**: `auto_fixable: true`, `fix_strategy: 'auto'`, a real `fix_type` executor (or merge into an existing one), and preview/apply behavior consistent with other auto rules—not left as `manual_only` or “suggested” unless there is a documented reason.
+- Fix mismatches: tighten the map, implement missing executors, and remove false “high risk” labels where the transform is purely mechanical (e.g. inline contrast when both colors are known in `style=""`).
+- Cross-check against `ACCESSIBILITY_CHECKS_QA_PLAN.md` **strict** vs **best-effort** tiers so tests and product expectations stay aligned.
+
+This audit is a **blocking hygiene step** whenever we add or change rules—not optional polish.
+
+---
+
 Current status snapshot:
 - Accreditation core foundation is complete (profile storage, outcomes mapping, CIP/program flow).
 - Accreditation tab exists and is functional for manual profile + standards selection flow.
