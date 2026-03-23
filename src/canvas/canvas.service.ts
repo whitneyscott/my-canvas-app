@@ -57,8 +57,8 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<string, AccessibilityFixabilityContra
   img_missing_alt: { auto_fixable: true, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_generate_alt_text', supports_preview: true, requires_content_fetch: true },
   img_alt_too_long: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'img_alt_truncate', supports_preview: true, requires_content_fetch: true },
   img_alt_filename: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'img_alt_filename_suggest', supports_preview: true, requires_content_fetch: true },
-  small_text_contrast: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  large_text_contrast: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  small_text_contrast: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'medium', risk: 'medium', fix_type: 'fix_inline_text_contrast', supports_preview: true, requires_content_fetch: true },
+  large_text_contrast: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'medium', risk: 'medium', fix_type: 'fix_inline_text_contrast', supports_preview: true, requires_content_fetch: true },
   table_missing_caption: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_table_caption', supports_preview: true, requires_content_fetch: true },
   table_missing_header: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_table_header', supports_preview: true, requires_content_fetch: true },
   table_header_scope_missing: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'table_scope_fix', supports_preview: true, requires_content_fetch: true },
@@ -5219,6 +5219,90 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return { newHtml, changes };
   }
 
+  private mixRgb(a: { r: number; g: number; b: number }, b: { r: number; g: number; b: number }, t: number): { r: number; g: number; b: number } {
+    const u = Math.max(0, Math.min(1, t));
+    return {
+      r: Math.round(a.r * (1 - u) + b.r * u),
+      g: Math.round(a.g * (1 - u) + b.g * u),
+      b: Math.round(a.b * (1 - u) + b.b * u),
+    };
+  }
+
+  private rgbToCssHex(c: { r: number; g: number; b: number }): string {
+    const h = (n: number) =>
+      Math.max(0, Math.min(255, Math.round(n)))
+        .toString(16)
+        .padStart(2, '0');
+    return `#${h(c.r)}${h(c.g)}${h(c.b)}`;
+  }
+
+  private nudgeTextColorForContrast(
+    fg: { r: number; g: number; b: number },
+    bg: { r: number; g: number; b: number },
+    minRatio: number,
+  ): { r: number; g: number; b: number } | null {
+    if (this.contrastRatio(fg, bg) >= minRatio) return fg;
+    const black = { r: 0, g: 0, b: 0 };
+    const white = { r: 255, g: 255, b: 255 };
+    for (let step = 1; step <= 100; step++) {
+      const t = step / 100;
+      const dark = this.mixRgb(fg, black, t);
+      const light = this.mixRgb(fg, white, t);
+      const rd = this.contrastRatio(dark, bg);
+      const rl = this.contrastRatio(light, bg);
+      const darkOk = rd >= minRatio;
+      const lightOk = rl >= minRatio;
+      if (darkOk || lightOk) {
+        if (darkOk && lightOk) return rd >= rl ? dark : light;
+        return darkOk ? dark : light;
+      }
+    }
+    const rb = this.contrastRatio(black, bg);
+    const rw = this.contrastRatio(white, bg);
+    if (rb >= minRatio) return black;
+    if (rw >= minRatio) return white;
+    return null;
+  }
+
+  private applyFixInlineTextContrast(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } {
+    const changes: Array<{ before: string; after: string }> = [];
+    const styleTagRegex = /<([a-z0-9]+)\b[^>]*style\s*=\s*("([^"]*)"|'([^']*)')[^>]*>/gi;
+    const replacements: Array<{ index: number; len: number; after: string }> = [];
+    let m: RegExpExecArray | null;
+    while ((m = styleTagRegex.exec(html)) !== null) {
+      const fullTag = m[0];
+      const style = m[3] ?? m[4] ?? '';
+      const colorMatch = style.match(/(?:^|;)\s*color\s*:\s*([^;]+)/i);
+      const bgMatch = style.match(/(?:^|;)\s*background(?:-color)?\s*:\s*([^;]+)/i);
+      if (!colorMatch || !bgMatch) continue;
+      const fg = this.parseCssColor(colorMatch[1]);
+      const bg = this.parseCssColor(bgMatch[1]);
+      if (!fg || !bg) continue;
+      const fsMatch = style.match(/(?:^|;)\s*font-size\s*:\s*([0-9.]+)px/i);
+      const fwMatch = style.match(/(?:^|;)\s*font-weight\s*:\s*([^;]+)/i);
+      const fontSizePx = fsMatch ? Number(fsMatch[1]) : 16;
+      const fontWeightRaw = (fwMatch?.[1] || '').trim().toLowerCase();
+      const isBold = fontWeightRaw === 'bold' || Number(fontWeightRaw) >= 700;
+      const isLarge = fontSizePx >= 24 || (isBold && fontSizePx >= 18.67);
+      const minRatio = isLarge ? 3 : 4.5;
+      if (this.contrastRatio(fg, bg) >= minRatio) continue;
+      const newFg = this.nudgeTextColorForContrast(fg, bg, minRatio);
+      if (!newFg) continue;
+      const hex = this.rgbToCssHex(newFg);
+      const newStyle = style.replace(/(^|;)\s*color\s*:\s*[^;]+/i, (_x, lead) => `${lead}color: ${hex}`);
+      const afterTag = fullTag.replace(style, newStyle);
+      if (afterTag === fullTag) continue;
+      changes.push({ before: fullTag, after: afterTag });
+      replacements.push({ index: m.index, len: fullTag.length, after: afterTag });
+    }
+    let newHtml = html;
+    replacements.sort((a, b) => b.index - a.index);
+    for (const r of replacements) {
+      newHtml = newHtml.slice(0, r.index) + r.after + newHtml.slice(r.index + r.len);
+    }
+    return { newHtml, changes };
+  }
+
   private runFixExecutor(html: string, fixType: string): { newHtml: string; changes: Array<{ before: string; after: string }> } | null {
     switch (fixType) {
       case 'merge_duplicate_links':
@@ -5237,6 +5321,8 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         return this.applyRemoveTextJustify(html);
       case 'font_size_min_12':
         return this.applyFontSizeMin12(html);
+      case 'fix_inline_text_contrast':
+        return this.applyFixInlineTextContrast(html);
       case 'img_alt_filename_suggest': {
         const r = this.applyImgAltFilenameSuggest(html);
         return { newHtml: r.newHtml, changes: r.changes };
