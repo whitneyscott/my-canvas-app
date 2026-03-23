@@ -1521,8 +1521,8 @@ function switchTab(tabName) {
     }
 }
 
-// Tab Interception System
-let tabInterceptionEnabled = true;
+// Tab Interception System (off by default: all tabs including ADA Compliance + Standards Sync work in Demo and Production)
+let tabInterceptionEnabled = false;
 
 function handleTabClick(event) {
     const tab = event.currentTarget;
@@ -2440,6 +2440,7 @@ function initializeAccessibilityGrid(findings) {
     const rowData = (Array.isArray(findings) ? findings : []).map((f) => ({
         resource_id: f?.resource_id || '',
         severity: f?.severity || '',
+        fix_strategy: f?.fix_strategy || 'manual_only',
         rule_id: f?.rule_id || '',
         resource_type: f?.resource_type || '',
         resource_title: f?.resource_title || '',
@@ -2465,6 +2466,7 @@ function initializeAccessibilityGrid(findings) {
             headerCheckboxSelectionFilteredOnly: true,
         },
         { field: 'severity', headerName: 'Severity', width: 120, sort: 'asc' },
+        { field: 'fix_strategy', headerName: 'Fix Strategy', width: 140 },
         { field: 'rule_id', headerName: 'Rule', minWidth: 180 },
         { field: 'resource_type', headerName: 'Type', width: 140 },
         { field: 'resource_title', headerName: 'Resource', minWidth: 220 },

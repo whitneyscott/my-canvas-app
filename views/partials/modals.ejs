@@ -265,6 +265,48 @@
         </div>
     </div>
 
+    <div id="revertConfirmModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Revert Sync</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p id="revertConfirmMessage"></p>
+            <p style="margin-top: 10px; font-size: 0.9em; color: #b26a00;">Note: bulk action syncs are not revertable in this release.</p>
+        </div>
+        <div class="modal-footer">
+            <button id="confirmRevertBtn" class="primary-btn">Revert</button>
+            <button class="secondary-btn" onclick="closeActiveModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div id="syncHistoryModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Sync History</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="syncHistoryList"></div>
+            <p style="margin-top: 10px; font-size: 0.9em; color: #b26a00;">Note: bulk action syncs are not revertable in this release.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="secondary-btn" onclick="closeActiveModal()">Close</button>
+        </div>
+    </div>
+
+    <div id="revertResultModal" class="modal-content-wrapper">
+        <div class="modal-header">
+            <h3>Revert Results</h3>
+            <button class="close-x" onclick="closeActiveModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="revertResultContent"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="secondary-btn" onclick="closeActiveModal()">Close</button>
+        </div>
+    </div>
+
     <div id="assignmentGroupModal" class="modal-content-wrapper">
         <div class="modal-header">
             <h3>Move to Assignment Group</h3>
@@ -526,12 +568,12 @@
                 <div>
                     <input type="radio" id="modeDemo" name="appMode" value="demo" checked>
                     <label for="modeDemo">Demo Mode</label>
-                    <p style="font-size: 0.85em; color: #666; margin: 5px 0 0 24px;">Only Assignments tab active, no debug panel</p>
+                    <p style="font-size: 0.85em; color: #666; margin: 5px 0 0 24px;">All Canvas Object tabs plus ADA Compliance Sync and Standards Sync; debug panel hidden</p>
                 </div>
                 <div>
                     <input type="radio" id="modeProduction" name="appMode" value="production">
                     <label for="modeProduction">Production Mode</label>
-                    <p style="font-size: 0.85em; color: #666; margin: 5px 0 0 24px;">All tabs active, no debug panel</p>
+                    <p style="font-size: 0.85em; color: #666; margin: 5px 0 0 24px;">Same as Demo (all tabs including accessibility and accreditation); no debug panel</p>
                 </div>
                 <div>
                     <input type="radio" id="modeDeveloper" name="appMode" value="developer">
