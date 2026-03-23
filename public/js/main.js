@@ -2125,6 +2125,7 @@ function renderAccessibilityReport(report) {
             <div id="accessibilityFixQueue" style="display:none;margin-top:16px;border:1px solid #ddd;border-radius:6px;padding:12px;">
                 <h4 style="margin:0 0 8px 0;">Fix Queue</h4>
                 <div id="accessibilityFixQueueTableWrap" style="overflow:auto;max-height:240px;margin-bottom:8px;"></div>
+                <div id="accessibilityFixPreviewPane" style="display:none;margin-bottom:10px;border:1px solid #ddd;border-radius:6px;padding:12px;background:#fafafa;"></div>
                 <div style="display:flex;gap:8px;align-items:center;">
                     <button id="applyApprovedFixesBtn" class="primary-btn" disabled>Apply Approved Fixes</button>
                     <span id="accessibilityFixQueueStatus"></span>
@@ -2289,7 +2290,7 @@ function renderAccessibilityFixQueue(actions) {
             <td style="padding:6px;">${escapeHtml(a.resource_type)}</td>
             <td style="padding:6px;">${escapeHtml(a.resource_title || '').slice(0, 60)}</td>
             <td style="padding:6px;">${escapeHtml(String(a.risk))}</td>
-            <td style="padding:6px;"><a href="#" onclick="openAccessibilityFixPreviewTab('${escapeHtml(a.action_id)}'); return false;">Open Preview</a></td>
+            <td style="padding:6px;"><a href="#" onclick="openAccessibilityFixPreviewInline(${i}); return false;">Open Preview</a></td>
             <td style="padding:6px;max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(a.before_snippet || '')}">${escapeHtml(String(a.before_snippet || '').slice(0, 80))}…</td>
             <td style="padding:6px;max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(a.after_snippet || '')}">${escapeHtml(String(a.after_snippet || '').slice(0, 80))}…</td>
         </tr>
@@ -2321,27 +2322,47 @@ function renderAccessibilityFixQueue(actions) {
     if (statusEl) statusEl.textContent = `${actions.length} fix(es) ready`;
 }
 
-function openAccessibilityFixPreviewTab(actionId) {
+function openAccessibilityFixPreviewInline(actionRef) {
     const actions = Array.isArray(accessibilityFixPreviewActions) ? accessibilityFixPreviewActions : [];
-    const action = actions.find((x) => String(x?.action_id) === String(actionId));
-    if (!action) {
-        showToast('Preview not found for this action.', 'warn');
-        if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Preview tab failed: action not found ' + String(actionId), 'warn');
+    const pane = document.getElementById('accessibilityFixPreviewPane');
+    if (!pane) {
+        showToast('Inline preview panel is not available.', 'warn');
+        if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Inline preview failed: panel missing', 'warn');
         return;
     }
-    const win = window.open('', '_blank', 'noopener,noreferrer');
-    if (!win) {
-        showToast('Pop-up blocked. Allow pop-ups to open preview.', 'warn');
-        if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Preview tab blocked by browser pop-up settings', 'warn');
+    let action = null;
+    if (Number.isInteger(actionRef) && actionRef >= 0 && actionRef < actions.length) {
+        action = actions[actionRef];
+    } else {
+        action = actions.find((x) => String(x?.action_id) === String(actionRef));
+    }
+    if (!action) {
+        showToast('Preview not found for this action.', 'warn');
+        if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Inline preview failed: action not found ' + String(actionRef), 'warn');
         return;
     }
     const title = `${ACCESSIBILITY_RULE_LABELS[action.rule_id] || action.rule_id} • ${action.resource_type}`;
-    const before = escapeHtml(String(action.before_snippet || ''));
-    const after = escapeHtml(String(action.after_snippet || ''));
-    win.document.open();
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;margin:20px;line-height:1.45}h1{font-size:18px;margin:0 0 6px}h2{font-size:14px;margin:14px 0 6px}pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;border:1px solid #ddd;border-radius:6px;padding:12px} .meta{color:#444;margin-bottom:10px;font-size:13px}</style></head><body><h1>${escapeHtml(title)}</h1><div class="meta">Resource: ${escapeHtml(String(action.resource_title || ''))}</div><div class="meta">Risk: ${escapeHtml(String(action.risk || ''))}</div><h2>Before</h2><pre>${before}</pre><h2>After</h2><pre>${after}</pre></body></html>`);
-    win.document.close();
-    if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Opened preview tab for action ' + String(actionId), 'info');
+    const beforeRaw = String(action.before_snippet || '').trim();
+    const afterRaw = String(action.after_snippet || '').trim();
+    const before = escapeHtml(beforeRaw);
+    const after = escapeHtml(afterRaw);
+    const beforeBlock = beforeRaw ? `<pre>${before}</pre>` : '<div style="padding:12px;border:1px solid #ddd;border-radius:6px;background:#fffbe6;">No visible before-snippet was captured for this action.</div>';
+    const afterBlock = afterRaw ? `<pre>${after}</pre>` : '<div style="padding:12px;border:1px solid #ddd;border-radius:6px;background:#fffbe6;">No visible after-snippet was captured for this action.</div>';
+    pane.style.display = 'block';
+    pane.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <strong>${escapeHtml(title)}</strong>
+            <button type="button" class="primary-btn" onclick="document.getElementById('accessibilityFixPreviewPane').style.display='none'">Close Preview</button>
+        </div>
+        <div style="color:#444;margin-bottom:6px;font-size:13px;">Resource: ${escapeHtml(String(action.resource_title || ''))}</div>
+        <div style="color:#444;margin-bottom:10px;font-size:13px;">Risk: ${escapeHtml(String(action.risk || ''))}</div>
+        <h5 style="margin:0 0 6px 0;">Before</h5>
+        ${beforeBlock}
+        <h5 style="margin:12px 0 6px 0;">After</h5>
+        ${afterBlock}
+    `;
+    pane.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Rendered inline preview for action ' + String(action.action_id || actionRef), 'info');
 }
 
 function updateApplyButtonState() {
