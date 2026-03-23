@@ -1,0 +1,109 @@
+{
+  "fixtures": [
+    {
+      "fixture_id": "page_img_missing_alt",
+      "rule_id": "img_missing_alt",
+      "content_type": "pages",
+      "location_hint": "page-img-missing-alt",
+      "expectation_tier": "strict",
+      "html": "<p>Sample content with image: <img src=\"/images/test.png\" /></p>"
+    },
+    {
+      "fixture_id": "page_img_alt_too_long",
+      "rule_id": "img_alt_too_long",
+      "content_type": "pages",
+      "location_hint": "page-img-alt-too-long",
+      "expectation_tier": "strict",
+      "html": "<p>Image with 201 chars: <img src=\"/img.png\" alt=\"Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur Excepteur sint occaecat cupidatat non proident sunt in culpa qui officia deserunt mollit anim id est laborum.\" /></p>"
+    },
+    {
+      "fixture_id": "page_heading_empty",
+      "rule_id": "heading_empty",
+      "content_type": "pages",
+      "location_hint": "page-heading-empty",
+      "expectation_tier": "strict",
+      "html": "<h2>Valid heading</h2><h3></h3><p>Content</p>"
+    },
+    {
+      "fixture_id": "page_list_empty_item",
+      "rule_id": "list_empty_item",
+      "content_type": "pages",
+      "location_hint": "page-list-empty-item",
+      "expectation_tier": "strict",
+      "html": "<ul><li>Item one</li><li></li><li>Item three</li></ul>"
+    },
+    {
+      "fixture_id": "page_adjacent_duplicate_links",
+      "rule_id": "adjacent_duplicate_links",
+      "content_type": "pages",
+      "location_hint": "page-adjacent-duplicate-links",
+      "expectation_tier": "strict",
+      "html": "<p><a href=\"https://example.com/page\">Link A</a> <a href=\"https://example.com/page\">Link B</a></p>"
+    },
+    {
+      "fixture_id": "page_link_new_tab_no_warning",
+      "rule_id": "link_new_tab_no_warning",
+      "content_type": "pages",
+      "location_hint": "page-link-new-tab",
+      "expectation_tier": "strict",
+      "html": "<p><a href=\"https://example.com\" target=\"_blank\">External</a></p>"
+    },
+    {
+      "fixture_id": "page_small_text_contrast",
+      "rule_id": "small_text_contrast",
+      "content_type": "pages",
+      "location_hint": "page-small-contrast",
+      "expectation_tier": "strict",
+      "html": "<p style=\"color:#777;background:#fff;\">Low contrast text</p>"
+    },
+    {
+      "fixture_id": "page_table_missing_header",
+      "rule_id": "table_missing_header",
+      "content_type": "pages",
+      "location_hint": "page-table-no-header",
+      "expectation_tier": "strict",
+      "html": "<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>"
+    },
+    {
+      "fixture_id": "page_duplicate_id",
+      "rule_id": "duplicate_id",
+      "content_type": "pages",
+      "location_hint": "page-duplicate-id",
+      "expectation_tier": "strict",
+      "html": "<div id=\"foo\">A</div><div id=\"foo\">B</div>"
+    },
+    {
+      "fixture_id": "page_text_justified",
+      "rule_id": "text_justified",
+      "content_type": "pages",
+      "location_hint": "page-text-justified",
+      "expectation_tier": "strict",
+      "html": "<p style=\"text-align:justify;\">Justified paragraph text.</p>"
+    },
+    {
+      "fixture_id": "page_font_size_too_small",
+      "rule_id": "font_size_too_small",
+      "content_type": "pages",
+      "location_hint": "page-font-size-small",
+      "expectation_tier": "strict",
+      "html": "<p style=\"font-size:8px;\">Tiny text</p>"
+    },
+    {
+      "fixture_id": "assign_img_missing_alt",
+      "rule_id": "img_missing_alt",
+      "content_type": "assignments",
+      "location_hint": "[QA] Assignment img_missing_alt",
+      "expectation_tier": "strict",
+      "html": "<p>Assignment body: <img src=\"/images/photo.jpg\" /></p>"
+    },
+    {
+      "fixture_id": "page_clean_control",
+      "rule_id": null,
+      "content_type": "pages",
+      "location_hint": "page-clean-control",
+      "expectation_tier": "strict",
+      "is_clean_control": true,
+      "html": "<h2>Valid Page</h2><p>Content with <a href=\"https://example.com\">accessible link</a>.</p><ul><li>List item</li></ul>"
+    }
+  ]
+}

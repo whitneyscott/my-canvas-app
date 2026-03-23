@@ -37,6 +37,22 @@ async function bootstrap() {
     }),
   );
 
+  app.use((req: any, _res, next) => {
+    const qaToken = req.headers['x-qa-canvas-token'];
+    const qaUrl = req.headers['x-qa-canvas-url'];
+    if (
+      process.env.QA_ACCESSIBILITY_ENABLED === '1' &&
+      qaToken &&
+      qaUrl &&
+      String(req.path || '').startsWith('/canvas/')
+    ) {
+      if (!req.session) req.session = {};
+      req.session.canvasToken = qaToken;
+      req.session.canvasUrl = String(qaUrl).replace(/\/+$/, '').replace(/\/api\/v1\/?$/, '') + '/api/v1';
+    }
+    next();
+  });
+
   // Path resolution for both local and deployed environments
   app.setBaseViewsDir(join(__dirname, '..', 'views'));
   app.useStaticAssets(join(__dirname, '..', 'public'));

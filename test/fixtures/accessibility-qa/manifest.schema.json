@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["manifest_version", "course_id", "fixtures"],
+  "properties": {
+    "manifest_version": { "type": "string" },
+    "builder_version": { "type": "string" },
+    "canvas_base_url": { "type": "string" },
+    "course_id": { "type": "number" },
+    "course_name": { "type": "string" },
+    "course_code": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "rebuilt_at": { "type": "string", "format": "date-time" },
+    "rebuild_reason": { "type": "string" },
+    "fixtures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["fixture_id", "rule_id", "content_type"],
+        "properties": {
+          "fixture_id": { "type": "string" },
+          "rule_id": { "type": "string" },
+          "content_type": { "enum": ["pages", "assignments", "announcements", "syllabus", "discussions"] },
+          "canvas_resource_type": { "type": "string" },
+          "resource_id": { "type": ["string", "number"] },
+          "location_hint": { "type": "string" },
+          "injection_method": { "enum": ["api_html", "api_upload", "hybrid"] },
+          "expected_findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rule_id": { "type": "string" },
+                "count_min": { "type": "integer" },
+                "count_max": { "type": "integer" },
+                "snippet_substring": { "type": "string" }
+              }
+            }
+          },
+          "expectation_tier": { "enum": ["strict", "best_effort"] },
+          "is_clean_control": { "type": "boolean" },
+          "clean_control_pair_id": { "type": "string" },
+          "skipped_reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}
