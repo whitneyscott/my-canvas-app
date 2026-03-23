@@ -55,56 +55,56 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<string, AccessibilityFixabilityContra
   heading_empty: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'remove_empty_heading', supports_preview: true, requires_content_fetch: true },
   link_new_tab_no_warning: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'append_new_tab_warning', supports_preview: true, requires_content_fetch: true },
   img_missing_alt: { auto_fixable: true, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_generate_alt_text', supports_preview: true, requires_content_fetch: true },
-  img_alt_too_long: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  img_alt_filename: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  img_alt_too_long: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'img_alt_truncate', supports_preview: true, requires_content_fetch: true },
+  img_alt_filename: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'img_alt_filename_suggest', supports_preview: true, requires_content_fetch: true },
   small_text_contrast: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   large_text_contrast: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  table_missing_caption: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  table_missing_header: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  table_header_scope_missing: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  heading_skipped_level: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  heading_h1_in_body: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  heading_too_long: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  list_not_semantic: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  link_split_or_broken: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  link_empty_name: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  table_missing_caption: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_table_caption', supports_preview: true, requires_content_fetch: true },
+  table_missing_header: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_table_header', supports_preview: true, requires_content_fetch: true },
+  table_header_scope_missing: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'table_scope_fix', supports_preview: true, requires_content_fetch: true },
+  heading_skipped_level: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'heading_scope_fix', supports_preview: true, requires_content_fetch: true },
+  heading_h1_in_body: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'heading_h1_demote', supports_preview: true, requires_content_fetch: true },
+  heading_too_long: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_heading_shorten', supports_preview: true, requires_content_fetch: true },
+  list_not_semantic: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_list_semantic', supports_preview: true, requires_content_fetch: true },
+  link_split_or_broken: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_link_reconstruct', supports_preview: true, requires_content_fetch: true },
+  link_empty_name: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_link_text', supports_preview: true, requires_content_fetch: true },
   link_ambiguous_text: { auto_fixable: true, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_replace_ambiguous_link_text', supports_preview: true, requires_content_fetch: true },
-  link_file_missing_type_size_hint: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  heading_duplicate_h1: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  heading_visual_only_style: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  link_file_missing_type_size_hint: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_link_file_hint', supports_preview: true, requires_content_fetch: true },
+  heading_duplicate_h1: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'heading_duplicate_h1_demote', supports_preview: true, requires_content_fetch: true },
+  heading_visual_only_style: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_heading_visual', supports_preview: true, requires_content_fetch: true },
   landmark_structure_quality: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   table_layout_heuristic: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   table_complex_assoc_missing: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  img_decorative_misuse: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  img_meaningful_empty_alt: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  img_decorative_misuse: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_img_decorative', supports_preview: true, requires_content_fetch: true },
+  img_meaningful_empty_alt: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'ai_img_meaningful_alt', supports_preview: true, requires_content_fetch: true },
   img_text_in_image_warning: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   video_missing_captions: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   audio_missing_transcript: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   media_autoplay: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   motion_gif_warning: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   video_embed_caption_unknown: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  form_control_missing_label: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  form_placeholder_as_label: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  form_control_missing_label: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_form_label', supports_preview: true, requires_content_fetch: true },
+  form_placeholder_as_label: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'form_placeholder_to_label', supports_preview: true, requires_content_fetch: true },
   form_required_not_programmatic: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   form_error_unassociated: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   aria_invalid_role: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   aria_hidden_focusable: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  duplicate_id: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  duplicate_id: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'duplicate_id_suffix', supports_preview: true, requires_content_fetch: true },
   keyboard_focus_trap_heuristic: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   doc_pdf_accessibility_unknown: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   doc_office_structure_unknown: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
   doc_spreadsheet_headers_unknown: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
-  button_empty_name: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: false },
+  button_empty_name: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'high', risk: 'high', fix_type: 'ai_button_label', supports_preview: true, requires_content_fetch: true },
   lang_missing: { auto_fixable: true, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'set_html_lang', supports_preview: true, requires_content_fetch: true },
   lang_invalid: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'suggested', supports_preview: false, requires_content_fetch: true },
   lang_inline_missing: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: true },
   color_only_information: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: true },
   sensory_only_instructions: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'medium', risk: 'medium', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: true },
   text_justified: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'remove_text_justify', supports_preview: true, requires_content_fetch: true },
-  font_size_too_small: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'suggested', supports_preview: false, requires_content_fetch: true },
-  iframe_missing_title: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'suggested', supports_preview: false, requires_content_fetch: true },
+  font_size_too_small: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'font_size_min_12', supports_preview: true, requires_content_fetch: true },
+  iframe_missing_title: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'iframe_title_suggest', supports_preview: true, requires_content_fetch: true },
   session_timeout_no_warning: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'high', risk: 'high', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: true },
-  link_broken: { auto_fixable: false, fix_strategy: 'manual_only', false_positive_risk: 'low', risk: 'low', fix_type: 'manual_only', supports_preview: false, requires_content_fetch: true },
+  link_broken: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'low', risk: 'low', fix_type: 'ai_link_broken', supports_preview: true, requires_content_fetch: true },
 };
 
 interface AccreditationStandardNode {
@@ -4504,6 +4504,37 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return nonEnglishSignals.some((rx) => rx.test(lower));
   }
 
+  private static claudeCache = new Map<string, string>();
+  private static readonly CLAUDE_CACHE_MAX = 500;
+
+  private async callClaudeWithRetry(prompt: string, maxTokens: number): Promise<string> {
+    const crypto = await import('crypto');
+    const hash = crypto.createHash('sha256').update(prompt).digest('hex').slice(0, 32);
+    const cached = CanvasService.claudeCache.get(hash);
+    if (cached != null) return cached;
+    let lastErr: Error | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const out = await this.callClaudeSingleLine(prompt, maxTokens);
+        if (CanvasService.claudeCache.size >= CanvasService.CLAUDE_CACHE_MAX) {
+          const first = CanvasService.claudeCache.keys().next().value;
+          if (first) CanvasService.claudeCache.delete(first);
+        }
+        CanvasService.claudeCache.set(hash, out);
+        return out;
+      } catch (e: any) {
+        lastErr = e;
+        if (e?.message?.includes('429') && attempt < 2) {
+          const jitter = 1000 + Math.random() * 2000;
+          await new Promise((r) => setTimeout(r, jitter));
+        } else {
+          throw e;
+        }
+      }
+    }
+    throw lastErr || new Error('Claude request failed');
+  }
+
   private async callClaudeSingleLine(prompt: string, maxTokens: number): Promise<string> {
     const key = (this.config.get<string>('ANTHROPIC_API_KEY') || '').trim();
     if (!key) throw new Error('ANTHROPIC_API_KEY not configured');
@@ -4567,6 +4598,121 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return { newHtml, changes };
   }
 
+  private applyImgAltFilenameSuggest(html: string): { newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string } {
+    const imgRegex = /<img\b[^>]*>/gi;
+    const changes: Array<{ before: string; after: string }> = [];
+    let newHtml = html;
+    let m: RegExpExecArray | null;
+    while ((m = imgRegex.exec(html)) !== null) {
+      const tag = m[0];
+      const altMatch = tag.match(/\balt\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const alt = (altMatch?.[2] ?? altMatch?.[3] ?? altMatch?.[4] ?? '').trim();
+      if (!alt) continue;
+      const isFilename = /\.(jpg|jpeg|png|gif|svg|webp|bmp|tiff?)$/i.test(alt) || (/[_-]/.test(alt) && !/\s/.test(alt));
+      if (!isFilename) continue;
+      let suggested = alt.replace(/\.(jpg|jpeg|png|gif|svg|webp|bmp|tiff?)$/i, '').replace(/[_-]+/g, ' ').trim();
+      suggested = suggested.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      if (!suggested) suggested = 'Image';
+      const withAlt = tag.replace(/\balt\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i, `alt="${suggested.replace(/"/g, '&quot;')}"`);
+      changes.push({ before: tag, after: withAlt });
+      newHtml = newHtml.replace(tag, withAlt);
+    }
+    return { newHtml, changes };
+  }
+
+  private applyImgAltTruncate(html: string): { newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string } {
+    const imgRegex = /<img\b[^>]*>/gi;
+    const changes: Array<{ before: string; after: string }> = [];
+    let newHtml = html;
+    let m: RegExpExecArray | null;
+    while ((m = imgRegex.exec(html)) !== null) {
+      const tag = m[0];
+      const altMatch = tag.match(/\balt\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const alt = (altMatch?.[2] ?? altMatch?.[3] ?? altMatch?.[4] ?? '').trim();
+      if (alt.length <= 125) continue;
+      let truncated = alt.slice(0, 124);
+      const lastSpace = truncated.lastIndexOf(' ');
+      if (lastSpace > 80) truncated = truncated.slice(0, lastSpace);
+      truncated = truncated.trim() + '…';
+      const withAlt = tag.replace(/\balt\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i, `alt="${truncated.replace(/"/g, '&quot;')}"`);
+      changes.push({ before: tag, after: withAlt });
+      newHtml = newHtml.replace(tag, withAlt);
+    }
+    return { newHtml, changes };
+  }
+
+  private applyHeadingH1Demote(html: string): { newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string } {
+    const changes: Array<{ before: string; after: string }> = [];
+    let newHtml = html;
+    const regex = /<h1\b([^>]*)>([\s\S]*?)<\/h1>/gi;
+    let mat: RegExpExecArray | null;
+    const matches: { full: string; replacement: string }[] = [];
+    while ((mat = regex.exec(html)) !== null) {
+      const full = mat[0];
+      const repl = full.replace(/<h1\b/gi, '<h2').replace(/<\/h1>/gi, '</h2>');
+      matches.push({ full, replacement: repl });
+    }
+    for (const { full, replacement } of matches) {
+      changes.push({ before: full, after: replacement });
+      newHtml = newHtml.replace(full, replacement);
+    }
+    return { newHtml, changes };
+  }
+
+  private applyHeadingDuplicateH1Demote(html: string): { newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string } {
+    const changes: Array<{ before: string; after: string }> = [];
+    let newHtml = html;
+    const regex = /<h1\b([^>]*)>([\s\S]*?)<\/h1>/gi;
+    const matches: { full: string; replacement: string }[] = [];
+    let first = true;
+    let mat: RegExpExecArray | null;
+    while ((mat = regex.exec(html)) !== null) {
+      const full = mat[0];
+      if (first) {
+        first = false;
+        continue;
+      }
+      const repl = full.replace(/<h1\b/gi, '<h2').replace(/<\/h1>/gi, '</h2>');
+      matches.push({ full, replacement: repl });
+    }
+    for (const { full, replacement } of matches) {
+      changes.push({ before: full, after: replacement });
+      newHtml = newHtml.replace(full, replacement);
+    }
+    return { newHtml, changes };
+  }
+
+  private applyIframeTitleSuggest(html: string): { newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string } {
+    const changes: Array<{ before: string; after: string }> = [];
+    let newHtml = html;
+    const iframeRegex = /<iframe\b([^>]*)>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = iframeRegex.exec(html)) !== null) {
+      const tag = m[0];
+      if (/\btitle\s*=\s*["'][^"']+["']/i.test(tag)) continue;
+      const srcMatch = tag.match(/\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const src = (srcMatch?.[2] ?? srcMatch?.[3] ?? srcMatch?.[4] ?? '').trim();
+      let domain = 'unknown';
+      try {
+        if (src.startsWith('//')) {
+          const u = new URL('https:' + src);
+          domain = u.hostname;
+        } else if (/^https?:\/\//i.test(src)) {
+          domain = new URL(src).hostname;
+        } else if (src) {
+          domain = src.split(/[/?#]/)[0] || 'content';
+        }
+      } catch {
+        domain = src ? src.split(/[/?#]/)[0] || 'content' : 'unknown';
+      }
+      const title = `Embedded content from ${domain}`;
+      const withTitle = tag.replace(/<iframe\b/i, `<iframe title="${title.replace(/"/g, '&quot;')}"`);
+      changes.push({ before: tag, after: withTitle });
+      newHtml = newHtml.replace(tag, withTitle);
+    }
+    return { newHtml, changes };
+  }
+
   private async buildAiAltTextFix(
     html: string,
     resourceTitle: string,
@@ -4601,7 +4747,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     ].join('\n');
 
     try {
-      let alt = await this.callClaudeSingleLine(prompt, 120);
+      let alt = await this.callClaudeWithRetry(prompt, 120);
       alt = alt.replace(/^["']|["']$/g, '').trim();
       if (alt.length > 125) alt = alt.slice(0, 125).trim();
       if (!alt) return { newHtml: html, changes: [], errorNote: 'Claude returned empty alt text.' };
@@ -4636,7 +4782,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         `Surrounding context: ${contextText || '(none)'}`,
       ].join('\n');
       try {
-        let suggested = await this.callClaudeSingleLine(prompt, 80);
+        let suggested = await this.callClaudeWithRetry(prompt, 80);
         suggested = suggested.replace(/^["']|["']$/g, '').trim();
         if (suggested.length > 80) suggested = suggested.slice(0, 80).trim();
         if (!suggested) return { newHtml: html, changes: [], errorNote: 'Claude returned empty link text.' };
@@ -4650,6 +4796,337 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     return { newHtml: html, changes: [], errorNote: 'No ambiguous link text found in content.' };
   }
 
+  private async buildAiLinkEmptyNameFix(html: string, resourceTitle: string): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const linkRegex = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+    const stripTags = (s: string) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    let m: RegExpExecArray | null;
+    while ((m = linkRegex.exec(html)) !== null) {
+      const attrs = m[1] || '';
+      const text = stripTags(m[2] || '');
+      if (text || /\baria-label\s*=\s*["'][^"']+["']/i.test(attrs)) continue;
+      const hrefMatch = attrs.match(/\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const href = (hrefMatch?.[2] ?? hrefMatch?.[3] ?? hrefMatch?.[4] ?? '').trim();
+      const ctx = html.slice(Math.max(0, m.index - 200), Math.min(html.length, m.index + m[0].length + 200)).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const prompt = `This link has no descriptive text. Based on the href URL and surrounding context, suggest a short descriptive link text under 60 characters. Return plain text only.\n\nhref: ${href}\nContext: ${ctx}\nPage: ${resourceTitle}`;
+      try {
+        let suggested = await this.callClaudeWithRetry(prompt, 60);
+        suggested = suggested.replace(/^["']|["']$/g, '').trim().slice(0, 60);
+        if (!suggested) continue;
+        const before = m[0];
+        const after = `<a${attrs}>${suggested}</a>`;
+        return { newHtml: html.replace(before, after), changes: [{ before, after }] };
+      } catch (e: any) {
+        return { newHtml: html, changes: [], errorNote: e?.message || 'Claude failed.' };
+      }
+    }
+    return { newHtml: html, changes: [], errorNote: 'No empty-name link found.' };
+  }
+
+  private async buildAiLinkFileHintFix(html: string, resourceTitle: string): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const linkRegex = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+    const stripTags = (s: string) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    let m: RegExpExecArray | null;
+    while ((m = linkRegex.exec(html)) !== null) {
+      const attrs = m[1] || '';
+      const text = stripTags(m[2] || '');
+      const hrefMatch = attrs.match(/\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const href = (hrefMatch?.[2] ?? hrefMatch?.[3] ?? hrefMatch?.[4] ?? '').trim();
+      const ext = href.match(/\.(pdf|docx?|pptx?|xlsx?|csv)(?:[?#].*)?$/i)?.[1]?.toUpperCase() || 'file';
+      if (!/\.(pdf|docx?|pptx?|xlsx?|csv)(?:[?#].*)?$/i.test(href)) continue;
+      if (/\b(pdf|doc|word|ppt|powerpoint|xls|excel|csv)\b/i.test(text)) continue;
+      const ctx = html.slice(Math.max(0, m.index - 150), m.index + m[0].length + 150).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const prompt = `This link points to a ${ext} file but does not tell the user. Suggest updated link text that naturally incorporates the file type, e.g. "Course Syllabus (PDF)". Return plain text only, under 80 characters.\n\nCurrent text: ${text}\nPage: ${resourceTitle}\nContext: ${ctx}`;
+      try {
+        let suggested = await this.callClaudeWithRetry(prompt, 80);
+        suggested = suggested.replace(/^["']|["']$/g, '').trim().slice(0, 80);
+        if (!suggested) continue;
+        const before = m[0];
+        const after = `<a${attrs}>${suggested}</a>`;
+        return { newHtml: html.replace(before, after), changes: [{ before, after }] };
+      } catch (e: any) {
+        return { newHtml: html, changes: [], errorNote: e?.message || 'Claude failed.' };
+      }
+    }
+    return { newHtml: html, changes: [], errorNote: 'No file link without type hint found.' };
+  }
+
+  private async buildAiHeadingShortenFix(html: string, resourceTitle: string): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const headingRegex = /<(h[1-6])\b([^>]*)>([\s\S]*?)<\/\1>/gi;
+    const stripTags = (s: string) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    let m: RegExpExecArray | null;
+    while ((m = headingRegex.exec(html)) !== null) {
+      const level = m[1];
+      const attrs = m[2] || '';
+      const text = stripTags(m[3] || '');
+      if (text.length <= 120) continue;
+      const ctx = html.slice(Math.max(0, m.index - 100), m.index + m[0].length + 300).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const prompt = `This heading is too long for accessibility. Suggest a shortened version under 80 characters that preserves the core meaning. Return plain text only.\n\nHeading: ${text}\nSection context: ${ctx}\nPage: ${resourceTitle}`;
+      try {
+        let suggested = await this.callClaudeWithRetry(prompt, 80);
+        suggested = suggested.replace(/^["']|["']$/g, '').trim().slice(0, 80);
+        if (!suggested) continue;
+        const before = m[0];
+        const after = `<${level}${attrs}>${suggested}</${level}>`;
+        return { newHtml: html.replace(before, after), changes: [{ before, after }] };
+      } catch (e: any) {
+        return { newHtml: html, changes: [], errorNote: e?.message || 'Claude failed.' };
+      }
+    }
+    return { newHtml: html, changes: [], errorNote: 'No long heading found.' };
+  }
+
+  private async buildAiHeadingVisualFix(html: string, resourceTitle: string): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const styledRegex = /<(?:p|div|span)\b[^>]*style\s*=\s*["'][^"']*(?:font-size\s*:\s*(?:2[4-9]|[3-9]\d)px|font-weight\s*:\s*(?:700|800|900|bold))[^"']*["'][^>]*>([\s\S]*?)<\/(?:p|div|span)>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = styledRegex.exec(html)) !== null) {
+      const inner = m[1] || '';
+      const ctx = html.slice(Math.max(0, m.index - 150), m.index + m[0].length + 150).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const prompt = `This text appears to be used as a heading based on its styling but is not marked up semantically. Suggest the appropriate heading level (H2, H3, or H4) and return only the corrected heading HTML tag wrapping the original text.\n\nText: ${inner}\nContext: ${ctx}\nPage: ${resourceTitle}`;
+      try {
+        let out = await this.callClaudeWithRetry(prompt, 200);
+        out = out.replace(/```\w*\n?|\n?```/g, '').trim();
+        const tagMatch = out.match(/<h[2-4]\b[^>]*>[\s\S]*<\/h[2-4]>/i);
+        if (!tagMatch) continue;
+        const before = m[0];
+        const after = tagMatch[0];
+        return { newHtml: html.replace(before, after), changes: [{ before, after }] };
+      } catch (e: any) {
+        return { newHtml: html, changes: [], errorNote: e?.message || 'Claude failed.' };
+      }
+    }
+    return { newHtml: html, changes: [], errorNote: 'No visual-only heading found.' };
+  }
+
+  private async buildAiListSemanticFix(html: string, resourceTitle: string): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const bulletLine = /^[\s]*[-*•]\s+.+$/gm;
+    const numLine = /^[\s]*\d+[.)]\s+.+$/gm;
+    const block = html.match(/(?:<p\b[^>]*>|<div\b[^>]*>)[\s\S]*?(?:[-*•]\s+.+|\d+[.)]\s+.+)[\s\S]*?<\/(?:p|div)>/i) || html.match(/([-*•]\s+.+(\n[-*•]\s+.+)+)/m);
+    const text = block ? (Array.isArray(block) ? block[1] || block[0] : block[0]) : '';
+    if (!text || (!bulletLine.test(text) && !numLine.test(text))) return { newHtml: html, changes: [], errorNote: 'No list-like content found.' };
+    const prompt = `This text appears to be a list but is not marked up as HTML. Convert it to a properly structured <ul> or <ol> with <li> items as appropriate. Return only the corrected HTML list.\n\nText:\n${text}\nPage: ${resourceTitle}`;
+    try {
+      let out = await this.callClaudeWithRetry(prompt, 400);
+      out = out.replace(/```\w*\n?|\n?```/g, '').trim();
+      if (!/<(?:ul|ol)\b/i.test(out)) return { newHtml: html, changes: [], errorNote: 'Claude did not return valid list HTML.' };
+      const before = block ? (Array.isArray(block) ? block[0] : block) : text;
+      if (!html.includes(String(before))) return { newHtml: html, changes: [], errorNote: 'Matching block not found in content.' };
+      return { newHtml: html.replace(String(before), out), changes: [{ before: String(before), after: out }] };
+    } catch (e: any) {
+      return { newHtml: html, changes: [], errorNote: e?.message || 'Claude failed.' };
+    }
+  }
+
+  private async buildAiImgDecorativeFix(html: string, resourceTitle: string): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const imgRegex = /<img\b([^>]*)>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = imgRegex.exec(html)) !== null) {
+      const attrs = m[1] || '';
+      const altMatch = attrs.match(/\balt\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const alt = (altMatch?.[2] ?? altMatch?.[3] ?? altMatch?.[4] ?? '').trim();
+      const srcMatch = attrs.match(/\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const src = (srcMatch?.[2] ?? srcMatch?.[3] ?? srcMatch?.[4] ?? '').trim();
+      const ctx = html.slice(Math.max(0, m.index - 200), m.index + m[0].length + 200).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const prompt = `Based on the image URL and surrounding content, determine whether this image is decorative or informational. If informational, suggest a short descriptive alt text under 125 characters. Return either the word DECORATIVE or the suggested alt text only.\n\nsrc: ${src}\nContext: ${ctx}\nPage: ${resourceTitle}`;
+      try {
+        let out = await this.callClaudeWithRetry(prompt, 130);
+        out = out.replace(/^["']|["']$/g, '').trim().toUpperCase();
+        const tag = m[0];
+        if (out === 'DECORATIVE' || out.startsWith('DECORATIVE')) {
+          const final = /\balt\s*=/.test(tag) ? tag.replace(/\balt\s*=\s*["'][^"']*["']/i, 'alt=""') : tag.replace(/<img\b/i, '<img alt=""');
+          return { newHtml: html.replace(tag, final), changes: [{ before: tag, after: final }] };
+        }
+        const suggested = out.length > 125 ? out.slice(0, 125).trim() : out;
+        const withAlt = /\balt\s*=/.test(tag) ? tag.replace(/\balt\s*=\s*["'][^"']*["']/i, `alt="${suggested.replace(/"/g, '&quot;')}"`) : tag.replace(/<img\b/i, `<img alt="${suggested.replace(/"/g, '&quot;')}"`);
+        return { newHtml: html.replace(tag, withAlt), changes: [{ before: tag, after: withAlt }] };
+      } catch (e: any) {
+        return { newHtml: html, changes: [], errorNote: e?.message || 'Claude failed.' };
+      }
+    }
+    return { newHtml: html, changes: [], errorNote: 'No image found.' };
+  }
+
+  private async buildAiImgMeaningfulAltFix(html: string, resourceTitle: string): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const imgRegex = /<img\b([^>]*)>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = imgRegex.exec(html)) !== null) {
+      const attrs = m[1] || '';
+      const altMatch = attrs.match(/\balt\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const alt = (altMatch?.[2] ?? altMatch?.[3] ?? altMatch?.[4] ?? '').trim();
+      if (alt || /\b(role\s*=\s*["']presentation["']|aria-hidden\s*=\s*["']true["'])/i.test(attrs)) continue;
+      const srcMatch = attrs.match(/\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const src = (srcMatch?.[2] ?? srcMatch?.[3] ?? srcMatch?.[4] ?? '').trim();
+      const ctx = html.slice(Math.max(0, m.index - 200), m.index + m[0].length + 200).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const prompt = `This image appears to be meaningful but has no alt text. Based on the image URL and surrounding context, suggest a short descriptive alt text under 125 characters. Return plain text only.\n\nsrc: ${src}\nContext: ${ctx}\nPage: ${resourceTitle}`;
+      try {
+        let suggested = await this.callClaudeWithRetry(prompt, 130);
+        suggested = suggested.replace(/^["']|["']$/g, '').trim().slice(0, 125);
+        if (!suggested) continue;
+        const tag = m[0];
+        const withAlt = tag.replace(/<img\b/i, `<img alt="${suggested.replace(/"/g, '&quot;')}"`);
+        return { newHtml: html.replace(tag, withAlt), changes: [{ before: tag, after: withAlt }] };
+      } catch (e: any) {
+        return { newHtml: html, changes: [], errorNote: e?.message || 'Claude failed.' };
+      }
+    }
+    return { newHtml: html, changes: [], errorNote: 'No meaningful image with empty alt found.' };
+  }
+
+  private async buildAiButtonLabelFix(html: string, resourceTitle: string): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const btnRegex = /<button\b([^>]*)>([\s\S]*?)<\/button>/gi;
+    const stripTags = (s: string) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    let m: RegExpExecArray | null;
+    while ((m = btnRegex.exec(html)) !== null) {
+      const attrs = m[1] || '';
+      const text = stripTags(m[2] || '');
+      if (text || /\baria-label\s*=\s*["'][^"']+["']/i.test(attrs)) continue;
+      const ctx = html.slice(Math.max(0, m.index - 150), m.index + m[0].length + 150).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const iconClasses = (attrs.match(/\bclass\s*=\s*["']([^"']*)["']/i) || [])[1] || '';
+      const prompt = `This button has no accessible name. Based on its context, icon classes, or surrounding content, suggest a short descriptive label under 40 characters. Return plain text only.\n\nButton attrs: ${attrs}\nIcon classes: ${iconClasses}\nContext: ${ctx}\nPage: ${resourceTitle}`;
+      try {
+        let suggested = await this.callClaudeWithRetry(prompt, 40);
+        suggested = suggested.replace(/^["']|["']$/g, '').trim().slice(0, 40);
+        if (!suggested) continue;
+        const before = m[0];
+        const after = `<button${attrs} aria-label="${suggested.replace(/"/g, '&quot;')}">${m[2] || ''}</button>`;
+        return { newHtml: html.replace(before, after), changes: [{ before, after }] };
+      } catch (e: any) {
+        return { newHtml: html, changes: [], errorNote: e?.message || 'Claude failed.' };
+      }
+    }
+    return { newHtml: html, changes: [], errorNote: 'No empty-name button found.' };
+  }
+
+  private async buildAiFormLabelFix(html: string, resourceTitle: string): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const controlRegex = /<(input|select|textarea)\b([^>]*)>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = controlRegex.exec(html)) !== null) {
+      const attrs = m[2] || '';
+      if (/\b(aria-label|aria-labelledby|title)\s*=\s*["'][^"']+["']/i.test(attrs)) continue;
+      const idMatch = attrs.match(/\bid\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const id = (idMatch?.[2] ?? idMatch?.[3] ?? idMatch?.[4] ?? '').trim();
+      const hasLabel = id && new RegExp(`<label\\b[^>]*\\bfor\\s*=\\s*["']${(id || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'i').test(html);
+      if (hasLabel) continue;
+      const nameMatch = attrs.match(/\bname\s*=\s*["']([^"']*)["']/i);
+      const placeholderMatch = attrs.match(/\bplaceholder\s*=\s*["']([^"']*)["']/i);
+      const typeMatch = attrs.match(/\btype\s*=\s*["']?([^"'\s>]+)/i);
+      const ctx = html.slice(Math.max(0, m.index - 150), m.index + m[0].length + 150).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const prompt = `This form control has no label. Based on its type, name, placeholder, and surrounding form context, suggest an appropriate short label text under 40 characters. Return plain text only.\n\nControl: ${m[0]}\nContext: ${ctx}\nPage: ${resourceTitle}`;
+      try {
+        let suggested = await this.callClaudeWithRetry(prompt, 40);
+        suggested = suggested.replace(/^["']|["']$/g, '').trim().slice(0, 40);
+        if (!suggested) continue;
+        let fullTag = m[0];
+        let elId = id || `label-${Math.random().toString(36).slice(2, 10)}`;
+        if (!id) fullTag = fullTag.replace(/<(input|select|textarea)\b/i, `<$1 id="${elId}" `);
+        const labelHtml = `<label for="${elId}">${suggested.replace(/</g, '&lt;').replace(/"/g, '&quot;')}</label> `;
+        const before = m[0];
+        const after = labelHtml + (id ? m[0] : fullTag);
+        return { newHtml: html.replace(before, after), changes: [{ before, after }] };
+      } catch (e: any) {
+        return { newHtml: html, changes: [], errorNote: e?.message || 'Claude failed.' };
+      }
+    }
+    return { newHtml: html, changes: [], errorNote: 'No unlabelled form control found.' };
+  }
+
+  private async buildAiTableCaptionFix(html: string, resourceTitle: string): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const tableRegex = /<table\b([^>]*)>([\s\S]*?)<\/table>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = tableRegex.exec(html)) !== null) {
+      const tableHtml = m[0];
+      if (/<caption\b/i.test(tableHtml)) continue;
+      const ctx = html.slice(Math.max(0, m.index - 100), m.index + tableHtml.length + 100).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const prompt = `This table has no caption. Based on the table content and surrounding text, suggest a short descriptive caption under 80 characters. Return plain text only.\n\nTable: ${tableHtml.slice(0, 500)}\nContext: ${ctx}\nPage: ${resourceTitle}`;
+      try {
+        let suggested = await this.callClaudeWithRetry(prompt, 80);
+        suggested = suggested.replace(/^["']|["']$/g, '').trim().slice(0, 80);
+        if (!suggested) continue;
+        const openTag = tableHtml.match(/<table\b[^>]*>/)?.[0] || '<table>';
+        const withCaption = openTag + `<caption>${suggested.replace(/</g, '&lt;')}</caption>`;
+        const newTableHtml = tableHtml.replace(openTag, withCaption);
+        return { newHtml: html.replace(tableHtml, newTableHtml), changes: [{ before: openTag, after: withCaption }] };
+      } catch (e: any) {
+        return { newHtml: html, changes: [], errorNote: e?.message || 'Claude failed.' };
+      }
+    }
+    return { newHtml: html, changes: [], errorNote: 'No table without caption found.' };
+  }
+
+  private async buildAiTableHeaderFix(html: string, resourceTitle: string): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const tableRegex = /<table\b[\s\S]*?<\/table>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = tableRegex.exec(html)) !== null) {
+      const tableHtml = m[0];
+      if (/<th\b/i.test(tableHtml)) continue;
+      const prompt = `This table has no header row. Based on the column content, suggest which row should be the header row and return the corrected table HTML with <th> elements replacing the appropriate <td> elements in that row. Return only the corrected table HTML.\n\nTable:\n${tableHtml}\nPage: ${resourceTitle}`;
+      try {
+        let out = await this.callClaudeWithRetry(prompt, 800);
+        out = out.replace(/```\w*\n?|\n?```/g, '').trim();
+        if (!/<th\b/i.test(out)) continue;
+        return { newHtml: html.replace(tableHtml, out), changes: [{ before: tableHtml, after: out }] };
+      } catch (e: any) {
+        return { newHtml: html, changes: [], errorNote: e?.message || 'Claude failed.' };
+      }
+    }
+    return { newHtml: html, changes: [], errorNote: 'No table without header found.' };
+  }
+
+  private async buildAiLinkBrokenFix(html: string, resourceTitle: string, courseId: number): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const linkRegex = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+    const stripTags = (s: string) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    let m: RegExpExecArray | null;
+    while ((m = linkRegex.exec(html)) !== null) {
+      const attrs = m[1] || '';
+      const text = stripTags(m[2] || '');
+      const hrefMatch = attrs.match(/\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const href = (hrefMatch?.[2] ?? hrefMatch?.[3] ?? hrefMatch?.[4] ?? '').trim();
+      if (!href || !/^https?:\/\//i.test(href)) continue;
+      try {
+        const res = await fetch(href, { method: 'HEAD', redirect: 'follow' });
+        if (res.ok) continue;
+      } catch {
+        null;
+      }
+      const ctx = html.slice(Math.max(0, m.index - 200), m.index + m[0].length + 200).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const prompt = `This link is broken. Based on the link text and surrounding context, suggest the single most likely replacement URL. Return only the URL, nothing else. If you cannot determine a replacement with reasonable confidence, return the word UNKNOWN.\n\nLink text: ${text}\nhref: ${href}\nContext: ${ctx}\nPage: ${resourceTitle}`;
+      try {
+        let suggested = await this.callClaudeWithRetry(prompt, 200);
+        suggested = suggested.replace(/^["']|["']$/g, '').trim();
+        if (suggested.toUpperCase() === 'UNKNOWN' || !suggested) {
+          return { newHtml: html, changes: [], errorNote: 'Could not determine replacement URL. Manual review required.' };
+        }
+        const before = m[0];
+        const newAttrs = attrs.replace(/\bhref\s*=\s*["'][^"']*["']/i, `href="${suggested.replace(/"/g, '&quot;')}"`);
+        const after = `<a ${newAttrs}>${m[2] || ''}</a>`;
+        return { newHtml: html.replace(before, after), changes: [{ before, after }] };
+      } catch (e: any) {
+        return { newHtml: html, changes: [], errorNote: e?.message || 'Claude failed.' };
+      }
+    }
+    return { newHtml: html, changes: [], errorNote: 'No broken link found.' };
+  }
+
+  private async buildAiLinkSplitFix(html: string, resourceTitle: string): Promise<{ newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string }> {
+    const ctx = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500);
+    const splitUrlRegex = /\b(?:https?:\s*\/\s*\/\s*[\w.-]+(?:\s*\/\s*[\w\-./?%&=+#:]*)?|www\.\s*[\w.-]+\s*\.\s*[a-z]{2,}(?:\s*\/\s*[\w\-./?%&=+#:]*)?)\b/gi;
+    const match = ctx.match(splitUrlRegex);
+    if (!match || !match.find((u) => /\s/.test(u))) return { newHtml: html, changes: [], errorNote: 'No split URL found.' };
+    const fragmented = match.find((u) => /\s/.test(u)) || '';
+    const prompt = `This link appears to be split or broken by formatting. Reconstruct it as a single clean <a> tag with correct href and descriptive link text. Return only the corrected <a> tag HTML.\n\nFragmented URL: ${fragmented}\nContext: ${ctx}\nPage: ${resourceTitle}`;
+    try {
+      let out = await this.callClaudeWithRetry(prompt, 300);
+      out = out.replace(/```\w*\n?|\n?```/g, '').trim();
+      if (!/<a\b/i.test(out)) return { newHtml: html, changes: [], errorNote: 'Claude did not return valid link HTML.' };
+      const href = fragmented.replace(/\s+/g, '');
+      const before = fragmented;
+      const after = out.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
+      if (!html.includes(fragmented)) return { newHtml: html, changes: [], errorNote: 'Fragmented URL not found in content.' };
+      return { newHtml: html.replace(fragmented, after), changes: [{ before: fragmented, after }] };
+    } catch (e: any) {
+      return { newHtml: html, changes: [], errorNote: e?.message || 'Claude failed.' };
+    }
+  }
+
   private applyMergeDuplicateLinks(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } {
     const changes: Array<{ before: string; after: string }> = [];
     const regex = /<a\b([^>]*href\s*=\s*("([^"]*)"|'([^']*)')[^>]*)>([\s\S]*?)<\/a>\s*(?:&nbsp;|\s|<span[^>]*>\s*<\/span>|<br[^>]*>)*<a\b([^>]*href\s*=\s*("([^"]*)"|'([^']*)')[^>]*)>([\s\S]*?)<\/a>/gi;
@@ -4661,8 +5138,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       if (h1 && h2 && h1 === h2) {
         const fullMatch = m[0];
         const inner1 = (m[5] ?? '').trim();
-        const inner2 = (m[10] ?? '').trim();
-        const merged = `<a ${m[1].trim()}>${inner1} ${inner2}</a>`;
+        const merged = `<a ${m[1].trim()}>${inner1}</a>`;
         changes.push({ before: fullMatch, after: merged });
         newHtml = newHtml.replace(fullMatch, merged);
       }
@@ -4672,40 +5148,73 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   private applyRemoveEmptyLi(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } {
     const changes: Array<{ before: string; after: string }> = [];
-    const regex = /<li\b[^>]*>\s*(?:&nbsp;|\s|<br[^>]*>|<\/?span[^>]*>)*<\/li>/gi;
+    let newHtml = html;
+    const emptyLiRegex = /<li\b[^>]*>\s*(?:&nbsp;|\s|<br[^>]*>|<\/?span[^>]*>)*<\/li>/gi;
     let m: RegExpExecArray | null;
-    while ((m = regex.exec(html)) !== null) {
-      changes.push({ before: m[0], after: '(removed)' });
+    const emptyLis: string[] = [];
+    while ((m = emptyLiRegex.exec(html)) !== null) emptyLis.push(m[0]);
+    for (const li of emptyLis) {
+      changes.push({ before: li, after: '(removed)' });
+      newHtml = newHtml.replace(li, '');
     }
-    const newHtml = html.replace(regex, '');
+    const emptyListRegex = /<(ul|ol)\b[^>]*>\s*(?:&nbsp;|\s)*<\/\1>/gi;
+    while ((m = emptyListRegex.exec(newHtml)) !== null) {
+      changes.push({ before: m[0], after: '(removed)' });
+      newHtml = newHtml.replace(m[0], '');
+    }
     return { newHtml, changes };
   }
 
   private applyRemoveEmptyHeading(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } {
     const changes: Array<{ before: string; after: string }> = [];
+    let newHtml = html;
     const regex = /<(h[1-6])\b[^>]*>\s*(?:&nbsp;|\s)*<\/\1>/gi;
+    const matches: string[] = [];
     let m: RegExpExecArray | null;
-    while ((m = regex.exec(html)) !== null) {
-      changes.push({ before: m[0], after: '(removed)' });
+    while ((m = regex.exec(html)) !== null) matches.push(m[0]);
+    for (const tag of matches) {
+      changes.push({ before: tag, after: '(removed)' });
+      newHtml = newHtml.replace(tag, '');
     }
-    const newHtml = html.replace(regex, '');
+    newHtml = newHtml.replace(/(\s*<(?:p|div)\b[^>]*>\s*<\/\1>\s*)+/gi, ' ').replace(/\n{3,}/g, '\n\n').trim();
     return { newHtml, changes };
   }
 
   private applyAppendNewTabWarning(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } {
     const changes: Array<{ before: string; after: string }> = [];
     const regex = /<a\b([^>]*)\btarget\s*=\s*["']_blank["'][^>]*>([\s\S]*?)<\/a>/gi;
-    const suffix = ' (opens in new tab)';
+    const suffix = '<span class="sr-only"> (opens in new tab)</span>';
     let newHtml = html;
     let m: RegExpExecArray | null;
     while ((m = regex.exec(html)) !== null) {
       const full = m[0];
       const inner = m[2] ?? '';
-      if (!/\b(new tab|opens in new tab)\b/i.test(inner)) {
+      if (!/\b(new tab|opens in new tab|sr-only)\b/i.test(inner)) {
         const after = full.replace(/([\s\S]*?)<\/a>$/i, `$1${suffix}</a>`);
         changes.push({ before: full, after });
         newHtml = newHtml.replace(full, after);
       }
+    }
+    return { newHtml, changes };
+  }
+
+  private applyFontSizeMin12(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } {
+    const changes: Array<{ before: string; after: string }> = [];
+    const styleAttrRegex = /\bstyle\s*=\s*("([^"]*)"|'([^']*)')/gi;
+    let newHtml = html;
+    let m: RegExpExecArray | null;
+    while ((m = styleAttrRegex.exec(html)) !== null) {
+      const fullAttr = m[0];
+      const styleValue = (m[2] ?? m[3] ?? '').trim();
+      const fsMatch = styleValue.match(/(?:^|;)\s*font-size\s*:\s*([0-9.]+)px/i);
+      if (!fsMatch) continue;
+      const px = Number(fsMatch[1]);
+      if (px >= 12) continue;
+      const updatedStyle = styleValue.replace(/(?:^|;)\s*font-size\s*:\s*[0-9.]+px/gi, (x) => x.replace(/[0-9.]+(?=px)/i, '12'));
+      const quote = m[3] !== undefined ? "'" : '"';
+      const after = `style=${quote}${updatedStyle}${quote}`;
+      changes.push({ before: fullAttr, after });
+      newHtml = newHtml.replace(fullAttr, after);
     }
     return { newHtml, changes };
   }
@@ -4726,9 +5235,166 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       }
       case 'remove_text_justify':
         return this.applyRemoveTextJustify(html);
+      case 'font_size_min_12':
+        return this.applyFontSizeMin12(html);
+      case 'img_alt_filename_suggest': {
+        const r = this.applyImgAltFilenameSuggest(html);
+        return { newHtml: r.newHtml, changes: r.changes };
+      }
+      case 'img_alt_truncate': {
+        const r = this.applyImgAltTruncate(html);
+        return { newHtml: r.newHtml, changes: r.changes };
+      }
+      case 'heading_h1_demote': {
+        const r = this.applyHeadingH1Demote(html);
+        return { newHtml: r.newHtml, changes: r.changes };
+      }
+      case 'heading_duplicate_h1_demote': {
+        const r = this.applyHeadingDuplicateH1Demote(html);
+        return { newHtml: r.newHtml, changes: r.changes };
+      }
+      case 'iframe_title_suggest': {
+        const r = this.applyIframeTitleSuggest(html);
+        return { newHtml: r.newHtml, changes: r.changes };
+      }
+      case 'duplicate_id_suffix': {
+        const r = this.applyDuplicateIdSuffix(html);
+        return r ? { newHtml: r.newHtml, changes: r.changes } : null;
+      }
+      case 'form_placeholder_to_label': {
+        const r = this.applyFormPlaceholderToLabel(html);
+        return r ? { newHtml: r.newHtml, changes: r.changes } : null;
+      }
+      case 'table_scope_fix': {
+        const r = this.applyTableScopeFix(html);
+        return r ? { newHtml: r.newHtml, changes: r.changes } : null;
+      }
+      case 'heading_scope_fix': {
+        const r = this.applyHeadingScopeFix(html);
+        return r ? { newHtml: r.newHtml, changes: r.changes } : null;
+      }
       default:
         return null;
     }
+  }
+
+  private applyDuplicateIdSuffix(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } | null {
+    const idRegex = /\bid\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+    const occurrences: Array<{ id: string; full: string; index: number }> = [];
+    let m: RegExpExecArray | null;
+    while ((m = idRegex.exec(html)) !== null) {
+      const idVal = (m[2] ?? m[3] ?? m[4] ?? '').trim();
+      if (!idVal) continue;
+      occurrences.push({ id: idVal, full: m[0], index: m.index });
+    }
+    const counts = new Map<string, number>();
+    for (const o of occurrences) counts.set(o.id, (counts.get(o.id) || 0) + 1);
+    const dupIds = new Set<string>();
+    counts.forEach((c, id) => { if (c > 1) dupIds.add(id); });
+    if (dupIds.size === 0) return null;
+    const changes: Array<{ before: string; after: string }> = [];
+    let newHtml = html;
+    const nextSuffix = new Map<string, number>();
+    const repls: Array<{ start: number; end: number; replacement: string }> = [];
+    for (const { id, full, index } of occurrences) {
+      if (!dupIds.has(id)) continue;
+      const suffix = (nextSuffix.get(id) || 0) + 1;
+      nextSuffix.set(id, suffix);
+      if (suffix === 1) continue;
+      const newId = `${id}-${suffix}`;
+      const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const after = full.replace(new RegExp(`id\\s*=\\s*["']?${escaped}["']?`, 'i'), `id="${newId}"`);
+      changes.push({ before: full, after });
+      repls.push({ start: index, end: index + full.length, replacement: after });
+    }
+    const sorted = repls.sort((a, b) => b.start - a.start);
+    for (const r of sorted) {
+      newHtml = newHtml.slice(0, r.start) + r.replacement + newHtml.slice(r.end);
+    }
+    return { newHtml, changes };
+  }
+
+  private applyFormPlaceholderToLabel(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } | null {
+    const controlRegex = /<(input|select|textarea)\b([^>]*)>/gi;
+    const changes: Array<{ before: string; after: string }> = [];
+    let newHtml = html;
+    const matches: RegExpExecArray[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = controlRegex.exec(html)) !== null) matches.push({ ...m } as RegExpExecArray);
+    for (const match of matches) {
+      const attrs = match[2] || '';
+      const placeholderMatch = attrs.match(/\bplaceholder\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      if (!placeholderMatch) continue;
+      const placeholder = (placeholderMatch[2] ?? placeholderMatch[3] ?? placeholderMatch[4] ?? '').trim();
+      if (!placeholder) continue;
+      const idMatch = attrs.match(/\bid\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      let id = (idMatch?.[2] ?? idMatch?.[3] ?? idMatch?.[4] ?? '').trim();
+      let fullTag = match[0];
+      if (!id) {
+        id = `label-${Math.random().toString(36).slice(2, 10)}`;
+        const withId = fullTag.replace(/<(input|select|textarea)\b/i, (x) => `${x} id="${id}" `);
+        changes.push({ before: fullTag, after: withId });
+        newHtml = newHtml.replace(fullTag, withId);
+        fullTag = withId;
+      }
+      const labelHtml = `<label for="${id}">${placeholder.replace(/</g, '&lt;').replace(/"/g, '&quot;')}</label> `;
+      if (!newHtml.includes(fullTag)) continue;
+      changes.push({ before: fullTag, after: labelHtml + fullTag });
+      newHtml = newHtml.replace(fullTag, labelHtml + fullTag);
+    }
+    return changes.length ? { newHtml, changes } : null;
+  }
+
+  private applyTableScopeFix(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } | null {
+    const thRegex = /<th\b([^>]*)>/gi;
+    const changes: Array<{ before: string; after: string }> = [];
+    let newHtml = html;
+    let m: RegExpExecArray | null;
+    while ((m = thRegex.exec(html)) !== null) {
+      const full = m[0];
+      if (/\bscope\s*=/i.test(full)) continue;
+      const inRow = html.slice(0, m.index).split(/<tr\b/i).length;
+      const prevThInRow = (html.slice(0, m.index).match(/<th\b/gi) || []).length;
+      const scope = prevThInRow === 0 ? 'row' : 'col';
+      const withScope = full.replace(/<th\b/i, `<th scope="${scope}"`);
+      changes.push({ before: full, after: withScope });
+      newHtml = newHtml.replace(full, withScope);
+    }
+    return changes.length ? { newHtml, changes } : null;
+  }
+
+  private applyHeadingScopeFix(html: string): { newHtml: string; changes: Array<{ before: string; after: string }> } | null {
+    const levels: number[] = [];
+    const headingRegex = /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = headingRegex.exec(html)) !== null) {
+      levels.push(parseInt(m[1], 10));
+    }
+    let fixed = false;
+    for (let i = 1; i < levels.length; i++) {
+      if (levels[i] > levels[i - 1] + 1) {
+        fixed = true;
+        levels[i] = levels[i - 1] + 1;
+      }
+    }
+    if (!fixed) return null;
+    const changes: Array<{ before: string; after: string }> = [];
+    let newHtml = html;
+    const headingRegex2 = /<h([1-6])\b([^>]*)>([\s\S]*?)<\/h\1>/gi;
+    let idx = 0;
+    let mat: RegExpExecArray | null;
+    while ((mat = headingRegex2.exec(html)) !== null && idx < levels.length) {
+      const currentLevel = parseInt(mat[1], 10);
+      const targetLevel = levels[idx];
+      if (currentLevel !== targetLevel) {
+        const full = mat[0];
+        const repl = full.replace(new RegExp(`<h${currentLevel}\\b`, 'gi'), `<h${targetLevel}`).replace(new RegExp(`</h${currentLevel}>`, 'gi'), `</h${targetLevel}>`);
+        changes.push({ before: full, after: repl });
+        newHtml = newHtml.replace(full, repl);
+      }
+      idx++;
+    }
+    return changes.length ? { newHtml, changes } : null;
   }
 
   async getAccessibilityFixPreview(
@@ -4769,7 +5435,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
     for (const f of findings) {
       const contract = ACCESSIBILITY_FIXABILITY_MAP[f.rule_id];
-      if (!contract?.auto_fixable || !contract.supports_preview) continue;
+      if (!contract?.supports_preview) continue;
 
       const key = `${f.resource_type}:${f.resource_id}:${f.rule_id}`;
       if (seen.has(key)) continue;
@@ -4778,11 +5444,38 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       const content = await this.fetchAccessibilityResourceContent(courseId, f.resource_type, f.resource_id);
       if (!content) continue;
 
+      const resTitle = content.resourceTitle || f.resource_title || '';
       let result: { newHtml: string; changes: Array<{ before: string; after: string }>; errorNote?: string } | null = null;
       if (contract.fix_type === 'ai_generate_alt_text') {
-        result = await this.buildAiAltTextFix(content.html, content.resourceTitle || f.resource_title || '');
+        result = await this.buildAiAltTextFix(content.html, resTitle);
       } else if (contract.fix_type === 'ai_replace_ambiguous_link_text') {
         result = await this.buildAiAmbiguousLinkFix(content.html);
+      } else if (contract.fix_type === 'ai_link_text') {
+        result = await this.buildAiLinkEmptyNameFix(content.html, resTitle);
+      } else if (contract.fix_type === 'ai_link_file_hint') {
+        result = await this.buildAiLinkFileHintFix(content.html, resTitle);
+      } else if (contract.fix_type === 'ai_heading_shorten') {
+        result = await this.buildAiHeadingShortenFix(content.html, resTitle);
+      } else if (contract.fix_type === 'ai_heading_visual') {
+        result = await this.buildAiHeadingVisualFix(content.html, resTitle);
+      } else if (contract.fix_type === 'ai_list_semantic') {
+        result = await this.buildAiListSemanticFix(content.html, resTitle);
+      } else if (contract.fix_type === 'ai_img_decorative') {
+        result = await this.buildAiImgDecorativeFix(content.html, resTitle);
+      } else if (contract.fix_type === 'ai_img_meaningful_alt') {
+        result = await this.buildAiImgMeaningfulAltFix(content.html, resTitle);
+      } else if (contract.fix_type === 'ai_button_label') {
+        result = await this.buildAiButtonLabelFix(content.html, resTitle);
+      } else if (contract.fix_type === 'ai_form_label') {
+        result = await this.buildAiFormLabelFix(content.html, resTitle);
+      } else if (contract.fix_type === 'ai_table_caption') {
+        result = await this.buildAiTableCaptionFix(content.html, resTitle);
+      } else if (contract.fix_type === 'ai_table_header') {
+        result = await this.buildAiTableHeaderFix(content.html, resTitle);
+      } else if (contract.fix_type === 'ai_link_broken') {
+        result = await this.buildAiLinkBrokenFix(content.html, resTitle, courseId);
+      } else if (contract.fix_type === 'ai_link_reconstruct') {
+        result = await this.buildAiLinkSplitFix(content.html, resTitle);
       } else if (contract.fix_type === 'set_html_lang') {
         const nonEnglish = this.looksNonEnglishText(content.html.replace(/<[^>]+>/g, ' '));
         if (nonEnglish) {
@@ -4891,8 +5584,6 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
     for (const [, entry] of byResource) {
       let html = entry.html;
-      const contract = ACCESSIBILITY_FIXABILITY_MAP[entry.actions[0]?.rule_id];
-      if (!contract?.auto_fixable) continue;
 
       for (const a of entry.actions) {
         if (a.fix_strategy === 'manual_only') {
@@ -4901,17 +5592,22 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
           continue;
         }
         const c = ACCESSIBILITY_FIXABILITY_MAP[a.rule_id];
-        if (!c?.auto_fixable) continue;
-        if (a.before_html && typeof a.after_html === 'string' && html.includes(a.before_html)) {
+        if (a.before_html && typeof a.after_html === 'string' && a.after_html !== '(removed)' && html.includes(a.before_html)) {
           html = html.replace(a.before_html, a.after_html);
+          continue;
+        }
+        if (a.before_html && a.after_html === '(removed)' && html.includes(a.before_html)) {
+          html = html.replace(a.before_html, '');
           continue;
         }
         if (typeof a.proposed_html === 'string' && a.proposed_html.trim()) {
           html = a.proposed_html;
           continue;
         }
-        const result = this.runFixExecutor(html, c.fix_type);
-        if (result) html = result.newHtml;
+        if (c?.fix_type) {
+          const result = this.runFixExecutor(html, c.fix_type);
+          if (result) html = result.newHtml;
+        }
       }
 
       try {
