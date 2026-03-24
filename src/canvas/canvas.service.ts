@@ -4227,57 +4227,63 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   ): Promise<number> {
     const title = `${orgAbbrev || orgName} Standards`;
     const groups = await this.fetchPaginatedData(`${baseUrl}/courses/${courseId}/outcome_groups?per_page=100`, token);
-    const existing = (Array.isArray(groups) ? groups : []).find(
+    const groupRows = Array.isArray(groups) ? groups : [];
+    const existing = groupRows.find(
       (g: any) => String(g?.title || '').trim().toLowerCase() === title.toLowerCase(),
     );
     const existingId = Number(existing?.id);
     if (Number.isFinite(existingId)) return existingId;
-    let accountId: number | null = null;
-    try {
-      const course = await this.getCourseDetails(courseId);
-      accountId = Number((course as any)?.root_account_id ?? (course as any)?.account_id);
-    } catch { /* ignore */ }
-    if (Number.isFinite(accountId)) {
+    let rootGroupId: number | null = null;
+    let rootLookupError = '';
+    const rootEndpoints = [
+      `${baseUrl}/courses/${courseId}/root_outcome_group`,
+      `${baseUrl}/accounts/self/root_outcome_group`,
+    ];
+    for (const endpoint of rootEndpoints) {
       try {
-        const rootRes = await fetch(`${baseUrl}/accounts/${accountId}/root_outcome_group`, {
+        const rootRes = await fetch(endpoint, {
           headers: { Authorization: `Bearer ${token}` },
+          redirect: 'follow',
         });
-        const root = rootRes.ok ? await rootRes.json() : null;
-        const rootId = Number(root?.id);
-        if (Number.isFinite(rootId)) {
-          const form = new URLSearchParams();
-          form.append('title', title);
-          const createRes = await fetch(`${baseUrl}/accounts/${accountId}/outcome_groups/${rootId}/subgroups`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: form.toString(),
-          });
-          if (createRes.ok) {
-            const payload = await createRes.json();
-            const groupId = Number(payload?.id ?? payload?.outcome_group?.id);
-            if (Number.isFinite(groupId)) return groupId;
-          } else {
-            const text = await createRes.text();
-            console.error('[ensureOutcomeGroupForOrg] account subgroup create failed', createRes.status, text || createRes.statusText);
-          }
+        const text = await rootRes.text();
+        if (!rootRes.ok) {
+          rootLookupError = `lookup ${endpoint} failed (${rootRes.status} ${rootRes.statusText}) ${text || ''}`.trim();
+          continue;
         }
-      } catch { /* fall through to course-level */ }
+        let payload: any = {};
+        try { payload = text ? JSON.parse(text) : {}; } catch { payload = {}; }
+        const id = Number(payload?.id ?? payload?.outcome_group?.id);
+        if (Number.isFinite(id)) {
+          rootGroupId = id;
+          break;
+        }
+        rootLookupError = `lookup ${endpoint} returned no valid id`;
+      } catch (e: any) {
+        rootLookupError = `lookup ${endpoint} threw ${e?.message || String(e)}`;
+      }
+    }
+    if (!Number.isFinite(rootGroupId)) {
+      throw new Error(`Failed to resolve root outcome group for org "${orgAbbrev || orgName}" in course ${courseId}. ${rootLookupError || ''}`.trim());
     }
     const form = new URLSearchParams();
     form.append('title', title);
-    const res = await fetch(`${baseUrl}/courses/${courseId}/outcome_groups`, {
+    const createRes = await fetch(`${baseUrl}/courses/${courseId}/outcome_groups/${rootGroupId}/subgroups`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: form.toString(),
+      redirect: 'follow',
     });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Failed to create outcome group: ${res.status} ${res.statusText} ${text || ''}`.trim());
+    const createText = await createRes.text();
+    if (!createRes.ok) {
+      throw new Error(`Failed to create outcome group "${title}" for org "${orgAbbrev || orgName}" in course ${courseId}. Canvas returned ${createRes.status} ${createRes.statusText}. ${createText || ''}`.trim());
     }
-    const payload = await res.json();
-    const groupId = Number(payload?.id ?? payload?.outcome_group?.id);
-    if (!Number.isFinite(groupId)) throw new Error('Failed to create outcome group');
-    return groupId;
+    let createdPayload: any = {};
+    try { createdPayload = createText ? JSON.parse(createText) : {}; } catch { createdPayload = {}; }
+    const createdId = Number(createdPayload?.id ?? createdPayload?.outcome_group?.id);
+    if (!Number.isFinite(createdId)) {
+      throw new Error(`Outcome group create call succeeded but returned no outcome group id for "${title}" in course ${courseId}.`);
+    }
+    return createdId;
   }
 
   async getOutcomesPreviewByOrg(courseId: number, cip?: string, degreeLevel?: string) {

@@ -1695,33 +1695,47 @@ async function loadStandardsSyncTab() {
             let standards = Array.isArray(org?.standards) && org.standards.length
                 ? org.standards
                 : [{ id: orgId, title: org?.name || orgId, sourceType: org?.standards_source || payload?.accreditors_source, confidence: org?.standards_confidence }];
-            const branches = standards.filter(s => (s.kind || '').toLowerCase() === 'group' || (!(s.parentId ?? s.parent_id) && standards.some(c => String((c.parentId ?? c.parent_id) || '') === String(s.id || ''))));
-            const displayStandards = branches.length ? branches : standards;
-            const abbrev = (org?.abbreviation || orgId || 'org').toString();
-            const allSelected = displayStandards.every(s => preferred.has(String(s.id || '')));
-            const selectAllHtml = displayStandards.length > 1 ? '<label class="acc-focus-check" style="display:block;margin:4px 0 6px 0;padding-bottom:4px;border-bottom:1px solid #e5e7eb;">' +
-                '<input type="checkbox" class="acc-org-select-all" ' + (allSelected ? 'checked' : '') + ' onchange="var b=this.closest(\'.acc-org-block\');if(b)b.querySelectorAll(\'input[name=accStd]\').forEach(function(c){c.checked=this.checked},this)"> ' +
-                '<span style="font-weight:600;">Select all ' + escapeHtml(abbrev) + (branches.length ? ' branches' : '') + '</span></label>' : '';
-            const itemsHtml = displayStandards.map(std => {
-                const sid = (std?.id || '').toString();
-                const stitle = (std?.title || sid || 'Untitled standard').toString();
-                const checked = preferred.has(sid) ? ' checked' : '';
+            const standardsNodes = standards.map(std => {
+                const sid = String(std?.id || '').trim();
+                const stitle = String(std?.title || sid || 'Untitled standard').trim();
                 const stdSource = sourceLabel(std?.sourceType || org?.standards_source || payload?.accreditors_source);
                 const stdConf = formatConfidence(std?.confidence ?? org?.standards_confidence);
-                return '<label class="acc-focus-check" style="display:block;margin:4px 0;">' +
-                    '<input type="checkbox" name="accStd" value="' + escapeHtml(sid) + '"' + checked + '> ' +
-                    '<span style="font-weight:600;">' + escapeHtml(sid) + '</span>' +
-                    (stitle && stitle !== sid ? ' — ' + escapeHtml(stitle) : '') +
-                    '<span style="margin-left:8px;font-size:12px;color:#666;">[' + escapeHtml(stdSource) + ', ' + escapeHtml(stdConf) + ']</span>' +
-                    '</label>';
-            }).join('');
+                return {
+                    id: sid,
+                    parentId: std?.parentId != null ? String(std.parentId).trim() : (std?.parent_id != null ? String(std.parent_id).trim() : ''),
+                    label: sid + (stitle && stitle !== sid ? ' — ' + stitle : ''),
+                    meta: '[' + stdSource + ', ' + stdConf + ']'
+                };
+            }).filter(n => n.id);
+            const tree = buildAccSelectionTree(standardsNodes);
+            const abbrev = (org?.abbreviation || orgId || 'org').toString();
+            const selectedSeed = new Set(Array.from(preferred).map(x => String(x || '').trim()).filter(Boolean));
+            const selectedSet = new Set();
+            selectedSeed.forEach(id => {
+                if (tree.nodeById.has(id)) {
+                    const leaves = getAccTreeLeafIds(tree, id, (_, kids) => !kids.length);
+                    if (leaves.length) leaves.forEach(x => selectedSet.add(x));
+                }
+                if (selectedSeed.has(id)) selectedSet.add(id);
+            });
+            const itemsHtml = renderAccSelectionTree(tree, {
+                checkboxName: 'accStd',
+                selectedSet,
+                leafFn: (_, kids) => !kids.length
+            });
             return '<div class="acc-org-block" style="border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin:8px 0;">' +
                 '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">' +
                 '<strong>' + orgLabel + '</strong>' +
                 '<span style="font-size:12px;color:#555;">source: ' + escapeHtml(orgSource) + ' | confidence: ' + escapeHtml(orgConfidence) + '</span>' +
                 '</div>' +
                 warnings +
-                '<div class="acc-org-standards" style="margin-top:6px;">' + selectAllHtml + itemsHtml + '</div>' +
+                '<div style="display:flex;gap:8px;margin:6px 0;">' +
+                '<button type="button" class="secondary-btn acc-std-expand-all">Expand all</button>' +
+                '<button type="button" class="secondary-btn acc-std-collapse-all">Collapse all</button>' +
+                '<button type="button" class="secondary-btn acc-std-select-all">Select all leaves</button>' +
+                '<button type="button" class="secondary-btn acc-std-clear-all">Clear all leaves</button>' +
+                '</div>' +
+                '<div class="acc-org-standards acc-tree-container" style="margin-top:6px;">' + itemsHtml + '</div>' +
                 '</div>';
         }).join('');
         return '<h4 class="acc-standards-heading">Accreditation standards for this course</h4>' +
@@ -1772,6 +1786,7 @@ async function loadStandardsSyncTab() {
                 };
             }
             block.innerHTML = buildStandardsBlockHtml(payload, [], prevChecked);
+            bindAccStandardsTreeBlocks(block);
         } catch (_) {}
     };
     const loadProfile = async (profile) => {
@@ -1960,6 +1975,7 @@ async function loadStandardsSyncTab() {
                         '</div></div>';
                 }).join('');
             outcomesEl.innerHTML = standardsHtml + previewHtml + '<div class="acc-outcomes-block" style="margin-top: 1.5rem;">' + outcomesHtml + '</div>';
+            bindAccStandardsTreeBlocks(outcomesEl);
             await loadAccreditationAlignment(profile);
         } catch (e) {
             outcomesEl.innerHTML = '<p style="color:#c62828;">Failed to load: ' + escapeHtml(e.message) + '</p>';
@@ -3257,33 +3273,18 @@ async function createOutcomesFromSelectedStandards() {
     }
 }
 
-function getOutcomeSelectTree(org) {
-    const toCreate = Array.isArray(org?.toCreate) ? org.toCreate : [];
-    const rawTree = Array.isArray(org?.toCreateTree) ? org.toCreateTree : [];
+function buildAccSelectionTree(nodes) {
     const nodeById = new Map();
-    rawTree.forEach(n => {
+    (Array.isArray(nodes) ? nodes : []).forEach(n => {
         const id = String(n?.id || '').trim();
         if (!id) return;
         nodeById.set(id, {
             id,
-            title: String(n?.title || id),
+            label: String(n?.label || n?.title || id),
             parentId: n?.parentId != null ? String(n.parentId).trim() : '',
-            isLeaf: !!n?.isLeaf
+            isLeafHint: !!n?.isLeaf,
+            meta: n?.meta ? String(n.meta) : ''
         });
-    });
-    toCreate.forEach(s => {
-        const id = String(s?.id || '').trim();
-        if (!id) return;
-        if (!nodeById.has(id)) {
-            nodeById.set(id, {
-                id,
-                title: String(s?.title || id),
-                parentId: s?.parentId != null ? String(s.parentId).trim() : '',
-                isLeaf: true
-            });
-        } else {
-            nodeById.get(id).isLeaf = true;
-        }
     });
     const children = new Map();
     nodeById.forEach(n => {
@@ -3292,16 +3293,16 @@ function getOutcomeSelectTree(org) {
         if (!children.has(pid)) children.set(pid, []);
         children.get(pid).push(n.id);
     });
+    children.forEach((arr, k) => children.set(k, arr.sort((a, b) => a.localeCompare(b))));
     const roots = [];
     nodeById.forEach(n => {
         if (!n.parentId || !nodeById.has(n.parentId)) roots.push(n.id);
     });
     roots.sort((a, b) => a.localeCompare(b));
-    children.forEach((arr, k) => children.set(k, arr.sort((a, b) => a.localeCompare(b))));
     return { nodeById, children, roots };
 }
 
-function getOutcomeLeafIds(tree, startId) {
+function getAccTreeLeafIds(tree, startId, leafFn) {
     const out = [];
     const stack = [startId];
     const visited = new Set();
@@ -3310,20 +3311,54 @@ function getOutcomeLeafIds(tree, startId) {
         if (!id || visited.has(id)) continue;
         visited.add(id);
         const kids = tree.children.get(id) || [];
-        if (!kids.length && tree.nodeById.get(id)?.isLeaf) out.push(id);
+        const node = tree.nodeById.get(id);
+        if (node && leafFn(node, kids)) out.push(id);
         kids.forEach(k => stack.push(k));
     }
     return out;
 }
 
-function updateOutcomeBranchStates() {
-    const bodyEl = document.getElementById('accOutcomeSelectModalBody');
-    if (!bodyEl) return;
-    const branchBoxes = bodyEl.querySelectorAll('input[data-role="branch"]');
+function renderAccSelectionTree(tree, opts) {
+    const checkboxName = opts?.checkboxName || 'accTreeLeaf';
+    const selectedSet = opts?.selectedSet instanceof Set ? opts.selectedSet : new Set();
+    const leafFn = typeof opts?.leafFn === 'function' ? opts.leafFn : ((n, kids) => !kids.length || !!n?.isLeafHint);
+    const rowClass = opts?.rowClass || 'acc-tree-row';
+    const wrapClass = opts?.wrapClass || 'acc-tree-wrap';
+    const renderNode = (id, depth, ancestors) => {
+        const n = tree.nodeById.get(id);
+        if (!n) return '';
+        const kids = tree.children.get(id) || [];
+        const isLeaf = leafFn(n, kids);
+        if (isLeaf) {
+            const checked = selectedSet.has(n.id) ? ' checked' : '';
+            const dataAnc = ancestors.map(a => ' data-ancestor="' + escapeHtml(a) + '"').join('');
+            return '<div class="' + rowClass + '" style="--tree-depth:' + depth + ';">' +
+                '<span class="acc-tree-spacer"></span>' +
+                '<label class="acc-tree-label"><input type="checkbox" name="' + escapeHtml(checkboxName) + '" value="' + escapeHtml(n.id) + '"' + checked + dataAnc + '> <span class="acc-tree-label-text">' + escapeHtml(n.label) + (n.meta ? '<span class="acc-tree-meta">' + escapeHtml(n.meta) + '</span>' : '') + '</span></label>' +
+                '</div>';
+        }
+        const descendants = getAccTreeLeafIds(tree, n.id, leafFn);
+        const allChecked = descendants.length > 0 && descendants.every(x => selectedSet.has(x));
+        const indeterminate = descendants.some(x => selectedSet.has(x)) && !allChecked;
+        const branchState = allChecked ? ' checked' : '';
+        const indAttr = indeterminate ? ' data-indeterminate="1"' : '';
+        const row = '<div class="' + rowClass + '" style="--tree-depth:' + depth + ';">' +
+            '<button type="button" class="acc-tree-toggle" data-node-id="' + escapeHtml(n.id) + '">▾</button>' +
+            '<label class="acc-tree-label"><input type="checkbox" data-role="branch" data-node-id="' + escapeHtml(n.id) + '"' + branchState + indAttr + '> <span class="acc-tree-label-text"><strong>' + escapeHtml(n.label) + '</strong>' + (n.meta ? '<span class="acc-tree-meta">' + escapeHtml(n.meta) + '</span>' : '') + '</span></label>' +
+            '</div>';
+        const kidsHtml = kids.map(k => renderNode(k, depth + 1, ancestors.concat(n.id))).join('');
+        return row + '<div class="' + wrapClass + '" data-children-for="' + escapeHtml(n.id) + '">' + kidsHtml + '</div>';
+    };
+    return tree.roots.map(id => renderNode(id, 0, [])).join('');
+}
+
+function updateAccTreeBranchStates(containerEl, checkboxName) {
+    if (!containerEl) return;
+    const branchBoxes = containerEl.querySelectorAll('input[data-role="branch"][data-node-id]');
     branchBoxes.forEach(branch => {
         const nodeId = branch.getAttribute('data-node-id');
         if (!nodeId) return;
-        const leafBoxes = bodyEl.querySelectorAll('input[name="accOutcomeStd"][data-ancestor="' + nodeId + '"]');
+        const leafBoxes = containerEl.querySelectorAll('input[name="' + checkboxName + '"][data-ancestor="' + nodeId + '"]');
         if (!leafBoxes.length) {
             branch.checked = false;
             branch.indeterminate = false;
@@ -3335,24 +3370,79 @@ function updateOutcomeBranchStates() {
     });
 }
 
-function setOutcomeTreeExpanded(bodyEl, expanded) {
-    if (!bodyEl) return;
-    bodyEl.querySelectorAll('[data-children-for]').forEach(el => {
-        el.style.display = expanded ? 'block' : 'none';
+function bindAccSelectionTree(containerEl, opts) {
+    if (!containerEl) return;
+    const checkboxName = opts?.checkboxName || 'accTreeLeaf';
+    const expandAllBtnId = opts?.expandAllBtnId || '';
+    const collapseAllBtnId = opts?.collapseAllBtnId || '';
+    containerEl.querySelectorAll('input[data-role="branch"][data-indeterminate="1"]').forEach(cb => { cb.indeterminate = true; });
+    containerEl.querySelectorAll('input[name="' + checkboxName + '"]').forEach(cb => {
+        cb.addEventListener('change', () => updateAccTreeBranchStates(containerEl, checkboxName));
     });
-    bodyEl.querySelectorAll('.acc-outcome-toggle').forEach(btn => {
-        btn.textContent = expanded ? '▾' : '▸';
+    containerEl.querySelectorAll('input[data-role="branch"]').forEach(branch => {
+        branch.addEventListener('change', function() {
+            const nodeId = this.getAttribute('data-node-id');
+            if (!nodeId) return;
+            const leaves = containerEl.querySelectorAll('input[name="' + checkboxName + '"][data-ancestor="' + nodeId + '"]');
+            leaves.forEach(leaf => { leaf.checked = this.checked; });
+            updateAccTreeBranchStates(containerEl, checkboxName);
+        });
     });
+    containerEl.querySelectorAll('.acc-tree-toggle').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const nodeId = this.getAttribute('data-node-id');
+            if (!nodeId) return;
+            const target = Array.from(containerEl.querySelectorAll('[data-children-for]')).find(el => el.getAttribute('data-children-for') === nodeId);
+            if (!target) return;
+            const isOpen = target.style.display !== 'none';
+            target.style.display = isOpen ? 'none' : 'block';
+            this.textContent = isOpen ? '▸' : '▾';
+        });
+    });
+    if (expandAllBtnId) {
+        const btn = document.getElementById(expandAllBtnId);
+        if (btn) btn.onclick = () => {
+            containerEl.querySelectorAll('[data-children-for]').forEach(el => { el.style.display = 'block'; });
+            containerEl.querySelectorAll('.acc-tree-toggle').forEach(el => { el.textContent = '▾'; });
+        };
+    }
+    if (collapseAllBtnId) {
+        const btn = document.getElementById(collapseAllBtnId);
+        if (btn) btn.onclick = () => {
+            containerEl.querySelectorAll('[data-children-for]').forEach(el => { el.style.display = 'none'; });
+            containerEl.querySelectorAll('.acc-tree-toggle').forEach(el => { el.textContent = '▸'; });
+        };
+    }
+    updateAccTreeBranchStates(containerEl, checkboxName);
 }
 
-function toggleOutcomeTreeNode(bodyEl, nodeId) {
-    if (!bodyEl || !nodeId) return;
-    const target = Array.from(bodyEl.querySelectorAll('[data-children-for]')).find(el => el.getAttribute('data-children-for') === nodeId);
-    if (!target) return;
-    const isOpen = target.style.display !== 'none';
-    target.style.display = isOpen ? 'none' : 'block';
-    const toggleBtn = Array.from(bodyEl.querySelectorAll('.acc-outcome-toggle')).find(el => el.getAttribute('data-node-id') === nodeId);
-    if (toggleBtn) toggleBtn.textContent = isOpen ? '▸' : '▾';
+function bindAccStandardsTreeBlocks(scopeEl) {
+    const root = scopeEl || document;
+    root.querySelectorAll('#accStandardsList .acc-org-block').forEach(block => {
+        const treeEl = block.querySelector('.acc-tree-container');
+        if (!treeEl) return;
+        bindAccSelectionTree(treeEl, { checkboxName: 'accStd' });
+        const expandBtn = block.querySelector('.acc-std-expand-all');
+        if (expandBtn) expandBtn.onclick = () => {
+            treeEl.querySelectorAll('[data-children-for]').forEach(el => { el.style.display = 'block'; });
+            treeEl.querySelectorAll('.acc-tree-toggle').forEach(el => { el.textContent = '▾'; });
+        };
+        const collapseBtn = block.querySelector('.acc-std-collapse-all');
+        if (collapseBtn) collapseBtn.onclick = () => {
+            treeEl.querySelectorAll('[data-children-for]').forEach(el => { el.style.display = 'none'; });
+            treeEl.querySelectorAll('.acc-tree-toggle').forEach(el => { el.textContent = '▸'; });
+        };
+        const selectAllBtn = block.querySelector('.acc-std-select-all');
+        if (selectAllBtn) selectAllBtn.onclick = () => {
+            treeEl.querySelectorAll('input[name="accStd"]').forEach(cb => { cb.checked = true; });
+            updateAccTreeBranchStates(treeEl, 'accStd');
+        };
+        const clearAllBtn = block.querySelector('.acc-std-clear-all');
+        if (clearAllBtn) clearAllBtn.onclick = () => {
+            treeEl.querySelectorAll('input[name="accStd"]').forEach(cb => { cb.checked = false; });
+            updateAccTreeBranchStates(treeEl, 'accStd');
+        };
+    });
 }
 
 function openOutcomeSelectModal(orgId, orgAbbrev, orgName) {
@@ -3367,71 +3457,45 @@ function openOutcomeSelectModal(orgId, orgAbbrev, orgName) {
     window.__accOutcomeSelectOrg = { orgId, orgAbbrev, orgName };
     const titleEl = document.getElementById('accOutcomeSelectModalTitle');
     if (titleEl) titleEl.textContent = 'Select outcomes to create — ' + (orgAbbrev || orgId);
-    const tree = getOutcomeSelectTree(org);
+    const toCreateTree = Array.isArray(org?.toCreateTree) ? org.toCreateTree : [];
+    const tree = buildAccSelectionTree(toCreateTree.map(n => ({
+        id: String(n?.id || '').trim(),
+        parentId: n?.parentId != null ? String(n.parentId).trim() : '',
+        label: String(n?.id || '') + ' — ' + String(n?.title || n?.id || ''),
+        isLeaf: !!n?.isLeaf
+    })).filter(n => n.id));
     const leafSet = new Set(toCreate.map(s => String(s?.id || '').trim()).filter(Boolean));
-    const renderNode = (id, depth, ancestors) => {
-        const n = tree.nodeById.get(id);
-        if (!n) return '';
-        const kids = tree.children.get(id) || [];
-        const pad = Math.max(0, depth) * 16;
-        if (!kids.length && n.isLeaf) {
-            const dataAnc = ancestors.map(a => ' data-ancestor="' + escapeHtml(a) + '"').join('');
-            return '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding-left:' + pad + 'px;"><input type="checkbox" name="accOutcomeStd" class="acc-outcome-leaf" value="' + escapeHtml(n.id) + '" checked' + dataAnc + '> <span>' + escapeHtml(n.id + ' — ' + (n.title || '')) + '</span></label>';
-        }
-        const descendants = getOutcomeLeafIds(tree, n.id).filter(x => leafSet.has(x));
-        const branchChecked = descendants.length > 0;
-        const row = '<div style="display:flex;align-items:flex-start;gap:8px;padding-left:' + pad + 'px;">' +
-            '<button type="button" class="secondary-btn acc-outcome-toggle" data-node-id="' + escapeHtml(n.id) + '" style="min-width:24px;padding:2px 6px;">▾</button>' +
-            '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">' +
-            '<input type="checkbox" data-role="branch" data-node-id="' + escapeHtml(n.id) + '"' + (branchChecked ? ' checked' : '') + '> ' +
-            '<span style="font-weight:600;">' + escapeHtml(n.id + ' — ' + (n.title || '')) + '</span>' +
-            '</label>' +
-            '</div>';
-        return row + '<div data-children-for="' + escapeHtml(n.id) + '">' + kids.map(k => renderNode(k, depth + 1, ancestors.concat(n.id))).join('') + '</div>';
-    };
+    const selectedSet = new Set(Array.from(leafSet));
     const bodyEl = document.getElementById('accOutcomeSelectModalBody');
     if (bodyEl) {
-        const treeHtml = tree.roots.map(id => renderNode(id, 0, [])).join('');
+        const treeHtml = renderAccSelectionTree(tree, {
+            checkboxName: 'accOutcomeStd',
+            selectedSet,
+            leafFn: (n) => leafSet.has(String(n?.id || '').trim())
+        });
         bodyEl.innerHTML = '<div style="display:flex;gap:8px;margin-bottom:8px;">' +
             '<button type="button" class="secondary-btn" id="accOutcomeExpandAllBtn">Expand all</button>' +
             '<button type="button" class="secondary-btn" id="accOutcomeCollapseAllBtn">Collapse all</button>' +
             '<button type="button" class="secondary-btn" id="accOutcomeSelectAllBtn">Select all</button>' +
             '<button type="button" class="secondary-btn" id="accOutcomeSelectNoneBtn">Clear all</button>' +
             '</div>' +
-            '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;">' + treeHtml + '</div>';
-        const onLeafChange = () => updateOutcomeBranchStates();
-        bodyEl.querySelectorAll('input[name="accOutcomeStd"]').forEach(cb => cb.addEventListener('change', onLeafChange));
-        bodyEl.querySelectorAll('input[data-role="branch"]').forEach(branch => {
-            branch.addEventListener('change', function() {
-                const nodeId = this.getAttribute('data-node-id');
-                if (!nodeId) return;
-                const leaves = bodyEl.querySelectorAll('input[name="accOutcomeStd"][data-ancestor="' + nodeId + '"]');
-                leaves.forEach(leaf => { leaf.checked = this.checked; });
-                updateOutcomeBranchStates();
-            });
+            '<div class="acc-tree-container" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;">' + treeHtml + '</div>';
+        bindAccSelectionTree(bodyEl, {
+            checkboxName: 'accOutcomeStd',
+            expandAllBtnId: 'accOutcomeExpandAllBtn',
+            collapseAllBtnId: 'accOutcomeCollapseAllBtn'
         });
-        bodyEl.querySelectorAll('.acc-outcome-toggle').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const nodeId = this.getAttribute('data-node-id');
-                if (!nodeId) return;
-                toggleOutcomeTreeNode(bodyEl, nodeId);
-            });
-        });
-        const expandBtn = document.getElementById('accOutcomeExpandAllBtn');
-        if (expandBtn) expandBtn.onclick = () => setOutcomeTreeExpanded(bodyEl, true);
-        const collapseBtn = document.getElementById('accOutcomeCollapseAllBtn');
-        if (collapseBtn) collapseBtn.onclick = () => setOutcomeTreeExpanded(bodyEl, false);
         const allBtn = document.getElementById('accOutcomeSelectAllBtn');
         if (allBtn) allBtn.onclick = () => {
             bodyEl.querySelectorAll('input[name="accOutcomeStd"]').forEach(cb => { cb.checked = true; });
-            updateOutcomeBranchStates();
+            updateAccTreeBranchStates(bodyEl, 'accOutcomeStd');
         };
         const noneBtn = document.getElementById('accOutcomeSelectNoneBtn');
         if (noneBtn) noneBtn.onclick = () => {
             bodyEl.querySelectorAll('input[name="accOutcomeStd"]').forEach(cb => { cb.checked = false; });
-            updateOutcomeBranchStates();
+            updateAccTreeBranchStates(bodyEl, 'accOutcomeStd');
         };
-        updateOutcomeBranchStates();
+        updateAccTreeBranchStates(bodyEl, 'accOutcomeStd');
     }
     const createBtn = document.getElementById('accOutcomeSelectCreateBtn');
     if (createBtn) createBtn.onclick = doCreateSelectedOutcomes;
