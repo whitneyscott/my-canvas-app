@@ -56,15 +56,16 @@ async function submitCredentials() {
 }
 function showFlashError(message) {
     const overlay = document.getElementById('token-overlay');
+    if (!overlay) return;
     overlay.style.display = 'flex';
-    overlay.style.background = 'rgba(139, 0, 0, 0.95)';
-    overlay.innerHTML = `
-        <div style="background: white; padding: 3rem; border-radius: 8px; border: 5px solid red;">
-            <h1 style="color: red; margin: 0;">ACCESS BLOCKED</h1>
-            <p style="font-size: 1.2rem; font-weight: bold;">${message}</p>
-            <button onclick="location.reload()" style="padding: 10px 20px; cursor: pointer;">Retry Connection</button>
-        </div>
-    `;
+    overlay.style.background = '';
+    const loginError = document.getElementById('loginError');
+    if (loginError) {
+        loginError.textContent = message;
+        loginError.style.display = 'block';
+    } else {
+        alert(message);
+    }
 }
 
 // Run the function as soon as the window loads
@@ -79,6 +80,11 @@ function showTokenOverlayForAuthFailure(detailMessage) {
     if (wrap) wrap.style.display = 'none';
     if (oauth) oauth.style.display = 'none';
     if (tok) tok.style.display = 'flex';
+    const loginError = document.getElementById('loginError');
+    if (loginError) {
+        loginError.textContent = 'Session expired or token invalid. Re-enter Canvas URL and token.';
+        loginError.style.display = 'block';
+    }
     debugLog('Session expired or token invalid. Please re-enter Canvas URL and token.', 'warn');
     if (detailMessage) debugLog('ERROR: ' + detailMessage, 'error');
 }
@@ -3442,6 +3448,8 @@ function bindAccStandardsTreeBlocks(scopeEl) {
             treeEl.querySelectorAll('input[name="accStd"]').forEach(cb => { cb.checked = false; });
             updateAccTreeBranchStates(treeEl, 'accStd');
         };
+        treeEl.querySelectorAll('[data-children-for]').forEach(el => { el.style.display = 'none'; });
+        treeEl.querySelectorAll('.acc-tree-toggle').forEach(el => { el.textContent = '▸'; });
     });
 }
 

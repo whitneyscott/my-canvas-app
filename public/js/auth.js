@@ -79,8 +79,11 @@ async function submitLogin() {
             // Success - the server will redirect us back to the app
             window.location.reload();
         } else {
-            const result = await response.json();
-            showError(result.message || 'Invalid credentials. Please try again.');
+            let result = {};
+            try { result = await response.json(); } catch (_) { result = {}; }
+            const rawMsg = Array.isArray(result?.message) ? result.message.join('; ') : (result?.message || result?.error || '');
+            const message = rawMsg || `Unable to connect to Canvas (${response.status}). Check URL/token and try again.`;
+            showError(message);
         }
     } catch (error) {
         console.error('Login error:', error);

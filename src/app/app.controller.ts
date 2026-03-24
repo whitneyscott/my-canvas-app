@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Render, Query, Req, Res, Body } from '@nestjs/common';
+import { Controller, Get, Post, Render, Query, Req, Res, Body, HttpException, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 
 @Controller()
@@ -98,19 +98,43 @@ export class AppController {
 
   @Post('auth/set-token')
   async setToken(@Body() body: { token: string; canvasUrl: string }, @Req() req: any) {
-    if (body.token && body.canvasUrl && req.session) {
-      req.session.canvasToken = body.token;
-      req.session.canvasUrl = body.canvasUrl.replace(/\/+$/, '');
-      if (!req.session.canvasUrl.endsWith('/api/v1')) {
-        req.session.canvasUrl = req.session.canvasUrl.replace(/\/api\/v1\/?$/, '') + '/api/v1';
-      }
-      return new Promise((resolve) => {
-        req.session.save((err) => {
-          if (err) resolve({ success: false });
-          resolve({ success: true });
-        });
-      });
+    if (!body?.token || !body?.canvasUrl || !req.session) {
+      throw new HttpException('Canvas URL and API token are required.', HttpStatus.BAD_REQUEST);
     }
-    return { success: false, message: 'Invalid credentials' };
+
+    const normalizedUrl = body.canvasUrl.replace(/\/+$/, '').replace(/\/api\/v1\/?$/, '') + '/api/v1';
+    const probeUrl = `${normalizedUrl}/users/self`;
+    let probeRes: any;
+    try {
+      probeRes = await fetch(probeUrl, {
+        headers: { Authorization: `Bearer ${body.token}` },
+      });
+    } catch {
+      throw new HttpException(
+        'Could not reach Canvas. Check the Canvas URL and your network connection, then try again.',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    if (!probeRes.ok) {
+      const raw = await probeRes.text();
+      const detail = raw && raw.length < 300 ? raw : '';
+      throw new HttpException(
+        `Canvas rejected the token or URL (${probeRes.status} ${probeRes.statusText}). ${detail}`.trim(),
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    req.session.canvasToken = body.token;
+    req.session.canvasUrl = normalizedUrl;
+    return new Promise((resolve) => {
+      req.session.save((err) => {
+        if (err) {
+          resolve({ success: false, message: 'Failed to save session.' });
+          return;
+        }
+        resolve({ success: true });
+      });
+    });
   }
 }
