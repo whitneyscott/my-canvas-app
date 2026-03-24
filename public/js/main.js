@@ -3535,6 +3535,10 @@ async function doCreateSelectedOutcomes() {
         const skipped = Number(result?.summary?.skipped || 0);
         const failed = Number(result?.summary?.failed || 0);
         if (typeof debugLog === 'function') debugLog('[sync-org] result created=' + created + ' skipped=' + skipped + ' failed=' + failed, failed ? 'warn' : 'success');
+        if (failed > 0 && Array.isArray(result?.failed)) {
+            const details = result.failed.slice(0, 3).map(f => (f?.standard_id || '?') + ': ' + (f?.error || 'failed')).join(' | ');
+            if (typeof debugLog === 'function') debugLog('[sync-org] failed details: ' + details, 'error');
+        }
         if (typeof showToast === 'function') showToast(info.orgAbbrev + ': ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.', failed ? 'warn' : 'success');
         else alert(info.orgAbbrev + ': ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.');
         if (typeof closeActiveModal === 'function') closeActiveModal();

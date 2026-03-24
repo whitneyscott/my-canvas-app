@@ -4443,7 +4443,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       const descParts = [std.description ? String(std.description).trim() : '', `Source standard: ${sid}`].filter(Boolean);
       const outcomeDescription = CanvasService.mergeStandardsIntoDescription(descParts.join('\n\n'), [sid]);
       try {
-        const out = await this.createOutcomeInGroup(groupId, outcomeTitle, outcomeDescription, token, baseUrl);
+        const out = await this.createOutcomeInGroup(courseId, groupId, outcomeTitle, outcomeDescription, token, baseUrl);
         created.push({ standard_id: sid, outcome_id: out.id, title: out.title });
         existingTitles.add(outcomeTitle.toLowerCase());
       } catch (e: any) {
@@ -4489,6 +4489,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
   }
 
   private async createOutcomeInGroup(
+    courseId: number,
     groupId: number,
     title: string,
     description: string,
@@ -4505,7 +4506,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     ];
     let lastError = '';
     for (const a of attempts) {
-      const res = await fetch(`${baseUrl}/outcome_groups/${groupId}/outcomes`, {
+      const res = await fetch(`${baseUrl}/courses/${courseId}/outcome_groups/${groupId}/outcomes`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': a.contentType },
         body: a.body,
@@ -4591,7 +4592,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       const descParts = [std.description ? String(std.description).trim() : '', `Source standard: ${sid}`].filter(Boolean);
       const outcomeDescription = CanvasService.mergeStandardsIntoDescription(descParts.join('\n\n'), [sid]);
       try {
-        const out = await this.createOutcomeInGroup(groupId, outcomeTitle, outcomeDescription, token, baseUrl);
+        const out = await this.createOutcomeInGroup(courseId, groupId, outcomeTitle, outcomeDescription, token, baseUrl);
         created.push({ standard_id: sid, outcome_id: out.id, title: out.title });
         existingTitles.add(outcomeTitle.toLowerCase());
       } catch (e: any) {
