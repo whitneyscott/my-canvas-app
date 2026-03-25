@@ -128,28 +128,12 @@ const BULK_UPDATE_TABS = new Set(['assignments', 'quizzes', 'discussions', 'page
 const BULK_EDITOR_GRID_ROW_SELECTION = Object.freeze({
     mode: 'multiRow',
     selectAll: 'filtered',
-    headerCheckbox: false,
-    checkboxes: false,
+    headerCheckbox: true,
+    checkboxes: true,
     enableClickSelection: false,
 });
 
-const BULK_EDITOR_SELECTION_COL = Object.freeze({
-    colId: '_bulk_select',
-    headerName: '',
-    width: 52,
-    minWidth: 52,
-    maxWidth: 52,
-    pinned: 'left',
-    lockPosition: 'left',
-    sortable: false,
-    filter: false,
-    resizable: false,
-    editable: false,
-    suppressHeaderMenuButton: true,
-    checkboxSelection: true,
-    headerCheckboxSelection: true,
-    headerCheckboxSelectionFilteredOnly: true,
-});
+
 
 const FIELD_DEFINITIONS = window.FIELD_DEFINITIONS || window.CANVAS_CONFIG?.FIELD_DEFINITIONS || {};
 const REVERT_BLOCKED_FIELDS = new Set([
@@ -732,6 +716,15 @@ const gridOptions = {
     components: { durationPickerCellEditor: DurationPickerCellEditor },
     sortingOrder: ['asc', 'desc'],
     rowSelection: BULK_EDITOR_GRID_ROW_SELECTION,
+    selectionColumnDef: {
+        pinned: 'left',
+        lockPosition: 'left',
+        width: 52,
+        minWidth: 52,
+        maxWidth: 52,
+        resizable: false,
+        suppressHeaderMenuButton: true,
+    },
     defaultColDef: {
         minWidth: 150,
         flex: 1,
@@ -1194,7 +1187,7 @@ function generateColumnDefs(tabName) {
         pinned: 'left'
     };
 
-    const allColumns = [BULK_EDITOR_SELECTION_COL, statusCol, idCol, ...mapping];
+    const allColumns = [statusCol, idCol, ...mapping];
     return allColumns;
 }
 if (typeof window !== 'undefined') window.generateColumnDefs = generateColumnDefs;
@@ -1205,7 +1198,8 @@ function setGridColumnDefsForTab(tabName) {
     if (!gridApi || !GRID_DATA_TABS.includes(tabName)) return;
     gridApi.setGridOption('columnDefs', generateColumnDefs(tabName));
     if (lastGridColumnTab !== tabName) {
-        if (typeof gridApi.resetColumnState === 'function') gridApi.resetColumnState();
+        // Column definitions already contain full state; resetting destroys headerCheckboxSelection
+        // if (typeof gridApi.resetColumnState === 'function') gridApi.resetColumnState();
         lastGridColumnTab = tabName;
     }
 }
@@ -2603,7 +2597,6 @@ function initializeAccessibilityGrid(findings) {
         resource_url: f?.resource_url || ''
     }));
     const columnDefs = [
-        { ...BULK_EDITOR_SELECTION_COL },
         { field: 'tier', headerName: 'Tier', width: 72 },
         { field: 'severity', headerName: 'Severity', width: 120, sort: 'asc' },
         {
