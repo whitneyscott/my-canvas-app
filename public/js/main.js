@@ -125,7 +125,13 @@ let pendingRevertSnapshotId = null;
 const REQUEST_CONCURRENCY_LIMIT = 6;
 const BULK_UPDATE_TABS = new Set(['assignments', 'quizzes', 'discussions', 'pages', 'announcements', 'modules']);
 
-const BULK_EDITOR_GRID_ROW_SELECTION = Object.freeze({ mode: 'multiRow', selectAll: 'filtered', headerCheckbox: true, checkboxes: true, enableClickSelection: false, });
+const BULK_EDITOR_GRID_ROW_SELECTION = Object.freeze({
+    mode: 'multiRow',
+    selectAll: 'filtered',
+    headerCheckbox: false,
+    checkboxes: false,
+    enableClickSelection: false,
+});
 
 const BULK_EDITOR_SELECTION_COL = Object.freeze({
     colId: '_bulk_select',
