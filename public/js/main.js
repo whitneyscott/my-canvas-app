@@ -125,13 +125,7 @@ let pendingRevertSnapshotId = null;
 const REQUEST_CONCURRENCY_LIMIT = 6;
 const BULK_UPDATE_TABS = new Set(['assignments', 'quizzes', 'discussions', 'pages', 'announcements', 'modules']);
 
-const BULK_EDITOR_GRID_ROW_SELECTION = Object.freeze({
-    mode: 'multiRow',
-    selectAll: 'filtered',
-    headerCheckbox: false,
-    checkboxes: false,
-    enableClickSelection: false,
-});
+const BULK_EDITOR_GRID_ROW_SELECTION = Object.freeze({ mode: 'multiRow', selectAll: 'filtered', headerCheckbox: true, checkboxes: true, enableClickSelection: false, });
 
 const BULK_EDITOR_SELECTION_COL = Object.freeze({
     colId: '_bulk_select',
@@ -1205,7 +1199,8 @@ function setGridColumnDefsForTab(tabName) {
     if (!gridApi || !GRID_DATA_TABS.includes(tabName)) return;
     gridApi.setGridOption('columnDefs', generateColumnDefs(tabName));
     if (lastGridColumnTab !== tabName) {
-        if (typeof gridApi.resetColumnState === 'function') gridApi.resetColumnState();
+        // Column definitions already contain full state; resetting destroys headerCheckboxSelection
+        // if (typeof gridApi.resetColumnState === 'function') gridApi.resetColumnState();
         lastGridColumnTab = tabName;
     }
 }
