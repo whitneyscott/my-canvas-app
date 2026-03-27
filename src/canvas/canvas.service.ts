@@ -1017,7 +1017,7 @@ export class CanvasService {
   private getAnthropicApiKey(): string {
     const raw = this.config.get<string>('ANTHROPIC_API_KEY');
     if (raw == null) return '';
-    let k = String(raw).trim();
+    let k = String(raw).replace(/\r\n|\r|\n/g, '').trim();
     if (
       (k.startsWith('"') && k.endsWith('"') && k.length > 2) ||
       (k.startsWith("'") && k.endsWith("'") && k.length > 2)
