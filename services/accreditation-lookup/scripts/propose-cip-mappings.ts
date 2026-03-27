@@ -61,7 +61,7 @@ async function proposeForAccreditorSync(
     staticBlock: STATIC_BLOCK,
     dynamicBlock: buildDynamicBlock(a),
     agg,
-    label: `propose-cip acc=${a.id}`,
+    meta: { context: 'accreditation_propose_cip_sync', accreditorId: a.id },
   });
   const rows = parseMappingJson(text.trim());
   return rows.map((x) => ({ accreditor_id: a.id, ...x }));
@@ -90,8 +90,11 @@ async function runBatchMode(
       ],
     },
   }));
-  const { id: batchId } = await submitMessageBatch({ apiKey, requests });
-  console.log(`[batch] submitted batch_id=${batchId}`);
+  const { id: batchId } = await submitMessageBatch({
+    apiKey,
+    requests,
+    logContext: 'accreditation_propose_cip_batch_submit',
+  });
   const { results_url: resultsUrl } = await pollMessageBatch(apiKey, batchId);
   if (!resultsUrl) throw new Error('Batch ended without results_url');
   const lines = await fetchBatchResultsJsonl(resultsUrl, apiKey);
@@ -113,7 +116,12 @@ async function runBatchMode(
       parsed.map((x) => ({ accreditor_id: accId, ...x })),
     );
     const usage = (row.result as { message?: { usage?: unknown } } | undefined)?.message?.usage;
-    if (usage) recordUsage(agg, usage, { model, label: `batch acc=${accId}` });
+    if (usage)
+      recordUsage(agg, usage, {
+        model,
+        context: 'accreditation_propose_cip_batch_result',
+        accreditorId: accId,
+      });
   }
   for (const a of accreditors) {
     if (!out.has(a.id)) out.set(a.id, []);
@@ -161,7 +169,7 @@ async function main() {
   writeFileSync(OUTPUT_PATH, JSON.stringify(output, null, 2));
   console.log(`Wrote ${OUTPUT_PATH} (${mappings.length} mappings)`);
   console.log(
-    `[Anthropic] run_total in=${agg.input} out=${agg.output} cache_read=${agg.cacheRead} cache_write=${agg.cacheWrite} calls=${agg.calls}`,
+    `[Anthropic] ctx=accreditation_propose_cip_run_total in=${agg.input} out=${agg.output} cache_read=${agg.cacheRead} cache_write=${agg.cacheWrite} calls=${agg.calls}`,
   );
 }
 

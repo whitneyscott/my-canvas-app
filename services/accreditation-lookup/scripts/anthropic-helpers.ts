@@ -14,7 +14,17 @@ export function emptyUsageAgg(): AnthropicUsageAgg {
   return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, calls: 0 };
 }
 
-export function recordUsage(agg: AnthropicUsageAgg, usage: unknown, meta: { model: string; label?: string }): void {
+export type AnthropicScriptCallMeta = {
+  context: string;
+  model: string;
+  accreditorId?: number;
+};
+
+export function recordUsage(
+  agg: AnthropicUsageAgg,
+  usage: unknown,
+  meta: AnthropicScriptCallMeta,
+): void {
   const u = usage as
     | {
         input_tokens?: number;
@@ -34,8 +44,9 @@ export function recordUsage(agg: AnthropicUsageAgg, usage: unknown, meta: { mode
   agg.calls += 1;
   const bits = [
     '[Anthropic]',
-    meta.label ? `label=${meta.label}` : '',
+    `ctx=${meta.context}`,
     `model=${meta.model}`,
+    meta.accreditorId != null ? `accreditor_id=${meta.accreditorId}` : '',
     `in=${input}`,
     `out=${output}`,
     cr ? `cache_read=${cr}` : '',
@@ -73,7 +84,7 @@ export async function messagesCreateCached(opts: {
   staticBlock: string;
   dynamicBlock: string;
   agg: AnthropicUsageAgg;
-  label: string;
+  meta: { context: string; accreditorId?: number };
 }): Promise<{ text: string }> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -98,7 +109,11 @@ export async function messagesCreateCached(opts: {
     throw new Error(`Claude API failed (${res.status}): ${JSON.stringify(raw).slice(0, 400)}`);
   }
   const payload = raw as { content?: Array<{ type?: string; text?: string }>; usage?: unknown };
-  recordUsage(opts.agg, payload.usage, { model: opts.model, label: opts.label });
+  recordUsage(opts.agg, payload.usage, {
+    model: opts.model,
+    context: opts.meta.context,
+    accreditorId: opts.meta.accreditorId,
+  });
   const text = Array.isArray(payload?.content)
     ? payload.content.filter((c) => c?.type === 'text' && c?.text).map((c) => c.text || '').join('\n')
     : '';
@@ -117,6 +132,7 @@ export type BatchResultLine = {
 export async function submitMessageBatch(opts: {
   apiKey: string;
   requests: Array<{ custom_id: string; params: Record<string, unknown> }>;
+  logContext?: string;
 }): Promise<{ id: string }> {
   const res = await fetch('https://api.anthropic.com/v1/messages/batches', {
     method: 'POST',
@@ -127,6 +143,8 @@ export async function submitMessageBatch(opts: {
   if (!res.ok) throw new Error(`Batch create failed (${res.status}): ${JSON.stringify(raw).slice(0, 400)}`);
   const id = (raw as { id?: string }).id;
   if (!id) throw new Error('Batch create missing id');
+  const ctx = opts.logContext || 'accreditation_batch_submit';
+  console.log(`[Anthropic] ctx=${ctx} batch_id=${id} requests=${opts.requests.length}`);
   return { id };
 }
 

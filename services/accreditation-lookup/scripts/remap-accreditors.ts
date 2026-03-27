@@ -186,8 +186,12 @@ async function step3AiMapping(
           ],
         },
       }));
-      const { id: batchId } = await submitMessageBatch({ apiKey, requests });
-      console.log(`[Step 3] batch submitted batch_id=${batchId}`);
+      const { id: batchId } = await submitMessageBatch({
+        apiKey,
+        requests,
+        logContext: 'accreditation_remap_cip_batch_submit',
+      });
+      console.log(`[Step 3] batch_id=${batchId}`);
       const { results_url: resultsUrl } = await pollMessageBatch(apiKey, batchId);
       if (!resultsUrl) throw new Error('Batch ended without results_url');
       const lines = await fetchBatchResultsJsonl(resultsUrl, apiKey);
@@ -199,7 +203,12 @@ async function step3AiMapping(
         const text = extractBatchMessageText(row);
         byId.set(accId, text);
         const usage = (row.result as { message?: { usage?: unknown } } | undefined)?.message?.usage;
-        if (usage) recordUsage(agg, usage, { model, label: `remap-batch acc=${accId}` });
+        if (usage)
+          recordUsage(agg, usage, {
+            model,
+            context: 'accreditation_remap_cip_batch_result',
+            accreditorId: accId,
+          });
       }
       for (let i = 0; i < accreditors.length; i++) {
         const a = accreditors[i];
@@ -249,7 +258,7 @@ async function step3AiMapping(
             staticBlock: STEP3_STATIC,
             dynamicBlock: buildStep3Dynamic(a),
             agg,
-            label: `remap-sync acc=${a.id}`,
+            meta: { context: 'accreditation_remap_cip_sync', accreditorId: a.id },
           });
           const json = text.replace(/```json?\n?/g, '').replace(/```\n?$/g, '').trim();
           let arr: { cip_2_digit?: string; mapping_type?: string }[] = [];
@@ -291,7 +300,7 @@ async function step3AiMapping(
   }
 
   console.log(
-    `[Step 3] Anthropic run_total in=${agg.input} out=${agg.output} cache_read=${agg.cacheRead} cache_write=${agg.cacheWrite} calls=${agg.calls}`,
+    `[Anthropic] ctx=accreditation_remap_cip_run_total in=${agg.input} out=${agg.output} cache_read=${agg.cacheRead} cache_write=${agg.cacheWrite} calls=${agg.calls}`,
   );
 
   if (manualReview.length) {
