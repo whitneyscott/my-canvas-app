@@ -1,6 +1,15 @@
 import 'dotenv/config';
-import Anthropic from '@anthropic-ai/sdk';
 import { getPool } from '../src/db/pool';
+import {
+  ANTHROPIC_TEXT_MODEL_DEFAULT,
+  emptyUsageAgg,
+  extractBatchMessageText,
+  fetchBatchResultsJsonl,
+  messagesCreateCached,
+  pollMessageBatch,
+  recordUsage,
+  submitMessageBatch,
+} from './anthropic-helpers';
 
 const EXPLICIT_CIP_REGEX = /\b(\d{2})\.(\d{2})(?:\d{2})?(?!\d)/g;
 const CIP_CODE_REGEX = /CIP\s*[:\s#]*(\d{2})/gi;
@@ -123,6 +132,19 @@ async function step2AlgorithmicMapping(
   return new Set(accreditors.filter((a) => !mappedIds.has(a.id)).map((a) => a.id));
 }
 
+const STEP3_STATIC = `Map this accreditor to CIP 2-digit codes. CIP 2-digit families: 01=Vet, 04=Architecture, 09=Communication, 11=Computer, 13=Education, 14=Engineering, 15=Engineering Tech, 16=Foreign Languages (incl. ASL/interpreting), 19=Family/Consumer, 22=Legal, 25=Library, 26=Biology, 31=Parks/Rec, 42=Psychology, 44=Public Admin, 51=Health Professions, 52=Business, 54=History.
+
+Return JSON array only, no other text. Each object: { "cip_2_digit": "16", "mapping_type": "EXPLICIT" or "INFERRED" }.
+EXPLICIT = clear direct match (e.g. scope explicitly says the field). INFERRED = reasonable inference.
+If you cannot map with confidence, return empty array [].`;
+
+function buildStep3Dynamic(a: { name: string; abbreviation: string | null; raw_scope_text: string }): string {
+  return `Accreditor: ${a.name}${a.abbreviation ? ` (${a.abbreviation})` : ''}
+
+Scope:
+${a.raw_scope_text || '(none)'}`;
+}
+
 async function step3AiMapping(
   pool: Awaited<ReturnType<typeof getPool>>,
   unmappedIds: Set<number>
@@ -133,33 +155,59 @@ async function step3AiMapping(
     return;
   }
 
+  const useBatch = process.argv.includes('--batch') || process.env.ANTHROPIC_BATCH === '1';
+  const model = (process.env.CLAUDE_MODEL || ANTHROPIC_TEXT_MODEL_DEFAULT).trim();
+  const agg = emptyUsageAgg();
+
   const r = await pool.query(
     "SELECT id, name, abbreviation, raw_scope_text FROM accreditors WHERE source = 'CHEA' AND id = ANY($1) ORDER BY id",
     [Array.from(unmappedIds)]
   );
   const accreditors = r.rows as { id: number; name: string; abbreviation: string | null; raw_scope_text: string }[];
-  const client = new Anthropic({ apiKey });
   const poolClient = await pool.connect();
   const manualReview: number[] = [];
 
-  const promptPrefix = `Map this accreditor to CIP 2-digit codes. CIP 2-digit families: 01=Vet, 04=Architecture, 09=Communication, 11=Computer, 13=Education, 14=Engineering, 15=Engineering Tech, 16=Foreign Languages (incl. ASL/interpreting), 19=Family/Consumer, 22=Legal, 25=Library, 26=Biology, 31=Parks/Rec, 42=Psychology, 44=Public Admin, 51=Health Professions, 52=Business, 54=History.
-
-Return JSON array only, no other text. Each object: { "cip_2_digit": "16", "mapping_type": "EXPLICIT" or "INFERRED" }.
-EXPLICIT = clear direct match (e.g. scope explicitly says the field). INFERRED = reasonable inference.
-If you cannot map with confidence, return empty array [].`;
-
   try {
-    for (let i = 0; i < accreditors.length; i++) {
-      const a = accreditors[i];
-      const prompt = `${promptPrefix}\n\nAccreditor: ${a.name}${a.abbreviation ? ` (${a.abbreviation})` : ''}\n\nScope:\n${a.raw_scope_text || '(none)'}`;
-
-      try {
-        const msg = await client.messages.create({
-          model: 'claude-sonnet-4-6',
+    if (useBatch) {
+      const requests = accreditors.map((a) => ({
+        custom_id: `remap-${a.id}`,
+        params: {
+          model,
           max_tokens: 512,
-          messages: [{ role: 'user', content: prompt }],
-        });
-        const text = (msg.content[0] as { type: string; text: string }).text.trim();
+          temperature: 0.1,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: STEP3_STATIC, cache_control: { type: 'ephemeral' } },
+                { type: 'text', text: buildStep3Dynamic(a) },
+              ],
+            },
+          ],
+        },
+      }));
+      const { id: batchId } = await submitMessageBatch({ apiKey, requests });
+      console.log(`[Step 3] batch submitted batch_id=${batchId}`);
+      const { results_url: resultsUrl } = await pollMessageBatch(apiKey, batchId);
+      if (!resultsUrl) throw new Error('Batch ended without results_url');
+      const lines = await fetchBatchResultsJsonl(resultsUrl, apiKey);
+      const byId = new Map<number, string>();
+      for (const row of lines) {
+        const idStr = row.custom_id?.replace(/^remap-/, '') || '';
+        const accId = parseInt(idStr, 10);
+        if (!Number.isFinite(accId)) continue;
+        const text = extractBatchMessageText(row);
+        byId.set(accId, text);
+        const usage = (row.result as { message?: { usage?: unknown } } | undefined)?.message?.usage;
+        if (usage) recordUsage(agg, usage, { model, label: `remap-batch acc=${accId}` });
+      }
+      for (let i = 0; i < accreditors.length; i++) {
+        const a = accreditors[i];
+        const text = (byId.get(a.id) || '').trim();
+        if (!text) {
+          manualReview.push(a.id);
+          continue;
+        }
         const json = text.replace(/```json?\n?/g, '').replace(/```\n?$/g, '').trim();
         let arr: { cip_2_digit?: string; mapping_type?: string }[] = [];
         try {
@@ -172,13 +220,11 @@ If you cannot map with confidence, return empty array [].`;
           manualReview.push(a.id);
           continue;
         }
-
         const inserted = arr.filter((x) => x && typeof x.cip_2_digit === 'string');
         if (inserted.length === 0) {
           manualReview.push(a.id);
           continue;
         }
-
         for (const x of inserted) {
           const cip2 = String(x.cip_2_digit).padStart(2, '0').replace(/\D/g, '').slice(0, 2);
           const mappingType = (x.mapping_type || 'INFERRED').toUpperCase() === 'EXPLICIT' ? 'EXPLICIT' : 'INFERRED';
@@ -190,16 +236,63 @@ If you cannot map with confidence, return empty array [].`;
           }
         }
         process.stdout.write(`[Step 3] Mapped ${a.abbreviation || a.name} (${i + 1}/${accreditors.length})\n`);
-      } catch (e) {
-        console.warn(`[Step 3] API error for ${a.abbreviation || a.name}:`, e instanceof Error ? e.message : e);
-        manualReview.push(a.id);
       }
-
-      if (i < accreditors.length - 1) await new Promise((r) => setTimeout(r, 500));
+    } else {
+      for (let i = 0; i < accreditors.length; i++) {
+        const a = accreditors[i];
+        try {
+          const { text } = await messagesCreateCached({
+            apiKey,
+            model,
+            maxTokens: 512,
+            temperature: 0.1,
+            staticBlock: STEP3_STATIC,
+            dynamicBlock: buildStep3Dynamic(a),
+            agg,
+            label: `remap-sync acc=${a.id}`,
+          });
+          const json = text.replace(/```json?\n?/g, '').replace(/```\n?$/g, '').trim();
+          let arr: { cip_2_digit?: string; mapping_type?: string }[] = [];
+          try {
+            arr = JSON.parse(json);
+          } catch {
+            manualReview.push(a.id);
+            continue;
+          }
+          if (!Array.isArray(arr)) {
+            manualReview.push(a.id);
+            continue;
+          }
+          const inserted = arr.filter((x) => x && typeof x.cip_2_digit === 'string');
+          if (inserted.length === 0) {
+            manualReview.push(a.id);
+            continue;
+          }
+          for (const x of inserted) {
+            const cip2 = String(x.cip_2_digit).padStart(2, '0').replace(/\D/g, '').slice(0, 2);
+            const mappingType = (x.mapping_type || 'INFERRED').toUpperCase() === 'EXPLICIT' ? 'EXPLICIT' : 'INFERRED';
+            if (cip2) {
+              await poolClient.query(
+                'INSERT INTO cip_accreditor_mappings (accreditor_id, cip_2_digit, degree_level, mapping_type) VALUES ($1, $2, NULL, $3)',
+                [a.id, cip2, mappingType]
+              );
+            }
+          }
+          process.stdout.write(`[Step 3] Mapped ${a.abbreviation || a.name} (${i + 1}/${accreditors.length})\n`);
+        } catch (e) {
+          console.warn(`[Step 3] API error for ${a.abbreviation || a.name}:`, e instanceof Error ? e.message : e);
+          manualReview.push(a.id);
+        }
+        if (i < accreditors.length - 1) await new Promise((r) => setTimeout(r, 500));
+      }
     }
   } finally {
     poolClient.release();
   }
+
+  console.log(
+    `[Step 3] Anthropic run_total in=${agg.input} out=${agg.output} cache_read=${agg.cacheRead} cache_write=${agg.cacheWrite} calls=${agg.calls}`,
+  );
 
   if (manualReview.length) {
     const r2 = await pool.query('SELECT id, name, abbreviation FROM accreditors WHERE id = ANY($1)', [manualReview]);
