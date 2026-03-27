@@ -469,7 +469,7 @@ export class CanvasController {
     }
   }
 
-  @Put('courses/:courseId/assignments/:id')
+  @Put('courses/:courseId/assignments/:id(\\d+)')
   async updateAssignment(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -489,7 +489,7 @@ export class CanvasController {
     }
   }
 
-  @Put('courses/:courseId/quizzes/:id')
+  @Put('courses/:courseId/quizzes/:id(\\d+)')
   async updateQuiz(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -509,7 +509,7 @@ export class CanvasController {
     }
   }
 
-  @Put('courses/:courseId/discussions/:id')
+  @Put('courses/:courseId/discussions/:id(\\d+)')
   async updateDiscussion(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -538,7 +538,7 @@ export class CanvasController {
     return this.canvasService.updatePage(courseId, id, updates);
   }
 
-  @Put('courses/:courseId/announcements/:id')
+  @Put('courses/:courseId/announcements/:id(\\d+)')
   async updateAnnouncement(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -558,7 +558,7 @@ export class CanvasController {
     }
   }
 
-  @Put('courses/:courseId/modules/:id')
+  @Put('courses/:courseId/modules/:id(\\d+)')
   async updateModule(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
