@@ -40,12 +40,61 @@ type FixRisk = 'low' | 'medium' | 'high';
 type FixStrategy = 'auto' | 'suggested' | 'manual_only';
 type FalsePositiveRisk = 'low' | 'medium' | 'high';
 
+const AccessibilityFixType = {
+  merge_duplicate_links: 'merge_duplicate_links',
+  remove_empty_li: 'remove_empty_li',
+  remove_empty_heading: 'remove_empty_heading',
+  append_new_tab_warning: 'append_new_tab_warning',
+  font_size_min_12: 'font_size_min_12',
+  remove_media_autoplay: 'remove_media_autoplay',
+  remove_text_justify: 'remove_text_justify',
+  set_html_lang: 'set_html_lang',
+  duplicate_id_suffix: 'duplicate_id_suffix',
+  form_required_programmatic: 'form_required_programmatic',
+  form_error_aria_describedby: 'form_error_aria_describedby',
+  fix_inline_text_contrast: 'fix_inline_text_contrast',
+  ai_generate_alt_text: 'ai_generate_alt_text',
+  img_alt_truncate: 'img_alt_truncate',
+  img_alt_filename_suggest: 'img_alt_filename_suggest',
+  ai_img_decorative: 'ai_img_decorative',
+  ai_img_meaningful_alt: 'ai_img_meaningful_alt',
+  ai_img_text_in_image: 'ai_img_text_in_image',
+  ai_replace_ambiguous_link_text: 'ai_replace_ambiguous_link_text',
+  ai_link_text: 'ai_link_text',
+  ai_link_reconstruct: 'ai_link_reconstruct',
+  ai_link_file_hint: 'ai_link_file_hint',
+  ai_link_broken: 'ai_link_broken',
+  ai_heading_shorten: 'ai_heading_shorten',
+  heading_scope_fix: 'heading_scope_fix',
+  heading_h1_demote: 'heading_h1_demote',
+  heading_duplicate_h1_demote: 'heading_duplicate_h1_demote',
+  ai_heading_visual: 'ai_heading_visual',
+  ai_list_semantic: 'ai_list_semantic',
+  ai_table_caption: 'ai_table_caption',
+  ai_table_header: 'ai_table_header',
+  table_scope_fix: 'table_scope_fix',
+  iframe_title_suggest: 'iframe_title_suggest',
+  ai_button_label: 'ai_button_label',
+  ai_form_label: 'ai_form_label',
+  form_placeholder_to_label: 'form_placeholder_to_label',
+  ai_aria_invalid_role: 'ai_aria_invalid_role',
+  ai_aria_hidden_focusable: 'ai_aria_hidden_focusable',
+  ai_lang_invalid: 'ai_lang_invalid',
+  ai_lang_inline: 'ai_lang_inline',
+  ai_color_only_information: 'ai_color_only_information',
+  ai_sensory_only_instructions: 'ai_sensory_only_instructions',
+  ai_landmark_structure: 'ai_landmark_structure',
+  manual_only: 'manual_only',
+} as const;
+
+type AccessibilityFixTypeId = (typeof AccessibilityFixType)[keyof typeof AccessibilityFixType];
+
 interface AccessibilityFixabilityContract {
   auto_fixable: boolean;
   fix_strategy: FixStrategy;
   false_positive_risk: FalsePositiveRisk;
   risk: FixRisk;
-  fix_type: string;
+  fix_type: AccessibilityFixTypeId;
   supports_preview: boolean;
   requires_content_fetch: boolean;
 }
@@ -121,7 +170,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'auto',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'merge_duplicate_links',
+    fix_type: AccessibilityFixType.merge_duplicate_links,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -130,7 +179,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'auto',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'remove_empty_li',
+    fix_type: AccessibilityFixType.remove_empty_li,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -139,7 +188,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'remove_empty_heading',
+    fix_type: AccessibilityFixType.remove_empty_heading,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -148,7 +197,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'auto',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'append_new_tab_warning',
+    fix_type: AccessibilityFixType.append_new_tab_warning,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -157,7 +206,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'auto',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'font_size_min_12',
+    fix_type: AccessibilityFixType.font_size_min_12,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -166,7 +215,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'auto',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'remove_media_autoplay',
+    fix_type: AccessibilityFixType.remove_media_autoplay,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -175,7 +224,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'auto',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'remove_text_justify',
+    fix_type: AccessibilityFixType.remove_text_justify,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -184,7 +233,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'auto',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'set_html_lang',
+    fix_type: AccessibilityFixType.set_html_lang,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -193,7 +242,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'auto',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: 'duplicate_id_suffix',
+    fix_type: AccessibilityFixType.duplicate_id_suffix,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -202,7 +251,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'auto',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'form_required_programmatic',
+    fix_type: AccessibilityFixType.form_required_programmatic,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -211,7 +260,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'auto',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'form_error_aria_describedby',
+    fix_type: AccessibilityFixType.form_error_aria_describedby,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -220,7 +269,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'auto',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'fix_inline_text_contrast',
+    fix_type: AccessibilityFixType.fix_inline_text_contrast,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -229,7 +278,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'auto',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'fix_inline_text_contrast',
+    fix_type: AccessibilityFixType.fix_inline_text_contrast,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -238,7 +287,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: 'ai_generate_alt_text',
+    fix_type: AccessibilityFixType.ai_generate_alt_text,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -247,7 +296,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'img_alt_truncate',
+    fix_type: AccessibilityFixType.img_alt_truncate,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -256,7 +305,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'img_alt_filename_suggest',
+    fix_type: AccessibilityFixType.img_alt_filename_suggest,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -265,7 +314,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'ai_img_decorative',
+    fix_type: AccessibilityFixType.ai_img_decorative,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -274,7 +323,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'ai_img_meaningful_alt',
+    fix_type: AccessibilityFixType.ai_img_meaningful_alt,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -283,7 +332,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'ai_img_text_in_image',
+    fix_type: AccessibilityFixType.ai_img_text_in_image,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -292,7 +341,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'ai_replace_ambiguous_link_text',
+    fix_type: AccessibilityFixType.ai_replace_ambiguous_link_text,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -301,7 +350,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: 'ai_link_text',
+    fix_type: AccessibilityFixType.ai_link_text,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -310,7 +359,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'ai_link_reconstruct',
+    fix_type: AccessibilityFixType.ai_link_reconstruct,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -319,7 +368,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'ai_link_file_hint',
+    fix_type: AccessibilityFixType.ai_link_file_hint,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -328,7 +377,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'ai_link_broken',
+    fix_type: AccessibilityFixType.ai_link_broken,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -337,7 +386,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'ai_heading_shorten',
+    fix_type: AccessibilityFixType.ai_heading_shorten,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -346,7 +395,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'heading_scope_fix',
+    fix_type: AccessibilityFixType.heading_scope_fix,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -355,7 +404,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'heading_h1_demote',
+    fix_type: AccessibilityFixType.heading_h1_demote,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -364,7 +413,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'heading_duplicate_h1_demote',
+    fix_type: AccessibilityFixType.heading_duplicate_h1_demote,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -373,7 +422,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'ai_heading_visual',
+    fix_type: AccessibilityFixType.ai_heading_visual,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -382,7 +431,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'ai_list_semantic',
+    fix_type: AccessibilityFixType.ai_list_semantic,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -391,7 +440,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'ai_table_caption',
+    fix_type: AccessibilityFixType.ai_table_caption,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -400,7 +449,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: 'ai_table_header',
+    fix_type: AccessibilityFixType.ai_table_header,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -409,7 +458,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'table_scope_fix',
+    fix_type: AccessibilityFixType.table_scope_fix,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -418,7 +467,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'iframe_title_suggest',
+    fix_type: AccessibilityFixType.iframe_title_suggest,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -427,7 +476,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: 'ai_button_label',
+    fix_type: AccessibilityFixType.ai_button_label,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -436,7 +485,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: 'ai_form_label',
+    fix_type: AccessibilityFixType.ai_form_label,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -445,7 +494,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'form_placeholder_to_label',
+    fix_type: AccessibilityFixType.form_placeholder_to_label,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -454,7 +503,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'ai_aria_invalid_role',
+    fix_type: AccessibilityFixType.ai_aria_invalid_role,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -463,7 +512,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: 'ai_aria_hidden_focusable',
+    fix_type: AccessibilityFixType.ai_aria_hidden_focusable,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -472,7 +521,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'ai_lang_invalid',
+    fix_type: AccessibilityFixType.ai_lang_invalid,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -481,7 +530,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: 'ai_lang_inline',
+    fix_type: AccessibilityFixType.ai_lang_inline,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -490,7 +539,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: 'ai_color_only_information',
+    fix_type: AccessibilityFixType.ai_color_only_information,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -499,7 +548,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'ai_sensory_only_instructions',
+    fix_type: AccessibilityFixType.ai_sensory_only_instructions,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -508,7 +557,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'suggested',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'ai_landmark_structure',
+    fix_type: AccessibilityFixType.ai_landmark_structure,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -517,7 +566,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'manual_only',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'manual_only',
+    fix_type: AccessibilityFixType.manual_only,
     supports_preview: false,
     requires_content_fetch: false,
   },
@@ -526,7 +575,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'manual_only',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'manual_only',
+    fix_type: AccessibilityFixType.manual_only,
     supports_preview: false,
     requires_content_fetch: false,
   },
@@ -535,7 +584,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'manual_only',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: 'manual_only',
+    fix_type: AccessibilityFixType.manual_only,
     supports_preview: false,
     requires_content_fetch: false,
   },
@@ -544,7 +593,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'manual_only',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: 'manual_only',
+    fix_type: AccessibilityFixType.manual_only,
     supports_preview: false,
     requires_content_fetch: false,
   },
@@ -553,7 +602,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'manual_only',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'manual_only',
+    fix_type: AccessibilityFixType.manual_only,
     supports_preview: false,
     requires_content_fetch: false,
   },
@@ -562,7 +611,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'manual_only',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: 'manual_only',
+    fix_type: AccessibilityFixType.manual_only,
     supports_preview: false,
     requires_content_fetch: false,
   },
@@ -571,7 +620,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'manual_only',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'manual_only',
+    fix_type: AccessibilityFixType.manual_only,
     supports_preview: false,
     requires_content_fetch: false,
   },
@@ -580,7 +629,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'manual_only',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'manual_only',
+    fix_type: AccessibilityFixType.manual_only,
     supports_preview: false,
     requires_content_fetch: false,
   },
@@ -589,7 +638,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'manual_only',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'manual_only',
+    fix_type: AccessibilityFixType.manual_only,
     supports_preview: false,
     requires_content_fetch: false,
   },
@@ -598,7 +647,7 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'manual_only',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: 'manual_only',
+    fix_type: AccessibilityFixType.manual_only,
     supports_preview: false,
     requires_content_fetch: true,
   },
@@ -607,21 +656,21 @@ const ACCESSIBILITY_FIXABILITY_MAP: Record<
     fix_strategy: 'manual_only',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: 'manual_only',
+    fix_type: AccessibilityFixType.manual_only,
     supports_preview: false,
     requires_content_fetch: false,
   },
 };
 
-const ACCESSIBILITY_AI_GUIDED_FIX_TYPES = new Set<string>([
-  'ai_landmark_structure',
-  'ai_img_text_in_image',
-  'ai_aria_invalid_role',
-  'ai_aria_hidden_focusable',
-  'ai_lang_invalid',
-  'ai_lang_inline',
-  'ai_color_only_information',
-  'ai_sensory_only_instructions',
+const ACCESSIBILITY_AI_GUIDED_FIX_TYPES = new Set<AccessibilityFixTypeId>([
+  AccessibilityFixType.ai_landmark_structure,
+  AccessibilityFixType.ai_img_text_in_image,
+  AccessibilityFixType.ai_aria_invalid_role,
+  AccessibilityFixType.ai_aria_hidden_focusable,
+  AccessibilityFixType.ai_lang_invalid,
+  AccessibilityFixType.ai_lang_inline,
+  AccessibilityFixType.ai_color_only_information,
+  AccessibilityFixType.ai_sensory_only_instructions,
 ]);
 
 interface AccreditationStandardNode {
@@ -11134,78 +11183,105 @@ export class CanvasService {
 
   private runFixExecutor(
     html: string,
-    fixType: string,
+    fixType: AccessibilityFixTypeId,
   ): {
     newHtml: string;
     changes: Array<{ before: string; after: string }>;
   } | null {
     switch (fixType) {
-      case 'merge_duplicate_links':
+      case AccessibilityFixType.merge_duplicate_links:
         return this.applyMergeDuplicateLinks(html);
-      case 'remove_empty_li':
+      case AccessibilityFixType.remove_empty_li:
         return this.applyRemoveEmptyLi(html);
-      case 'remove_empty_heading':
+      case AccessibilityFixType.remove_empty_heading:
         return this.applyRemoveEmptyHeading(html);
-      case 'append_new_tab_warning':
+      case AccessibilityFixType.append_new_tab_warning:
         return this.applyAppendNewTabWarning(html);
-      case 'set_html_lang': {
+      case AccessibilityFixType.set_html_lang: {
         const r = this.applySetHtmlLang(html);
         return { newHtml: r.newHtml, changes: r.changes };
       }
-      case 'remove_text_justify':
+      case AccessibilityFixType.remove_text_justify:
         return this.applyRemoveTextJustify(html);
-      case 'font_size_min_12':
+      case AccessibilityFixType.font_size_min_12:
         return this.applyFontSizeMin12(html);
-      case 'fix_inline_text_contrast':
+      case AccessibilityFixType.fix_inline_text_contrast:
         return this.applyFixInlineTextContrast(html);
-      case 'remove_media_autoplay':
+      case AccessibilityFixType.remove_media_autoplay:
         return this.applyRemoveMediaAutoplay(html);
-      case 'form_required_programmatic': {
+      case AccessibilityFixType.form_required_programmatic: {
         const r = this.applyFormRequiredProgrammatic(html);
         return r ? { newHtml: r.newHtml, changes: r.changes } : null;
       }
-      case 'form_error_aria_describedby': {
+      case AccessibilityFixType.form_error_aria_describedby: {
         const r = this.applyFormErrorAriaDescribedby(html);
         return r ? { newHtml: r.newHtml, changes: r.changes } : null;
       }
-      case 'img_alt_filename_suggest': {
+      case AccessibilityFixType.img_alt_filename_suggest: {
         const r = this.applyImgAltFilenameSuggest(html);
         return { newHtml: r.newHtml, changes: r.changes };
       }
-      case 'img_alt_truncate': {
+      case AccessibilityFixType.img_alt_truncate: {
         const r = this.applyImgAltTruncate(html);
         return { newHtml: r.newHtml, changes: r.changes };
       }
-      case 'heading_h1_demote': {
+      case AccessibilityFixType.heading_h1_demote: {
         const r = this.applyHeadingH1Demote(html);
         return { newHtml: r.newHtml, changes: r.changes };
       }
-      case 'heading_duplicate_h1_demote': {
+      case AccessibilityFixType.heading_duplicate_h1_demote: {
         const r = this.applyHeadingDuplicateH1Demote(html);
         return { newHtml: r.newHtml, changes: r.changes };
       }
-      case 'iframe_title_suggest': {
+      case AccessibilityFixType.iframe_title_suggest: {
         const r = this.applyIframeTitleSuggest(html);
         return { newHtml: r.newHtml, changes: r.changes };
       }
-      case 'duplicate_id_suffix': {
+      case AccessibilityFixType.duplicate_id_suffix: {
         const r = this.applyDuplicateIdSuffix(html);
         return r ? { newHtml: r.newHtml, changes: r.changes } : null;
       }
-      case 'form_placeholder_to_label': {
+      case AccessibilityFixType.form_placeholder_to_label: {
         const r = this.applyFormPlaceholderToLabel(html);
         return r ? { newHtml: r.newHtml, changes: r.changes } : null;
       }
-      case 'table_scope_fix': {
+      case AccessibilityFixType.table_scope_fix: {
         const r = this.applyTableScopeFix(html);
         return r ? { newHtml: r.newHtml, changes: r.changes } : null;
       }
-      case 'heading_scope_fix': {
+      case AccessibilityFixType.heading_scope_fix: {
         const r = this.applyHeadingScopeFix(html);
         return r ? { newHtml: r.newHtml, changes: r.changes } : null;
       }
-      default:
+      case AccessibilityFixType.ai_generate_alt_text:
+      case AccessibilityFixType.ai_img_decorative:
+      case AccessibilityFixType.ai_img_meaningful_alt:
+      case AccessibilityFixType.ai_img_text_in_image:
+      case AccessibilityFixType.ai_replace_ambiguous_link_text:
+      case AccessibilityFixType.ai_link_text:
+      case AccessibilityFixType.ai_link_reconstruct:
+      case AccessibilityFixType.ai_link_file_hint:
+      case AccessibilityFixType.ai_link_broken:
+      case AccessibilityFixType.ai_heading_shorten:
+      case AccessibilityFixType.ai_heading_visual:
+      case AccessibilityFixType.ai_list_semantic:
+      case AccessibilityFixType.ai_table_caption:
+      case AccessibilityFixType.ai_table_header:
+      case AccessibilityFixType.ai_button_label:
+      case AccessibilityFixType.ai_form_label:
+      case AccessibilityFixType.ai_aria_invalid_role:
+      case AccessibilityFixType.ai_aria_hidden_focusable:
+      case AccessibilityFixType.ai_lang_invalid:
+      case AccessibilityFixType.ai_lang_inline:
+      case AccessibilityFixType.ai_color_only_information:
+      case AccessibilityFixType.ai_sensory_only_instructions:
+      case AccessibilityFixType.ai_landmark_structure:
+      case AccessibilityFixType.manual_only:
         return null;
+      default: {
+        const _exhaustive: never = fixType;
+        throw new Error(`Unhandled AccessibilityFixType: ${String(_exhaustive)}`);
+      }
     }
   }
 
@@ -11492,7 +11568,7 @@ export class CanvasService {
           suggestion,
         );
       }
-    } else if (contract.fix_type === 'set_html_lang') {
+    } else if (contract.fix_type === AccessibilityFixType.set_html_lang) {
       const nonEnglish = this.looksNonEnglishText(
         content.html.replace(/<[^>]+>/g, ' '),
       );
