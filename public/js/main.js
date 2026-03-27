@@ -5020,14 +5020,14 @@ function executeDateShift() {
                 else dateObj.setHours(23, 59, 0, 0);
                 if (field === 'unlock_at') dateObj.setHours(dateObj.getHours() - 1, dateObj.getMinutes(), 0, 0);
                 else if (field === 'lock_at') dateObj.setHours(dateObj.getHours() + 1, dateObj.getMinutes(), 0, 0);
-                newDateValue = DateUtils.formatForCanvas(dateObj);
+                newDateValue = DateUtils.parseForCanvas(dateObj);
             } else if (currentValue) {
                 const currentDate = new Date(currentValue);
                 if (!isNaN(currentDate.getTime())) {
                     const shiftedDate = new Date(currentDate);
                     shiftedDate.setDate(shiftedDate.getDate() + offsetDaysNum);
                     if (timeOverride) { const [hours, mins] = timeOverride.split(':'); shiftedDate.setHours(parseInt(hours, 10) || 0, parseInt(mins, 10) || 0, 0, 0); }
-                    newDateValue = DateUtils.formatForCanvas(shiftedDate);
+                    newDateValue = DateUtils.parseForCanvas(shiftedDate);
                 }
             } else if (offsetDaysNum !== 0) {
                 const baseDate = new Date();
@@ -5036,7 +5036,7 @@ function executeDateShift() {
                 else baseDate.setHours(23, 59, 0, 0);
                 if (field === 'unlock_at') baseDate.setHours(baseDate.getHours() - 1, baseDate.getMinutes(), 0, 0);
                 else if (field === 'lock_at') baseDate.setHours(baseDate.getHours() + 1, baseDate.getMinutes(), 0, 0);
-                newDateValue = DateUtils.formatForCanvas(baseDate);
+                newDateValue = DateUtils.parseForCanvas(baseDate);
             }
             if (isClearMode || newDateValue !== null) {
                 const snap = createCellSnapshot(rowData, field, currentValue, newDateValue);
