@@ -502,25 +502,12 @@ export class CanvasController {
       };
     },
   ) {
-    if (!body?.finding) {
-      return {
-        action: null,
-        meter: this.canvasService.emptyAccessibilityFixPreviewMeter(),
-      };
-    }
-    try {
-      return await this.canvasService.getAccessibilityFixPreviewItem(
-        id,
-        body.finding,
-      );
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return {
-        action: null,
-        error: msg,
-        meter: this.canvasService.emptyAccessibilityFixPreviewMeter(),
-      };
-    }
+    if (!body?.finding) return { action: null };
+    const action = await this.canvasService.getAccessibilityFixPreviewItem(
+      id,
+      body.finding,
+    );
+    return { action };
   }
 
   @Post('courses/:id/accessibility/fix-apply')
