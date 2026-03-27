@@ -46,6 +46,17 @@ interface AccessibilityScanOptions {
   ruleIds?: string[];
 }
 
+export interface AccessibilityFixPreviewItemMeter {
+  requests: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens: number;
+  cache_creation_input_tokens: number;
+  estimated_input_usd: number;
+  estimated_output_usd: number;
+  estimated_total_usd: number;
+}
+
 type FixRisk = 'low' | 'medium' | 'high';
 type FixStrategy = 'auto' | 'suggested' | 'manual_only';
 type FalsePositiveRisk = 'low' | 'medium' | 'high';
@@ -1007,7 +1018,15 @@ export class CanvasService {
     cacheRead: 0,
     cacheWrite: 0,
     calls: 0,
+    estimatedInputUsd: 0,
+    estimatedOutputUsd: 0,
   };
+
+  private static aiPreviewCapLast = new Map<string, Promise<boolean>>();
+  private static aiPreviewCapUsed = new Map<
+    string,
+    { used: number; exp: number }
+  >();
 
   constructor(
     @Inject(REQUEST) private readonly req: any,
@@ -1017,7 +1036,9 @@ export class CanvasService {
   private getAnthropicApiKey(): string {
     const raw = this.config.get<string>('ANTHROPIC_API_KEY');
     if (raw == null) return '';
-    let k = String(raw).replace(/\r\n|\r|\n/g, '').trim();
+    let k = String(raw)
+      .replace(/\r\n|\r|\n/g, '')
+      .trim();
     if (
       (k.startsWith('"') && k.endsWith('"') && k.length > 2) ||
       (k.startsWith("'") && k.endsWith("'") && k.length > 2)
@@ -1034,6 +1055,218 @@ export class CanvasService {
       'content-type': 'application/json',
       'anthropic-beta': ANTHROPIC_PROMPT_CACHE_BETA,
     };
+  }
+
+  private getAccessibilityAiPreviewCap(): number {
+    const raw = this.config.get<string>('ACCESSIBILITY_AI_PREVIEW_CAP');
+    if (raw === undefined || raw === null) return 5;
+    const t = String(raw).trim();
+    if (t === '') return 5;
+    const n = Number(t);
+    if (!Number.isFinite(n) || n <= 0) return 9e15;
+    return Math.min(Math.floor(n), 1_000_000);
+  }
+
+  private accessibilityPreviewCapField():
+    | { accessibility_ai_preview_cap: number }
+    | Record<string, never> {
+    const c = this.getAccessibilityAiPreviewCap();
+    return c < 9e14 ? { accessibility_ai_preview_cap: c } : {};
+  }
+
+  private static syncConsumeAiPreviewCapSlot(
+    mapKey: string,
+    cap: number,
+  ): boolean {
+    const now = Date.now();
+    const ttl = 15 * 60_000;
+    let row = CanvasService.aiPreviewCapUsed.get(mapKey);
+    if (!row || row.exp <= now) row = { used: 0, exp: now + ttl };
+    if (row.used >= cap) {
+      CanvasService.aiPreviewCapUsed.set(mapKey, row);
+      return false;
+    }
+    row.used++;
+    CanvasService.aiPreviewCapUsed.set(mapKey, row);
+    return true;
+  }
+
+  private tryConsumeAiPreviewCapSlot(
+    previewSessionId: string | undefined,
+  ): Promise<boolean> {
+    const cap = this.getAccessibilityAiPreviewCap();
+    if (cap >= 9e14) return Promise.resolve(true);
+    const sid = String(previewSessionId || '').trim();
+    if (!sid) return Promise.resolve(true);
+    const mapKey = `accAiCap:${sid.slice(0, 240)}`;
+    const prev =
+      CanvasService.aiPreviewCapLast.get(mapKey) ?? Promise.resolve();
+    const next = prev.then(() =>
+      CanvasService.syncConsumeAiPreviewCapSlot(mapKey, cap),
+    );
+    CanvasService.aiPreviewCapLast.set(
+      mapKey,
+      next.catch(() => false),
+    );
+    return next;
+  }
+
+  private modelFamilyPricingUsdPerMtok(model: string): {
+    inputPerMtok: number;
+    outputPerMtok: number;
+    cacheReadPerMtok: number;
+    cacheWritePerMtok: number;
+  } {
+    const m = String(model || '').toLowerCase();
+    const sonnetOrOpus = m.includes('sonnet') || m.includes('opus');
+    if (sonnetOrOpus) {
+      return {
+        inputPerMtok:
+          Number(
+            this.config.get<string>('ANTHROPIC_USD_PER_MTOK_SONNET_INPUT') ??
+              '3',
+          ) || 0,
+        outputPerMtok:
+          Number(
+            this.config.get<string>('ANTHROPIC_USD_PER_MTOK_SONNET_OUTPUT') ??
+              '15',
+          ) || 0,
+        cacheReadPerMtok:
+          Number(
+            this.config.get<string>(
+              'ANTHROPIC_USD_PER_MTOK_SONNET_CACHE_READ',
+            ) ?? '0.3',
+          ) || 0,
+        cacheWritePerMtok:
+          Number(
+            this.config.get<string>(
+              'ANTHROPIC_USD_PER_MTOK_SONNET_CACHE_WRITE',
+            ) ?? '3.75',
+          ) || 0,
+      };
+    }
+    return {
+      inputPerMtok:
+        Number(
+          this.config.get<string>('ANTHROPIC_USD_PER_MTOK_INPUT') ?? '1',
+        ) || 0,
+      outputPerMtok:
+        Number(
+          this.config.get<string>('ANTHROPIC_USD_PER_MTOK_OUTPUT') ?? '5',
+        ) || 0,
+      cacheReadPerMtok:
+        Number(
+          this.config.get<string>('ANTHROPIC_USD_PER_MTOK_CACHE_READ') ?? '0.1',
+        ) || 0,
+      cacheWritePerMtok:
+        Number(
+          this.config.get<string>('ANTHROPIC_USD_PER_MTOK_CACHE_WRITE') ??
+            '1.25',
+        ) || 0,
+    };
+  }
+
+  private estimatedUsdForAnthropicUsageChunk(
+    model: string,
+    input: number,
+    output: number,
+    cacheRead: number,
+    cacheWrite: number,
+  ): { inUsd: number; outUsd: number } {
+    const p = this.modelFamilyPricingUsdPerMtok(model);
+    const div = 1e6;
+    const inUsd =
+      (input * p.inputPerMtok) / div +
+      (cacheRead * p.cacheReadPerMtok) / div +
+      (cacheWrite * p.cacheWritePerMtok) / div;
+    const outUsd = (output * p.outputPerMtok) / div;
+    return { inUsd, outUsd };
+  }
+
+  private snapshotAnthropicUsage(): {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    calls: number;
+    estimatedInputUsd: number;
+    estimatedOutputUsd: number;
+  } {
+    const s = this.anthropicUsageSession;
+    return {
+      input: s.input,
+      output: s.output,
+      cacheRead: s.cacheRead,
+      cacheWrite: s.cacheWrite,
+      calls: s.calls,
+      estimatedInputUsd: s.estimatedInputUsd,
+      estimatedOutputUsd: s.estimatedOutputUsd,
+    };
+  }
+
+  private meterSinceAnthropicSnapshot(start: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    calls: number;
+    estimatedInputUsd: number;
+    estimatedOutputUsd: number;
+  }): AccessibilityFixPreviewItemMeter {
+    const s = this.anthropicUsageSession;
+    const input_tokens = s.input - start.input;
+    const output_tokens = s.output - start.output;
+    const cache_read_input_tokens = s.cacheRead - start.cacheRead;
+    const cache_creation_input_tokens = s.cacheWrite - start.cacheWrite;
+    const requests = s.calls - start.calls;
+    const estimated_input_usd = s.estimatedInputUsd - start.estimatedInputUsd;
+    const estimated_output_usd =
+      s.estimatedOutputUsd - start.estimatedOutputUsd;
+    return {
+      requests,
+      input_tokens,
+      output_tokens,
+      cache_read_input_tokens,
+      cache_creation_input_tokens,
+      estimated_input_usd,
+      estimated_output_usd,
+      estimated_total_usd: estimated_input_usd + estimated_output_usd,
+    };
+  }
+
+  private emptyFixPreviewMeter(): AccessibilityFixPreviewItemMeter {
+    return {
+      requests: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+      estimated_input_usd: 0,
+      estimated_output_usd: 0,
+      estimated_total_usd: 0,
+    };
+  }
+
+  private sumFixPreviewMeters(
+    a: AccessibilityFixPreviewItemMeter,
+    b: AccessibilityFixPreviewItemMeter,
+  ): AccessibilityFixPreviewItemMeter {
+    return {
+      requests: a.requests + b.requests,
+      input_tokens: a.input_tokens + b.input_tokens,
+      output_tokens: a.output_tokens + b.output_tokens,
+      cache_read_input_tokens:
+        a.cache_read_input_tokens + b.cache_read_input_tokens,
+      cache_creation_input_tokens:
+        a.cache_creation_input_tokens + b.cache_creation_input_tokens,
+      estimated_input_usd: a.estimated_input_usd + b.estimated_input_usd,
+      estimated_output_usd: a.estimated_output_usd + b.estimated_output_usd,
+      estimated_total_usd: a.estimated_total_usd + b.estimated_total_usd,
+    };
+  }
+
+  emptyAccessibilityFixPreviewMeter(): AccessibilityFixPreviewItemMeter {
+    return this.emptyFixPreviewMeter();
   }
 
   private recordAnthropicUsage(
@@ -1062,6 +1295,15 @@ export class CanvasService {
     this.anthropicUsageSession.cacheRead += cr;
     this.anthropicUsageSession.cacheWrite += cw;
     this.anthropicUsageSession.calls += 1;
+    const { inUsd, outUsd } = this.estimatedUsdForAnthropicUsageChunk(
+      meta.model,
+      input,
+      output,
+      cr,
+      cw,
+    );
+    this.anthropicUsageSession.estimatedInputUsd += inUsd;
+    this.anthropicUsageSession.estimatedOutputUsd += outUsd;
     const s = this.anthropicUsageSession;
     const bits = [
       '[Anthropic]',
@@ -1120,17 +1362,28 @@ export class CanvasService {
         },
       });
     }
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: this.anthropicHeaders(key),
-      body: JSON.stringify({
-        model: opts.model,
-        max_tokens: opts.maxTokens,
-        temperature: opts.temperature,
-        messages: [{ role: 'user', content: userContent }],
-      }),
-    });
-    const raw = await res.json().catch(() => ({}));
+    const backoff429Ms = [5000, 15000, 30000];
+    let raw: Record<string, unknown> = {};
+    let res!: globalThis.Response;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: this.anthropicHeaders(key),
+        body: JSON.stringify({
+          model: opts.model,
+          max_tokens: opts.maxTokens,
+          temperature: opts.temperature,
+          messages: [{ role: 'user', content: userContent }],
+        }),
+      });
+      raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (res.status === 429 && attempt < 2) {
+        const jitter = Math.random() * 2000;
+        await new Promise((r) => setTimeout(r, backoff429Ms[attempt] + jitter));
+        continue;
+      }
+      break;
+    }
     if (!res.ok) {
       const text =
         typeof raw === 'object' && raw && 'error' in raw
@@ -2435,6 +2688,12 @@ export class CanvasService {
     );
 
     return pagesWithBody;
+  }
+
+  async getCoursePagesListOnly(courseId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const url = `${baseUrl}/courses/${courseId}/pages?per_page=100`;
+    return await this.fetchPaginatedData(url, token);
   }
 
   async getCourseAnnouncements(courseId: number) {
@@ -9174,7 +9433,7 @@ export class CanvasService {
     resourceTitle: string;
   } | null> {
     if (resourceType === 'pages') {
-      const pages = await this.getCoursePages(courseId);
+      const pages = await this.getCoursePagesListOnly(courseId);
       const page = (Array.isArray(pages) ? pages : []).find(
         (p: any) =>
           String(p?.id ?? p?.page_id ?? '') === resourceId ||
@@ -12088,18 +12347,28 @@ export class CanvasService {
       rule_id: string;
       snippet?: string | null;
     }>,
-  ): Promise<{ actions: Array<any> }> {
+    previewSessionId?: string,
+  ): Promise<{
+    actions: Array<any>;
+    meter: AccessibilityFixPreviewItemMeter;
+  }> {
     const seen = new Set<string>();
     const actions: Array<any> = [];
+    let meter = this.emptyFixPreviewMeter();
     for (const f of findings) {
       const key = `${f.resource_type}:${f.resource_id}:${f.rule_id}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const action = await this.getAccessibilityFixPreviewItem(courseId, f);
+      const { action, meter: m } = await this.getAccessibilityFixPreviewItem(
+        courseId,
+        f,
+        previewSessionId,
+      );
+      meter = this.sumFixPreviewMeters(meter, m);
       if (action) actions.push(action);
     }
 
-    return { actions };
+    return { actions, meter };
   }
 
   async getAccessibilityFixPreviewItem(
@@ -12111,15 +12380,33 @@ export class CanvasService {
       rule_id: string;
       snippet?: string | null;
     },
-  ): Promise<any | null> {
+    previewSessionId?: string,
+  ): Promise<{
+    action: any | null;
+    meter: AccessibilityFixPreviewItemMeter;
+    accessibility_ai_preview_cap?: number;
+  }> {
     const contract = ACCESSIBILITY_FIXABILITY_MAP[f.rule_id];
-    if (!contract?.supports_preview) return null;
+    if (!contract?.supports_preview) {
+      return {
+        action: null,
+        meter: this.emptyFixPreviewMeter(),
+        ...this.accessibilityPreviewCapField(),
+      };
+    }
     const content = await this.fetchAccessibilityResourceContent(
       courseId,
       f.resource_type,
       f.resource_id,
     );
-    if (!content) return null;
+    if (!content) {
+      return {
+        action: null,
+        meter: this.emptyFixPreviewMeter(),
+        ...this.accessibilityPreviewCapField(),
+      };
+    }
+    const anthropicUsageStart = this.snapshotAnthropicUsage();
     const crypto = await import('crypto');
     const hash = (s: string) =>
       crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
@@ -12140,67 +12427,84 @@ export class CanvasService {
     let requiresReview = false;
     let imageUrl = '';
     let imageFetchFailed = false;
+    let aiCapSkipped = false;
+    let rateLimited = false;
 
     if (contract.uses_ai) {
-      const isImageRule = contract.is_image_rule;
-      imageUrl = isImageRule ? this.extractFirstImageSrc(content.html) : '';
-      const imagePayload =
-        isImageRule && imageUrl
-          ? await this.fetchImageForVision(imageUrl)
-          : null;
-      if (isImageRule && imageUrl && !imagePayload) imageFetchFailed = true;
-      const htmlPlain = String(content.html || '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      const sliceLen = isImageRule
-        ? ADA_AI_HTML_CONTEXT_IMAGE
-        : ADA_AI_HTML_CONTEXT_TEXT;
-      const staticInstruction = [
-        'You are an ADA accessibility remediation assistant for Canvas course content.',
-        'Return ONLY valid JSON with keys: suggestion, confidence, reasoning, requires_review.',
-        'confidence must be a float between 0 and 1.',
-        'suggestion must be concise and directly applicable to the violation.',
-      ].join('\n');
-      const dynamicContext = [
-        `Rule ID: ${f.rule_id}`,
-        `Resource title: ${resTitle || '(unknown)'}`,
-        `Resource type: ${f.resource_type}`,
-        `Current violating value: ${currentValue}`,
-        `Nearby snippet: ${String(f.snippet || '').slice(0, 500) || '(none)'}`,
-        `HTML context excerpt: ${htmlPlain.slice(0, sliceLen)}`,
-      ].join('\n');
-      try {
-        const ai = await this.callClaudeStructuredSuggestion(
-          { staticInstruction, dynamicContext },
-          {
-            image: imagePayload,
-            ruleId: f.rule_id,
-            resourceType: f.resource_type,
-            useVisionTierModel: contract.is_image_rule,
-          },
-        );
-        suggestion = ai.suggestion;
-        reasoning = ai.reasoning;
-        confidence = ai.confidence;
-        requiresReview = ai.requires_review;
-      } catch (e: any) {
-        suggestion = '';
-        reasoning = '';
-        confidence = 0.2;
-        requiresReview = true;
+      const allowed = await this.tryConsumeAiPreviewCapSlot(previewSessionId);
+      if (!allowed) {
+        aiCapSkipped = true;
         result = {
           newHtml: content.html,
           changes: [],
-          errorNote: e?.message || 'AI suggestion generation failed.',
+          errorNote:
+            'AI preview cap for this session has been reached; this item was not sent to the model.',
         };
-      }
-      if (!result) {
-        result = await this.applySuggestionToHtml(
-          content.html,
-          f.rule_id,
-          suggestion,
-        );
+      } else {
+        const isImageRule = contract.is_image_rule;
+        imageUrl = isImageRule ? this.extractFirstImageSrc(content.html) : '';
+        const imagePayload =
+          isImageRule && imageUrl
+            ? await this.fetchImageForVision(imageUrl)
+            : null;
+        if (isImageRule && imageUrl && !imagePayload) imageFetchFailed = true;
+        const htmlPlain = String(content.html || '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        const sliceLen = isImageRule
+          ? ADA_AI_HTML_CONTEXT_IMAGE
+          : ADA_AI_HTML_CONTEXT_TEXT;
+        const staticInstruction = [
+          'You are an ADA accessibility remediation assistant for Canvas course content.',
+          'Return ONLY valid JSON with keys: suggestion, confidence, reasoning, requires_review.',
+          'confidence must be a float between 0 and 1.',
+          'suggestion must be concise and directly applicable to the violation.',
+        ].join('\n');
+        const dynamicContext = [
+          `Rule ID: ${f.rule_id}`,
+          `Resource title: ${resTitle || '(unknown)'}`,
+          `Resource type: ${f.resource_type}`,
+          `Current violating value: ${currentValue}`,
+          `Nearby snippet: ${String(f.snippet || '').slice(0, 500) || '(none)'}`,
+          `HTML context excerpt: ${htmlPlain.slice(0, sliceLen)}`,
+        ].join('\n');
+        try {
+          const ai = await this.callClaudeStructuredSuggestion(
+            { staticInstruction, dynamicContext },
+            {
+              image: imagePayload,
+              ruleId: f.rule_id,
+              resourceType: f.resource_type,
+              useVisionTierModel: contract.is_image_rule,
+            },
+          );
+          suggestion = ai.suggestion;
+          reasoning = ai.reasoning;
+          confidence = ai.confidence;
+          requiresReview = ai.requires_review;
+        } catch (e: any) {
+          suggestion = '';
+          reasoning = '';
+          confidence = 0.2;
+          requiresReview = true;
+          const msg = e?.message || 'AI suggestion generation failed.';
+          rateLimited = /\b429\b|rate_limit|rate limit/i.test(String(msg));
+          result = {
+            newHtml: content.html,
+            changes: [],
+            errorNote: rateLimited
+              ? '⚠ Rate limited — Claude returned too many requests. Retry this item individually or wait, then run preview again.'
+              : msg,
+          };
+        }
+        if (!result) {
+          result = await this.applySuggestionToHtml(
+            content.html,
+            f.rule_id,
+            suggestion,
+          );
+        }
       }
     } else if (f.rule_id === 'link_file_missing_type_size_hint') {
       const hrefM = content.html.match(
@@ -12341,8 +12645,13 @@ export class CanvasService {
       ];
       suggestion = fixChoices[0].value;
     }
-    if (!result || (result.changes.length === 0 && !result.errorNote))
-      return null;
+    if (!result || (result.changes.length === 0 && !result.errorNote)) {
+      return {
+        action: null,
+        meter: this.meterSinceAnthropicSnapshot(anthropicUsageStart),
+        ...this.accessibilityPreviewCapField(),
+      };
+    }
     const beforeSnippet = result.changes.map((c) => c.before).join('\n---\n');
     const afterSnippet = result.changes.map((c) => c.after).join('\n---\n');
     const actionId = `${hash(content.html)}:${f.resource_type}:${f.resource_id}:${f.rule_id}`;
@@ -12362,47 +12671,55 @@ export class CanvasService {
     const beforeHtml = beforeSnippet;
     const afterHtml = hasError ? '' : afterSnippet;
     return {
-      action_id: actionId,
-      resource_type: f.resource_type,
-      resource_id: f.resource_id,
-      update_key: content.updateKey,
-      resource_title: content.resourceTitle || f.resource_title || '',
-      rule_id: f.rule_id,
-      fix_type: contract.fix_type,
-      fix_strategy: effectiveStrategy,
-      risk: contract.risk,
-      before_html: beforeHtml,
-      after_html: afterHtml,
-      beforeHtml,
-      afterHtml,
-      before_snippet: (
-        currentValue ||
-        beforeHtml ||
-        result.errorNote ||
-        ''
-      ).slice(0, 1000),
-      after_snippet: (suggestion || afterHtml || result.errorNote || '').slice(
-        0,
-        1000,
-      ),
-      content_hash: hash(content.html),
-      proposed_html: hasError ? undefined : result.newHtml,
-      error_note: result.errorNote,
-      suggestion,
-      edited_suggestion: suggestion,
-      reasoning,
-      requires_review: requiresReview,
-      confidence: confidenceResolved.confidence,
-      confidence_tier: confidenceResolved.tier,
-      confidence_override_reason: confidenceResolved.override_reason,
-      image_url: imageUrl || undefined,
-      image_fetch_failed: !!imageFetchFailed,
-      ...(fixChoices?.length
-        ? {
-            fix_choices: fixChoices,
-            fix_choice_intro: fixChoiceIntro,
-          }
-        : {}),
+      action: {
+        action_id: actionId,
+        resource_type: f.resource_type,
+        resource_id: f.resource_id,
+        update_key: content.updateKey,
+        resource_title: content.resourceTitle || f.resource_title || '',
+        rule_id: f.rule_id,
+        fix_type: contract.fix_type,
+        fix_strategy: effectiveStrategy,
+        risk: contract.risk,
+        before_html: beforeHtml,
+        after_html: afterHtml,
+        beforeHtml,
+        afterHtml,
+        before_snippet: (
+          currentValue ||
+          beforeHtml ||
+          result.errorNote ||
+          ''
+        ).slice(0, 1000),
+        after_snippet: (
+          suggestion ||
+          afterHtml ||
+          result.errorNote ||
+          ''
+        ).slice(0, 1000),
+        content_hash: hash(content.html),
+        proposed_html: hasError ? undefined : result.newHtml,
+        error_note: result.errorNote,
+        suggestion,
+        edited_suggestion: suggestion,
+        reasoning,
+        requires_review: requiresReview,
+        confidence: confidenceResolved.confidence,
+        confidence_tier: confidenceResolved.tier,
+        confidence_override_reason: confidenceResolved.override_reason,
+        image_url: imageUrl || undefined,
+        image_fetch_failed: !!imageFetchFailed,
+        ...(aiCapSkipped ? { skip_reason: 'ai_cap_reached' } : {}),
+        ...(rateLimited ? { rate_limited: true } : {}),
+        ...(fixChoices?.length
+          ? {
+              fix_choices: fixChoices,
+              fix_choice_intro: fixChoiceIntro,
+            }
+          : {}),
+      },
+      meter: this.meterSinceAnthropicSnapshot(anthropicUsageStart),
+      ...this.accessibilityPreviewCapField(),
     };
   }
 

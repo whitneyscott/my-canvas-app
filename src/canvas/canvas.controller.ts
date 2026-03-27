@@ -482,10 +482,15 @@ export class CanvasController {
         rule_id: string;
         snippet?: string | null;
       }>;
+      preview_session_id?: string;
     },
   ) {
     const findings = Array.isArray(body?.findings) ? body.findings : [];
-    return this.canvasService.getAccessibilityFixPreview(id, findings);
+    const sid =
+      typeof body?.preview_session_id === 'string'
+        ? body.preview_session_id
+        : undefined;
+    return this.canvasService.getAccessibilityFixPreview(id, findings, sid);
   }
 
   @Post('courses/:id/accessibility/fix-preview-item')
@@ -500,14 +505,33 @@ export class CanvasController {
         rule_id: string;
         snippet?: string | null;
       };
+      preview_session_id?: string;
     },
   ) {
-    if (!body?.finding) return { action: null };
-    const action = await this.canvasService.getAccessibilityFixPreviewItem(
-      id,
-      body.finding,
-    );
-    return { action };
+    if (!body?.finding) {
+      return {
+        action: null,
+        meter: this.canvasService.emptyAccessibilityFixPreviewMeter(),
+      };
+    }
+    const sid =
+      typeof body?.preview_session_id === 'string'
+        ? body.preview_session_id
+        : undefined;
+    try {
+      return await this.canvasService.getAccessibilityFixPreviewItem(
+        id,
+        body.finding,
+        sid,
+      );
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return {
+        action: null,
+        error: msg,
+        meter: this.canvasService.emptyAccessibilityFixPreviewMeter(),
+      };
+    }
   }
 
   @Post('courses/:id/accessibility/fix-apply')

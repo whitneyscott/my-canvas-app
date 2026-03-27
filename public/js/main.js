@@ -123,6 +123,7 @@ let suppressCellChangeLog = false;
 let failedRevertRowIds = new Set();
 let pendingRevertSnapshotId = null;
 const REQUEST_CONCURRENCY_LIMIT = 6;
+const ACCESSIBILITY_FIX_PREVIEW_CONCURRENCY = 3;
 const BULK_UPDATE_TABS = new Set(['assignments', 'quizzes', 'discussions', 'pages', 'announcements', 'modules']);
 
 const BULK_EDITOR_GRID_ROW_SELECTION = Object.freeze({
@@ -748,6 +749,7 @@ const ACCESSIBILITY_RUN_HISTORY_KEY = 'accessibility:runHistory:v1';
 let accessibilityGridApi = null;
 let accessibilityFixPreviewActions = null;
 let accessibilityFixGenerationInProgress = false;
+let accessibilityFixQueueFilters = { ruleId: '', resourceType: '', tier: '' };
 const ACCESSIBILITY_CANVAS_PARITY_RULES = [
     'adjacent_duplicate_links',
     'heading_skipped_level',
@@ -2467,6 +2469,9 @@ function renderAccessibilityReport(report) {
             <div id="accessibilityResultsGrid" class="ag-theme-quartz" style="height: 420px; width: 100%;"></div>
             <div id="accessibilityFixQueue" style="display:none;margin-top:16px;border:1px solid #ddd;border-radius:6px;padding:12px;">
                 <h4 style="margin:0 0 8px 0;">Fix Queue</h4>
+                <div id="accessibilityFixQueueCapNotice" style="display:none;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:8px 10px;margin-bottom:8px;"></div>
+                <div id="accessibilityFixQueueFilters" style="display:none;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:10px;"></div>
+                <div id="accessibilityFixPreviewCostSummary" style="display:none;font-size:12px;color:#374151;margin-bottom:8px;"></div>
                 <div id="accessibilityFixQueueTableWrap" style="overflow:auto;max-height:240px;margin-bottom:8px;"></div>
                 <div id="accessibilityFixPreviewPane" style="display:none;margin-bottom:10px;border:1px solid #ddd;border-radius:6px;padding:12px;background:#fafafa;"></div>
                 <div style="display:flex;gap:8px;align-items:center;">
@@ -2571,6 +2576,99 @@ function downloadAccessibilityCsv() {
     window.open(url, '_blank');
 }
 
+function emptyAccessibilityFixPreviewRunMeter() {
+    return {
+        requests: 0,
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        estimated_input_usd: 0,
+        estimated_output_usd: 0,
+        estimated_total_usd: 0,
+    };
+}
+
+function addAccessibilityFixPreviewRunMeters(agg, m) {
+    if (!m || typeof m !== 'object') return agg;
+    return {
+        requests: (agg.requests || 0) + (Number(m.requests) || 0),
+        input_tokens: (agg.input_tokens || 0) + (Number(m.input_tokens) || 0),
+        output_tokens: (agg.output_tokens || 0) + (Number(m.output_tokens) || 0),
+        cache_read_input_tokens: (agg.cache_read_input_tokens || 0) + (Number(m.cache_read_input_tokens) || 0),
+        cache_creation_input_tokens: (agg.cache_creation_input_tokens || 0) + (Number(m.cache_creation_input_tokens) || 0),
+        estimated_input_usd: (agg.estimated_input_usd || 0) + (Number(m.estimated_input_usd) || 0),
+        estimated_output_usd: (agg.estimated_output_usd || 0) + (Number(m.estimated_output_usd) || 0),
+        estimated_total_usd: (agg.estimated_total_usd || 0) + (Number(m.estimated_total_usd) || 0),
+    };
+}
+
+function formatAccessibilityFixPreviewCostSummary(m) {
+    const req = Number(m?.requests) || 0;
+    const inUsd = Number(m?.estimated_input_usd) || 0;
+    const outUsd = Number(m?.estimated_output_usd) || 0;
+    const tot = Number(m?.estimated_total_usd) || 0;
+    const fmt = (x) => (Number.isFinite(x) ? x.toFixed(4) : '0.0000');
+    const cr = Number(m?.cache_read_input_tokens) || 0;
+    const cc = Number(m?.cache_creation_input_tokens) || 0;
+    const cacheBit = cr + cc > 0 ? ` · cache read ${cr} tok · cache write ${cc} tok` : '';
+    return `AI (this run): ${req} request(s) · input $${fmt(inUsd)} · output $${fmt(outUsd)} · total $${fmt(tot)}${cacheBit}`;
+}
+
+function accFixQueueRowVisible(tr) {
+    if (!tr || !tr.classList.contains('acc-fix-row')) return false;
+    return tr.style.display !== 'none';
+}
+
+function getVisibleAccFixApproveCheckboxes() {
+    return Array.from(document.querySelectorAll('.acc-fix-approve')).filter((cb) => {
+        const tr = cb.closest('tr');
+        return tr && accFixQueueRowVisible(tr);
+    });
+}
+
+function syncAccFixSelectAllState() {
+    const sel = document.getElementById('accFixSelectAll');
+    if (!sel) return;
+    const vis = getVisibleAccFixApproveCheckboxes();
+    if (!vis.length) {
+        sel.checked = false;
+        sel.indeterminate = false;
+        return;
+    }
+    const checked = vis.filter((c) => c.checked).length;
+    sel.checked = checked === vis.length;
+    sel.indeterminate = checked > 0 && checked < vis.length;
+}
+
+function applyAccessibilityFixQueueFilters() {
+    const rule = accessibilityFixQueueFilters.ruleId || '';
+    const rt = accessibilityFixQueueFilters.resourceType || '';
+    const tier = (accessibilityFixQueueFilters.tier || '').toLowerCase();
+    const wrap = document.getElementById('accessibilityFixQueueTableWrap');
+    if (!wrap) return;
+    wrap.querySelectorAll('tr.acc-fix-row').forEach((tr) => {
+        const okRule = !rule || tr.getAttribute('data-rule-id') === rule;
+        const okRt = !rt || tr.getAttribute('data-resource-type') === rt;
+        const okTier = !tier || String(tr.getAttribute('data-confidence-tier') || '').toLowerCase() === tier;
+        const show = okRule && okRt && okTier;
+        tr.style.display = show ? '' : 'none';
+    });
+    syncAccFixSelectAllState();
+    updateApplyButtonState();
+}
+
+function clearAccessibilityFixQueueFilters() {
+    accessibilityFixQueueFilters = { ruleId: '', resourceType: '', tier: '' };
+    const r = document.getElementById('accFixFilterRule');
+    const t = document.getElementById('accFixFilterResourceType');
+    const z = document.getElementById('accFixFilterTier');
+    if (r) r.value = '';
+    if (t) t.value = '';
+    if (z) z.value = '';
+    applyAccessibilityFixQueueFilters();
+}
+
 async function generateAccessibilityFixPreview() {
     if (!selectedCourseId) {
         showToast('Select a course first.', 'warn');
@@ -2601,11 +2699,24 @@ async function generateAccessibilityFixPreview() {
         rule_id: r?.rule_id || '',
         snippet: r?.snippet || null
     }));
+    const previewSessionId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `acc-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     const btn = document.getElementById('generateFixPreviewBtn');
     try {
         await withSpinner(async ({ setLabel }) => {
             accessibilityFixGenerationInProgress = true;
             accessibilityFixPreviewActions = [];
+            const costEl = document.getElementById('accessibilityFixPreviewCostSummary');
+            const capNoticeEl = document.getElementById('accessibilityFixQueueCapNotice');
+            if (costEl) {
+                costEl.style.display = 'none';
+                costEl.textContent = '';
+            }
+            if (capNoticeEl) {
+                capNoticeEl.style.display = 'none';
+                capNoticeEl.textContent = '';
+            }
+            let runMeter = emptyAccessibilityFixPreviewRunMeter();
+            let aiPreviewCap = null;
             renderAccessibilityFixQueue(accessibilityFixPreviewActions);
             const total = rows.length;
             let completed = 0;
@@ -2616,7 +2727,7 @@ async function generateAccessibilityFixPreview() {
                 setLabel(msg);
             };
             updateProgress();
-            const maxConcurrent = 6;
+            const maxConcurrent = ACCESSIBILITY_FIX_PREVIEW_CONCURRENCY;
             let index = 0;
             const workers = new Array(Math.min(maxConcurrent, total)).fill(null).map(async () => {
                 while (index < total) {
@@ -2627,13 +2738,15 @@ async function generateAccessibilityFixPreview() {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             credentials: 'include',
-                            body: JSON.stringify({ finding })
+                            body: JSON.stringify({ finding, preview_session_id: previewSessionId })
                         });
+                        const data = await res.json().catch(() => ({}));
+                        if (typeof data?.accessibility_ai_preview_cap === 'number') aiPreviewCap = data.accessibility_ai_preview_cap;
+                        runMeter = addAccessibilityFixPreviewRunMeters(runMeter, data?.meter);
                         if (!res.ok) {
-                            const errText = await res.text().catch(() => res.statusText);
+                            const errText = typeof data?.error === 'string' ? data.error : res.statusText;
                             throw new Error(errText);
                         }
-                        const data = await res.json();
                         const action = data?.action || null;
                         if (action) accessibilityFixPreviewActions.push(action);
                         else {
@@ -2652,7 +2765,7 @@ async function generateAccessibilityFixPreview() {
                                 confidence: 0.2,
                                 confidence_tier: 'low',
                                 requires_review: true,
-                                error_note: 'No preview available for this item.',
+                                error_note: data?.error || 'No preview available for this item.',
                             });
                         }
                     } catch (e) {
@@ -2682,6 +2795,22 @@ async function generateAccessibilityFixPreview() {
             });
             await Promise.all(workers);
             accessibilityFixGenerationInProgress = false;
+            const showCost = Number(runMeter.requests) > 0 || Number(runMeter.estimated_total_usd) > 0;
+            if (costEl && showCost) {
+                costEl.style.display = 'block';
+                costEl.textContent = formatAccessibilityFixPreviewCostSummary(runMeter);
+            } else if (costEl) {
+                costEl.style.display = 'none';
+                costEl.textContent = '';
+            }
+            const capSkipped = (accessibilityFixPreviewActions || []).filter((a) => a?.skip_reason === 'ai_cap_reached').length;
+            if (capNoticeEl && capSkipped > 0 && typeof aiPreviewCap === 'number') {
+                capNoticeEl.style.display = 'block';
+                capNoticeEl.textContent = `AI suggestions limited to ${aiPreviewCap} item(s) per session during development. Remaining items require manual review. ${capSkipped} item(s) were not sent to the model.`;
+            } else if (capNoticeEl) {
+                capNoticeEl.style.display = 'none';
+                capNoticeEl.textContent = '';
+            }
             if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Preview success: actions=${accessibilityFixPreviewActions.length}`, 'info');
             if (!accessibilityFixPreviewActions.length) {
                 showToast('No fix suggestions available for current findings.', 'info');
@@ -2717,6 +2846,7 @@ function approveAccessibilityAction(actionId) {
     const cb = Array.from(document.querySelectorAll('.acc-fix-approve')).find((x) => String(x.getAttribute('data-action-id') || '') === String(actionId));
     if (!cb) return;
     cb.checked = true;
+    syncAccFixSelectAllState();
     updateApplyButtonState();
 }
 
@@ -2724,22 +2854,34 @@ function skipAccessibilityAction(actionId) {
     const cb = Array.from(document.querySelectorAll('.acc-fix-approve')).find((x) => String(x.getAttribute('data-action-id') || '') === String(actionId));
     if (!cb) return;
     cb.checked = false;
+    syncAccFixSelectAllState();
     updateApplyButtonState();
 }
 
 function approveAllAccessibilityHighConfidence() {
     const actions = Array.isArray(accessibilityFixPreviewActions) ? accessibilityFixPreviewActions : [];
     const highIds = new Set(actions.filter((a) => String(a?.confidence_tier) === 'high' && String(a?.fix_strategy) !== 'manual_only').map((a) => String(a.action_id)));
-    document.querySelectorAll('.acc-fix-approve').forEach((cb) => {
+    const wrap = document.getElementById('accessibilityFixQueueTableWrap');
+    if (!wrap) return;
+    wrap.querySelectorAll('tr.acc-fix-row').forEach((tr) => {
+        if (!accFixQueueRowVisible(tr)) return;
+        const cb = tr.querySelector('.acc-fix-approve');
+        if (!cb || cb.disabled) return;
         cb.checked = highIds.has(String(cb.getAttribute('data-action-id') || ''));
     });
+    syncAccFixSelectAllState();
     updateApplyButtonState();
 }
 
 function approveAllAccessibilitySuggestions() {
-    document.querySelectorAll('.acc-fix-approve').forEach((cb) => {
-        if (!cb.disabled) cb.checked = true;
+    const wrap = document.getElementById('accessibilityFixQueueTableWrap');
+    if (!wrap) return;
+    wrap.querySelectorAll('tr.acc-fix-row').forEach((tr) => {
+        if (!accFixQueueRowVisible(tr)) return;
+        const cb = tr.querySelector('.acc-fix-approve');
+        if (cb && !cb.disabled) cb.checked = true;
     });
+    syncAccFixSelectAllState();
     updateApplyButtonState();
 }
 
@@ -2748,12 +2890,54 @@ function renderAccessibilityFixQueue(actions) {
     const queue = document.getElementById('accessibilityFixQueue');
     const applyBtn = document.getElementById('applyApprovedFixesBtn');
     const statusEl = document.getElementById('accessibilityFixQueueStatus');
+    const filterHost = document.getElementById('accessibilityFixQueueFilters');
     if (!wrap || !queue) return;
     if (!actions || !actions.length) {
         queue.style.display = 'none';
+        if (filterHost) {
+            filterHost.style.display = 'none';
+            filterHost.innerHTML = '';
+        }
+        wrap.innerHTML = '';
         return;
     }
     queue.style.display = 'block';
+    if (filterHost) {
+        filterHost.style.display = 'flex';
+        const ruleIds = [...new Set(actions.map((x) => String(x.rule_id || '').trim()).filter(Boolean))].sort((x, y) => x.localeCompare(y));
+        const resourceTypes = [...new Set(actions.map((x) => String(x.resource_type || '').trim()).filter(Boolean))].sort((x, y) => x.localeCompare(y));
+        const tierChoices = ['high', 'medium', 'low'];
+        if (accessibilityFixQueueFilters.ruleId && !ruleIds.includes(accessibilityFixQueueFilters.ruleId)) accessibilityFixQueueFilters.ruleId = '';
+        if (accessibilityFixQueueFilters.resourceType && !resourceTypes.includes(accessibilityFixQueueFilters.resourceType)) accessibilityFixQueueFilters.resourceType = '';
+        const tf = String(accessibilityFixQueueFilters.tier || '').toLowerCase();
+        if (tf && !tierChoices.includes(tf)) accessibilityFixQueueFilters.tier = '';
+        const ruleOpts = ruleIds.map((rid) => `<option value="${escapeHtml(rid)}">${escapeHtml(ACCESSIBILITY_RULE_LABELS[rid] || rid)}</option>`).join('');
+        const rtOpts = resourceTypes.map((rt) => `<option value="${escapeHtml(rt)}">${escapeHtml(rt)}</option>`).join('');
+        const tierOpts = tierChoices.map((ti) => `<option value="${ti}">${ti}</option>`).join('');
+        filterHost.innerHTML = `
+            <label style="font-size:12px;display:flex;flex-direction:column;gap:4px;">Rule
+                <select id="accFixFilterRule" style="min-width:180px;padding:4px;"><option value="">All</option>${ruleOpts}</select>
+            </label>
+            <label style="font-size:12px;display:flex;flex-direction:column;gap:4px;">Resource type
+                <select id="accFixFilterResourceType" style="min-width:140px;padding:4px;"><option value="">All</option>${rtOpts}</select>
+            </label>
+            <label style="font-size:12px;display:flex;flex-direction:column;gap:4px;">Confidence
+                <select id="accFixFilterTier" style="min-width:120px;padding:4px;"><option value="">All</option>${tierOpts}</select>
+            </label>
+            <button type="button" class="primary-btn" id="accFixFilterClear" style="align-self:flex-end;">Clear filters</button>
+        `;
+        const fr = document.getElementById('accFixFilterRule');
+        const frt = document.getElementById('accFixFilterResourceType');
+        const fz = document.getElementById('accFixFilterTier');
+        const fc = document.getElementById('accFixFilterClear');
+        if (fr) fr.value = accessibilityFixQueueFilters.ruleId || '';
+        if (frt) frt.value = accessibilityFixQueueFilters.resourceType || '';
+        if (fz) fz.value = accessibilityFixQueueFilters.tier || '';
+        if (fr) fr.onchange = (e) => { accessibilityFixQueueFilters.ruleId = e.target.value || ''; applyAccessibilityFixQueueFilters(); };
+        if (frt) frt.onchange = (e) => { accessibilityFixQueueFilters.resourceType = e.target.value || ''; applyAccessibilityFixQueueFilters(); };
+        if (fz) fz.onchange = (e) => { accessibilityFixQueueFilters.tier = e.target.value || ''; applyAccessibilityFixQueueFilters(); };
+        if (fc) fc.onclick = () => clearAccessibilityFixQueueFilters();
+    }
     const rows = actions.map((a, i) => {
         const isManualOnly = String(a.fix_strategy || '') === 'manual_only';
         const checkedAttr = isManualOnly ? '' : ' checked';
@@ -2764,8 +2948,9 @@ function renderAccessibilityFixQueue(actions) {
         const imgLowConfidence = String(a?.confidence_tier || 'low') === 'low' && String(a?.image_url || '').trim();
         const beforeValue = String(a.before_snippet || '').trim();
         const reasoning = String(a.reasoning || '').trim();
+        const tierAttr = String(a.confidence_tier || 'low').toLowerCase();
         return `
-        <tr style="background:${confidence.bg}; border-left:4px solid ${confidence.border};">
+        <tr class="acc-fix-row" style="background:${confidence.bg}; border-left:4px solid ${confidence.border};" data-rule-id="${escapeHtml(String(a.rule_id || ''))}" data-resource-type="${escapeHtml(String(a.resource_type || ''))}" data-confidence-tier="${escapeHtml(tierAttr)}">
             <td style="padding:6px;"><input type="checkbox" class="acc-fix-approve" data-action-id="${escapeHtml(a.action_id)}" data-index="${i}"${checkedAttr}${disabledAttr}></td>
             <td style="padding:6px;">${escapeHtml(ACCESSIBILITY_RULE_LABELS[a.rule_id] || a.rule_id)}</td>
             <td style="padding:6px;">${escapeHtml(a.resource_type)}</td>
@@ -2794,6 +2979,7 @@ function renderAccessibilityFixQueue(actions) {
                 `}
                 ${imgLowConfidence ? `<div style="margin-top:6px;"><img src="${escapeHtml(String(a.image_url))}" alt="" style="max-width:220px;max-height:120px;border:1px solid #ddd;border-radius:4px;"></div>` : ''}
                 ${reasoning ? `<details style="margin-top:6px;"><summary style="cursor:pointer;font-size:12px;">Reasoning</summary><div style="font-size:12px;color:#374151;">${escapeHtml(reasoning)}</div></details>` : ''}
+                ${a.rate_limited ? `<div style="font-size:12px;color:#92400e;margin-top:6px;font-weight:600;">Rate limited — retry individually</div>` : ''}
                 ${a.error_note ? `<div style="font-size:12px;color:#991b1b;margin-top:6px;">${escapeHtml(a.error_note)}</div>` : ''}
             </td>
             <td style="padding:6px;">
@@ -2826,8 +3012,13 @@ function renderAccessibilityFixQueue(actions) {
         </div>
     `;
     const selectAll = document.getElementById('accFixSelectAll');
-    if (selectAll) selectAll.onchange = () => wrap.querySelectorAll('.acc-fix-approve').forEach((cb) => { cb.checked = selectAll.checked; updateApplyButtonState(); });
-    wrap.querySelectorAll('.acc-fix-approve').forEach((cb) => { cb.onchange = updateApplyButtonState; });
+    if (selectAll) {
+        selectAll.onchange = () => {
+            getVisibleAccFixApproveCheckboxes().forEach((cb) => { cb.checked = selectAll.checked; });
+            updateApplyButtonState();
+        };
+    }
+    wrap.querySelectorAll('.acc-fix-approve').forEach((cb) => { cb.onchange = () => { syncAccFixSelectAllState(); updateApplyButtonState(); }; });
     wrap.querySelectorAll('.acc-fix-edit-input').forEach((el) => {
         el.addEventListener('input', (evt) => {
             const target = evt.target;
@@ -2853,6 +3044,7 @@ function renderAccessibilityFixQueue(actions) {
         applyBtn.onclick = applyApprovedAccessibilityFixes;
     }
     if (statusEl && !accessibilityFixGenerationInProgress) statusEl.textContent = `${actions.length} fix(es) ready`;
+    applyAccessibilityFixQueueFilters();
 }
 
 function openAccessibilityFixPreviewInline(actionRef) {
@@ -2899,25 +3091,33 @@ function openAccessibilityFixPreviewInline(actionRef) {
 }
 
 function updateApplyButtonState() {
-    const checked = document.querySelectorAll('.acc-fix-approve:checked');
+    const n = getVisibleAccFixApproveCheckboxes().filter((c) => c.checked).length;
     const applyBtn = document.getElementById('applyApprovedFixesBtn');
-    if (applyBtn) applyBtn.disabled = !checked.length;
+    if (applyBtn) applyBtn.disabled = !n;
 }
 
 async function applyApprovedAccessibilityFixes() {
     if (!selectedCourseId || !accessibilityFixPreviewActions?.length) return;
-    const checked = document.querySelectorAll('.acc-fix-approve:checked');
+    const wrap = document.getElementById('accessibilityFixQueueTableWrap');
+    const checked = getVisibleAccFixApproveCheckboxes().filter((c) => c.checked);
     const approvedIds = new Set(Array.from(checked).map((el) => el.getAttribute('data-action-id')));
     const approved = accessibilityFixPreviewActions
         .filter((a) => approvedIds.has(a.action_id))
         .map((a) => {
-            const radio = Array.from(document.querySelectorAll('.acc-fix-choice')).find(
+            const row = wrap
+                ? Array.from(wrap.querySelectorAll('tr.acc-fix-row')).find((tr) => {
+                    const id = tr.querySelector('.acc-fix-approve')?.getAttribute('data-action-id');
+                    return String(id || '') === String(a.action_id);
+                })
+                : null;
+            const scope = row || document;
+            const radio = Array.from(scope.querySelectorAll('.acc-fix-choice')).find(
                 (el) => el.checked && String(el.getAttribute('data-action-id') || '') === String(a.action_id),
             );
             if (radio && typeof radio.value === 'string' && radio.value) {
                 return { ...a, edited_suggestion: radio.value };
             }
-            const input = Array.from(document.querySelectorAll('.acc-fix-edit-input'))
+            const input = Array.from(scope.querySelectorAll('.acc-fix-edit-input'))
                 .find((el) => String(el.getAttribute('data-action-id') || '') === String(a.action_id));
             const editedSuggestion = input && typeof input.value === 'string' ? input.value : (a.edited_suggestion || a.suggestion || '');
             return { ...a, edited_suggestion: editedSuggestion };
