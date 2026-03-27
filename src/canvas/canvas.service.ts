@@ -2233,10 +2233,10 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         }
       });
       const attempts: Array<{ name: string; contentType: string; body: string }> = [
-        { name: 'form_urlencoded_wrapped', contentType: 'application/x-www-form-urlencoded', body: wrappedForm.toString() },
         { name: 'form_urlencoded', contentType: 'application/x-www-form-urlencoded', body: form.toString() },
-        { name: 'json_wrapped', contentType: 'application/json', body: JSON.stringify({ discussion_topic: payload }) },
         { name: 'json_raw', contentType: 'application/json', body: JSON.stringify(payload) },
+        { name: 'json_wrapped', contentType: 'application/json', body: JSON.stringify({ discussion_topic: payload }) },
+        { name: 'form_urlencoded_wrapped', contentType: 'application/x-www-form-urlencoded', body: wrappedForm.toString() },
       ];
       let lastStatus = 0;
       let lastText = '';
@@ -2276,6 +2276,20 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
           `Failed to update discussion ${discussionId}: ${lastStatus} - ${lastText}. Endpoint: ${topicUrl}. ` +
           `Format: ${lastAttempt?.name || 'unknown'}. Payload: ${(lastAttempt?.body || '').slice(0, 1000)}`
         );
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(payload, 'message') &&
+        out &&
+        Object.prototype.hasOwnProperty.call(out, 'message')
+      ) {
+        const expected = String(payload.message ?? '');
+        const actual = String(out.message ?? '');
+        if (expected.trim() && !actual.trim()) {
+          throw new Error(
+            `Discussion update returned success but message did not persist. Endpoint: ${topicUrl}. ` +
+            `Payload: ${JSON.stringify(payload).slice(0, 500)}`
+          );
+        }
       }
       return out;
     };
@@ -7043,7 +7057,18 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         } else if (entry.resourceType === 'assignments') {
           await this.updateAssignment(courseId, Number(entry.updateKey), { description: html });
         } else if (entry.resourceType === 'announcements' || entry.resourceType === 'discussions') {
+          const beforeHash = hash(entry.html);
           await this.updateDiscussion(courseId, Number(entry.updateKey), { message: html });
+          const persisted = await this.fetchAccessibilityResourceContent(courseId, entry.resourceType, entry.updateKey);
+          if (!persisted) {
+            throw new Error(`Could not re-fetch ${entry.resourceType} ${entry.updateKey} after update`);
+          }
+          const afterHash = hash(persisted.html);
+          if (afterHash === beforeHash) {
+            throw new Error(
+              `Canvas reported success but ${entry.resourceType} ${entry.updateKey} content did not change`,
+            );
+          }
         } else if (entry.resourceType === 'syllabus') {
           const { token, baseUrl } = await this.getAuthHeaders();
           const r = await fetch(`${baseUrl}/courses/${courseId}`, {
