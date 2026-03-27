@@ -74,17 +74,15 @@ If Canvas still shows a security / external-tool warning, it is usually because 
 
 **Enter these in the tool configuration** (other fields should already match the import):
 
-| Field | Value |
-|:---|:---|
-| **Consumer Key** | `1234` |
-| **Shared Secret** | `5678` |
-
 | Step | Action |
 |:---:|:---|
 | 1 | **Settings** → **Apps** → **View App Configurations**. |
 | 2 | **Canvas Bulk Edit** / **Bulk Editor** → **gear** → **Edit**. |
-| 3 | Paste or type the **Consumer Key** and **Shared Secret** from the table above (or updated values if your pilot gave you different ones). Leave launch URL and other imported fields as-is unless the pilot says otherwise. |
-| 4 | **Submit** / save. The warning should clear when those values match the app server. |
+| 3 | **Consumer Key:** `1234` |
+| 4 | **Shared Secret:** `5678` |
+| 5 | **Submit** / save. The warning should clear when those values match the app server. |
+
+Leave launch URL and other imported fields as-is unless the pilot says otherwise.
 
 ---
 
