@@ -167,6 +167,17 @@ interface StandardsResolutionResult {
 
 const CLEARABLE_CONTENT_KEYS = new Set(['description', 'message', 'body', 'instructions']);
 const NULLABLE_QUIZ_FIELDS = new Set(['time_limit']);
+const DISCUSSION_UPDATE_ALLOWED_KEYS = new Set([
+  'title', 'message', 'allow_rating', 'delayed_post_at', 'lock_at', 'unlock_at', 'due_at', 'published',
+  'discussion_type', 'require_initial_post', 'anonymous_state', 'is_anonymous_author', 'sort_order',
+  'sort_order_locked', 'expanded', 'expanded_locked', 'only_graders_can_rate', 'pinned', 'lock_comment',
+  'podcast_enabled', 'podcast_has_student_posts', 'points_possible', 'assignment_group_id',
+]);
+const ANNOUNCEMENT_UPDATE_ALLOWED_KEYS = new Set([
+  'title', 'message', 'allow_rating', 'delayed_post_at', 'lock_at', 'published',
+  'discussion_type', 'require_initial_post', 'sort_order', 'sort_order_locked', 'pinned', 'lock_comment',
+  'podcast_enabled', 'podcast_has_student_posts', 'only_graders_can_rate',
+]);
 
 function processDateField(key: string, value: any): any {
   if (!key.endsWith('_at')) return undefined;
@@ -277,7 +288,7 @@ function splitNewQuizTextUpdates(pending: Record<string, any>): { assignmentUpda
 }
 
 function getDiscussionDateRoutingPolicy(isAnnouncement: boolean): { dateDetailKeys: string[] } {
-  return { dateDetailKeys: isAnnouncement ? ['due_at', 'unlock_at'] : ['due_at', 'unlock_at', 'lock_at'] };
+  return { dateDetailKeys: isAnnouncement ? [] : ['due_at', 'unlock_at', 'lock_at'] };
 }
 
 @Injectable({ scope: Scope.REQUEST })
@@ -2209,9 +2220,15 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       assignmentId = null;
       isAnnouncement = false;
     }
+    console.log(
+      `[Discussion Update] course=${courseId} id=${discussionId} announcement=${isAnnouncement} input_keys=${Object.keys(pending).join(',')}`,
+    );
 
     const sendDiscussionUpdate = async (payload: Record<string, any>): Promise<any> => {
       if (!payload || Object.keys(payload).length === 0) return null;
+      console.log(
+        `[Discussion Update] topic_endpoint course=${courseId} id=${discussionId} keys=${Object.keys(payload).join(',')} payload=${JSON.stringify(payload).slice(0, 1200)}`,
+      );
       const toFormValue = (value: any): string => {
         if (typeof value === 'boolean') return value ? '1' : '0';
         return String(value);
@@ -2297,6 +2314,9 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const sendDiscussionDateDetailsUpdate = async (payload: Record<string, any>): Promise<void> => {
       if (!payload || Object.keys(payload).length === 0) return;
       const dateDetailsUrl = `${baseUrl}/courses/${courseId}/discussion_topics/${discussionId}/date_details`;
+      console.log(
+        `[Discussion Update] date_details_endpoint course=${courseId} id=${discussionId} keys=${Object.keys(payload).join(',')} payload=${JSON.stringify(payload).slice(0, 1200)}`,
+      );
       const response = await fetch(dateDetailsUrl, {
         method: 'PUT',
         headers: {
@@ -2334,6 +2354,31 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     }
 
     const cleanedUpdates = cleanContentUpdates(pending, { clearableTextFields: true });
+    const unsupportedAnnouncementInputs = ['due_at', 'unlock_at', 'points_possible', 'assignment_group_id']
+      .filter((k) => Object.prototype.hasOwnProperty.call(cleanedUpdates, k));
+    if (isAnnouncement && unsupportedAnnouncementInputs.length) {
+      throw new Error(
+        `Unsupported announcement field(s): ${unsupportedAnnouncementInputs.join(', ')}. ` +
+        `Announcements support delayed_post_at and lock_at for date updates.`,
+      );
+    }
+    if (isAnnouncement && gradedSelection !== undefined) {
+      throw new Error('Unsupported announcement field: graded');
+    }
+    if (isAnnouncement && rubricSelection !== undefined) {
+      throw new Error('Unsupported announcement field: rubric_id');
+    }
+    const allowedKeys = isAnnouncement ? ANNOUNCEMENT_UPDATE_ALLOWED_KEYS : DISCUSSION_UPDATE_ALLOWED_KEYS;
+    const rejectedKeys = Object.keys(cleanedUpdates).filter((k) => !allowedKeys.has(k));
+    if (rejectedKeys.length) {
+      console.warn(
+        `[Discussion Update] dropped_unsupported_keys course=${courseId} id=${discussionId} announcement=${isAnnouncement} keys=${rejectedKeys.join(',')}`,
+      );
+    }
+    const filteredUpdates: Record<string, any> = {};
+    Object.keys(cleanedUpdates).forEach((k) => {
+      if (allowedKeys.has(k)) filteredUpdates[k] = cleanedUpdates[k];
+    });
     if (
       Object.prototype.hasOwnProperty.call(cleanedUpdates, 'podcast_enabled') &&
       cleanedUpdates.podcast_enabled === true &&
@@ -2350,7 +2395,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const expectedPodcastStudentPosts = Object.prototype.hasOwnProperty.call(cleanedUpdates, 'podcast_has_student_posts')
       ? Boolean(cleanedUpdates.podcast_has_student_posts)
       : undefined;
-    const discussionUpdates: Record<string, any> = { ...cleanedUpdates };
+    const discussionUpdates: Record<string, any> = { ...filteredUpdates };
     const assignmentUpdates: Record<string, any> = {};
     ['due_at', 'unlock_at', 'points_possible', 'assignment_group_id'].forEach((k) => {
       if (Object.prototype.hasOwnProperty.call(discussionUpdates, k)) {
@@ -2521,9 +2566,15 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     const results: Array<{ id: number; success: boolean; data?: any; error?: string }> = [];
     for (const discussionId of itemIds) {
       try {
+        console.log(
+          `[Bulk Discussion Update] course=${courseId} id=${discussionId} keys=${Object.keys(updates || {}).join(',')} payload=${JSON.stringify(updates || {}).slice(0, 1200)}`,
+        );
         const data = await this.updateDiscussion(courseId, discussionId, { ...updates });
         results.push({ id: discussionId, success: true, data });
       } catch (error: any) {
+        console.error(
+          `[Bulk Discussion Update] failed course=${courseId} id=${discussionId} keys=${Object.keys(updates || {}).join(',')} error=${error?.message || String(error)}`,
+        );
         results.push({ id: discussionId, success: false, error: error.message });
       }
     }
@@ -2550,9 +2601,15 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
     for (const announcementId of itemIds) {
       try {
+        console.log(
+          `[Bulk Announcement Update] course=${courseId} id=${announcementId} keys=${Object.keys(updates || {}).join(',')} payload=${JSON.stringify(updates || {}).slice(0, 1200)}`,
+        );
         const updated = await this.updateDiscussion(courseId, announcementId, updates);
         results.push({ id: announcementId, success: true, data: updated });
       } catch (error: any) {
+        console.error(
+          `[Bulk Announcement Update] failed course=${courseId} id=${announcementId} keys=${Object.keys(updates || {}).join(',')} error=${error?.message || String(error)}`,
+        );
         results.push({ id: announcementId, success: false, error: error.message });
       }
     }
