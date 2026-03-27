@@ -57,6 +57,18 @@ export interface AccessibilityFixPreviewItemMeter {
   estimated_total_usd: number;
 }
 
+interface AiDedupeSharedPack {
+  suggestion: string;
+  reasoning: string;
+  confidence: number;
+  requiresReview: boolean;
+  rateLimited: boolean;
+  aiCapSkipped: boolean;
+  aiErrorNote?: string;
+  imageUrl: string;
+  imageFetchFailed: boolean;
+}
+
 type FixRisk = 'low' | 'medium' | 'high';
 type FixStrategy = 'auto' | 'suggested' | 'manual_only';
 type FalsePositiveRisk = 'low' | 'medium' | 'high';
@@ -1022,11 +1034,19 @@ export class CanvasService {
     estimatedOutputUsd: 0,
   };
 
-  private static aiPreviewCapLast = new Map<string, Promise<boolean>>();
-  private static aiPreviewCapUsed = new Map<
+  private static aiPreviewCapDistinctLast = new Map<string, Promise<boolean>>();
+  private static aiPreviewCapDistinctRows = new Map<
     string,
-    { used: number; exp: number }
+    { keys: Set<string>; exp: number }
   >();
+
+  private static aiDedupeSerialTail = new Map<string, Promise<void>>();
+  private static aiDedupeInflight = new Map<
+    string,
+    Promise<AiDedupeSharedPack>
+  >();
+  private static aiDedupeCache = new Map<string, AiDedupeSharedPack>();
+  private static aiDedupeTally = new Map<string, number>();
 
   constructor(
     @Inject(REQUEST) private readonly req: any,
@@ -1074,41 +1094,153 @@ export class CanvasService {
     return c < 9e14 ? { accessibility_ai_preview_cap: c } : {};
   }
 
-  private static syncConsumeAiPreviewCapSlot(
+  private static syncConsumeDistinctAiFingerprint(
     mapKey: string,
     cap: number,
+    fingerprintKey: string,
   ): boolean {
     const now = Date.now();
     const ttl = 15 * 60_000;
-    let row = CanvasService.aiPreviewCapUsed.get(mapKey);
-    if (!row || row.exp <= now) row = { used: 0, exp: now + ttl };
-    if (row.used >= cap) {
-      CanvasService.aiPreviewCapUsed.set(mapKey, row);
+    let row = CanvasService.aiPreviewCapDistinctRows.get(mapKey);
+    if (!row || row.exp <= now) row = { keys: new Set(), exp: now + ttl };
+    if (row.keys.has(fingerprintKey)) {
+      CanvasService.aiPreviewCapDistinctRows.set(mapKey, row);
+      return true;
+    }
+    if (row.keys.size >= cap) {
+      CanvasService.aiPreviewCapDistinctRows.set(mapKey, row);
       return false;
     }
-    row.used++;
-    CanvasService.aiPreviewCapUsed.set(mapKey, row);
+    row.keys.add(fingerprintKey);
+    CanvasService.aiPreviewCapDistinctRows.set(mapKey, row);
     return true;
   }
 
-  private tryConsumeAiPreviewCapSlot(
+  private tryConsumeAiPreviewDistinctFingerprint(
     previewSessionId: string | undefined,
+    fingerprintKey: string,
   ): Promise<boolean> {
     const cap = this.getAccessibilityAiPreviewCap();
     if (cap >= 9e14) return Promise.resolve(true);
     const sid = String(previewSessionId || '').trim();
     if (!sid) return Promise.resolve(true);
-    const mapKey = `accAiCap:${sid.slice(0, 240)}`;
+    const mapKey = `accAiCapFp:${sid.slice(0, 240)}`;
     const prev =
-      CanvasService.aiPreviewCapLast.get(mapKey) ?? Promise.resolve();
+      CanvasService.aiPreviewCapDistinctLast.get(mapKey) ?? Promise.resolve();
     const next = prev.then(() =>
-      CanvasService.syncConsumeAiPreviewCapSlot(mapKey, cap),
+      CanvasService.syncConsumeDistinctAiFingerprint(
+        mapKey,
+        cap,
+        fingerprintKey,
+      ),
     );
-    CanvasService.aiPreviewCapLast.set(
+    CanvasService.aiPreviewCapDistinctLast.set(
       mapKey,
       next.catch(() => false),
     );
     return next;
+  }
+
+  private async runAiDedupeKeySerial<T>(
+    dedupeKey: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const prev =
+      CanvasService.aiDedupeSerialTail.get(dedupeKey) ?? Promise.resolve();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    CanvasService.aiDedupeSerialTail.set(
+      dedupeKey,
+      prev.then(() => gate),
+    );
+    await prev;
+    try {
+      return await fn();
+    } finally {
+      release();
+    }
+  }
+
+  private scheduleAiDedupeCleanup(dedupeKey: string): void {
+    setTimeout(() => {
+      CanvasService.aiDedupeInflight.delete(dedupeKey);
+      CanvasService.aiDedupeCache.delete(dedupeKey);
+      CanvasService.aiDedupeTally.delete(dedupeKey);
+    }, 16 * 60_000);
+  }
+
+  private async computeAccessibilityAiFingerprint(
+    ruleId: string,
+    snippet: string | null | undefined,
+    html: string,
+  ): Promise<string> {
+    const crypto = await import('crypto');
+    const digest = (s: string) =>
+      crypto.createHash('sha256').update(s).digest('hex').slice(0, 24);
+    const sn = String(snippet ?? '').trim();
+    const h = String(html ?? '');
+    const contract = ACCESSIBILITY_FIXABILITY_MAP[ruleId];
+    if (
+      ruleId === 'landmark_structure_quality' ||
+      ruleId === 'color_only_information' ||
+      ruleId === 'sensory_only_instructions'
+    ) {
+      return `page:${ruleId}:${digest(h)}`;
+    }
+    if (contract?.is_image_rule || ruleId.startsWith('img_')) {
+      const srcM = sn.match(/\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const srcFromSn = String(
+        srcM?.[2] ?? srcM?.[3] ?? srcM?.[4] ?? '',
+      ).trim();
+      if (srcFromSn) return `img:${srcFromSn}`;
+      const hm = h.match(
+        /<img\b[^>]*\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+      );
+      const src2 = String(hm?.[2] ?? hm?.[3] ?? hm?.[4] ?? '').trim();
+      return `img:${src2 || 'unknown'}`;
+    }
+    if (ruleId === 'iframe_missing_title') {
+      const block = /<iframe\b/i.test(sn)
+        ? sn.slice(0, 4000)
+        : (h.match(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/i)?.[0] ??
+          h.match(/<iframe\b[^>]*>/i)?.[0] ??
+          '');
+      const fm = block.match(/\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const src = String(fm?.[2] ?? fm?.[3] ?? fm?.[4] ?? '').trim();
+      return `iframe:${src || digest(block || h.slice(0, 2000))}`;
+    }
+    if (ruleId === 'link_split_or_broken') {
+      return `linksplit:${sn.toLowerCase()}`;
+    }
+    if (ruleId === 'link_ambiguous_text') {
+      return `linkambig:${sn.toLowerCase()}`;
+    }
+    if (ruleId.startsWith('link_')) {
+      const block = /<a\b/i.test(sn)
+        ? sn.slice(0, 4000)
+        : (h.match(/<a\b[^>]*>[\s\S]*?<\/a>/i)?.[0] ?? '');
+      const hrefM = block.match(
+        /\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+      );
+      const href = String(hrefM?.[2] ?? hrefM?.[3] ?? hrefM?.[4] ?? '')
+        .trim()
+        .toLowerCase();
+      const tm = block.match(/<a\b[^>]*>([\s\S]*?)<\/a>/i);
+      const txt = String(tm?.[1] ?? '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+      return `link:${href}|${txt}`;
+    }
+    const tagM = sn.match(/^<\s*([a-zA-Z0-9:-]+)\b/);
+    const tag = tagM ? tagM[1].toLowerCase() : 'other';
+    const body = /<[a-zA-Z]/.test(sn)
+      ? sn
+      : `${tag}|${sn || digest(h.slice(0, 8000))}`;
+    return `el:${ruleId}:${digest(body)}`;
   }
 
   private modelFamilyPricingUsdPerMtok(model: string): {
@@ -12429,82 +12561,163 @@ export class CanvasService {
     let imageFetchFailed = false;
     let aiCapSkipped = false;
     let rateLimited = false;
+    let dedupeSharedWith = 0;
 
     if (contract.uses_ai) {
-      const allowed = await this.tryConsumeAiPreviewCapSlot(previewSessionId);
-      if (!allowed) {
-        aiCapSkipped = true;
+      const sid = String(previewSessionId || '').trim();
+      const fp = await this.computeAccessibilityAiFingerprint(
+        f.rule_id,
+        f.snippet,
+        content.html,
+      );
+      const ns = sid
+        ? sid.slice(0, 240)
+        : `ephemeral:${courseId}:${f.resource_type}:${f.resource_id}:${f.rule_id}:${fp}`;
+      const dedupeKey = `accAiDedupe:${ns}:${f.rule_id}:${fp}`;
+      const capFpKey = `${f.rule_id}:${fp}`;
+
+      await this.runAiDedupeKeySerial(dedupeKey, async () => {
+        CanvasService.aiDedupeTally.set(
+          dedupeKey,
+          (CanvasService.aiDedupeTally.get(dedupeKey) ?? 0) + 1,
+        );
+        if (CanvasService.aiDedupeCache.has(dedupeKey)) return;
+        if (CanvasService.aiDedupeInflight.has(dedupeKey)) return;
+        const allowed = sid
+          ? await this.tryConsumeAiPreviewDistinctFingerprint(
+              previewSessionId,
+              capFpKey,
+            )
+          : true;
+        const work: Promise<AiDedupeSharedPack> = !allowed
+          ? Promise.resolve({
+              suggestion: '',
+              reasoning: '',
+              confidence: 0.2,
+              requiresReview: true,
+              rateLimited: false,
+              aiCapSkipped: true,
+              aiErrorNote:
+                'AI preview cap for this session has been reached; this item was not sent to the model.',
+              imageUrl: '',
+              imageFetchFailed: false,
+            })
+          : (async (): Promise<AiDedupeSharedPack> => {
+              const isImageRule = contract.is_image_rule;
+              const imageUrlL = isImageRule
+                ? this.extractFirstImageSrc(content.html)
+                : '';
+              const imagePayload =
+                isImageRule && imageUrlL
+                  ? await this.fetchImageForVision(imageUrlL)
+                  : null;
+              const imageFetchFailedL = !!(
+                isImageRule &&
+                imageUrlL &&
+                !imagePayload
+              );
+              const htmlPlain = String(content.html || '')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+              const sliceLen = isImageRule
+                ? ADA_AI_HTML_CONTEXT_IMAGE
+                : ADA_AI_HTML_CONTEXT_TEXT;
+              const staticInstruction = [
+                'You are an ADA accessibility remediation assistant for Canvas course content.',
+                'Return ONLY valid JSON with keys: suggestion, confidence, reasoning, requires_review.',
+                'confidence must be a float between 0 and 1.',
+                'suggestion must be concise and directly applicable to the violation.',
+              ].join('\n');
+              const dynamicContext = [
+                `Rule ID: ${f.rule_id}`,
+                `Resource title: ${resTitle || '(unknown)'}`,
+                `Resource type: ${f.resource_type}`,
+                `Current violating value: ${currentValue}`,
+                `Nearby snippet: ${String(f.snippet || '').slice(0, 500) || '(none)'}`,
+                `HTML context excerpt: ${htmlPlain.slice(0, sliceLen)}`,
+              ].join('\n');
+              try {
+                const ai = await this.callClaudeStructuredSuggestion(
+                  { staticInstruction, dynamicContext },
+                  {
+                    image: imagePayload,
+                    ruleId: f.rule_id,
+                    resourceType: f.resource_type,
+                    useVisionTierModel: contract.is_image_rule,
+                  },
+                );
+                return {
+                  suggestion: ai.suggestion,
+                  reasoning: ai.reasoning,
+                  confidence: ai.confidence,
+                  requiresReview: ai.requires_review,
+                  rateLimited: false,
+                  aiCapSkipped: false,
+                  imageUrl: imageUrlL,
+                  imageFetchFailed: imageFetchFailedL,
+                };
+              } catch (e: any) {
+                const msg = e?.message || 'AI suggestion generation failed.';
+                const rl = /\b429\b|rate_limit|rate limit/i.test(String(msg));
+                return {
+                  suggestion: '',
+                  reasoning: '',
+                  confidence: 0.2,
+                  requiresReview: true,
+                  rateLimited: rl,
+                  aiCapSkipped: false,
+                  aiErrorNote: rl
+                    ? '⚠ Rate limited — Claude returned too many requests. Retry this item individually or wait, then run preview again.'
+                    : msg,
+                  imageUrl: imageUrlL,
+                  imageFetchFailed: imageFetchFailedL,
+                };
+              }
+            })();
+        const tracked = work.then((p) => {
+          CanvasService.aiDedupeCache.set(dedupeKey, p);
+          this.scheduleAiDedupeCleanup(dedupeKey);
+          return p;
+        });
+        CanvasService.aiDedupeInflight.set(dedupeKey, tracked);
+        void tracked.finally(() => {
+          CanvasService.aiDedupeInflight.delete(dedupeKey);
+        });
+      });
+
+      const infl = CanvasService.aiDedupeInflight.get(dedupeKey);
+      const resolvedPack = infl
+        ? await infl
+        : (CanvasService.aiDedupeCache.get(dedupeKey) ??
+          (() => {
+            throw new Error('accessibility AI dedupe: missing shared result');
+          })());
+
+      const peerTotal = CanvasService.aiDedupeTally.get(dedupeKey) ?? 1;
+      dedupeSharedWith = Math.max(0, peerTotal - 1);
+
+      suggestion = resolvedPack.suggestion;
+      reasoning = resolvedPack.reasoning;
+      confidence = resolvedPack.confidence;
+      requiresReview = resolvedPack.requiresReview;
+      imageUrl = resolvedPack.imageUrl;
+      imageFetchFailed = resolvedPack.imageFetchFailed;
+      rateLimited = resolvedPack.rateLimited;
+      aiCapSkipped = resolvedPack.aiCapSkipped;
+
+      if (aiCapSkipped || rateLimited) {
         result = {
           newHtml: content.html,
           changes: [],
-          errorNote:
-            'AI preview cap for this session has been reached; this item was not sent to the model.',
+          errorNote: resolvedPack.aiErrorNote,
         };
       } else {
-        const isImageRule = contract.is_image_rule;
-        imageUrl = isImageRule ? this.extractFirstImageSrc(content.html) : '';
-        const imagePayload =
-          isImageRule && imageUrl
-            ? await this.fetchImageForVision(imageUrl)
-            : null;
-        if (isImageRule && imageUrl && !imagePayload) imageFetchFailed = true;
-        const htmlPlain = String(content.html || '')
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        const sliceLen = isImageRule
-          ? ADA_AI_HTML_CONTEXT_IMAGE
-          : ADA_AI_HTML_CONTEXT_TEXT;
-        const staticInstruction = [
-          'You are an ADA accessibility remediation assistant for Canvas course content.',
-          'Return ONLY valid JSON with keys: suggestion, confidence, reasoning, requires_review.',
-          'confidence must be a float between 0 and 1.',
-          'suggestion must be concise and directly applicable to the violation.',
-        ].join('\n');
-        const dynamicContext = [
-          `Rule ID: ${f.rule_id}`,
-          `Resource title: ${resTitle || '(unknown)'}`,
-          `Resource type: ${f.resource_type}`,
-          `Current violating value: ${currentValue}`,
-          `Nearby snippet: ${String(f.snippet || '').slice(0, 500) || '(none)'}`,
-          `HTML context excerpt: ${htmlPlain.slice(0, sliceLen)}`,
-        ].join('\n');
-        try {
-          const ai = await this.callClaudeStructuredSuggestion(
-            { staticInstruction, dynamicContext },
-            {
-              image: imagePayload,
-              ruleId: f.rule_id,
-              resourceType: f.resource_type,
-              useVisionTierModel: contract.is_image_rule,
-            },
-          );
-          suggestion = ai.suggestion;
-          reasoning = ai.reasoning;
-          confidence = ai.confidence;
-          requiresReview = ai.requires_review;
-        } catch (e: any) {
-          suggestion = '';
-          reasoning = '';
-          confidence = 0.2;
-          requiresReview = true;
-          const msg = e?.message || 'AI suggestion generation failed.';
-          rateLimited = /\b429\b|rate_limit|rate limit/i.test(String(msg));
-          result = {
-            newHtml: content.html,
-            changes: [],
-            errorNote: rateLimited
-              ? '⚠ Rate limited — Claude returned too many requests. Retry this item individually or wait, then run preview again.'
-              : msg,
-          };
-        }
-        if (!result) {
-          result = await this.applySuggestionToHtml(
-            content.html,
-            f.rule_id,
-            suggestion,
-          );
-        }
+        result = await this.applySuggestionToHtml(
+          content.html,
+          f.rule_id,
+          suggestion,
+        );
       }
     } else if (f.rule_id === 'link_file_missing_type_size_hint') {
       const hrefM = content.html.match(
@@ -12711,6 +12924,9 @@ export class CanvasService {
         image_fetch_failed: !!imageFetchFailed,
         ...(aiCapSkipped ? { skip_reason: 'ai_cap_reached' } : {}),
         ...(rateLimited ? { rate_limited: true } : {}),
+        ...(dedupeSharedWith > 0
+          ? { ai_dedupe_shared_with: dedupeSharedWith }
+          : {}),
         ...(fixChoices?.length
           ? {
               fix_choices: fixChoices,

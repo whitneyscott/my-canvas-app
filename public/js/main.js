@@ -2979,6 +2979,7 @@ function renderAccessibilityFixQueue(actions) {
                 `}
                 ${imgLowConfidence ? `<div style="margin-top:6px;"><img src="${escapeHtml(String(a.image_url))}" alt="" style="max-width:220px;max-height:120px;border:1px solid #ddd;border-radius:4px;"></div>` : ''}
                 ${reasoning ? `<details style="margin-top:6px;"><summary style="cursor:pointer;font-size:12px;">Reasoning</summary><div style="font-size:12px;color:#374151;">${escapeHtml(reasoning)}</div></details>` : ''}
+                ${Number(a.ai_dedupe_shared_with) > 0 ? `<div style="font-size:11px;color:#1e40af;margin-top:6px;">Shared with ${Number(a.ai_dedupe_shared_with)} other instance(s) (one AI analysis).</div>` : ''}
                 ${a.rate_limited ? `<div style="font-size:12px;color:#92400e;margin-top:6px;font-weight:600;">Rate limited — retry individually</div>` : ''}
                 ${a.error_note ? `<div style="font-size:12px;color:#991b1b;margin-top:6px;">${escapeHtml(a.error_note)}</div>` : ''}
             </td>
