@@ -4297,7 +4297,7 @@ async function syncChanges() {
         });
 
         const bulkResults = await runWithConcurrency(bulkRequests, REQUEST_CONCURRENCY_LIMIT, async (req) => {
-            const url = `/canvas/courses/${selectedCourseId}/${endpoint}/bulk`;
+            const url = `/canvas/courses/${selectedCourseId}/${endpoint}/_bulk`;
             debugLog('[Sync] Bulk Request: tab=' + currentTab + ' endpoint=' + url + ' itemIds=' + JSON.stringify(req.itemIds) + ' payload=' + JSON.stringify(req.updates), 'info');
             const response = await fetch(url, {
                 method: 'PUT',

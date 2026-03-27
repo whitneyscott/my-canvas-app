@@ -469,7 +469,7 @@ export class CanvasController {
     }
   }
 
-  @Put('courses/:courseId/assignments/:id(\\d+)')
+  @Put('courses/:courseId/assignments/:id')
   async updateAssignment(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -489,7 +489,7 @@ export class CanvasController {
     }
   }
 
-  @Put('courses/:courseId/quizzes/:id(\\d+)')
+  @Put('courses/:courseId/quizzes/:id')
   async updateQuiz(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -509,7 +509,7 @@ export class CanvasController {
     }
   }
 
-  @Put('courses/:courseId/discussions/:id(\\d+)')
+  @Put('courses/:courseId/discussions/:id')
   async updateDiscussion(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -538,7 +538,7 @@ export class CanvasController {
     return this.canvasService.updatePage(courseId, id, updates);
   }
 
-  @Put('courses/:courseId/announcements/:id(\\d+)')
+  @Put('courses/:courseId/announcements/:id')
   async updateAnnouncement(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -558,7 +558,7 @@ export class CanvasController {
     }
   }
 
-  @Put('courses/:courseId/modules/:id(\\d+)')
+  @Put('courses/:courseId/modules/:id')
   async updateModule(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -568,7 +568,7 @@ export class CanvasController {
   }
 
   // Bulk update endpoints (kept for future use)
-  @Put('courses/:courseId/assignments/bulk')
+  @Put('courses/:courseId/assignments/_bulk')
   async bulkUpdateAssignments(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Body() body: { itemIds: number[]; updates: Record<string, any> }
@@ -576,7 +576,7 @@ export class CanvasController {
     return this.canvasService.bulkUpdateAssignments(courseId, body.itemIds, body.updates);
   }
 
-  @Put('courses/:courseId/quizzes/bulk')
+  @Put('courses/:courseId/quizzes/_bulk')
   async bulkUpdateQuizzes(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Body() body: { itemIds: number[]; updates: Record<string, any> }
@@ -584,7 +584,7 @@ export class CanvasController {
     return this.canvasService.bulkUpdateQuizzes(courseId, body.itemIds, body.updates);
   }
 
-  @Put('courses/:courseId/discussions/bulk')
+  @Put('courses/:courseId/discussions/_bulk')
   async bulkUpdateDiscussions(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Body() body: { itemIds: number[]; updates: Record<string, any> }
@@ -592,7 +592,7 @@ export class CanvasController {
     return this.canvasService.bulkUpdateDiscussions(courseId, body.itemIds, body.updates);
   }
 
-  @Put('courses/:courseId/pages/bulk')
+  @Put('courses/:courseId/pages/_bulk')
   async bulkUpdatePages(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Body() body: { itemIds: string[]; updates: Record<string, any> }
@@ -600,7 +600,7 @@ export class CanvasController {
     return this.canvasService.bulkUpdatePages(courseId, body.itemIds, body.updates);
   }
 
-  @Put('courses/:courseId/announcements/bulk')
+  @Put('courses/:courseId/announcements/_bulk')
   async bulkUpdateAnnouncements(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Body() body: { itemIds: number[]; updates: Record<string, any> }
@@ -608,7 +608,7 @@ export class CanvasController {
     return this.canvasService.bulkUpdateAnnouncements(courseId, body.itemIds, body.updates);
   }
 
-  @Put('courses/:courseId/modules/bulk')
+  @Put('courses/:courseId/modules/_bulk')
   async bulkUpdateModules(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Body() body: { itemIds: number[]; updates: Record<string, any> }
