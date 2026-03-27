@@ -46,6 +46,17 @@ interface AccessibilityScanOptions {
   ruleIds?: string[];
 }
 
+export interface AccessibilityFixPreviewItemMeter {
+  requests: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens: number;
+  cache_creation_input_tokens: number;
+  estimated_input_usd: number;
+  estimated_output_usd: number;
+  estimated_total_usd: number;
+}
+
 type FixRisk = 'low' | 'medium' | 'high';
 type FixStrategy = 'auto' | 'suggested' | 'manual_only';
 type FalsePositiveRisk = 'low' | 'medium' | 'high';
@@ -1017,7 +1028,9 @@ export class CanvasService {
   private getAnthropicApiKey(): string {
     const raw = this.config.get<string>('ANTHROPIC_API_KEY');
     if (raw == null) return '';
-    let k = String(raw).replace(/\r\n|\r|\n/g, '').trim();
+    let k = String(raw)
+      .replace(/\r\n|\r|\n/g, '')
+      .trim();
     if (
       (k.startsWith('"') && k.endsWith('"') && k.length > 2) ||
       (k.startsWith("'") && k.endsWith("'") && k.length > 2)
@@ -1078,6 +1091,106 @@ export class CanvasService {
       `session_calls=${s.calls}`,
     ].filter(Boolean);
     console.log(bits.join(' '));
+  }
+
+  private snapshotAnthropicUsage(): {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    calls: number;
+  } {
+    const s = this.anthropicUsageSession;
+    return {
+      input: s.input,
+      output: s.output,
+      cacheRead: s.cacheRead,
+      cacheWrite: s.cacheWrite,
+      calls: s.calls,
+    };
+  }
+
+  private estimateUsdForAnthropicTokens(
+    input: number,
+    output: number,
+    cacheRead: number,
+    cacheWrite: number,
+  ): { inputUsd: number; outputUsd: number; total: number } {
+    const perMtok = (key: string, def: string) =>
+      (Number(this.config.get<string>(key) ?? def) || 0) / 1e6;
+    const pi = perMtok('ANTHROPIC_USD_PER_MTOK_INPUT', '1');
+    const po = perMtok('ANTHROPIC_USD_PER_MTOK_OUTPUT', '5');
+    const pr = perMtok('ANTHROPIC_USD_PER_MTOK_CACHE_READ', '0.1');
+    const pcw = perMtok('ANTHROPIC_USD_PER_MTOK_CACHE_WRITE', '1.25');
+    const inputUsd = input * pi + cacheRead * pr + cacheWrite * pcw;
+    const outputUsd = output * po;
+    return { inputUsd, outputUsd, total: inputUsd + outputUsd };
+  }
+
+  private meterSinceAnthropicSnapshot(start: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    calls: number;
+  }): AccessibilityFixPreviewItemMeter {
+    const s = this.anthropicUsageSession;
+    const input_tokens = s.input - start.input;
+    const output_tokens = s.output - start.output;
+    const cache_read_input_tokens = s.cacheRead - start.cacheRead;
+    const cache_creation_input_tokens = s.cacheWrite - start.cacheWrite;
+    const requests = s.calls - start.calls;
+    const { inputUsd, outputUsd, total } = this.estimateUsdForAnthropicTokens(
+      input_tokens,
+      output_tokens,
+      cache_read_input_tokens,
+      cache_creation_input_tokens,
+    );
+    return {
+      requests,
+      input_tokens,
+      output_tokens,
+      cache_read_input_tokens,
+      cache_creation_input_tokens,
+      estimated_input_usd: inputUsd,
+      estimated_output_usd: outputUsd,
+      estimated_total_usd: total,
+    };
+  }
+
+  private emptyFixPreviewMeter(): AccessibilityFixPreviewItemMeter {
+    return {
+      requests: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+      estimated_input_usd: 0,
+      estimated_output_usd: 0,
+      estimated_total_usd: 0,
+    };
+  }
+
+  private sumFixPreviewMeters(
+    a: AccessibilityFixPreviewItemMeter,
+    b: AccessibilityFixPreviewItemMeter,
+  ): AccessibilityFixPreviewItemMeter {
+    return {
+      requests: a.requests + b.requests,
+      input_tokens: a.input_tokens + b.input_tokens,
+      output_tokens: a.output_tokens + b.output_tokens,
+      cache_read_input_tokens:
+        a.cache_read_input_tokens + b.cache_read_input_tokens,
+      cache_creation_input_tokens:
+        a.cache_creation_input_tokens + b.cache_creation_input_tokens,
+      estimated_input_usd: a.estimated_input_usd + b.estimated_input_usd,
+      estimated_output_usd: a.estimated_output_usd + b.estimated_output_usd,
+      estimated_total_usd: a.estimated_total_usd + b.estimated_total_usd,
+    };
+  }
+
+  emptyAccessibilityFixPreviewMeter(): AccessibilityFixPreviewItemMeter {
+    return this.emptyFixPreviewMeter();
   }
 
   private extractAnthropicText(payload: {
@@ -2435,6 +2548,12 @@ export class CanvasService {
     );
 
     return pagesWithBody;
+  }
+
+  async getCoursePagesListOnly(courseId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const url = `${baseUrl}/courses/${courseId}/pages?per_page=100`;
+    return await this.fetchPaginatedData(url, token);
   }
 
   async getCourseAnnouncements(courseId: number) {
@@ -9174,7 +9293,7 @@ export class CanvasService {
     resourceTitle: string;
   } | null> {
     if (resourceType === 'pages') {
-      const pages = await this.getCoursePages(courseId);
+      const pages = await this.getCoursePagesListOnly(courseId);
       const page = (Array.isArray(pages) ? pages : []).find(
         (p: any) =>
           String(p?.id ?? p?.page_id ?? '') === resourceId ||
@@ -12088,18 +12207,26 @@ export class CanvasService {
       rule_id: string;
       snippet?: string | null;
     }>,
-  ): Promise<{ actions: Array<any> }> {
+  ): Promise<{
+    actions: Array<any>;
+    meter: AccessibilityFixPreviewItemMeter;
+  }> {
     const seen = new Set<string>();
     const actions: Array<any> = [];
+    let meter = this.emptyFixPreviewMeter();
     for (const f of findings) {
       const key = `${f.resource_type}:${f.resource_id}:${f.rule_id}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const action = await this.getAccessibilityFixPreviewItem(courseId, f);
+      const { action, meter: m } = await this.getAccessibilityFixPreviewItem(
+        courseId,
+        f,
+      );
+      meter = this.sumFixPreviewMeters(meter, m);
       if (action) actions.push(action);
     }
 
-    return { actions };
+    return { actions, meter };
   }
 
   async getAccessibilityFixPreviewItem(
@@ -12111,15 +12238,20 @@ export class CanvasService {
       rule_id: string;
       snippet?: string | null;
     },
-  ): Promise<any | null> {
+  ): Promise<{
+    action: any | null;
+    meter: AccessibilityFixPreviewItemMeter;
+  }> {
     const contract = ACCESSIBILITY_FIXABILITY_MAP[f.rule_id];
-    if (!contract?.supports_preview) return null;
+    if (!contract?.supports_preview)
+      return { action: null, meter: this.emptyFixPreviewMeter() };
     const content = await this.fetchAccessibilityResourceContent(
       courseId,
       f.resource_type,
       f.resource_id,
     );
-    if (!content) return null;
+    if (!content) return { action: null, meter: this.emptyFixPreviewMeter() };
+    const anthropicUsageStart = this.snapshotAnthropicUsage();
     const crypto = await import('crypto');
     const hash = (s: string) =>
       crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
@@ -12341,8 +12473,12 @@ export class CanvasService {
       ];
       suggestion = fixChoices[0].value;
     }
-    if (!result || (result.changes.length === 0 && !result.errorNote))
-      return null;
+    if (!result || (result.changes.length === 0 && !result.errorNote)) {
+      return {
+        action: null,
+        meter: this.meterSinceAnthropicSnapshot(anthropicUsageStart),
+      };
+    }
     const beforeSnippet = result.changes.map((c) => c.before).join('\n---\n');
     const afterSnippet = result.changes.map((c) => c.after).join('\n---\n');
     const actionId = `${hash(content.html)}:${f.resource_type}:${f.resource_id}:${f.rule_id}`;
@@ -12362,47 +12498,52 @@ export class CanvasService {
     const beforeHtml = beforeSnippet;
     const afterHtml = hasError ? '' : afterSnippet;
     return {
-      action_id: actionId,
-      resource_type: f.resource_type,
-      resource_id: f.resource_id,
-      update_key: content.updateKey,
-      resource_title: content.resourceTitle || f.resource_title || '',
-      rule_id: f.rule_id,
-      fix_type: contract.fix_type,
-      fix_strategy: effectiveStrategy,
-      risk: contract.risk,
-      before_html: beforeHtml,
-      after_html: afterHtml,
-      beforeHtml,
-      afterHtml,
-      before_snippet: (
-        currentValue ||
-        beforeHtml ||
-        result.errorNote ||
-        ''
-      ).slice(0, 1000),
-      after_snippet: (suggestion || afterHtml || result.errorNote || '').slice(
-        0,
-        1000,
-      ),
-      content_hash: hash(content.html),
-      proposed_html: hasError ? undefined : result.newHtml,
-      error_note: result.errorNote,
-      suggestion,
-      edited_suggestion: suggestion,
-      reasoning,
-      requires_review: requiresReview,
-      confidence: confidenceResolved.confidence,
-      confidence_tier: confidenceResolved.tier,
-      confidence_override_reason: confidenceResolved.override_reason,
-      image_url: imageUrl || undefined,
-      image_fetch_failed: !!imageFetchFailed,
-      ...(fixChoices?.length
-        ? {
-            fix_choices: fixChoices,
-            fix_choice_intro: fixChoiceIntro,
-          }
-        : {}),
+      action: {
+        action_id: actionId,
+        resource_type: f.resource_type,
+        resource_id: f.resource_id,
+        update_key: content.updateKey,
+        resource_title: content.resourceTitle || f.resource_title || '',
+        rule_id: f.rule_id,
+        fix_type: contract.fix_type,
+        fix_strategy: effectiveStrategy,
+        risk: contract.risk,
+        before_html: beforeHtml,
+        after_html: afterHtml,
+        beforeHtml,
+        afterHtml,
+        before_snippet: (
+          currentValue ||
+          beforeHtml ||
+          result.errorNote ||
+          ''
+        ).slice(0, 1000),
+        after_snippet: (
+          suggestion ||
+          afterHtml ||
+          result.errorNote ||
+          ''
+        ).slice(0, 1000),
+        content_hash: hash(content.html),
+        proposed_html: hasError ? undefined : result.newHtml,
+        error_note: result.errorNote,
+        suggestion,
+        edited_suggestion: suggestion,
+        reasoning,
+        requires_review: requiresReview,
+        confidence: confidenceResolved.confidence,
+        confidence_tier: confidenceResolved.tier,
+        confidence_override_reason: confidenceResolved.override_reason,
+        image_url: imageUrl || undefined,
+        image_fetch_failed: !!imageFetchFailed,
+        ...(fixChoices?.length
+          ? {
+              fix_choices: fixChoices,
+              fix_choice_intro: fixChoiceIntro,
+            }
+          : {}),
+      },
+      meter: this.meterSinceAnthropicSnapshot(anthropicUsageStart),
     };
   }
 

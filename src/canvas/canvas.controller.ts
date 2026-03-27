@@ -502,12 +502,16 @@ export class CanvasController {
       };
     },
   ) {
-    if (!body?.finding) return { action: null };
-    const action = await this.canvasService.getAccessibilityFixPreviewItem(
+    if (!body?.finding) {
+      return {
+        action: null,
+        meter: this.canvasService.emptyAccessibilityFixPreviewMeter(),
+      };
+    }
+    return await this.canvasService.getAccessibilityFixPreviewItem(
       id,
       body.finding,
     );
-    return { action };
   }
 
   @Post('courses/:id/accessibility/fix-apply')

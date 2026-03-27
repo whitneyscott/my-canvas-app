@@ -746,6 +746,7 @@ let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, select
 let accessibilityLastReport = null;
 const ACCESSIBILITY_RUN_HISTORY_KEY = 'accessibility:runHistory:v1';
 let accessibilityGridApi = null;
+let accessibilityFixQueueGridApi = null;
 let accessibilityFixPreviewActions = null;
 let accessibilityFixGenerationInProgress = false;
 const ACCESSIBILITY_CANVAS_PARITY_RULES = [
@@ -2467,9 +2468,11 @@ function renderAccessibilityReport(report) {
             <div id="accessibilityResultsGrid" class="ag-theme-quartz" style="height: 420px; width: 100%;"></div>
             <div id="accessibilityFixQueue" style="display:none;margin-top:16px;border:1px solid #ddd;border-radius:6px;padding:12px;">
                 <h4 style="margin:0 0 8px 0;">Fix Queue</h4>
-                <div id="accessibilityFixQueueTableWrap" style="overflow:auto;max-height:240px;margin-bottom:8px;"></div>
+                <div id="accessibilityFixQueueToolbar"></div>
+                <div id="accessibilityFixQueueTableWrap" class="ag-theme-quartz" style="width:100%;height:min(55vh,520px);min-height:220px;"></div>
+                <div id="accessibilityFixPreviewCostSummary" style="display:none;font-size:12px;color:#374151;margin-top:8px;"></div>
                 <div id="accessibilityFixPreviewPane" style="display:none;margin-bottom:10px;border:1px solid #ddd;border-radius:6px;padding:12px;background:#fafafa;"></div>
-                <div style="display:flex;gap:8px;align-items:center;">
+                <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
                     <button id="applyApprovedFixesBtn" class="primary-btn" disabled>Apply Approved Fixes</button>
                     <span id="accessibilityFixQueueStatus"></span>
                 </div>
@@ -2571,6 +2574,42 @@ function downloadAccessibilityCsv() {
     window.open(url, '_blank');
 }
 
+function emptyAccessibilityFixPreviewRunMeter() {
+    return {
+        requests: 0,
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        estimated_input_usd: 0,
+        estimated_output_usd: 0,
+        estimated_total_usd: 0,
+    };
+}
+
+function addAccessibilityFixPreviewRunMeters(agg, m) {
+    if (!m || typeof m !== 'object') return agg;
+    return {
+        requests: (agg.requests || 0) + (Number(m.requests) || 0),
+        input_tokens: (agg.input_tokens || 0) + (Number(m.input_tokens) || 0),
+        output_tokens: (agg.output_tokens || 0) + (Number(m.output_tokens) || 0),
+        cache_read_input_tokens: (agg.cache_read_input_tokens || 0) + (Number(m.cache_read_input_tokens) || 0),
+        cache_creation_input_tokens: (agg.cache_creation_input_tokens || 0) + (Number(m.cache_creation_input_tokens) || 0),
+        estimated_input_usd: (agg.estimated_input_usd || 0) + (Number(m.estimated_input_usd) || 0),
+        estimated_output_usd: (agg.estimated_output_usd || 0) + (Number(m.estimated_output_usd) || 0),
+        estimated_total_usd: (agg.estimated_total_usd || 0) + (Number(m.estimated_total_usd) || 0),
+    };
+}
+
+function formatAccessibilityFixPreviewCostSummary(m) {
+    const req = Number(m?.requests) || 0;
+    const inUsd = Number(m?.estimated_input_usd) || 0;
+    const outUsd = Number(m?.estimated_output_usd) || 0;
+    const tot = Number(m?.estimated_total_usd) || 0;
+    const fmt = (x) => (Number.isFinite(x) ? x.toFixed(4) : '0.0000');
+    return `AI (this preview run): ${req} request(s) · input $${fmt(inUsd)} · output $${fmt(outUsd)} · total $${fmt(tot)}`;
+}
+
 async function generateAccessibilityFixPreview() {
     if (!selectedCourseId) {
         showToast('Select a course first.', 'warn');
@@ -2606,6 +2645,12 @@ async function generateAccessibilityFixPreview() {
         await withSpinner(async ({ setLabel }) => {
             accessibilityFixGenerationInProgress = true;
             accessibilityFixPreviewActions = [];
+            const costEl = document.getElementById('accessibilityFixPreviewCostSummary');
+            if (costEl) {
+                costEl.style.display = 'none';
+                costEl.textContent = '';
+            }
+            let runMeter = emptyAccessibilityFixPreviewRunMeter();
             renderAccessibilityFixQueue(accessibilityFixPreviewActions);
             const total = rows.length;
             let completed = 0;
@@ -2616,7 +2661,7 @@ async function generateAccessibilityFixPreview() {
                 setLabel(msg);
             };
             updateProgress();
-            const maxConcurrent = 6;
+            const maxConcurrent = 3;
             let index = 0;
             const workers = new Array(Math.min(maxConcurrent, total)).fill(null).map(async () => {
                 while (index < total) {
@@ -2634,6 +2679,7 @@ async function generateAccessibilityFixPreview() {
                             throw new Error(errText);
                         }
                         const data = await res.json();
+                        runMeter = addAccessibilityFixPreviewRunMeters(runMeter, data?.meter);
                         const action = data?.action || null;
                         if (action) accessibilityFixPreviewActions.push(action);
                         else {
@@ -2682,6 +2728,12 @@ async function generateAccessibilityFixPreview() {
             });
             await Promise.all(workers);
             accessibilityFixGenerationInProgress = false;
+            if (costEl && (runMeter.requests > 0 || runMeter.estimated_total_usd > 0)) {
+                costEl.style.display = 'block';
+                costEl.textContent = formatAccessibilityFixPreviewCostSummary(runMeter);
+            } else if (costEl) {
+                costEl.style.display = 'none';
+            }
             if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Preview success: actions=${accessibilityFixPreviewActions.length}`, 'info');
             if (!accessibilityFixPreviewActions.length) {
                 showToast('No fix suggestions available for current findings.', 'info');
@@ -2714,140 +2766,303 @@ function setActionEditedSuggestion(actionId, text) {
 }
 
 function approveAccessibilityAction(actionId) {
-    const cb = Array.from(document.querySelectorAll('.acc-fix-approve')).find((x) => String(x.getAttribute('data-action-id') || '') === String(actionId));
-    if (!cb) return;
-    cb.checked = true;
+    if (!accessibilityFixQueueGridApi?.forEachNode) return;
+    accessibilityFixQueueGridApi.forEachNode((node) => {
+        if (String(node.data?.action_id) === String(actionId) && node.selectable) node.setSelected(true);
+    });
     updateApplyButtonState();
 }
 
 function skipAccessibilityAction(actionId) {
-    const cb = Array.from(document.querySelectorAll('.acc-fix-approve')).find((x) => String(x.getAttribute('data-action-id') || '') === String(actionId));
-    if (!cb) return;
-    cb.checked = false;
+    if (!accessibilityFixQueueGridApi?.forEachNode) return;
+    accessibilityFixQueueGridApi.forEachNode((node) => {
+        if (String(node.data?.action_id) === String(actionId)) node.setSelected(false);
+    });
     updateApplyButtonState();
 }
 
 function approveAllAccessibilityHighConfidence() {
-    const actions = Array.isArray(accessibilityFixPreviewActions) ? accessibilityFixPreviewActions : [];
-    const highIds = new Set(actions.filter((a) => String(a?.confidence_tier) === 'high' && String(a?.fix_strategy) !== 'manual_only').map((a) => String(a.action_id)));
-    document.querySelectorAll('.acc-fix-approve').forEach((cb) => {
-        cb.checked = highIds.has(String(cb.getAttribute('data-action-id') || ''));
+    if (!accessibilityFixQueueGridApi?.forEachNode) return;
+    accessibilityFixQueueGridApi.forEachNode((node) => {
+        if (!node.selectable) return;
+        const a = node.data;
+        const high = String(a?.confidence_tier) === 'high' && String(a?.fix_strategy) !== 'manual_only';
+        node.setSelected(!!high);
     });
     updateApplyButtonState();
 }
 
 function approveAllAccessibilitySuggestions() {
-    document.querySelectorAll('.acc-fix-approve').forEach((cb) => {
-        if (!cb.disabled) cb.checked = true;
+    if (!accessibilityFixQueueGridApi?.forEachNode) return;
+    accessibilityFixQueueGridApi.forEachNode((node) => {
+        if (!node.selectable) return;
+        node.setSelected(true);
     });
     updateApplyButtonState();
 }
 
 function renderAccessibilityFixQueue(actions) {
     const wrap = document.getElementById('accessibilityFixQueueTableWrap');
+    const toolbar = document.getElementById('accessibilityFixQueueToolbar');
     const queue = document.getElementById('accessibilityFixQueue');
     const applyBtn = document.getElementById('applyApprovedFixesBtn');
     const statusEl = document.getElementById('accessibilityFixQueueStatus');
     if (!wrap || !queue) return;
+
+    destroyAccessibilityFixQueueGrid();
+
     if (!actions || !actions.length) {
         queue.style.display = 'none';
+        if (toolbar) toolbar.innerHTML = '';
+        if (applyBtn) {
+            applyBtn.disabled = true;
+            applyBtn.onclick = null;
+        }
         return;
     }
+
     queue.style.display = 'block';
-    const rows = actions.map((a, i) => {
-        const isManualOnly = String(a.fix_strategy || '') === 'manual_only';
-        const checkedAttr = isManualOnly ? '' : ' checked';
-        const disabledAttr = isManualOnly ? ' disabled' : '';
-        const choices = Array.isArray(a.fix_choices) && a.fix_choices.length ? a.fix_choices : null;
-        const suggestion = String(a.edited_suggestion ?? a.suggestion ?? a.after_snippet ?? '').trim();
-        const confidence = getConfidenceMeta(a);
-        const imgLowConfidence = String(a?.confidence_tier || 'low') === 'low' && String(a?.image_url || '').trim();
-        const beforeValue = String(a.before_snippet || '').trim();
-        const reasoning = String(a.reasoning || '').trim();
-        return `
-        <tr style="background:${confidence.bg}; border-left:4px solid ${confidence.border};">
-            <td style="padding:6px;"><input type="checkbox" class="acc-fix-approve" data-action-id="${escapeHtml(a.action_id)}" data-index="${i}"${checkedAttr}${disabledAttr}></td>
-            <td style="padding:6px;">${escapeHtml(ACCESSIBILITY_RULE_LABELS[a.rule_id] || a.rule_id)}</td>
-            <td style="padding:6px;">${escapeHtml(a.resource_type)}</td>
-            <td style="padding:6px;">${escapeHtml(a.resource_title || '').slice(0, 60)}</td>
-            <td style="padding:6px;">
-                <span style="display:inline-flex;align-items:center;gap:6px;color:${confidence.color};font-weight:700;">
-                    <span style="display:inline-flex;width:18px;height:18px;border-radius:999px;border:1px solid ${confidence.border};justify-content:center;align-items:center;background:#fff;">${confidence.icon}</span>
-                    ${confidence.label}
-                </span>
-                ${a.confidence_override_reason ? `<div style="font-size:11px;color:#7f1d1d;margin-top:3px;">override: ${escapeHtml(a.confidence_override_reason)}</div>` : ''}
-            </td>
-            <td style="padding:6px;max-width:260px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(beforeValue)}">${escapeHtml(beforeValue || '(none)').slice(0, 120)}</td>
-            <td style="padding:6px;min-width:280px;">
-                ${choices ? `
-                ${a.fix_choice_intro ? `<div style="font-size:12px;color:#374151;margin-bottom:8px;line-height:1.45;">${escapeHtml(String(a.fix_choice_intro))}</div>` : ''}
-                <div class="acc-fix-choices-wrap" data-acc-fix-index="${i}" data-action-id="${escapeHtml(a.action_id)}">
-                ${choices.map((c, j) => {
-        const val = String(c.value || '');
-        const cur = suggestion || String(a.suggestion || '');
-        const sel = (cur && cur === val) || (!cur && j === 0) ? ' checked' : '';
-        return `<label style="display:block;margin:8px 0;font-size:12px;line-height:1.35;"><input type="radio" class="acc-fix-choice" name="acc-fix-choice-${i}" data-action-id="${escapeHtml(a.action_id)}" value="${escapeHtml(val)}"${sel}${isManualOnly ? ' disabled' : ''}/> ${escapeHtml(String(c.label || val))}</label>${c.help ? `<div style="font-size:11px;color:#6b7280;margin:-4px 0 4px 22px;line-height:1.35;">${escapeHtml(String(c.help))}</div>` : ''}`;
-    }).join('')}
-                </div>
-                ` : `
-                <textarea class="acc-fix-edit-input" data-action-id="${escapeHtml(a.action_id)}" rows="3" style="width:100%;font-size:12px;border:1px solid ${confidence.border};border-radius:6px;padding:6px;" ${isManualOnly ? 'disabled' : ''}>${escapeHtml(suggestion)}</textarea>
-                `}
-                ${imgLowConfidence ? `<div style="margin-top:6px;"><img src="${escapeHtml(String(a.image_url))}" alt="" style="max-width:220px;max-height:120px;border:1px solid #ddd;border-radius:4px;"></div>` : ''}
-                ${reasoning ? `<details style="margin-top:6px;"><summary style="cursor:pointer;font-size:12px;">Reasoning</summary><div style="font-size:12px;color:#374151;">${escapeHtml(reasoning)}</div></details>` : ''}
-                ${a.error_note ? `<div style="font-size:12px;color:#991b1b;margin-top:6px;">${escapeHtml(a.error_note)}</div>` : ''}
-            </td>
-            <td style="padding:6px;">
-                <button type="button" class="primary-btn" style="margin-right:6px;" ${isManualOnly ? 'disabled' : ''} onclick="approveAccessibilityAction('${escapeHtml(a.action_id)}')">Approve</button>
-                <button type="button" class="primary-btn" onclick="skipAccessibilityAction('${escapeHtml(a.action_id)}')">Skip</button>
-                <div style="margin-top:6px;"><a href="#" onclick="openAccessibilityFixPreviewInline(${i}); return false;">Open Preview</a></div>
-            </td>
-        </tr>
-    `;
-    }).join('');
-    wrap.innerHTML = `
-        <table style="width:100%;border-collapse:collapse;font-size:12px;">
-            <thead>
-                <tr style="background:#f8f8f8;">
-                    <th style="text-align:left;padding:6px;"><input type="checkbox" id="accFixSelectAll" checked></th>
-                    <th style="text-align:left;padding:6px;">Rule</th>
-                    <th style="text-align:left;padding:6px;">Type</th>
-                    <th style="text-align:left;padding:6px;">Resource</th>
-                    <th style="text-align:left;padding:6px;">Confidence</th>
-                    <th style="text-align:left;padding:6px;">Current Value</th>
-                    <th style="text-align:left;padding:6px;">Suggested Fix (Editable)</th>
-                    <th style="text-align:left;padding:6px;">Actions</th>
-                </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-        </table>
-        <div style="display:flex;gap:8px;margin-top:8px;">
-            <button type="button" class="primary-btn" onclick="approveAllAccessibilityHighConfidence()">Approve all high confidence</button>
-            <button type="button" class="primary-btn" onclick="approveAllAccessibilitySuggestions()">Approve all suggestions</button>
-        </div>
-    `;
-    const selectAll = document.getElementById('accFixSelectAll');
-    if (selectAll) selectAll.onchange = () => wrap.querySelectorAll('.acc-fix-approve').forEach((cb) => { cb.checked = selectAll.checked; updateApplyButtonState(); });
-    wrap.querySelectorAll('.acc-fix-approve').forEach((cb) => { cb.onchange = updateApplyButtonState; });
-    wrap.querySelectorAll('.acc-fix-edit-input').forEach((el) => {
-        el.addEventListener('input', (evt) => {
-            const target = evt.target;
-            setActionEditedSuggestion(target.getAttribute('data-action-id'), target.value);
-        });
-    });
-    wrap.querySelectorAll('.acc-fix-choice').forEach((el) => {
-        el.addEventListener('change', (evt) => {
-            const target = evt.target;
-            if (target && target.checked) setActionEditedSuggestion(target.getAttribute('data-action-id'), target.value);
-        });
-    });
-    actions.forEach((a, i) => {
-        if (!Array.isArray(a.fix_choices) || !a.fix_choices.length) return;
-        const wrapEl = wrap.querySelector(`[data-acc-fix-index="${i}"]`);
-        if (!wrapEl) return;
-        const checked = wrapEl.querySelector('.acc-fix-choice:checked');
-        const v = checked && checked.value ? checked.value : String(a.fix_choices[0]?.value || '');
-        if (v) setActionEditedSuggestion(a.action_id, v);
-    });
+
+    if (toolbar) {
+        toolbar.innerHTML = `
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <button type="button" class="primary-btn" id="accApproveAllHighBtn">Approve all high confidence</button>
+                <button type="button" class="primary-btn" id="accApproveAllBtn">Approve all suggestions</button>
+            </div>`;
+        const hi = document.getElementById('accApproveAllHighBtn');
+        const all = document.getElementById('accApproveAllBtn');
+        if (hi) hi.onclick = approveAllAccessibilityHighConfidence;
+        if (all) all.onclick = approveAllAccessibilitySuggestions;
+    }
+
+    const choiceGroupKey = (actionId) => String(actionId || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    const columnDefs = [
+        {
+            headerName: 'Rule',
+            minWidth: 160,
+            flex: 1,
+            valueGetter: (p) => ACCESSIBILITY_RULE_LABELS[p.data?.rule_id] || p.data?.rule_id || '',
+            tooltipValueGetter: (p) => p.value || '',
+        },
+        { field: 'resource_type', headerName: 'Type', width: 120 },
+        {
+            field: 'resource_title',
+            headerName: 'Resource',
+            minWidth: 140,
+            flex: 1,
+            valueFormatter: (p) => String(p.value || '').slice(0, 80),
+        },
+        {
+            field: 'confidence_tier',
+            headerName: 'Confidence',
+            width: 130,
+            filter: false,
+            floatingFilter: false,
+            cellRenderer: (p) => {
+                const meta = getConfidenceMeta(p.data);
+                const el = document.createElement('div');
+                const row = document.createElement('span');
+                row.style.cssText = `display:inline-flex;align-items:center;gap:6px;color:${meta.color};font-weight:700;`;
+                const badge = document.createElement('span');
+                badge.style.cssText = `display:inline-flex;width:18px;height:18px;border-radius:999px;border:1px solid ${meta.border};justify-content:center;align-items:center;background:#fff;`;
+                badge.textContent = meta.icon;
+                const lab = document.createElement('span');
+                lab.textContent = meta.label;
+                row.appendChild(badge);
+                row.appendChild(lab);
+                el.appendChild(row);
+                if (p.data?.confidence_override_reason) {
+                    const sub = document.createElement('div');
+                    sub.style.cssText = 'font-size:11px;color:#7f1d1d;margin-top:3px;';
+                    sub.textContent = 'override: ' + String(p.data.confidence_override_reason);
+                    el.appendChild(sub);
+                }
+                return el;
+            },
+        },
+        {
+            field: 'before_snippet',
+            headerName: 'Current value',
+            minWidth: 140,
+            flex: 1,
+            tooltipField: 'before_snippet',
+            valueFormatter: (p) => {
+                const v = String(p.value || '').trim();
+                return v ? v.slice(0, 120) : '(none)';
+            },
+        },
+        {
+            headerName: 'Suggested fix (editable)',
+            minWidth: 300,
+            flex: 2,
+            autoHeight: true,
+            wrapText: true,
+            filter: false,
+            floatingFilter: false,
+            cellRenderer: (p) => {
+                const a = p.data;
+                const isManualOnly = String(a?.fix_strategy || '') === 'manual_only';
+                const choices = Array.isArray(a.fix_choices) && a.fix_choices.length ? a.fix_choices : null;
+                const suggestion = String(a.edited_suggestion ?? a.suggestion ?? a.after_snippet ?? '').trim();
+                const confidence = getConfidenceMeta(a);
+                const wrapDiv = document.createElement('div');
+                wrapDiv.style.padding = '6px 0';
+                if (choices) {
+                    if (a.fix_choice_intro) {
+                        const intro = document.createElement('div');
+                        intro.style.cssText = 'font-size:12px;color:#374151;margin-bottom:8px;line-height:1.45;';
+                        intro.textContent = String(a.fix_choice_intro);
+                        wrapDiv.appendChild(intro);
+                    }
+                    const gk = choiceGroupKey(a.action_id);
+                    choices.forEach((c, j) => {
+                        const val = String(c.value || '');
+                        const label = document.createElement('label');
+                        label.style.cssText = 'display:block;margin:8px 0;font-size:12px;line-height:1.35;';
+                        const radio = document.createElement('input');
+                        radio.type = 'radio';
+                        radio.name = `acc-fix-choice-${gk}`;
+                        radio.value = val;
+                        radio.disabled = isManualOnly;
+                        const cur = suggestion || String(a.suggestion || '');
+                        radio.checked = (cur && cur === val) || (!cur && j === 0);
+                        radio.addEventListener('change', () => {
+                            if (radio.checked) setActionEditedSuggestion(a.action_id, radio.value);
+                        });
+                        label.appendChild(radio);
+                        label.appendChild(document.createTextNode(' ' + String(c.label || val)));
+                        wrapDiv.appendChild(label);
+                        if (c.help) {
+                            const help = document.createElement('div');
+                            help.style.cssText = 'font-size:11px;color:#6b7280;margin:-4px 0 4px 22px;line-height:1.35;';
+                            help.textContent = String(c.help);
+                            wrapDiv.appendChild(help);
+                        }
+                    });
+                } else {
+                    const ta = document.createElement('textarea');
+                    ta.rows = 3;
+                    ta.style.cssText = `width:100%;font-size:12px;border:1px solid ${confidence.border};border-radius:6px;padding:6px;box-sizing:border-box;`;
+                    ta.value = suggestion;
+                    ta.disabled = isManualOnly;
+                    ta.addEventListener('input', () => setActionEditedSuggestion(a.action_id, ta.value));
+                    wrapDiv.appendChild(ta);
+                }
+                const imgLow = String(a?.confidence_tier || 'low') === 'low' && String(a?.image_url || '').trim();
+                if (imgLow) {
+                    const im = document.createElement('img');
+                    im.src = String(a.image_url);
+                    im.alt = '';
+                    im.style.cssText = 'max-width:220px;max-height:120px;border:1px solid #ddd;border-radius:4px;margin-top:6px;';
+                    wrapDiv.appendChild(im);
+                }
+                const reasoning = String(a.reasoning || '').trim();
+                if (reasoning) {
+                    const det = document.createElement('details');
+                    det.style.marginTop = '6px';
+                    const sum = document.createElement('summary');
+                    sum.style.cssText = 'cursor:pointer;font-size:12px;';
+                    sum.textContent = 'Reasoning';
+                    det.appendChild(sum);
+                    const rv = document.createElement('div');
+                    rv.style.cssText = 'font-size:12px;color:#374151;';
+                    rv.textContent = reasoning;
+                    det.appendChild(rv);
+                    wrapDiv.appendChild(det);
+                }
+                if (a.error_note) {
+                    const err = document.createElement('div');
+                    err.style.cssText = 'font-size:12px;color:#991b1b;margin-top:6px;';
+                    err.textContent = String(a.error_note);
+                    wrapDiv.appendChild(err);
+                }
+                return wrapDiv;
+            },
+        },
+        {
+            headerName: 'Actions',
+            width: 200,
+            sortable: false,
+            filter: false,
+            floatingFilter: false,
+            cellRenderer: (p) => {
+                const a = p.data;
+                const isManualOnly = String(a?.fix_strategy || '') === 'manual_only';
+                const wrapDiv = document.createElement('div');
+                const b1 = document.createElement('button');
+                b1.type = 'button';
+                b1.className = 'primary-btn';
+                b1.style.marginRight = '6px';
+                b1.textContent = 'Approve';
+                b1.disabled = isManualOnly;
+                b1.onclick = () => approveAccessibilityAction(a.action_id);
+                const b2 = document.createElement('button');
+                b2.type = 'button';
+                b2.className = 'primary-btn';
+                b2.textContent = 'Skip';
+                b2.onclick = () => skipAccessibilityAction(a.action_id);
+                const link = document.createElement('a');
+                link.href = '#';
+                link.textContent = 'Open Preview';
+                link.style.display = 'inline-block';
+                link.style.marginTop = '6px';
+                link.onclick = (ev) => {
+                    ev.preventDefault();
+                    openAccessibilityFixPreviewInline(a.action_id);
+                };
+                wrapDiv.appendChild(b1);
+                wrapDiv.appendChild(b2);
+                wrapDiv.appendChild(document.createElement('br'));
+                wrapDiv.appendChild(link);
+                return wrapDiv;
+            },
+        },
+    ];
+
+    const options = {
+        columnDefs,
+        rowData: actions,
+        rowSelection: {
+            ...BULK_EDITOR_GRID_ROW_SELECTION,
+            isRowSelectable: (node) => String(node?.data?.fix_strategy || '') !== 'manual_only',
+        },
+        defaultColDef: {
+            filter: 'agTextColumnFilter',
+            floatingFilter: true,
+            sortable: true,
+            resizable: true,
+            minWidth: 100,
+        },
+        suppressCellFocus: true,
+        animateRows: true,
+        getRowId: (p) => String(p.data?.action_id ?? ''),
+        getRowStyle: (p) => {
+            const meta = getConfidenceMeta(p.data);
+            return {
+                background: meta.bg,
+                borderLeft: `4px solid ${meta.border}`,
+            };
+        },
+        onSelectionChanged: updateApplyButtonState,
+        onGridReady: (e) => {
+            e.api.forEachNode((node) => {
+                if (!node.selectable) return;
+                const manual = String(node.data?.fix_strategy || '') === 'manual_only';
+                node.setSelected(!manual);
+            });
+            e.api.resetRowHeights();
+            updateApplyButtonState();
+            actions.forEach((a) => {
+                if (!Array.isArray(a.fix_choices) || !a.fix_choices.length) return;
+                const v = String(a.fix_choices[0]?.value || '');
+                if (v && !String(a.edited_suggestion || '').trim()) setActionEditedSuggestion(a.action_id, v);
+            });
+        },
+    };
+
+    accessibilityFixQueueGridApi = agGrid.createGrid(wrap, options);
+
     if (applyBtn) {
         applyBtn.disabled = false;
         applyBtn.onclick = applyApprovedAccessibilityFixes;
@@ -2899,33 +3114,23 @@ function openAccessibilityFixPreviewInline(actionRef) {
 }
 
 function updateApplyButtonState() {
-    const checked = document.querySelectorAll('.acc-fix-approve:checked');
     const applyBtn = document.getElementById('applyApprovedFixesBtn');
-    if (applyBtn) applyBtn.disabled = !checked.length;
+    if (!applyBtn) return;
+    const n = accessibilityFixQueueGridApi?.getSelectedRows?.()?.length ?? 0;
+    applyBtn.disabled = !n;
 }
 
 async function applyApprovedAccessibilityFixes() {
     if (!selectedCourseId || !accessibilityFixPreviewActions?.length) return;
-    const checked = document.querySelectorAll('.acc-fix-approve:checked');
-    const approvedIds = new Set(Array.from(checked).map((el) => el.getAttribute('data-action-id')));
-    const approved = accessibilityFixPreviewActions
-        .filter((a) => approvedIds.has(a.action_id))
-        .map((a) => {
-            const radio = Array.from(document.querySelectorAll('.acc-fix-choice')).find(
-                (el) => el.checked && String(el.getAttribute('data-action-id') || '') === String(a.action_id),
-            );
-            if (radio && typeof radio.value === 'string' && radio.value) {
-                return { ...a, edited_suggestion: radio.value };
-            }
-            const input = Array.from(document.querySelectorAll('.acc-fix-edit-input'))
-                .find((el) => String(el.getAttribute('data-action-id') || '') === String(a.action_id));
-            const editedSuggestion = input && typeof input.value === 'string' ? input.value : (a.edited_suggestion || a.suggestion || '');
-            return { ...a, edited_suggestion: editedSuggestion };
-        });
-    if (!approved.length) {
+    const selected = accessibilityFixQueueGridApi?.getSelectedRows?.() ?? [];
+    if (!selected.length) {
         showToast('Select at least one fix to apply.', 'warn');
         return;
     }
+    const approved = selected.map((a) => ({
+        ...a,
+        edited_suggestion: String(a.edited_suggestion ?? a.suggestion ?? ''),
+    }));
     const applyBtn = document.getElementById('applyApprovedFixesBtn');
     const statusEl = document.getElementById('accessibilityFixQueueStatus');
     if (statusEl) statusEl.textContent = 'Applying...';
@@ -3006,11 +3211,19 @@ function loadAccessibilityTab() {
     }
 }
 
+function destroyAccessibilityFixQueueGrid() {
+    if (accessibilityFixQueueGridApi && typeof accessibilityFixQueueGridApi.destroy === 'function') {
+        accessibilityFixQueueGridApi.destroy();
+    }
+    accessibilityFixQueueGridApi = null;
+}
+
 function destroyAccessibilityGrid() {
     if (accessibilityGridApi && typeof accessibilityGridApi.destroy === 'function') {
         accessibilityGridApi.destroy();
     }
     accessibilityGridApi = null;
+    destroyAccessibilityFixQueueGrid();
 }
 
 function initializeAccessibilityGrid(findings) {
