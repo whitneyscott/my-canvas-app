@@ -22,10 +22,13 @@ You can use a normal Canvas instance or **Canvas FFT** (Flexible Framework Testi
 
 For shared testing without e-mailing course packages:
 
-1. In **Canvas FFT**, create or pick an **empty course** dedicated to Bulk Editor alpha work.
+1. In **Canvas FFT**, create or pick an **empty course** dedicated to Bulk Editor alpha work (this stays the shared “template” course).
 2. Add your API token (steps above) and point Bulk Editor at that FFT course.
-3. **Share the FFT course** with collaborators—for example, enroll Shauna as **Teacher** or **Designer** so she can open the same course in FFT.
-4. Anyone with access can **download the `.imscc` export directly** from Canvas: use **Settings → Export Course Contents** (wording may vary slightly in FFT), then download the export to their machine. No need to send the package by e-mail.
+3. **Share that FFT course** with collaborators—for example, enroll them as **Teacher** so they can open it in FFT and run an export.
+4. Each collaborator should **download that shared FFT course as a `.imscc` file**: **Settings → Export Course Contents** (wording may vary slightly in FFT), then download the export to their computer.
+5. They **import the `.imscc` into a course they control** (whatever Canvas instance or sandbox they use for their own copy). That gives them a local working copy to try Bulk Editor against with their own token.
+
+**Do not** have collaborators import their own courses *into* your shared FFT alpha course. That course is shared with multiple faculty; mixing everyone’s content there gets messy. Keep the shared FFT course as the single clean export source; each person works in their own imported copy.
 
 ## 2) Getting started
 
