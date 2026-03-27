@@ -4,7 +4,7 @@ This guide is for **alpha testers**. It assumes you have been enrolled in an **e
 
 **Checklist (the easy-to-forget bits):**
 
-- **Open the app** using the **Bulk Editor** course navigation link (or the pilot URL your lead gives you). This alpha build may be **LTI-launched** from Canvas or opened in a browser—use whatever you were told.
+- **Open the app** from the course **Bulk Editor** navigation link. This alpha uses **LTI 1.1** (legacy external tool) only—there is no LTI 1.3 or Canvas OAuth sign-in for the tool yet.
 - **Canvas instance must match the token:** API calls go to the same Canvas where you created the access token. Your target course must live on **that** instance (FFT vs campus vs sandbox).
 - **Role:** You need permission to edit the course you select (typically **Teacher** or equivalent).
 - **Course import:** After importing the `.imscc`, wait until Canvas reports the **import job as complete** before loading that course in Bulk Editor.
@@ -35,10 +35,8 @@ Create the token in **the same Canvas** as the course you will edit with Bulk Ed
 6. Store it in a password manager (1Password, Bitwarden, LastPass).  
    **Do not** store it in a text file, email, or Slack.
 7. Treat it like a password: the token has the same permissions as your Canvas account.
-8. On first launch, paste the token into the token field **if** the app asks for one.  
+8. On first launch, paste the token into the token field.  
    The app stores it locally, so you usually only re-enter it if it expires or is revoked.
-
-If your pilot uses **Canvas OAuth** instead, you’ll sign in through Canvas when prompted—no manual token step.
 
 ## 3) Getting started
 
