@@ -63,7 +63,7 @@ const AccessibilityFixType = {
   ai_link_text: 'ai_link_text',
   ai_link_reconstruct: 'ai_link_reconstruct',
   ai_link_file_hint: 'ai_link_file_hint',
-  ai_link_broken: 'ai_link_broken',
+  link_broken_teacher_href: 'link_broken_teacher_href',
   ai_heading_shorten: 'ai_heading_shorten',
   heading_scope_fix: 'heading_scope_fix',
   heading_h1_demote: 'heading_h1_demote',
@@ -87,7 +87,8 @@ const AccessibilityFixType = {
   manual_only: 'manual_only',
 } as const;
 
-type AccessibilityFixTypeId = (typeof AccessibilityFixType)[keyof typeof AccessibilityFixType];
+type AccessibilityFixTypeId =
+  (typeof AccessibilityFixType)[keyof typeof AccessibilityFixType];
 
 interface AccessibilityFixabilityContract {
   auto_fixable: boolean;
@@ -97,42 +98,639 @@ interface AccessibilityFixabilityContract {
   fix_type: AccessibilityFixTypeId;
   supports_preview: boolean;
   requires_content_fetch: boolean;
+  uses_ai: boolean;
+  is_image_rule: boolean;
 }
 
 type ConfidenceTier = 'high' | 'medium' | 'low';
 
-const ACCESSIBILITY_AI_SUGGESTED_RULES = new Set<string>([
-  'heading_empty',
-  'img_missing_alt',
-  'img_alt_too_long',
-  'img_alt_filename',
-  'img_decorative_misuse',
-  'img_meaningful_empty_alt',
-  'img_text_in_image_warning',
-  'link_ambiguous_text',
-  'link_split_or_broken',
-  'link_file_missing_type_size_hint',
-  'heading_too_long',
-  'heading_skipped_level',
-  'heading_visual_only_style',
-  'table_missing_caption',
-  'iframe_missing_title',
-  'button_empty_name',
-  'form_control_missing_label',
-  'aria_hidden_focusable',
-  'lang_inline_missing',
-  'color_only_information',
-  'sensory_only_instructions',
-  'landmark_structure_quality',
-]);
+export const ACCESSIBILITY_FIXABILITY_MAP: Record<
+  string,
+  AccessibilityFixabilityContract
+> = {
+  adjacent_duplicate_links: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: true,
+    fix_strategy: 'auto',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.merge_duplicate_links,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  list_empty_item: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: true,
+    fix_strategy: 'auto',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.remove_empty_li,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  heading_empty: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.remove_empty_heading,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  link_new_tab_no_warning: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: true,
+    fix_strategy: 'auto',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.append_new_tab_warning,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  font_size_too_small: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: true,
+    fix_strategy: 'auto',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.font_size_min_12,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  media_autoplay: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: true,
+    fix_strategy: 'auto',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.remove_media_autoplay,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  text_justified: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: true,
+    fix_strategy: 'auto',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.remove_text_justify,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  lang_missing: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: true,
+    fix_strategy: 'auto',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.set_html_lang,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  duplicate_id: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: true,
+    fix_strategy: 'auto',
+    false_positive_risk: 'high',
+    risk: 'high',
+    fix_type: AccessibilityFixType.duplicate_id_suffix,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  form_required_not_programmatic: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: true,
+    fix_strategy: 'auto',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.form_required_programmatic,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  form_error_unassociated: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: true,
+    fix_strategy: 'auto',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.form_error_aria_describedby,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  small_text_contrast: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: true,
+    fix_strategy: 'auto',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.fix_inline_text_contrast,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  large_text_contrast: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: true,
+    fix_strategy: 'auto',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.fix_inline_text_contrast,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  img_missing_alt: {
+    uses_ai: true,
+    is_image_rule: true,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'high',
+    risk: 'high',
+    fix_type: AccessibilityFixType.ai_generate_alt_text,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  img_alt_too_long: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.img_alt_truncate,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  img_alt_filename: {
+    uses_ai: true,
+    is_image_rule: true,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.img_alt_filename_suggest,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  img_decorative_misuse: {
+    uses_ai: true,
+    is_image_rule: true,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.ai_img_decorative,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  img_meaningful_empty_alt: {
+    uses_ai: true,
+    is_image_rule: true,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.ai_img_meaningful_alt,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  img_text_in_image_warning: {
+    uses_ai: true,
+    is_image_rule: true,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.ai_img_text_in_image,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  link_ambiguous_text: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.ai_replace_ambiguous_link_text,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  link_empty_name: {
+    // TODO: replace with heuristic handler — see reclassification plan
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'high',
+    risk: 'high',
+    fix_type: AccessibilityFixType.ai_link_text,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  link_split_or_broken: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.ai_link_reconstruct,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  link_file_missing_type_size_hint: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.ai_link_file_hint,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  link_broken: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.link_broken_teacher_href,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  heading_too_long: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.ai_heading_shorten,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  heading_skipped_level: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.heading_scope_fix,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  heading_h1_in_body: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.heading_h1_demote,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  heading_duplicate_h1: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.heading_duplicate_h1_demote,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  heading_visual_only_style: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.ai_heading_visual,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  list_not_semantic: {
+    // TODO: replace with heuristic handler — see reclassification plan
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.ai_list_semantic,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  table_missing_caption: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.ai_table_caption,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  table_missing_header: {
+    // TODO: replace with heuristic handler — see reclassification plan
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'high',
+    risk: 'high',
+    fix_type: AccessibilityFixType.ai_table_header,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  table_header_scope_missing: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.table_scope_fix,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  iframe_missing_title: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.iframe_title_suggest,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  button_empty_name: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'high',
+    risk: 'high',
+    fix_type: AccessibilityFixType.ai_button_label,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  form_control_missing_label: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'high',
+    risk: 'high',
+    fix_type: AccessibilityFixType.ai_form_label,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  form_placeholder_as_label: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.form_placeholder_to_label,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  aria_invalid_role: {
+    // TODO: replace with heuristic handler — see reclassification plan
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.ai_aria_invalid_role,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  aria_hidden_focusable: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'high',
+    risk: 'high',
+    fix_type: AccessibilityFixType.ai_aria_hidden_focusable,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  lang_invalid: {
+    // TODO: replace with heuristic handler — see reclassification plan
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.ai_lang_invalid,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  lang_inline_missing: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'high',
+    risk: 'high',
+    fix_type: AccessibilityFixType.ai_lang_inline,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  color_only_information: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'high',
+    risk: 'high',
+    fix_type: AccessibilityFixType.ai_color_only_information,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  sensory_only_instructions: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.ai_sensory_only_instructions,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  landmark_structure_quality: {
+    uses_ai: true,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'suggested',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.ai_landmark_structure,
+    supports_preview: true,
+    requires_content_fetch: true,
+  },
+  table_layout_heuristic: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'manual_only',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.manual_only,
+    supports_preview: false,
+    requires_content_fetch: false,
+  },
+  table_complex_assoc_missing: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'manual_only',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.manual_only,
+    supports_preview: false,
+    requires_content_fetch: false,
+  },
+  video_missing_captions: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'manual_only',
+    false_positive_risk: 'high',
+    risk: 'high',
+    fix_type: AccessibilityFixType.manual_only,
+    supports_preview: false,
+    requires_content_fetch: false,
+  },
+  audio_missing_transcript: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'manual_only',
+    false_positive_risk: 'high',
+    risk: 'high',
+    fix_type: AccessibilityFixType.manual_only,
+    supports_preview: false,
+    requires_content_fetch: false,
+  },
+  motion_gif_warning: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'manual_only',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.manual_only,
+    supports_preview: false,
+    requires_content_fetch: false,
+  },
+  video_embed_caption_unknown: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'manual_only',
+    false_positive_risk: 'medium',
+    risk: 'medium',
+    fix_type: AccessibilityFixType.manual_only,
+    supports_preview: false,
+    requires_content_fetch: false,
+  },
+  doc_pdf_accessibility_unknown: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'manual_only',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.manual_only,
+    supports_preview: false,
+    requires_content_fetch: false,
+  },
+  doc_office_structure_unknown: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'manual_only',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.manual_only,
+    supports_preview: false,
+    requires_content_fetch: false,
+  },
+  doc_spreadsheet_headers_unknown: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'manual_only',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.manual_only,
+    supports_preview: false,
+    requires_content_fetch: false,
+  },
+  session_timeout_no_warning: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'manual_only',
+    false_positive_risk: 'high',
+    risk: 'high',
+    fix_type: AccessibilityFixType.manual_only,
+    supports_preview: false,
+    requires_content_fetch: true,
+  },
+  keyboard_focus_trap_heuristic: {
+    uses_ai: false,
+    is_image_rule: false,
+    auto_fixable: false,
+    fix_strategy: 'manual_only',
+    false_positive_risk: 'low',
+    risk: 'low',
+    fix_type: AccessibilityFixType.manual_only,
+    supports_preview: false,
+    requires_content_fetch: false,
+  },
+};
 
-const ACCESSIBILITY_IMAGE_RULES = new Set<string>([
-  'img_missing_alt',
-  'img_alt_filename',
-  'img_decorative_misuse',
-  'img_meaningful_empty_alt',
-  'img_text_in_image_warning',
-]);
+export const ACCESSIBILITY_AI_SUGGESTED_RULES = new Set(
+  Object.entries(ACCESSIBILITY_FIXABILITY_MAP)
+    .filter(([, v]) => v.uses_ai)
+    .map(([k]) => k),
+);
+
+export const ACCESSIBILITY_IMAGE_RULES = new Set(
+  Object.entries(ACCESSIBILITY_FIXABILITY_MAP)
+    .filter(([, v]) => v.is_image_rule)
+    .map(([k]) => k),
+);
 
 const ANTHROPIC_TEXT_MODEL_DEFAULT = 'claude-haiku-4-5-20251001';
 const ANTHROPIC_VISION_MODEL_DEFAULT = 'claude-sonnet-4-6';
@@ -160,518 +758,6 @@ const ACCESSIBILITY_TIER1_RULE_IDS = new Set<string>([
 function accessibilityTierForRuleId(ruleId: string): 1 | 2 {
   return ACCESSIBILITY_TIER1_RULE_IDS.has(ruleId) ? 1 : 2;
 }
-
-const ACCESSIBILITY_FIXABILITY_MAP: Record<
-  string,
-  AccessibilityFixabilityContract
-> = {
-  adjacent_duplicate_links: {
-    auto_fixable: true,
-    fix_strategy: 'auto',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.merge_duplicate_links,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  list_empty_item: {
-    auto_fixable: true,
-    fix_strategy: 'auto',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.remove_empty_li,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  heading_empty: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.remove_empty_heading,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  link_new_tab_no_warning: {
-    auto_fixable: true,
-    fix_strategy: 'auto',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.append_new_tab_warning,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  font_size_too_small: {
-    auto_fixable: true,
-    fix_strategy: 'auto',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.font_size_min_12,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  media_autoplay: {
-    auto_fixable: true,
-    fix_strategy: 'auto',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.remove_media_autoplay,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  text_justified: {
-    auto_fixable: true,
-    fix_strategy: 'auto',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.remove_text_justify,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  lang_missing: {
-    auto_fixable: true,
-    fix_strategy: 'auto',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.set_html_lang,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  duplicate_id: {
-    auto_fixable: true,
-    fix_strategy: 'auto',
-    false_positive_risk: 'high',
-    risk: 'high',
-    fix_type: AccessibilityFixType.duplicate_id_suffix,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  form_required_not_programmatic: {
-    auto_fixable: true,
-    fix_strategy: 'auto',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.form_required_programmatic,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  form_error_unassociated: {
-    auto_fixable: true,
-    fix_strategy: 'auto',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.form_error_aria_describedby,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  small_text_contrast: {
-    auto_fixable: true,
-    fix_strategy: 'auto',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.fix_inline_text_contrast,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  large_text_contrast: {
-    auto_fixable: true,
-    fix_strategy: 'auto',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.fix_inline_text_contrast,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  img_missing_alt: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'high',
-    risk: 'high',
-    fix_type: AccessibilityFixType.ai_generate_alt_text,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  img_alt_too_long: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.img_alt_truncate,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  img_alt_filename: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.img_alt_filename_suggest,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  img_decorative_misuse: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.ai_img_decorative,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  img_meaningful_empty_alt: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.ai_img_meaningful_alt,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  img_text_in_image_warning: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.ai_img_text_in_image,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  link_ambiguous_text: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.ai_replace_ambiguous_link_text,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  link_empty_name: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'high',
-    risk: 'high',
-    fix_type: AccessibilityFixType.ai_link_text,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  link_split_or_broken: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.ai_link_reconstruct,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  link_file_missing_type_size_hint: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.ai_link_file_hint,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  link_broken: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.ai_link_broken,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  heading_too_long: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.ai_heading_shorten,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  heading_skipped_level: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.heading_scope_fix,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  heading_h1_in_body: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.heading_h1_demote,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  heading_duplicate_h1: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.heading_duplicate_h1_demote,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  heading_visual_only_style: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.ai_heading_visual,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  list_not_semantic: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.ai_list_semantic,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  table_missing_caption: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.ai_table_caption,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  table_missing_header: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'high',
-    risk: 'high',
-    fix_type: AccessibilityFixType.ai_table_header,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  table_header_scope_missing: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.table_scope_fix,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  iframe_missing_title: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.iframe_title_suggest,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  button_empty_name: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'high',
-    risk: 'high',
-    fix_type: AccessibilityFixType.ai_button_label,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  form_control_missing_label: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'high',
-    risk: 'high',
-    fix_type: AccessibilityFixType.ai_form_label,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  form_placeholder_as_label: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.form_placeholder_to_label,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  aria_invalid_role: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.ai_aria_invalid_role,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  aria_hidden_focusable: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'high',
-    risk: 'high',
-    fix_type: AccessibilityFixType.ai_aria_hidden_focusable,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  lang_invalid: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.ai_lang_invalid,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  lang_inline_missing: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'high',
-    risk: 'high',
-    fix_type: AccessibilityFixType.ai_lang_inline,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  color_only_information: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'high',
-    risk: 'high',
-    fix_type: AccessibilityFixType.ai_color_only_information,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  sensory_only_instructions: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.ai_sensory_only_instructions,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  landmark_structure_quality: {
-    auto_fixable: false,
-    fix_strategy: 'suggested',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.ai_landmark_structure,
-    supports_preview: true,
-    requires_content_fetch: true,
-  },
-  table_layout_heuristic: {
-    auto_fixable: false,
-    fix_strategy: 'manual_only',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.manual_only,
-    supports_preview: false,
-    requires_content_fetch: false,
-  },
-  table_complex_assoc_missing: {
-    auto_fixable: false,
-    fix_strategy: 'manual_only',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.manual_only,
-    supports_preview: false,
-    requires_content_fetch: false,
-  },
-  video_missing_captions: {
-    auto_fixable: false,
-    fix_strategy: 'manual_only',
-    false_positive_risk: 'high',
-    risk: 'high',
-    fix_type: AccessibilityFixType.manual_only,
-    supports_preview: false,
-    requires_content_fetch: false,
-  },
-  audio_missing_transcript: {
-    auto_fixable: false,
-    fix_strategy: 'manual_only',
-    false_positive_risk: 'high',
-    risk: 'high',
-    fix_type: AccessibilityFixType.manual_only,
-    supports_preview: false,
-    requires_content_fetch: false,
-  },
-  motion_gif_warning: {
-    auto_fixable: false,
-    fix_strategy: 'manual_only',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.manual_only,
-    supports_preview: false,
-    requires_content_fetch: false,
-  },
-  video_embed_caption_unknown: {
-    auto_fixable: false,
-    fix_strategy: 'manual_only',
-    false_positive_risk: 'medium',
-    risk: 'medium',
-    fix_type: AccessibilityFixType.manual_only,
-    supports_preview: false,
-    requires_content_fetch: false,
-  },
-  doc_pdf_accessibility_unknown: {
-    auto_fixable: false,
-    fix_strategy: 'manual_only',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.manual_only,
-    supports_preview: false,
-    requires_content_fetch: false,
-  },
-  doc_office_structure_unknown: {
-    auto_fixable: false,
-    fix_strategy: 'manual_only',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.manual_only,
-    supports_preview: false,
-    requires_content_fetch: false,
-  },
-  doc_spreadsheet_headers_unknown: {
-    auto_fixable: false,
-    fix_strategy: 'manual_only',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.manual_only,
-    supports_preview: false,
-    requires_content_fetch: false,
-  },
-  session_timeout_no_warning: {
-    auto_fixable: false,
-    fix_strategy: 'manual_only',
-    false_positive_risk: 'high',
-    risk: 'high',
-    fix_type: AccessibilityFixType.manual_only,
-    supports_preview: false,
-    requires_content_fetch: true,
-  },
-  keyboard_focus_trap_heuristic: {
-    auto_fixable: false,
-    fix_strategy: 'manual_only',
-    false_positive_risk: 'low',
-    risk: 'low',
-    fix_type: AccessibilityFixType.manual_only,
-    supports_preview: false,
-    requires_content_fetch: false,
-  },
-};
-
-const ACCESSIBILITY_AI_GUIDED_FIX_TYPES = new Set<AccessibilityFixTypeId>([
-  AccessibilityFixType.ai_landmark_structure,
-  AccessibilityFixType.ai_img_text_in_image,
-  AccessibilityFixType.ai_aria_invalid_role,
-  AccessibilityFixType.ai_aria_hidden_focusable,
-  AccessibilityFixType.ai_lang_invalid,
-  AccessibilityFixType.ai_lang_inline,
-  AccessibilityFixType.ai_color_only_information,
-  AccessibilityFixType.ai_sensory_only_instructions,
-]);
 
 interface AccreditationStandardNode {
   id: string;
@@ -9315,7 +9401,10 @@ export class CanvasService {
       ? Math.max(0, Math.min(1, confidence))
       : 0.35;
     let overrideReason = '';
-    if (opts?.imageFetchFailed && ACCESSIBILITY_IMAGE_RULES.has(ruleId))
+    if (
+      opts?.imageFetchFailed &&
+      ACCESSIBILITY_FIXABILITY_MAP[ruleId]?.is_image_rule
+    )
       overrideReason = 'image_fetch_failed';
     if (!overrideReason && ruleId === 'img_text_in_image_warning')
       overrideReason = 'rule_forced_low';
@@ -9372,6 +9461,14 @@ export class CanvasService {
           .trim() || '(empty)',
       );
     }
+    if (ruleId === 'link_broken') {
+      const hm = h.match(
+        /<a\b[^>]*\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+      );
+      return (
+        String(hm?.[2] ?? hm?.[3] ?? hm?.[4] ?? '').trim() || '(empty href)'
+      );
+    }
     if (ruleId.startsWith('link_')) {
       const m = h.match(/<a\b[^>]*>([\s\S]*?)<\/a>/i);
       return String(
@@ -9423,7 +9520,7 @@ export class CanvasService {
       };
     }
     if (
-      ACCESSIBILITY_IMAGE_RULES.has(ruleId) ||
+      ACCESSIBILITY_FIXABILITY_MAP[ruleId]?.is_image_rule ||
       ruleId === 'img_alt_too_long'
     ) {
       const m = html.match(/<img\b[^>]*>/i);
@@ -9445,6 +9542,7 @@ export class CanvasService {
     }
     if (
       ruleId === 'link_ambiguous_text' ||
+      ruleId === 'link_empty_name' ||
       ruleId === 'link_file_missing_type_size_hint'
     ) {
       const m = html.match(/<a\b([^>]*)>([\s\S]*?)<\/a>/i);
@@ -9613,6 +9711,117 @@ export class CanvasService {
       return {
         newHtml: html.replace(before, after),
         changes: [{ before, after }],
+      };
+    }
+    if (ruleId === 'list_not_semantic') {
+      const m = html.match(/<(ul|ol)\b[^>]*>[\s\S]*?<\/\1>/i);
+      if (!m) return { newHtml: html, changes: [], errorNote: 'No list found' };
+      const before = m[0];
+      const after = /[<>]/.test(s)
+        ? s
+        : `<ul><li>${s.replace(/</g, '&lt;')}</li></ul>`;
+      return {
+        newHtml: html.replace(before, after),
+        changes: [{ before, after }],
+      };
+    }
+    if (ruleId === 'table_missing_header') {
+      const m = html.match(/<table\b[^>]*>/i);
+      if (!m)
+        return { newHtml: html, changes: [], errorNote: 'No table found' };
+      const before = m[0];
+      const thead = /<thead/i.test(s)
+        ? s
+        : `<thead><tr><th scope="col">${s.replace(/</g, '&lt;')}</th></tr></thead>`;
+      const after = `${before}${thead}`;
+      return {
+        newHtml: html.replace(before, after),
+        changes: [{ before, after }],
+      };
+    }
+    if (ruleId === 'aria_invalid_role') {
+      const open = html.match(
+        /<[a-z0-9]+\b[^>]*\brole\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+      );
+      if (!open)
+        return {
+          newHtml: html,
+          changes: [],
+          errorNote: 'No role attribute found',
+        };
+      const start = open.index ?? html.indexOf(open[0]);
+      const end = html.indexOf('>', start);
+      if (end < 0)
+        return { newHtml: html, changes: [], errorNote: 'Malformed tag' };
+      const before = html.slice(start, end + 1);
+      const newRole = s
+        .replace(/"/g, '')
+        .replace(/[^\w\-]/g, '')
+        .slice(0, 48);
+      if (!newRole)
+        return {
+          newHtml: html,
+          changes: [],
+          errorNote: 'Invalid role suggestion',
+        };
+      const after = before.replace(
+        /\brole\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+        `role="${newRole}"`,
+      );
+      return {
+        newHtml: html.replace(before, after),
+        changes: [{ before, after }],
+      };
+    }
+    if (ruleId === 'lang_invalid') {
+      const htmlEl = html.match(/<html\b[^>]*>/i);
+      if (htmlEl) {
+        const before = htmlEl[0];
+        const lang =
+          s.match(/\b[a-z]{2}(-[A-Za-z0-9]+)?\b/i)?.[0]?.toLowerCase() || 'en';
+        const after = /\blang\s*=\s*["'][^"']*["']/i.test(before)
+          ? before.replace(/\blang\s*=\s*["'][^"']*["']/i, `lang="${lang}"`)
+          : before.replace(/<html\b/i, `<html lang="${lang}"`);
+        return {
+          newHtml: html.replace(before, after),
+          changes: [{ before, after }],
+        };
+      }
+      const spanEl = html.match(/<span\b[^>]*>/i);
+      if (!spanEl)
+        return {
+          newHtml: html,
+          changes: [],
+          errorNote: 'No html or span found',
+        };
+      const before = spanEl[0];
+      const lang =
+        s.match(/\b[a-z]{2}(-[A-Za-z0-9]+)?\b/i)?.[0]?.toLowerCase() || 'en';
+      const after = /\blang\s*=\s*["'][^"']*["']/i.test(before)
+        ? before.replace(/\blang\s*=\s*["'][^"']*["']/i, `lang="${lang}"`)
+        : before.replace(/<span\b/i, `<span lang="${lang}" `);
+      return {
+        newHtml: html.replace(before, after),
+        changes: [{ before, after }],
+      };
+    }
+    if (ruleId === 'link_broken') {
+      const re =
+        /<a\b([^>]*\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))[^>]*)>([\s\S]*?)<\/a>/i;
+      const m = html.match(re);
+      if (!m) return { newHtml: html, changes: [], errorNote: 'No link found' };
+      const full = m[0];
+      const newHref = s.trim();
+      if (!newHref)
+        return { newHtml: html, changes: [], errorNote: 'Empty URL' };
+      const esc = newHref.replace(/"/g, '&quot;');
+      const after = full.replace(
+        /\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+        `href="${esc}"`,
+      );
+      return {
+        newHtml: html.replace(full, after),
+        changes: [{ before: full, after }],
       };
     }
     if (
@@ -11181,6 +11390,26 @@ export class CanvasService {
     return { newHtml, changes };
   }
 
+  private applyLinkBrokenTeacherHref(html: string): {
+    newHtml: string;
+    changes: Array<{ before: string; after: string }>;
+  } | null {
+    const re =
+      /<a\b([^>]*\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))[^>]*)>([\s\S]*?)<\/a>/i;
+    const m = html.match(re);
+    if (!m) return null;
+    const full = m[0];
+    const after = full.replace(
+      /\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+      'href="#"',
+    );
+    if (after === full) return null;
+    return {
+      newHtml: html.replace(full, after),
+      changes: [{ before: full, after }],
+    };
+  }
+
   private runFixExecutor(
     html: string,
     fixType: AccessibilityFixTypeId,
@@ -11253,6 +11482,8 @@ export class CanvasService {
         const r = this.applyHeadingScopeFix(html);
         return r ? { newHtml: r.newHtml, changes: r.changes } : null;
       }
+      case AccessibilityFixType.link_broken_teacher_href:
+        return this.applyLinkBrokenTeacherHref(html);
       case AccessibilityFixType.ai_generate_alt_text:
       case AccessibilityFixType.ai_img_decorative:
       case AccessibilityFixType.ai_img_meaningful_alt:
@@ -11261,7 +11492,6 @@ export class CanvasService {
       case AccessibilityFixType.ai_link_text:
       case AccessibilityFixType.ai_link_reconstruct:
       case AccessibilityFixType.ai_link_file_hint:
-      case AccessibilityFixType.ai_link_broken:
       case AccessibilityFixType.ai_heading_shorten:
       case AccessibilityFixType.ai_heading_visual:
       case AccessibilityFixType.ai_list_semantic:
@@ -11280,7 +11510,9 @@ export class CanvasService {
         return null;
       default: {
         const _exhaustive: never = fixType;
-        throw new Error(`Unhandled AccessibilityFixType: ${String(_exhaustive)}`);
+        throw new Error(
+          `Unhandled AccessibilityFixType: ${String(_exhaustive)}`,
+        );
       }
     }
   }
@@ -11508,8 +11740,8 @@ export class CanvasService {
     let imageUrl = '';
     let imageFetchFailed = false;
 
-    if (ACCESSIBILITY_AI_SUGGESTED_RULES.has(f.rule_id)) {
-      const isImageRule = ACCESSIBILITY_IMAGE_RULES.has(f.rule_id);
+    if (contract.uses_ai) {
+      const isImageRule = contract.is_image_rule;
       imageUrl = isImageRule ? this.extractFirstImageSrc(content.html) : '';
       const imagePayload =
         isImageRule && imageUrl
@@ -11583,6 +11815,17 @@ export class CanvasService {
     } else {
       const syncResult = this.runFixExecutor(content.html, contract.fix_type);
       result = syncResult ? { ...syncResult } : null;
+    }
+    if (
+      f.rule_id === 'link_broken' &&
+      result &&
+      result.changes.length &&
+      !result.errorNote
+    ) {
+      const before0 = result.changes[0].before;
+      const hm = before0.match(/\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const brokenHref = (hm?.[2] ?? hm?.[3] ?? hm?.[4] ?? '').trim();
+      suggestion = `Enter the correct URL for this link. Broken href was: ${brokenHref || '(empty)'}`;
     }
     if (!result || (result.changes.length === 0 && !result.errorNote))
       return null;
