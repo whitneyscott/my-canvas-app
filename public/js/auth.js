@@ -50,7 +50,6 @@ function closeLoginModal() {
 async function submitLogin() {
     const canvasUrlInput = document.getElementById('canvasUrl');
     const canvasTokenInput = document.getElementById('canvasToken');
-    const loginError = document.getElementById('loginError');
     const loginForm = document.getElementById('loginForm');
     
     const canvasUrl = canvasUrlInput.value.trim();
@@ -61,37 +60,40 @@ async function submitLogin() {
         return;
     }
     
-    // Disable form during submission
-    loginForm.style.opacity = '0.5';
-    loginForm.querySelectorAll('input, button').forEach(el => el.disabled = true);
-    
     try {
-        const response = await fetch('/auth/set-token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                token: token,
-                canvasUrl: canvasUrl
-            })
-        });
-        
-        if (response.ok) {
-            // Success - the server will redirect us back to the app
-            window.location.reload();
-        } else {
+        const runSubmit = async () => {
+            const response = await fetch('/auth/set-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token: token,
+                    canvasUrl: canvasUrl
+                })
+            });
+
+            if (response.ok) {
+                window.location.reload();
+                return;
+            }
             let result = {};
             try { result = await response.json(); } catch (_) { result = {}; }
             const rawMsg = Array.isArray(result?.message) ? result.message.join('; ') : (result?.message || result?.error || '');
             const message = rawMsg || `Unable to connect to Canvas (${response.status}). Check URL/token and try again.`;
             showError(message);
+        };
+        if (typeof withSpinner === 'function') {
+            await withSpinner(runSubmit, {
+                triggerEl: loginForm?.querySelector('button[type="submit"]'),
+                panelEl: document.getElementById('token-overlay'),
+                label: 'Signing in...',
+                delayMs: 200,
+            });
+        } else {
+            await runSubmit();
         }
     } catch (error) {
         console.error('Login error:', error);
         showError('Network error. Please check your connection and try again.');
-    } finally {
-        // Re-enable form
-        loginForm.style.opacity = '1';
-        loginForm.querySelectorAll('input, button').forEach(el => el.disabled = false);
     }
 }
 

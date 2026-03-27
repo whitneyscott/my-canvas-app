@@ -538,26 +538,208 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
-function setGridStatus(tabName, message, color = '#00ff00') {
-    if (!gridApi) return;
-    
-    const overlayTemplate = `
-        <div style="text-align: center; background: rgba(0,0,0,0.8); padding: 20px; border: 2px solid ${color}; border-radius: 8px; color: white; font-family: monospace;">
-            <div class="retro-spinner" style="margin-bottom: 15px;"></div>
-            <div style="font-size: 1.2em; margin-bottom: 8px; font-weight: bold; color: ${color}; uppercase;">
-                LOADING ${tabName}
-            </div>
-            <div style="font-size: 1em; color: #ddd;">
-                ${message}
-            </div>
-            <div style="margin-top: 15px; font-size: 0.8em; color: #666;">
-                System responding... Please wait
-            </div>
+const SPINNER_DELAY_MS_DEFAULT = 300;
+
+function isElementFullyInViewport(el) {
+    if (!el || typeof el.getBoundingClientRect !== 'function') return false;
+    const rect = el.getBoundingClientRect();
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    const vw = window.innerWidth || document.documentElement.clientWidth;
+    return rect.top >= 0 && rect.left >= 0 && rect.bottom <= vh && rect.right <= vw;
+}
+
+function scrollIntoViewIfNeeded(el, opts = {}) {
+    if (!el) return;
+    if (isElementFullyInViewport(el)) return;
+    const behavior = opts.behavior || 'smooth';
+    const block = opts.block || 'start';
+    el.scrollIntoView({ behavior, block, inline: 'nearest' });
+}
+
+function ensureUniversalOverlayRoot() {
+    let overlay = document.getElementById('universalAsyncOverlay');
+    if (overlay) return overlay;
+    overlay = document.createElement('div');
+    overlay.id = 'universalAsyncOverlay';
+    overlay.className = 'universal-spinner-overlay';
+    overlay.innerHTML = `
+        <div class="universal-spinner-box">
+            <div class="universal-spinner-wheel"></div>
+            <div class="universal-spinner-label">Loading...</div>
         </div>
     `;
-    
-    gridApi.setGridOption('overlayLoadingTemplate', overlayTemplate);
-    gridApi.showLoadingOverlay();
+    document.body.appendChild(overlay);
+    return overlay;
+}
+
+function setOverlayLabel(overlayEl, label) {
+    if (!overlayEl) return;
+    const labelEl = overlayEl.querySelector('.universal-spinner-label');
+    if (labelEl) labelEl.textContent = String(label || 'Loading...');
+}
+
+function ensurePanelOverlay(panelEl) {
+    if (!panelEl) return null;
+    if (!panelEl.dataset.spinnerPrevPosition) {
+        const prev = window.getComputedStyle(panelEl).position;
+        panelEl.dataset.spinnerPrevPosition = prev;
+        if (!prev || prev === 'static') panelEl.style.position = 'relative';
+    }
+    let overlay = panelEl.querySelector(':scope > .universal-spinner-panel-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.className = 'universal-spinner-panel-overlay';
+        overlay.innerHTML = `
+            <div class="universal-spinner-box">
+                <div class="universal-spinner-wheel"></div>
+                <div class="universal-spinner-label">Loading...</div>
+            </div>
+        `;
+        panelEl.appendChild(overlay);
+    }
+    return overlay;
+}
+
+function cleanupPanelOverlay(panelEl) {
+    if (!panelEl) return;
+    const overlay = panelEl.querySelector(':scope > .universal-spinner-panel-overlay');
+    if (overlay) overlay.remove();
+    const prev = panelEl.dataset.spinnerPrevPosition;
+    if (prev) {
+        if (prev === 'static') panelEl.style.position = '';
+        else panelEl.style.position = prev;
+        delete panelEl.dataset.spinnerPrevPosition;
+    }
+}
+
+function resolveSpinnerSurface(options = {}) {
+    const triggerEl = options.triggerEl || null;
+    const panelEl = options.panelEl || null;
+    const mode = options.mode || '';
+    if (triggerEl) return { type: 'button', triggerEl, panelEl };
+    if (mode === 'grid' || panelEl?.id === 'myGrid' || panelEl?.classList?.contains('ag-theme-quartz')) {
+        return { type: 'grid', panelEl };
+    }
+    if (panelEl) return { type: 'panel', panelEl };
+    return { type: 'global', panelEl: null };
+}
+
+function showButtonSpinner(triggerEl, label) {
+    if (!triggerEl) return null;
+    const state = {
+        disabled: triggerEl.disabled,
+        html: triggerEl.innerHTML,
+        text: triggerEl.textContent,
+    };
+    triggerEl.disabled = true;
+    triggerEl.innerHTML = `<span class="universal-btn-spinner-wrap"><span class="universal-btn-spinner"></span><span>${label || state.text || 'Working...'}</span></span>`;
+    return state;
+}
+
+function hideButtonSpinner(triggerEl, state) {
+    if (!triggerEl || !state) return;
+    triggerEl.disabled = Boolean(state.disabled);
+    if (state.html != null) triggerEl.innerHTML = state.html;
+}
+
+function showSpinnerSurface(surface, label) {
+    if (!surface) return null;
+    if (surface.type === 'button') {
+        const buttonState = showButtonSpinner(surface.triggerEl, label);
+        return { surfaceType: 'button', buttonState };
+    }
+    if (surface.type === 'grid') {
+        if (gridApi) {
+            gridApi.setGridOption('loading', true);
+            const textEl = document.getElementById('custom-loading-text');
+            if (textEl) textEl.textContent = label || 'Loading...';
+        }
+        return { surfaceType: 'grid' };
+    }
+    if (surface.type === 'panel') {
+        const overlay = ensurePanelOverlay(surface.panelEl);
+        setOverlayLabel(overlay, label);
+        return { surfaceType: 'panel', overlay, panelEl: surface.panelEl };
+    }
+    const overlay = ensureUniversalOverlayRoot();
+    setOverlayLabel(overlay, label);
+    overlay.classList.add('active');
+    return { surfaceType: 'global', overlay };
+}
+
+function hideSpinnerSurface(handle, surface) {
+    if (!handle || !surface) return;
+    if (handle.surfaceType === 'button') {
+        hideButtonSpinner(surface.triggerEl, handle.buttonState);
+        return;
+    }
+    if (handle.surfaceType === 'grid') {
+        if (gridApi) {
+            gridApi.setGridOption('loading', false);
+            gridApi.hideOverlay();
+        }
+        return;
+    }
+    if (handle.surfaceType === 'panel') {
+        cleanupPanelOverlay(handle.panelEl || surface.panelEl);
+        return;
+    }
+    if (handle.surfaceType === 'global' && handle.overlay) {
+        handle.overlay.classList.remove('active');
+    }
+}
+
+function updateSpinnerLabel(handle, label) {
+    if (!handle || !label) return;
+    if (handle.surfaceType === 'button') return;
+    if (handle.surfaceType === 'grid') {
+        const textEl = document.getElementById('custom-loading-text');
+        if (textEl) textEl.textContent = String(label);
+        return;
+    }
+    if (handle.surfaceType === 'panel' || handle.surfaceType === 'global') {
+        setOverlayLabel(handle.overlay, String(label));
+    }
+}
+
+async function withSpinner(asyncFn, options = {}) {
+    const label = options.label || 'Loading...';
+    const delayMs = Number.isFinite(options.delayMs) ? options.delayMs : SPINNER_DELAY_MS_DEFAULT;
+    const surface = resolveSpinnerSurface(options);
+    let shown = false;
+    let spinnerHandle = null;
+    let timer = null;
+    let currentLabel = label;
+    const setLabel = (nextLabel) => {
+        currentLabel = nextLabel || currentLabel;
+        if (shown) updateSpinnerLabel(spinnerHandle, currentLabel);
+    };
+    const scheduleShow = () => {
+        timer = window.setTimeout(() => {
+            shown = true;
+            spinnerHandle = showSpinnerSurface(surface, currentLabel);
+        }, Math.max(0, delayMs));
+    };
+    scheduleShow();
+    let result;
+    try {
+        if (typeof asyncFn === 'function') result = await asyncFn({ setLabel });
+        else result = await asyncFn;
+        return result;
+    } finally {
+        if (timer) {
+            clearTimeout(timer);
+            timer = null;
+        }
+        if (shown) hideSpinnerSurface(spinnerHandle, surface);
+        const explicitTarget = options.scrollTargetEl || null;
+        const resolvedTarget = typeof options.getScrollTarget === 'function' ? options.getScrollTarget(result) : null;
+        const target = explicitTarget || resolvedTarget;
+        if (target) {
+            const behavior = options.scrollBehavior || 'smooth';
+            scrollIntoViewIfNeeded(target, { behavior, block: options.scrollBlock || 'start' });
+        }
+    }
 }
 
 let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, selectedCourseId = null, lastGridColumnTab = null;
@@ -1216,9 +1398,9 @@ async function refreshCurrentTab() {
     }
     delete originalData[currentTab];
     if (changes[currentTab]) changes[currentTab] = {};
+    const refreshBtn = document.querySelector('button[onclick="refreshCurrentTab()"]');
     try {
-        if (gridApi) gridApi.setGridOption('loading', true);
-
+        await withSpinner(async () => {
         const configKey = getConfigKey(currentTab);
         const tabConfig = FIELD_DEFINITIONS[configKey];
         if (!tabConfig) { throw new Error(`No config for: ${currentTab}`); }
@@ -1237,15 +1419,20 @@ async function refreshCurrentTab() {
         if (gridApi) {
             setGridColumnDefsForTab(currentTab);
             gridApi.setGridOption('rowData', workingDataWithStatus);
-            gridApi.setGridOption('loading', false);
             gridApi.redrawRows();
             if (currentTab === 'students') setTimeout(() => gridApi.resetRowHeights(), 100);
         }
         updateSyncHistoryIndicator();
+        }, {
+            triggerEl: refreshBtn,
+            mode: 'grid',
+            panelEl: document.getElementById('myGrid'),
+            label: 'Refreshing...',
+            scrollTargetEl: document.getElementById('myGrid'),
+        });
     } catch (event) {
         console.error(`Error refreshing:`, event);
         alert('Refresh failed.');
-        if (gridApi) gridApi.setGridOption('loading', false);
     }
 }
 
@@ -1259,106 +1446,113 @@ document.addEventListener('change', event => {
 async function loadCourses() {
     logCourseContextAtLoad();
     try {
-        const courseSelect = document.getElementById('courseSelect');
-        if (!courseSelect) {
-            debugLog('ERROR: courseSelect element not found', 'error');
-            return;
-        }
+        await withSpinner(async () => {
+            const courseSelect = document.getElementById('courseSelect');
+            if (!courseSelect) {
+                debugLog('ERROR: courseSelect element not found', 'error');
+                return;
+            }
 
-        courseSelect.innerHTML = '<option value="">Select a Course</option>';
-        const response = await fetch('/canvas/courses');
-        
-        if (response.status === 401) {
-            debugLog('Session expired or token invalid. Redirecting to auth.', 'warn');
-            const tok = document.getElementById('token-overlay');
-            const oauth = document.getElementById('oauth-overlay');
-            const wrap = document.getElementById('main-app-wrapper');
-            if (wrap) wrap.style.display = 'none';
-            if (oauth) oauth.style.display = 'none';
-            if (tok) tok.style.display = 'flex';
-            let detail = '';
-            try {
-                const j = await response.clone().json();
-                if (j?.message) detail = String(j.message);
-            } catch (_) {}
-            if (detail) debugLog('ERROR: ' + detail, 'error');
-            return;
-        }
-
-        if (!response.ok) {
-            let detail = '';
-            try {
-                const j = await response.clone().json();
-                if (j?.message) detail = String(j.message);
-            } catch (_) {
+            courseSelect.innerHTML = '<option value="">Select a Course</option>';
+            const response = await fetch('/canvas/courses');
+            
+            if (response.status === 401) {
+                debugLog('Session expired or token invalid. Redirecting to auth.', 'warn');
+                const tok = document.getElementById('token-overlay');
+                const oauth = document.getElementById('oauth-overlay');
+                const wrap = document.getElementById('main-app-wrapper');
+                if (wrap) wrap.style.display = 'none';
+                if (oauth) oauth.style.display = 'none';
+                if (tok) tok.style.display = 'flex';
+                let detail = '';
                 try {
-                    detail = (await response.clone().text()).slice(0, 300);
+                    const j = await response.clone().json();
+                    if (j?.message) detail = String(j.message);
                 } catch (_) {}
+                if (detail) debugLog('ERROR: ' + detail, 'error');
+                return;
             }
-            const line = `ERROR: Failed to load courses: ${response.status} ${response.statusText}${detail ? ' — ' + detail : ''}`;
-            debugLog(line, 'error');
-            alert(`Could not load courses (${response.status}).\n\n${detail || response.statusText || 'See debug log for details.'}`);
+
+            if (!response.ok) {
+                let detail = '';
+                try {
+                    const j = await response.clone().json();
+                    if (j?.message) detail = String(j.message);
+                } catch (_) {
+                    try {
+                        detail = (await response.clone().text()).slice(0, 300);
+                    } catch (_) {}
+                }
+                const line = `ERROR: Failed to load courses: ${response.status} ${response.statusText}${detail ? ' — ' + detail : ''}`;
+                debugLog(line, 'error');
+                alert(`Could not load courses (${response.status}).\n\n${detail || response.statusText || 'See debug log for details.'}`);
+                courseSelect.innerHTML = '<option value="">Select a Course</option>';
+                return;
+            }
+
             courseSelect.innerHTML = '<option value="">Select a Course</option>';
-            return;
-        }
+            const courseGroups = await response.json();
+            if (!Array.isArray(courseGroups)) {
+                debugLog('ERROR: Expected array of course groups', 'error');
+                courseSelect.innerHTML = '<option value="">Select a Course</option>';
+                return;
+            }
 
-        const courseGroups = await response.json();
-        if (!Array.isArray(courseGroups)) {
-            debugLog('ERROR: Expected array of course groups', 'error');
             courseSelect.innerHTML = '<option value="">Select a Course</option>';
-            return;
-        }
 
-        courseSelect.innerHTML = '<option value="">Select a Course</option>';
+            if (courseGroups.length === 0) {
+                debugLog('No courses available', 'warn');
+                return;
+            }
 
-        if (courseGroups.length === 0) {
-            debugLog('No courses available', 'warn');
-            return;
-        }
-
-        let totalCourses = 0;
-        courseGroups.forEach(group => {
-            if (!group.term || !Array.isArray(group.courses)) return;
-            const optgroup = document.createElement('optgroup');
-            optgroup.label = group.term;
-            group.courses.forEach(course => {
-                if (!course.id) return;
-                const option = document.createElement('option');
-                option.value = course.id;
-                option.textContent = `${course.name || course.course_code || 'Untitled'} (${course.course_code || 'No Code'})`;
-                optgroup.appendChild(option);
-                totalCourses++;
+            let totalCourses = 0;
+            courseGroups.forEach(group => {
+                if (!group.term || !Array.isArray(group.courses)) return;
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = group.term;
+                group.courses.forEach(course => {
+                    if (!course.id) return;
+                    const option = document.createElement('option');
+                    option.value = course.id;
+                    option.textContent = `${course.name || course.course_code || 'Untitled'} (${course.course_code || 'No Code'})`;
+                    optgroup.appendChild(option);
+                    totalCourses++;
+                });
+                if (optgroup.children.length > 0) {
+                    courseSelect.appendChild(optgroup);
+                }
             });
-            if (optgroup.children.length > 0) {
-                courseSelect.appendChild(optgroup);
-            }
-        });
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const rawServer = (window.SERVER_DATA && window.SERVER_DATA.courseId) || null;
-        const rawUrlCourseId = urlParams.get('courseId') || urlParams.get('course_id') || urlParams.get('context_id');
-        const rawAuto = rawServer || rawUrlCourseId;
-        const autoCourseId = extractNumericCourseId(rawAuto) || (rawAuto && rawAuto !== 'null' && rawAuto !== 'undefined' ? String(rawAuto).trim() : null);
+            const urlParams = new URLSearchParams(window.location.search);
+            const rawServer = (window.SERVER_DATA && window.SERVER_DATA.courseId) || null;
+            const rawUrlCourseId = urlParams.get('courseId') || urlParams.get('course_id') || urlParams.get('context_id');
+            const rawAuto = rawServer || rawUrlCourseId;
+            const autoCourseId = extractNumericCourseId(rawAuto) || (rawAuto && rawAuto !== 'null' && rawAuto !== 'undefined' ? String(rawAuto).trim() : null);
 
-        const validId = autoCourseId && autoCourseId !== 'null' && autoCourseId !== '' && autoCourseId !== 'undefined';
-        const optionValues = Array.from(courseSelect.options).map(o => o.value).filter(Boolean);
-        const hasOption = validId && optionValues.includes(String(autoCourseId));
+            const validId = autoCourseId && autoCourseId !== 'null' && autoCourseId !== '' && autoCourseId !== 'undefined';
+            const optionValues = Array.from(courseSelect.options).map(o => o.value).filter(Boolean);
+            const hasOption = validId && optionValues.includes(String(autoCourseId));
 
-        if (validId && !hasOption) debugLog(`Context course ${autoCourseId} not in dropdown`, 'warn');
+            if (validId && !hasOption) debugLog(`Context course ${autoCourseId} not in dropdown`, 'warn');
 
-        if (validId && hasOption) {
-            courseSelect.value = autoCourseId;
-            if (typeof onCourseSelected === 'function') onCourseSelected();
-        } else {
-            const firstOpt = Array.from(courseSelect.options).find(opt => opt.value && opt.value !== '');
-            if (firstOpt) {
-                courseSelect.value = firstOpt.value;
+            if (validId && hasOption) {
+                courseSelect.value = autoCourseId;
                 if (typeof onCourseSelected === 'function') onCourseSelected();
             } else {
-                courseSelect.value = '';
-                if (gridApi) gridApi.showNoRowsOverlay();
+                const firstOpt = Array.from(courseSelect.options).find(opt => opt.value && opt.value !== '');
+                if (firstOpt) {
+                    courseSelect.value = firstOpt.value;
+                    if (typeof onCourseSelected === 'function') onCourseSelected();
+                } else {
+                    courseSelect.value = '';
+                    if (gridApi) gridApi.showNoRowsOverlay();
+                }
             }
-        }
+        }, {
+            panelEl: document.getElementById('tabContentArea') || document.getElementById('main-app-wrapper'),
+            label: 'Loading courses...',
+            scrollTargetEl: document.getElementById('courseSelect'),
+        });
 
     } catch (error) {
         debugLog(`ERROR in loadCourses: ${error.message}`, 'error');
@@ -1649,10 +1843,6 @@ async function loadStandardsSyncTab() {
         if (alignmentEl) alignmentEl.innerHTML = '<p>Select a course to analyze content alignment.</p>';
         return;
     }
-    if (profileEl) profileEl.innerHTML = '<div class="acc-card-loading" style="padding: 2rem;"><div class="acc-card-spinner" style="width: 32px; height: 32px;"></div><span style="margin-left: 0.5rem;">Loading profile...</span></div>';
-    if (workflowEl) workflowEl.innerHTML = '<div class="acc-card-loading" style="padding: 2rem;"><div class="acc-card-spinner" style="width: 32px; height: 32px;"></div><span style="margin-left: 0.5rem;">Loading workflow...</span></div>';
-    if (outcomesEl) outcomesEl.innerHTML = '<div class="acc-card-loading" style="padding: 2rem;"><div class="acc-card-spinner" style="width: 32px; height: 32px;"></div><span style="margin-left: 0.5rem;">Loading outcomes...</span></div>';
-    if (alignmentEl) alignmentEl.innerHTML = '<div class="acc-card-loading" style="padding: 2rem;"><div class="acc-card-spinner" style="width: 32px; height: 32px;"></div><span style="margin-left: 0.5rem;">Analyzing outcomes, rubrics, and resources...</span></div>';
     const getEffectiveCip = () => {
         const progEl = document.getElementById('accProgram');
         const focusEl = document.getElementById('accProgramFocus');
@@ -1824,7 +2014,6 @@ async function loadStandardsSyncTab() {
                 progEl.innerHTML = '<option value="' + escapeHtml(progVal) + '" selected>' + escapeHtml(progLabel) + '</option>';
                 progEl.disabled = false;
                 if (profile.programCip4 && focusEl) {
-                    focusEl.innerHTML = accSpinnerHtml();
                     fetch('/college-scorecard/cip6-options?cip4=' + encodeURIComponent(profile.programCip4))
                         .then(r => r.json())
                         .then(d => {
@@ -1981,41 +2170,47 @@ async function loadStandardsSyncTab() {
             outcomesEl.innerHTML = '<p style="color:#c62828;">Failed to load: ' + escapeHtml(e.message) + '</p>';
         }
     };
-    const [profileRes, outcomesRes, workflowRes] = await Promise.all([
-        fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`),
-        fetch(`/canvas/courses/${selectedCourseId}/accreditation/outcomes`),
-        fetch(`/canvas/courses/${selectedCourseId}/accreditation/workflow`)
-    ]);
-    if (!profileRes.ok) {
-        const msg = profileRes.statusText;
-        if (profileEl) profileEl.innerHTML = '<p style="color:#c62828;">Failed to load profile: ' + escapeHtml(msg) + '</p>';
-        if (workflowEl) workflowEl.innerHTML = '<p style="color:#c62828;">Failed to load profile.</p>';
-        if (outcomesEl) outcomesEl.innerHTML = '<p style="color:#c62828;">Failed to load profile.</p>';
-        return;
-    }
-    const profile = await profileRes.json();
-    const outcomesPreloaded = outcomesRes.ok ? await outcomesRes.json() : [];
-    const workflow = workflowRes.ok ? await workflowRes.json() : { stages: {}, operationLog: [], lockInfo: {} };
-    if (workflowEl) {
-        const stages = workflow.stages || {};
-        const lockInfo = workflow.lockInfo || {};
-        const log = Array.isArray(workflow.operationLog) ? workflow.operationLog : [];
-        const stageLabels = { '0': 'Workflow', '1': 'Standards', '2': 'Outcomes', '3': 'Rubrics', '3b': 'Instruction', '4': 'Resources', '5': 'Quizzes' };
-        const stageHtml = ['0','1','2','3','3b','4','5'].map(sid => {
-            const state = stages[sid] || 'draft';
-            const info = lockInfo[sid] || {};
-            const label = stageLabels[sid] || sid;
-            const locked = info.locked ? ' <span style="font-size:11px;color:#999;">(locked)</span>' : '';
-            return '<span style="margin-right:12px;"><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(state) + locked + '</span>';
-        }).join('');
-        const logHtml = log.length
-            ? '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;">Operation log (' + log.length + ')</summary><div style="max-height:120px;overflow:auto;font-size:11px;margin-top:4px;">' +
-              log.slice(0, 20).map(e => '<div style="padding:2px 0;border-bottom:1px solid #eee;">' + escapeHtml(e.timestamp || '') + ' | ' + escapeHtml(e.operation || '') + ' (Stage ' + escapeHtml(e.stage || '') + ')</div>').join('') + '</div></details>'
-            : '<p style="font-size:12px;color:#666;margin:0;">No operations logged yet.</p>';
-        workflowEl.innerHTML = '<div style="font-size:13px;"><div>' + stageHtml + '</div>' + logHtml + '</div>';
-    }
-    await loadProfile(profile);
-    await loadOutcomes(profile, outcomesPreloaded);
+    await withSpinner(async () => {
+        const [profileRes, outcomesRes, workflowRes] = await Promise.all([
+            fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`),
+            fetch(`/canvas/courses/${selectedCourseId}/accreditation/outcomes`),
+            fetch(`/canvas/courses/${selectedCourseId}/accreditation/workflow`)
+        ]);
+        if (!profileRes.ok) {
+            const msg = profileRes.statusText;
+            if (profileEl) profileEl.innerHTML = '<p style="color:#c62828;">Failed to load profile: ' + escapeHtml(msg) + '</p>';
+            if (workflowEl) workflowEl.innerHTML = '<p style="color:#c62828;">Failed to load profile.</p>';
+            if (outcomesEl) outcomesEl.innerHTML = '<p style="color:#c62828;">Failed to load profile.</p>';
+            return;
+        }
+        const profile = await profileRes.json();
+        const outcomesPreloaded = outcomesRes.ok ? await outcomesRes.json() : [];
+        const workflow = workflowRes.ok ? await workflowRes.json() : { stages: {}, operationLog: [], lockInfo: {} };
+        if (workflowEl) {
+            const stages = workflow.stages || {};
+            const lockInfo = workflow.lockInfo || {};
+            const log = Array.isArray(workflow.operationLog) ? workflow.operationLog : [];
+            const stageLabels = { '0': 'Workflow', '1': 'Standards', '2': 'Outcomes', '3': 'Rubrics', '3b': 'Instruction', '4': 'Resources', '5': 'Quizzes' };
+            const stageHtml = ['0','1','2','3','3b','4','5'].map(sid => {
+                const state = stages[sid] || 'draft';
+                const info = lockInfo[sid] || {};
+                const label = stageLabels[sid] || sid;
+                const locked = info.locked ? ' <span style="font-size:11px;color:#999;">(locked)</span>' : '';
+                return '<span style="margin-right:12px;"><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(state) + locked + '</span>';
+            }).join('');
+            const logHtml = log.length
+                ? '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;">Operation log (' + log.length + ')</summary><div style="max-height:120px;overflow:auto;font-size:11px;margin-top:4px;">' +
+                  log.slice(0, 20).map(e => '<div style="padding:2px 0;border-bottom:1px solid #eee;">' + escapeHtml(e.timestamp || '') + ' | ' + escapeHtml(e.operation || '') + ' (Stage ' + escapeHtml(e.stage || '') + ')</div>').join('') + '</div></details>'
+                : '<p style="font-size:12px;color:#666;margin:0;">No operations logged yet.</p>';
+            workflowEl.innerHTML = '<div style="font-size:13px;"><div>' + stageHtml + '</div>' + logHtml + '</div>';
+        }
+        await loadProfile(profile);
+        await loadOutcomes(profile, outcomesPreloaded);
+    }, {
+        panelEl: document.getElementById('standardsSyncPanel'),
+        label: 'Loading accreditation...',
+        scrollTargetEl: document.getElementById('accProfileContent'),
+    });
 }
 
 function renderAccessibilityPanelSkeleton() {
@@ -2324,20 +2519,28 @@ async function runAccessibilityScan() {
     const qs = queryParts.length ? `?${queryParts.join('&')}` : '';
     if (summaryEl) {
         const metrics = document.getElementById('accessibilityMetrics');
-        if (metrics) metrics.textContent = 'Scanning course content...';
+        if (metrics) metrics.textContent = metrics.textContent || 'Ready to scan.';
     }
     if (findingsEl) findingsEl.innerHTML = '<p>Scan in progress...</p>';
+    const runBtn = document.getElementById('runAccessibilityScanBtn');
     try {
-        const response = await fetch(`/canvas/courses/${selectedCourseId}/accessibility/scan${qs}`, { credentials: 'include' });
-        if (!response.ok) {
-            const errText = await response.text().catch(() => '');
-            throw new Error(`${response.status} ${response.statusText}${errText ? ': ' + errText.slice(0, 300) : ''}`);
-        }
-        const report = await response.json();
-        accessibilityLastReport = report;
-        recordAccessibilityRun(report);
-        renderAccessibilityReport(report);
-        showToast('Accessibility scan complete.', 'success', 1800);
+        await withSpinner(async () => {
+            const response = await fetch(`/canvas/courses/${selectedCourseId}/accessibility/scan${qs}`, { credentials: 'include' });
+            if (!response.ok) {
+                const errText = await response.text().catch(() => '');
+                throw new Error(`${response.status} ${response.statusText}${errText ? ': ' + errText.slice(0, 300) : ''}`);
+            }
+            const report = await response.json();
+            accessibilityLastReport = report;
+            recordAccessibilityRun(report);
+            renderAccessibilityReport(report);
+            showToast('Accessibility scan complete.', 'success', 1800);
+        }, {
+            triggerEl: runBtn,
+            label: 'Running scan...',
+            panelEl: document.getElementById('accessibilityPanel'),
+            scrollTargetEl: document.getElementById('accessibilityFindingsContent'),
+        });
     } catch (error) {
         if (findingsEl) findingsEl.innerHTML = `<p style="color:#a94442;">Failed to run scan: ${escapeHtml(error.message || String(error))}</p>`;
         showToast('Accessibility scan failed.', 'error');
@@ -2398,31 +2601,35 @@ async function generateAccessibilityFixPreview() {
         snippet: r?.snippet || null
     }));
     const btn = document.getElementById('generateFixPreviewBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Generating preview...'; }
     try {
-        const res = await fetch(`/canvas/courses/${selectedCourseId}/accessibility/fix-preview`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ findings: rows })
+        await withSpinner(async () => {
+            const res = await fetch(`/canvas/courses/${selectedCourseId}/accessibility/fix-preview`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ findings: rows })
+            });
+            if (!res.ok) {
+                const errText = await res.text().catch(() => res.statusText);
+                if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Preview HTTP failed: status=${res.status} body=${String(errText).slice(0, 600)}`, 'error');
+                throw new Error(errText);
+            }
+            const data = await res.json();
+            accessibilityFixPreviewActions = data?.actions || [];
+            if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Preview success: actions=${accessibilityFixPreviewActions.length}`, 'info');
+            renderAccessibilityFixQueue(accessibilityFixPreviewActions);
+            if (!accessibilityFixPreviewActions.length) {
+                showToast('No auto-fixable actions for current findings.', 'info');
+            }
+        }, {
+            triggerEl: btn,
+            label: 'Generating preview...',
+            panelEl: document.getElementById('accessibilityPanel'),
+            scrollTargetEl: document.getElementById('accessibilityFixQueue'),
         });
-        if (!res.ok) {
-            const errText = await res.text().catch(() => res.statusText);
-            if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Preview HTTP failed: status=${res.status} body=${String(errText).slice(0, 600)}`, 'error');
-            throw new Error(errText);
-        }
-        const data = await res.json();
-        accessibilityFixPreviewActions = data?.actions || [];
-        if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Preview success: actions=${accessibilityFixPreviewActions.length}`, 'info');
-        renderAccessibilityFixQueue(accessibilityFixPreviewActions);
-        if (!accessibilityFixPreviewActions.length) {
-            showToast('No auto-fixable actions for current findings.', 'info');
-        }
     } catch (e) {
         if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Preview failed: ' + (e?.stack || e?.message || String(e)), 'error');
         showToast('Fix preview failed: ' + (e?.message || String(e)), 'error');
-    } finally {
-        if (btn) { btn.disabled = false; btn.textContent = 'Generate Fix Preview'; }
     }
 }
 
@@ -2541,66 +2748,72 @@ async function applyApprovedAccessibilityFixes() {
     }
     const applyBtn = document.getElementById('applyApprovedFixesBtn');
     const statusEl = document.getElementById('accessibilityFixQueueStatus');
-    if (applyBtn) applyBtn.disabled = true;
     if (statusEl) statusEl.textContent = 'Applying...';
     if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Apply request starting: approved_actions=${approved.length}`, 'info');
     try {
-        const batches = [];
-        const chunkSize = 25;
-        for (let i = 0; i < approved.length; i += chunkSize) batches.push(approved.slice(i, i + chunkSize));
-        let fixed = 0;
-        let skipped = 0;
-        let failed = 0;
-        const fixedResultKeys = new Set();
-        for (let i = 0; i < batches.length; i++) {
-            if (statusEl) statusEl.textContent = `Applying... (${i + 1}/${batches.length})`;
-            const res = await fetch(`/canvas/courses/${selectedCourseId}/accessibility/fix-apply`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ actions: batches[i] })
-            });
-            if (!res.ok) {
-                const errText = await res.text().catch(() => res.statusText);
-                if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Apply HTTP failed: status=${res.status} body=${String(errText).slice(0, 600)}`, 'error');
-                throw new Error(errText);
-            }
-            const data = await res.json();
-            fixed += Number(data?.fixed || 0);
-            skipped += Number(data?.skipped || 0);
-            failed += Number(data?.failed || 0);
-            const batchResults = Array.isArray(data?.results) ? data.results : [];
-            batchResults.forEach((r) => {
-                if (String(r?.status || '') !== 'fixed') return;
-                fixedResultKeys.add(`${r?.resource_type || ''}:${r?.resource_id || ''}:${r?.rule_id || ''}`);
-            });
-        }
-        if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Apply success: fixed=${fixed} skipped=${skipped} failed=${failed}`, failed > 0 ? 'warn' : 'info');
-        if (statusEl) statusEl.textContent = `Fixed: ${fixed}, Skipped: ${skipped}, Failed: ${failed}`;
-        showToast(`Applied fixes: ${fixed} fixed, ${skipped} skipped, ${failed} failed.`, fixed > 0 ? 'success' : 'info');
-        if (fixed > 0) {
-            const approvedKeySet = new Set(approved.map(a => `${a.resource_type}:${a.resource_id}:${a.rule_id}`));
-            const keysToRemove = fixedResultKeys.size ? fixedResultKeys : approvedKeySet;
-            accessibilityFixPreviewActions = (accessibilityFixPreviewActions || []).filter(
-                a => !keysToRemove.has(`${a.resource_type}:${a.resource_id}:${a.rule_id}`)
-            );
-            renderAccessibilityFixQueue(accessibilityFixPreviewActions);
-            if (accessibilityGridApi?.forEachNode && accessibilityGridApi?.applyTransaction) {
-                const toRemove = [];
-                accessibilityGridApi.forEachNode((node) => {
-                    const d = node?.data || {};
-                    const key = `${d.resource_type || ''}:${d.resource_id || ''}:${d.rule_id || ''}`;
-                    if (keysToRemove.has(key)) toRemove.push(d);
+        await withSpinner(async ({ setLabel }) => {
+            const batches = [];
+            const chunkSize = 25;
+            for (let i = 0; i < approved.length; i += chunkSize) batches.push(approved.slice(i, i + chunkSize));
+            let fixed = 0;
+            let skipped = 0;
+            let failed = 0;
+            const fixedResultKeys = new Set();
+            for (let i = 0; i < batches.length; i++) {
+                const progress = `Applying... (${i + 1}/${batches.length})`;
+                if (statusEl) statusEl.textContent = progress;
+                setLabel(progress);
+                const res = await fetch(`/canvas/courses/${selectedCourseId}/accessibility/fix-apply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ actions: batches[i] })
                 });
-                if (toRemove.length) accessibilityGridApi.applyTransaction({ remove: toRemove });
+                if (!res.ok) {
+                    const errText = await res.text().catch(() => res.statusText);
+                    if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Apply HTTP failed: status=${res.status} body=${String(errText).slice(0, 600)}`, 'error');
+                    throw new Error(errText);
+                }
+                const data = await res.json();
+                fixed += Number(data?.fixed || 0);
+                skipped += Number(data?.skipped || 0);
+                failed += Number(data?.failed || 0);
+                const batchResults = Array.isArray(data?.results) ? data.results : [];
+                batchResults.forEach((r) => {
+                    if (String(r?.status || '') !== 'fixed') return;
+                    fixedResultKeys.add(`${r?.resource_type || ''}:${r?.resource_id || ''}:${r?.rule_id || ''}`);
+                });
             }
-        }
+            if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Apply success: fixed=${fixed} skipped=${skipped} failed=${failed}`, failed > 0 ? 'warn' : 'info');
+            if (statusEl) statusEl.textContent = `Fixed: ${fixed}, Skipped: ${skipped}, Failed: ${failed}`;
+            showToast(`Applied fixes: ${fixed} fixed, ${skipped} skipped, ${failed} failed.`, fixed > 0 ? 'success' : 'info');
+            if (fixed > 0) {
+                const approvedKeySet = new Set(approved.map(a => `${a.resource_type}:${a.resource_id}:${a.rule_id}`));
+                const keysToRemove = fixedResultKeys.size ? fixedResultKeys : approvedKeySet;
+                accessibilityFixPreviewActions = (accessibilityFixPreviewActions || []).filter(
+                    a => !keysToRemove.has(`${a.resource_type}:${a.resource_id}:${a.rule_id}`)
+                );
+                renderAccessibilityFixQueue(accessibilityFixPreviewActions);
+                if (accessibilityGridApi?.forEachNode && accessibilityGridApi?.applyTransaction) {
+                    const toRemove = [];
+                    accessibilityGridApi.forEachNode((node) => {
+                        const d = node?.data || {};
+                        const key = `${d.resource_type || ''}:${d.resource_id || ''}:${d.rule_id || ''}`;
+                        if (keysToRemove.has(key)) toRemove.push(d);
+                    });
+                    if (toRemove.length) accessibilityGridApi.applyTransaction({ remove: toRemove });
+                }
+            }
+        }, {
+            triggerEl: applyBtn,
+            label: 'Applying fixes...',
+            panelEl: document.getElementById('accessibilityPanel'),
+            scrollTargetEl: document.getElementById('accessibilityFixQueueStatus') || document.getElementById('accessibilityFindingsContent'),
+        });
     } catch (e) {
         if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Apply failed: ' + (e?.stack || e?.message || String(e)), 'error');
         showToast('Apply failed: ' + (e?.message || String(e)), 'error');
         if (statusEl) statusEl.textContent = 'Apply failed';
-    } finally {
-        if (applyBtn) applyBtn.disabled = false;
     }
 }
 
@@ -2691,7 +2904,6 @@ async function onAccStateChange() {
     const progWrap = document.getElementById('accProgWrap');
     const focusEl = document.getElementById('accProgramFocus');
     if (!stateEl || !cityWrap) return;
-    cityWrap.innerHTML = accSpinnerHtml();
     if (instWrap) instWrap.innerHTML = '<select id="accInstitution" disabled><option value="">Select city first</option></select>';
     if (progWrap) progWrap.innerHTML = '<select id="accProgram" disabled><option value="">Select institution first</option></select>';
     if (focusEl) focusEl.innerHTML = 'Select program first';
@@ -2705,20 +2917,26 @@ async function onAccStateChange() {
         return;
     }
     try {
-        const url = '/college-scorecard/cities?state=' + encodeURIComponent(state);
-        const res = await fetch(url);
-        const data = await res.json();
-        let html;
-        if (data && data.error) {
-            html = '<select id="accCity"><option value="">' + escapeHtml(data.error) + '</option></select>';
-        } else if (Array.isArray(data)) {
-            html = '<select id="accCity"><option value="">Select city...</option>' +
-                data.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('') + '</select>';
-        } else {
-            html = '<select id="accCity"><option value="">No cities found</option></select>';
-        }
-        cityWrap.innerHTML = html;
-        document.getElementById('accCity').onchange = onAccCityChange;
+        await withSpinner(async () => {
+            const url = '/college-scorecard/cities?state=' + encodeURIComponent(state);
+            const res = await fetch(url);
+            const data = await res.json();
+            let html;
+            if (data && data.error) {
+                html = '<select id="accCity"><option value="">' + escapeHtml(data.error) + '</option></select>';
+            } else if (Array.isArray(data)) {
+                html = '<select id="accCity"><option value="">Select city...</option>' +
+                    data.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('') + '</select>';
+            } else {
+                html = '<select id="accCity"><option value="">No cities found</option></select>';
+            }
+            cityWrap.innerHTML = html;
+            document.getElementById('accCity').onchange = onAccCityChange;
+        }, {
+            panelEl: cityWrap,
+            label: 'Loading cities...',
+            delayMs: 200,
+        });
     } catch (e) {
         if (typeof debugLog === 'function') debugLog('[AccProfile] Cities fetch error: ' + e.message, 'error');
         cityWrap.innerHTML = '<select id="accCity"><option value="">Error: ' + escapeHtml(e.message || 'Request failed') + '</option></select>';
@@ -2733,7 +2951,6 @@ async function onAccCityChange() {
     const progWrap = document.getElementById('accProgWrap');
     const focusEl = document.getElementById('accProgramFocus');
     if (!stateEl || !cityEl || !instWrap) return;
-    instWrap.innerHTML = accSpinnerHtml();
     if (progWrap) progWrap.innerHTML = '<select id="accProgram" disabled><option value="">Select institution first</option></select>';
     if (focusEl) focusEl.innerHTML = 'Select program first';
     const progEl = document.getElementById('accProgram');
@@ -2745,19 +2962,25 @@ async function onAccCityChange() {
         return;
     }
     try {
-        const res = await fetch('/college-scorecard/institutions?state=' + encodeURIComponent(state) + '&city=' + encodeURIComponent(city));
-        const data = await res.json();
-        let html;
-        if (data && data.error) {
-            html = '<select id="accInstitution"><option value="">' + escapeHtml(data.error) + '</option></select>';
-        } else if (Array.isArray(data)) {
-            html = '<select id="accInstitution"><option value="">Select institution...</option>' +
-                data.map(i => '<option value="' + i.id + '">' + escapeHtml(i.name) + '</option>').join('') + '</select>';
-        } else {
-            html = '<select id="accInstitution"><option value="">No institutions found</option></select>';
-        }
-        instWrap.innerHTML = html;
-        document.getElementById('accInstitution').onchange = onAccInstitutionChange;
+        await withSpinner(async () => {
+            const res = await fetch('/college-scorecard/institutions?state=' + encodeURIComponent(state) + '&city=' + encodeURIComponent(city));
+            const data = await res.json();
+            let html;
+            if (data && data.error) {
+                html = '<select id="accInstitution"><option value="">' + escapeHtml(data.error) + '</option></select>';
+            } else if (Array.isArray(data)) {
+                html = '<select id="accInstitution"><option value="">Select institution...</option>' +
+                    data.map(i => '<option value="' + i.id + '">' + escapeHtml(i.name) + '</option>').join('') + '</select>';
+            } else {
+                html = '<select id="accInstitution"><option value="">No institutions found</option></select>';
+            }
+            instWrap.innerHTML = html;
+            document.getElementById('accInstitution').onchange = onAccInstitutionChange;
+        }, {
+            panelEl: instWrap,
+            label: 'Loading institutions...',
+            delayMs: 200,
+        });
     } catch (e) {
         instWrap.innerHTML = '<select id="accInstitution"><option value="">Error: ' + escapeHtml(e.message || 'Request failed') + '</option></select>';
         document.getElementById('accInstitution').onchange = onAccInstitutionChange;
@@ -2769,7 +2992,6 @@ async function onAccInstitutionChange() {
     const progWrap = document.getElementById('accProgWrap');
     const focusEl = document.getElementById('accProgramFocus');
     if (!instEl || !progWrap) return;
-    progWrap.innerHTML = accSpinnerHtml();
     if (focusEl) focusEl.innerHTML = 'Select program first';
     const schoolId = instEl.value;
     if (!schoolId) {
@@ -2778,19 +3000,25 @@ async function onAccInstitutionChange() {
         return;
     }
     try {
-        const res = await fetch('/college-scorecard/programs-cip4?schoolId=' + encodeURIComponent(schoolId));
-        const data = await res.json();
-        let html;
-        if (data && data.error) {
-            html = '<select id="accProgram"><option value="">' + escapeHtml(data.error) + '</option></select>';
-        } else if (Array.isArray(data)) {
-            html = '<select id="accProgram"><option value="">Select program...</option>' +
-                data.map(p => '<option value="' + escapeHtml(p.cip4) + '">' + escapeHtml(p.cip4 + ' - ' + (p.title || '')) + '</option>').join('') + '</select>';
-        } else {
-            html = '<select id="accProgram"><option value="">No programs found</option></select>';
-        }
-        progWrap.innerHTML = html;
-        document.getElementById('accProgram').onchange = onAccProgramChange;
+        await withSpinner(async () => {
+            const res = await fetch('/college-scorecard/programs-cip4?schoolId=' + encodeURIComponent(schoolId));
+            const data = await res.json();
+            let html;
+            if (data && data.error) {
+                html = '<select id="accProgram"><option value="">' + escapeHtml(data.error) + '</option></select>';
+            } else if (Array.isArray(data)) {
+                html = '<select id="accProgram"><option value="">Select program...</option>' +
+                    data.map(p => '<option value="' + escapeHtml(p.cip4) + '">' + escapeHtml(p.cip4 + ' - ' + (p.title || '')) + '</option>').join('') + '</select>';
+            } else {
+                html = '<select id="accProgram"><option value="">No programs found</option></select>';
+            }
+            progWrap.innerHTML = html;
+            document.getElementById('accProgram').onchange = onAccProgramChange;
+        }, {
+            panelEl: progWrap,
+            label: 'Loading programs...',
+            delayMs: 200,
+        });
     } catch (e) {
         progWrap.innerHTML = '<select id="accProgram"><option value="">Error: ' + escapeHtml(e.message || 'Request failed') + '</option></select>';
         document.getElementById('accProgram').onchange = onAccProgramChange;
@@ -2802,20 +3030,25 @@ async function onAccProgramChange() {
     const focusEl = document.getElementById('accProgramFocus');
     if (!progEl || !focusEl) return;
     const cip4 = (progEl.value || '').trim();
-    focusEl.innerHTML = accSpinnerHtml();
     if (!cip4) {
         focusEl.innerHTML = 'Select program first';
         return;
     }
     try {
-        const res = await fetch('/college-scorecard/cip6-options?cip4=' + encodeURIComponent(cip4));
-        const data = await res.json();
-        const opts = data && data.options ? data.options : [];
-        if (!opts.length) {
-            focusEl.innerHTML = '<span class="acc-no-focus">No specializations for this program</span>';
-        } else {
-            focusEl.innerHTML = opts.map(o => '<label class="acc-focus-check"><input type="checkbox" value="' + escapeHtml(o.code) + '"> ' + escapeHtml(o.code + ' - ' + (o.title || '')) + '</label>').join('');
-        }
+        await withSpinner(async () => {
+            const res = await fetch('/college-scorecard/cip6-options?cip4=' + encodeURIComponent(cip4));
+            const data = await res.json();
+            const opts = data && data.options ? data.options : [];
+            if (!opts.length) {
+                focusEl.innerHTML = '<span class="acc-no-focus">No specializations for this program</span>';
+            } else {
+                focusEl.innerHTML = opts.map(o => '<label class="acc-focus-check"><input type="checkbox" value="' + escapeHtml(o.code) + '"> ' + escapeHtml(o.code + ' - ' + (o.title || '')) + '</label>').join('');
+            }
+        }, {
+            panelEl: focusEl,
+            label: 'Loading focus options...',
+            delayMs: 200,
+        });
     } catch (e) {
         focusEl.innerHTML = '<span class="acc-focus-err">Error: ' + escapeHtml(e.message || 'Request failed') + '</span>';
     }
@@ -2865,27 +3098,24 @@ async function saveAccreditationProfileForm() {
         selectedStandards: undefined
     };
     const btn = document.getElementById('accSaveProfileBtn');
-    const origHtml = btn ? btn.innerHTML : '';
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="acc-card-loading" style="display: inline-flex; align-items: center; gap: 0.35rem;"><span class="acc-card-spinner" style="width: 16px; height: 16px;"></span>Saving...</span>';
-    }
     try {
-        const res = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ profile })
+        await withSpinner(async () => {
+            const res = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ profile })
+            });
+            if (!res.ok) throw new Error(res.statusText);
+            loadStandardsSyncTab();
+            if (typeof openModal === 'function') openModal('profileSavedModal');
+        }, {
+            triggerEl: btn,
+            panelEl: document.getElementById('standardsSyncPanel'),
+            label: 'Saving profile...',
+            scrollTargetEl: document.getElementById('accWorkflowContent'),
         });
-        if (!res.ok) throw new Error(res.statusText);
-        loadStandardsSyncTab();
-        if (typeof openModal === 'function') openModal('profileSavedModal');
     } catch (e) {
         alert('Save failed: ' + e.message);
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = origHtml || 'Save Profile';
-        }
     }
 }
 
@@ -2976,23 +3206,24 @@ async function saveOutcomeStandards(outcomeId) {
     const btn = row.querySelector('.acc-save-std');
     if (!input || !btn) return;
     const standards = parseStandardsInputValue(input.value);
-    const prev = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = 'Saving...';
     try {
-        const res = await fetch('/canvas/outcomes/' + encodeURIComponent(outcomeId) + '/standards', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ standards })
+        await withSpinner(async () => {
+            const res = await fetch('/canvas/outcomes/' + encodeURIComponent(outcomeId) + '/standards', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ standards })
+            });
+            if (!res.ok) throw new Error(res.statusText || ('HTTP ' + res.status));
+            if (typeof showToast === 'function') showToast('Outcome standards saved.', 'success');
+        }, {
+            triggerEl: btn,
+            panelEl: row,
+            label: 'Saving standards...',
+            delayMs: 200,
         });
-        if (!res.ok) throw new Error(res.statusText || ('HTTP ' + res.status));
-        if (typeof showToast === 'function') showToast('Outcome standards saved.', 'success');
     } catch (e) {
         if (typeof showToast === 'function') showToast('Failed to save outcome standards: ' + (e?.message || e), 'error');
         else alert('Failed to save outcome standards: ' + (e?.message || e));
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = prev || 'Save';
     }
 }
 
@@ -3017,11 +3248,11 @@ async function loadAccreditationAlignment(profile) {
     }
     const cip = getAccreditationCipFromProfile(profile) || getAccreditationEffectiveCip();
     const qs = cip ? ('?cip=' + encodeURIComponent(cip)) : '';
-    host.innerHTML = '<div class="acc-card-loading"><div class="acc-card-spinner"></div><span>Analyzing outcomes, rubrics, and resources...</span></div>';
     try {
-        const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/alignment' + qs);
-        if (!res.ok) throw new Error(res.statusText || ('HTTP ' + res.status));
-        const payload = await res.json();
+        await withSpinner(async () => {
+            const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/alignment' + qs);
+            if (!res.ok) throw new Error(res.statusText || ('HTTP ' + res.status));
+            const payload = await res.json();
         const outcomes = Array.isArray(payload?.outcome_mappings) ? payload.outcome_mappings : [];
         const rubrics = Array.isArray(payload?.rubric_mappings) ? payload.rubric_mappings : [];
         const resources = Array.isArray(payload?.resource_mappings) ? payload.resource_mappings : [];
@@ -3100,15 +3331,20 @@ async function loadAccreditationAlignment(profile) {
               quizMappings.map(r => '<div class="acc-align-row"><strong>' + escapeHtml(r?.title || '') + '</strong> (Classic #' + escapeHtml(r?.resource_id || '') + ') ' + renderAccSuggestionBadges(r?.suggested_standards || []) + ' ' + quizBtn('quiz', r.resource_id, r.suggested_standards) + '</div>').join('') +
               newQuizMappings.map(r => '<div class="acc-align-row"><strong>' + escapeHtml(r?.title || '') + '</strong> (New Quiz #' + escapeHtml(r?.resource_id || '') + ') ' + renderAccSuggestionBadges(r?.suggested_standards || []) + ' ' + quizBtn('new_quiz', r.resource_id, r.suggested_standards) + '</div>').join('')
             : '';
-        host.innerHTML = '<div class="acc-align-summary">' +
-            '<span class="acc-align-pill">Standards considered: ' + escapeHtml(String(payload?.standards_considered || 0)) + '</span>' +
-            '<span class="acc-align-pill">Outcomes mapped: ' + escapeHtml(String(summary?.outcomes_with_suggestions || 0)) + '/' + escapeHtml(String(summary?.outcomes || 0)) + '</span>' +
-            '<span class="acc-align-pill">Resources mapped: ' + escapeHtml(String(summary?.resources_with_suggestions || 0)) + '/' + escapeHtml(String(summary?.resources_scanned || 0)) + '</span>' +
-            '</div>' +
-            '<div class="acc-align-section"><h4>Outcome Suggestions</h4>' + outcomesHtml + '</div>' +
-            '<div class="acc-align-section"><h4>Rubric Suggestions</h4>' + rubricsHtml + withoutRubricsHtml + '</div>' +
-            '<div class="acc-align-section"><h4>Resource Suggestions</h4>' + resourcesHtml + '</div>' +
-            (quizHtml ? '<div class="acc-align-section">' + quizHtml + '</div>' : '');
+            host.innerHTML = '<div class="acc-align-summary">' +
+                '<span class="acc-align-pill">Standards considered: ' + escapeHtml(String(payload?.standards_considered || 0)) + '</span>' +
+                '<span class="acc-align-pill">Outcomes mapped: ' + escapeHtml(String(summary?.outcomes_with_suggestions || 0)) + '/' + escapeHtml(String(summary?.outcomes || 0)) + '</span>' +
+                '<span class="acc-align-pill">Resources mapped: ' + escapeHtml(String(summary?.resources_with_suggestions || 0)) + '/' + escapeHtml(String(summary?.resources_scanned || 0)) + '</span>' +
+                '</div>' +
+                '<div class="acc-align-section"><h4>Outcome Suggestions</h4>' + outcomesHtml + '</div>' +
+                '<div class="acc-align-section"><h4>Rubric Suggestions</h4>' + rubricsHtml + withoutRubricsHtml + '</div>' +
+                '<div class="acc-align-section"><h4>Resource Suggestions</h4>' + resourcesHtml + '</div>' +
+                (quizHtml ? '<div class="acc-align-section">' + quizHtml + '</div>' : '');
+        }, {
+            panelEl: host,
+            label: 'Analyzing alignment...',
+            scrollTargetEl: host,
+        });
     } catch (e) {
         host.innerHTML = '<p style="color:#c62828;">Alignment analysis failed: ' + escapeHtml(e?.message || String(e)) + '</p>';
     }
@@ -3194,67 +3430,65 @@ async function applyAccreditationStandards() {
     const selectedStandards = Array.from(new Set(Array.from(checkboxes).map(cb => cb.value).filter(Boolean)));
     debugLog('[AccApply] Selected standards count: ' + selectedStandards.length + ' — ids: ' + selectedStandards.slice(0, 5).join(', ') + (selectedStandards.length > 5 ? '...' : ''), 'info');
     const btn = document.getElementById('accApplyStandardsBtn');
-    const origHtml = btn ? btn.innerHTML : '';
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="acc-card-loading" style="display: inline-flex; align-items: center; gap: 0.35rem;"><span class="acc-card-spinner" style="width: 16px; height: 16px;"></span>Applying...</span>';
-    }
     try {
-        debugLog('[AccApply] 1. Fetching profile GET /accreditation/profile', 'info');
-        const getRes = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`);
-        if (!getRes.ok) throw new Error(getRes.statusText);
-        const profile = await getRes.json();
-        profile.selectedStandards = selectedStandards;
-        debugLog('[AccApply] 2. Profile loaded, writing via PUT with selectedStandards', 'info');
-        const putRes = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ profile })
-        });
-        if (!putRes.ok) throw new Error(putRes.statusText);
-        debugLog('[AccApply] 3. Profile PUT success status=' + putRes.status, 'success');
-        debugLog('[AccApply] 4. Calling loadStandardsSyncTab (loads profile + outcomes + standards)', 'info');
-        await loadStandardsSyncTab();
-        const cip = getAccreditationCipFromProfile(profile);
-        const cipDom = getAccreditationEffectiveCip();
-        if (cip !== cipDom) {
-            debugLog('[AccApply] CIP from profile (' + cip + ') differs from DOM (' + cipDom + '); using profile (same as standards tab)', 'warn');
-        }
-        const qs = cip ? ('?cip=' + encodeURIComponent(cip)) : '';
-        const standardsUrl = `/canvas/courses/${selectedCourseId}/accreditation/standards${qs}`;
-        debugLog('[AccApply] 5. Fetching standards: ' + standardsUrl, 'info');
-        const stdRes = await fetch(standardsUrl);
-        const bodyEl = document.getElementById('accParsedStandardsModalBody');
-        if (stdRes.ok && bodyEl) {
-            const payload = await stdRes.json();
-            const orgs = Array.isArray(payload?.organizations) ? payload.organizations : [];
-            const total = Number(payload?.total_standards) ?? 0;
-            const sources = orgs.map(o => (o.abbreviation || o.id) + ':' + (o.standards_source || '?')).join('; ');
-            debugLog('[AccApply] 6a. Standards response: orgs=' + orgs.length + ', total_standards=' + total + ', sources=' + sources, 'info');
-            orgs.forEach((org, i) => {
-                const stds = Array.isArray(org.standards) ? org.standards : [];
-                const sample = stds[0];
-                const keys = sample ? Object.keys(sample).join(',') : 'none';
-                const hasParent = stds.some(s => (s.parentId ?? s.parent_id) != null);
-                debugLog('[AccApply] 6b. Org[' + i + '] ' + (org.abbreviation || org.id) + ': standards=' + stds.length + ', hasParentId=' + hasParent + ', firstStd keys=' + keys, 'info');
+        await withSpinner(async () => {
+            debugLog('[AccApply] 1. Fetching profile GET /accreditation/profile', 'info');
+            const getRes = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`);
+            if (!getRes.ok) throw new Error(getRes.statusText);
+            const profile = await getRes.json();
+            profile.selectedStandards = selectedStandards;
+            debugLog('[AccApply] 2. Profile loaded, writing via PUT with selectedStandards', 'info');
+            const putRes = await fetch(`/canvas/courses/${selectedCourseId}/accreditation/profile`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ profile })
             });
-            if (payload._debug) {
-                debugLog('[AccApply] 6c. Backend _debug: ' + JSON.stringify(payload._debug), 'info');
+            if (!putRes.ok) throw new Error(putRes.statusText);
+            debugLog('[AccApply] 3. Profile PUT success status=' + putRes.status, 'success');
+            debugLog('[AccApply] 4. Calling loadStandardsSyncTab (loads profile + outcomes + standards)', 'info');
+            await loadStandardsSyncTab();
+            const cip = getAccreditationCipFromProfile(profile);
+            const cipDom = getAccreditationEffectiveCip();
+            if (cip !== cipDom) {
+                debugLog('[AccApply] CIP from profile (' + cip + ') differs from DOM (' + cipDom + '); using profile (same as standards tab)', 'warn');
             }
-            bodyEl.innerHTML = buildParsedStandardsPreviewHtml(payload);
-            debugLog('[AccApply] 7. Modal body built, opening accParsedStandardsModal', 'info');
-            if (typeof openModal === 'function') openModal('accParsedStandardsModal');
-        } else {
-            debugLog('[AccApply] 6. Standards fetch failed: status=' + stdRes.status + (bodyEl ? '' : ' (no bodyEl)'), 'error');
-            if (typeof openModal === 'function') openModal('profileSavedModal');
-        }
+            const qs = cip ? ('?cip=' + encodeURIComponent(cip)) : '';
+            const standardsUrl = `/canvas/courses/${selectedCourseId}/accreditation/standards${qs}`;
+            debugLog('[AccApply] 5. Fetching standards: ' + standardsUrl, 'info');
+            const stdRes = await fetch(standardsUrl);
+            const bodyEl = document.getElementById('accParsedStandardsModalBody');
+            if (stdRes.ok && bodyEl) {
+                const payload = await stdRes.json();
+                const orgs = Array.isArray(payload?.organizations) ? payload.organizations : [];
+                const total = Number(payload?.total_standards) ?? 0;
+                const sources = orgs.map(o => (o.abbreviation || o.id) + ':' + (o.standards_source || '?')).join('; ');
+                debugLog('[AccApply] 6a. Standards response: orgs=' + orgs.length + ', total_standards=' + total + ', sources=' + sources, 'info');
+                orgs.forEach((org, i) => {
+                    const stds = Array.isArray(org.standards) ? org.standards : [];
+                    const sample = stds[0];
+                    const keys = sample ? Object.keys(sample).join(',') : 'none';
+                    const hasParent = stds.some(s => (s.parentId ?? s.parent_id) != null);
+                    debugLog('[AccApply] 6b. Org[' + i + '] ' + (org.abbreviation || org.id) + ': standards=' + stds.length + ', hasParentId=' + hasParent + ', firstStd keys=' + keys, 'info');
+                });
+                if (payload._debug) {
+                    debugLog('[AccApply] 6c. Backend _debug: ' + JSON.stringify(payload._debug), 'info');
+                }
+                bodyEl.innerHTML = buildParsedStandardsPreviewHtml(payload);
+                debugLog('[AccApply] 7. Modal body built, opening accParsedStandardsModal', 'info');
+                if (typeof openModal === 'function') openModal('accParsedStandardsModal');
+            } else {
+                debugLog('[AccApply] 6. Standards fetch failed: status=' + stdRes.status + (bodyEl ? '' : ' (no bodyEl)'), 'error');
+                if (typeof openModal === 'function') openModal('profileSavedModal');
+            }
+        }, {
+            triggerEl: btn,
+            panelEl: document.getElementById('standardsSyncPanel'),
+            label: 'Applying standards...',
+            getScrollTarget: () => document.getElementById('accParsedStandardsModalBody'),
+        });
     } catch (e) {
         debugLog('[AccApply] Error: ' + (e?.message || e), 'error');
         alert('Apply failed: ' + e.message);
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = origHtml || 'Apply to course';
-        }
     }
 }
 
@@ -3268,47 +3502,44 @@ async function createOutcomesFromSelectedStandards() {
         return;
     }
     const btn = document.getElementById('accCreateOutcomesBtn');
-    const orig = btn ? btn.innerHTML : '';
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="acc-card-loading" style="display:inline-flex;align-items:center;gap:0.35rem;"><span class="acc-card-spinner" style="width:16px;height:16px;"></span>Creating outcomes...</span>';
-    }
     try {
-        const profileRes = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/profile');
-        if (!profileRes.ok) throw new Error(profileRes.statusText || ('HTTP ' + profileRes.status));
-        const profile = await profileRes.json();
-        profile.selectedStandards = selectedStandards;
-        const putRes = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/profile', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ profile })
+        await withSpinner(async () => {
+            const profileRes = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/profile');
+            if (!profileRes.ok) throw new Error(profileRes.statusText || ('HTTP ' + profileRes.status));
+            const profile = await profileRes.json();
+            profile.selectedStandards = selectedStandards;
+            const putRes = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/profile', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ profile })
+            });
+            if (!putRes.ok) throw new Error(putRes.statusText || ('HTTP ' + putRes.status));
+            const cip = getAccreditationCipFromProfile(profile) || getAccreditationEffectiveCip();
+            const syncRes = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/outcomes/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cip: cip || undefined, include_groups: false })
+            });
+            if (!syncRes.ok) throw new Error(syncRes.statusText || ('HTTP ' + syncRes.status));
+            const result = await syncRes.json();
+            const created = Number(result?.summary?.created || 0);
+            const skipped = Number(result?.summary?.skipped || 0);
+            const failed = Number(result?.summary?.failed || 0);
+            if (typeof showToast === 'function') {
+                showToast('Outcomes sync complete: ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.', failed ? 'warn' : 'success');
+            } else {
+                alert('Outcomes sync complete: ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.');
+            }
+            await loadStandardsSyncTab();
+        }, {
+            triggerEl: btn,
+            panelEl: document.getElementById('standardsSyncPanel'),
+            label: 'Creating outcomes...',
+            scrollTargetEl: document.getElementById('accOutcomesContent'),
         });
-        if (!putRes.ok) throw new Error(putRes.statusText || ('HTTP ' + putRes.status));
-        const cip = getAccreditationCipFromProfile(profile) || getAccreditationEffectiveCip();
-        const syncRes = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/outcomes/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cip: cip || undefined, include_groups: false })
-        });
-        if (!syncRes.ok) throw new Error(syncRes.statusText || ('HTTP ' + syncRes.status));
-        const result = await syncRes.json();
-        const created = Number(result?.summary?.created || 0);
-        const skipped = Number(result?.summary?.skipped || 0);
-        const failed = Number(result?.summary?.failed || 0);
-        if (typeof showToast === 'function') {
-            showToast('Outcomes sync complete: ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.', failed ? 'warn' : 'success');
-        } else {
-            alert('Outcomes sync complete: ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.');
-        }
-        await loadStandardsSyncTab();
     } catch (e) {
         if (typeof showToast === 'function') showToast('Failed to create outcomes: ' + (e?.message || e), 'error');
         else alert('Failed to create outcomes: ' + (e?.message || e));
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = orig || 'Approve selected & create outcomes';
-        }
     }
 }
 
@@ -3555,42 +3786,45 @@ async function doCreateSelectedOutcomes() {
     }
     const cip = getAccreditationEffectiveCip();
     const createBtn = document.getElementById('accOutcomeSelectCreateBtn');
-    const orig = createBtn ? createBtn.innerHTML : '';
-    if (createBtn) { createBtn.disabled = true; createBtn.innerHTML = 'Creating...'; }
     if (typeof debugLog === 'function') debugLog('[sync-org] submit ' + (info.orgAbbrev || info.orgId) + ' selected=' + selectedStandardIds.length, 'info');
     try {
-        const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/outcomes/sync-org', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orgId: info.orgId, orgAbbrev: info.orgAbbrev, orgName: info.orgName, cip: cip || undefined, selectedStandardIds })
+        await withSpinner(async () => {
+            const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/outcomes/sync-org', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orgId: info.orgId, orgAbbrev: info.orgAbbrev, orgName: info.orgName, cip: cip || undefined, selectedStandardIds })
+            });
+            const bodyText = await res.text();
+            let result;
+            try { result = bodyText ? JSON.parse(bodyText) : {}; } catch { result = {}; }
+            if (!res.ok) {
+                const errMsg = result?.message || result?.error || bodyText || res.statusText || 'Failed';
+                if (typeof debugLog === 'function') debugLog('sync-org failed: ' + res.status + ' — ' + errMsg, 'error');
+                throw new Error(errMsg);
+            }
+            const created = Number(result?.summary?.created || 0);
+            const skipped = Number(result?.summary?.skipped || 0);
+            const failed = Number(result?.summary?.failed || 0);
+            if (typeof debugLog === 'function') debugLog('[sync-org] result created=' + created + ' skipped=' + skipped + ' failed=' + failed, failed ? 'warn' : 'success');
+            if (failed > 0 && Array.isArray(result?.failed)) {
+                const details = result.failed.slice(0, 3).map(f => (f?.standard_id || '?') + ': ' + (f?.error || 'failed')).join(' | ');
+                if (typeof debugLog === 'function') debugLog('[sync-org] failed details: ' + details, 'error');
+            }
+            if (typeof showToast === 'function') showToast(info.orgAbbrev + ': ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.', failed ? 'warn' : 'success');
+            else alert(info.orgAbbrev + ': ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.');
+            if (typeof closeActiveModal === 'function') closeActiveModal();
+            await loadStandardsSyncTab();
+        }, {
+            triggerEl: createBtn,
+            panelEl: document.getElementById('standardsSyncPanel'),
+            label: 'Submitting outcomes...',
+            scrollTargetEl: document.getElementById('accOutcomesContent'),
         });
-        const bodyText = await res.text();
-        let result;
-        try { result = bodyText ? JSON.parse(bodyText) : {}; } catch { result = {}; }
-        if (!res.ok) {
-            const errMsg = result?.message || result?.error || bodyText || res.statusText || 'Failed';
-            if (typeof debugLog === 'function') debugLog('sync-org failed: ' + res.status + ' — ' + errMsg, 'error');
-            throw new Error(errMsg);
-        }
-        const created = Number(result?.summary?.created || 0);
-        const skipped = Number(result?.summary?.skipped || 0);
-        const failed = Number(result?.summary?.failed || 0);
-        if (typeof debugLog === 'function') debugLog('[sync-org] result created=' + created + ' skipped=' + skipped + ' failed=' + failed, failed ? 'warn' : 'success');
-        if (failed > 0 && Array.isArray(result?.failed)) {
-            const details = result.failed.slice(0, 3).map(f => (f?.standard_id || '?') + ': ' + (f?.error || 'failed')).join(' | ');
-            if (typeof debugLog === 'function') debugLog('[sync-org] failed details: ' + details, 'error');
-        }
-        if (typeof showToast === 'function') showToast(info.orgAbbrev + ': ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.', failed ? 'warn' : 'success');
-        else alert(info.orgAbbrev + ': ' + created + ' created, ' + skipped + ' skipped, ' + failed + ' failed.');
-        if (typeof closeActiveModal === 'function') closeActiveModal();
-        await loadStandardsSyncTab();
     } catch (e) {
         const msg = e?.message || String(e);
         if (typeof debugLog === 'function') debugLog('sync-org error: ' + msg, 'error');
         if (typeof showToast === 'function') showToast('Submit failed: ' + msg, 'error');
         else alert('Submit failed: ' + msg);
-    } finally {
-        if (createBtn) { createBtn.disabled = false; createBtn.innerHTML = orig || 'Create selected'; }
     }
 }
 
@@ -3601,19 +3835,22 @@ async function submitOutcomesForOrg(orgId, orgAbbrev, orgName, toCreateCount) {
 async function finalizeStandards() {
     if (!selectedCourseId) return;
     const btn = document.getElementById('accFinalizeStandardsBtn');
-    const orig = btn ? btn.innerHTML : '';
-    if (btn) { btn.disabled = true; btn.innerHTML = 'Finalizing...'; }
     try {
-        const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/standards/finalize', { method: 'POST' });
-        if (!res.ok) throw new Error(res.statusText || 'Failed');
-        if (typeof showToast === 'function') showToast('Standards finalized. Stage 2 is now unlocked.', 'success');
-        else alert('Standards finalized.');
-        await loadStandardsSyncTab();
+        await withSpinner(async () => {
+            const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/standards/finalize', { method: 'POST' });
+            if (!res.ok) throw new Error(res.statusText || 'Failed');
+            if (typeof showToast === 'function') showToast('Standards finalized. Stage 2 is now unlocked.', 'success');
+            else alert('Standards finalized.');
+            await loadStandardsSyncTab();
+        }, {
+            triggerEl: btn,
+            panelEl: document.getElementById('standardsSyncPanel'),
+            label: 'Finalizing standards...',
+            scrollTargetEl: document.getElementById('accWorkflowContent'),
+        });
     } catch (e) {
         if (typeof showToast === 'function') showToast('Finalize failed: ' + (e?.message || e), 'error');
         else alert('Finalize failed: ' + (e?.message || e));
-    } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = orig || 'Finalize standards'; }
     }
 }
 
@@ -3630,29 +3867,32 @@ async function openAiSuggestFlow() {
         return;
     }
     const btn = document.getElementById('accGetAiSuggestionsBtn');
-    const orig = btn ? btn.innerHTML : '';
-    if (btn) { btn.disabled = true; btn.innerHTML = 'Fetching suggestions...'; }
     try {
-        const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/standards/suggest', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ n: 5 })
+        await withSpinner(async () => {
+            const res = await fetch('/canvas/courses/' + selectedCourseId + '/accreditation/standards/suggest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ n: 5 })
+            });
+            if (!res.ok) throw new Error(res.statusText || 'Failed');
+            const suggestions = await res.json();
+            if (!Array.isArray(suggestions) || !suggestions.length) {
+                if (typeof showToast === 'function') showToast('No additional suggestions found.', 'info');
+                else alert('No additional suggestions found.');
+                return;
+            }
+            accAiSuggestQueue = suggestions;
+            accAiSuggestIndex = 0;
+            showNextAiSuggestion();
+        }, {
+            triggerEl: btn,
+            panelEl: document.getElementById('standardsSyncPanel'),
+            label: 'Fetching suggestions...',
+            scrollTargetEl: document.getElementById('accOutcomesContent'),
         });
-        if (!res.ok) throw new Error(res.statusText || 'Failed');
-        const suggestions = await res.json();
-        if (!Array.isArray(suggestions) || !suggestions.length) {
-            if (typeof showToast === 'function') showToast('No additional suggestions found.', 'info');
-            else alert('No additional suggestions found.');
-            return;
-        }
-        accAiSuggestQueue = suggestions;
-        accAiSuggestIndex = 0;
-        showNextAiSuggestion();
     } catch (e) {
         if (typeof showToast === 'function') showToast('AI suggestions failed: ' + (e?.message || e), 'error');
         else alert('AI suggestions failed: ' + (e?.message || e));
-    } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = orig || 'Get AI suggestions'; }
     }
 }
 
@@ -3699,10 +3939,6 @@ function closeAiSuggestFlow() {
     loadStandardsSyncTab();
 }
 
-function accSpinnerHtml() {
-    return '<div class="acc-card-loading"><div class="acc-card-spinner"></div><span>Loading...</span></div>';
-}
-
 function escapeHtml(s) {
     const div = document.createElement('div');
     div.textContent = s;
@@ -3714,90 +3950,85 @@ async function loadTabData(tabName) {
         if (!selectedCourseId) return;
 
         const configKey = getConfigKey(tabName);
-
         var tabConfig = FIELD_DEFINITIONS[configKey];
         if (!tabConfig) return;
 
         var currentBatch = 1;
         var batchSize = 100;
         var displayTab = tabName.charAt(0).toUpperCase() + tabName.slice(1);
-        
-        // Show the native spinner immediately
-        if (gridApi) {
-            gridApi.showLoadingOverlay();
-            var initialText = document.getElementById('custom-loading-text');
-            if (initialText) initialText.innerHTML = "Fetching " + displayTab + " 1 to 100...";
-        }
 
-        var progressInterval = setInterval(function() {
-            var textElement = document.getElementById('custom-loading-text');
-            if (textElement) {
+        await withSpinner(async ({ setLabel }) => {
+            setLabel("Fetching " + displayTab + " 1 to 100...");
+            var progressInterval = setInterval(function() {
                 var start = (currentBatch * batchSize) + 1;
                 var end = (currentBatch + 1) * batchSize;
-                textElement.innerHTML = "Fetching " + displayTab + " " + start + " to " + end + "...";
-            }
-            currentBatch++;
-        }, 2000);
+                setLabel("Fetching " + displayTab + " " + start + " to " + end + "...");
+                currentBatch++;
+            }, 2000);
 
-        if (tabName === 'assignments' || tabName === 'quizzes' || tabName === 'new_quizzes') {
             try {
-                var agUrl = "/canvas/courses/" + selectedCourseId + "/assignment_groups";
-                var agResponse = await fetch(agUrl);
-                if (agResponse.ok) {
-                    var agData = await agResponse.json();
-                    assignmentGroupsCache[selectedCourseId] = {};
-                    agData.forEach(function(group) {
-                        assignmentGroupsCache[selectedCourseId][group.id] = group.name;
-                    });
+                if (tabName === 'assignments' || tabName === 'quizzes' || tabName === 'new_quizzes') {
+                    try {
+                        var agUrl = "/canvas/courses/" + selectedCourseId + "/assignment_groups";
+                        var agResponse = await fetch(agUrl);
+                        if (agResponse.ok) {
+                            var agData = await agResponse.json();
+                            assignmentGroupsCache[selectedCourseId] = {};
+                            agData.forEach(function(group) {
+                                assignmentGroupsCache[selectedCourseId][group.id] = group.name;
+                            });
+                        }
+                    } catch (agError) {
+                        assignmentGroupsCache[selectedCourseId] = {};
+                    }
                 }
-            } catch (agError) {
-                assignmentGroupsCache[selectedCourseId] = {};
+
+                const hasRubricField = getFieldsForTab(tabName).some(f => f.type === 'rubric_dropdown');
+                if (hasRubricField) {
+                    await loadRubricsForCourse(selectedCourseId);
+                }
+
+                var dataUrl = "/canvas/courses/" + selectedCourseId + "/" + tabConfig.endpoint;
+                var response = await fetch(dataUrl, { credentials: 'include' });
+
+                if (!response.ok) {
+                    var errText = '';
+                    try { errText = await response.text(); } catch (_) {}
+                    var errMsg = errText ? (errText.slice(0, 300) + (errText.length > 300 ? '...' : '')) : response.statusText;
+                    alert('Failed to load ' + displayTab + ': ' + response.status + ' ' + errMsg);
+                    return;
+                }
+
+                var data = await response.json();
+                if (!Array.isArray(data)) {
+                    alert('Failed to load ' + displayTab + ': unexpected response format');
+                    return;
+                }
+                var baselineDataWithStatus = data.map(function(item) {
+                    return Object.assign({}, item, { _edit_status: 'synced' });
+                });
+                var workingDataWithStatus = baselineDataWithStatus.map(function(item) {
+                    return Object.assign({}, item);
+                });
+
+                originalData[tabName] = baselineDataWithStatus;
+
+                if (currentTab === tabName && gridApi) {
+                    setGridColumnDefsForTab(tabName);
+                    gridApi.setGridOption('rowData', workingDataWithStatus);
+                    updateSyncHistoryIndicator();
+                }
+            } finally {
+                clearInterval(progressInterval);
             }
-        }
-
-        const hasRubricField = getFieldsForTab(tabName).some(f => f.type === 'rubric_dropdown');
-        if (hasRubricField) {
-            await loadRubricsForCourse(selectedCourseId);
-        }
-
-        var dataUrl = "/canvas/courses/" + selectedCourseId + "/" + tabConfig.endpoint;
-        var response = await fetch(dataUrl, { credentials: 'include' });
-
-        clearInterval(progressInterval);
-
-        if (!response.ok) {
-            if (gridApi) gridApi.hideOverlay();
-            var errText = '';
-            try { errText = await response.text(); } catch (_) {}
-            var errMsg = errText ? (errText.slice(0, 300) + (errText.length > 300 ? '...' : '')) : response.statusText;
-            alert('Failed to load ' + displayTab + ': ' + response.status + ' ' + errMsg);
-            return;
-        }
-
-        var data = await response.json();
-        if (!Array.isArray(data)) {
-            if (gridApi) gridApi.hideOverlay();
-            alert('Failed to load ' + displayTab + ': unexpected response format');
-            return;
-        }
-        var baselineDataWithStatus = data.map(function(item) {
-            return Object.assign({}, item, { _edit_status: 'synced' });
+        }, {
+            mode: 'grid',
+            panelEl: document.getElementById('myGrid'),
+            label: "Fetching " + displayTab + "...",
+            scrollTargetEl: document.getElementById('myGrid'),
         });
-        var workingDataWithStatus = baselineDataWithStatus.map(function(item) {
-            return Object.assign({}, item);
-        });
-
-        originalData[tabName] = baselineDataWithStatus;
-
-        if (currentTab === tabName && gridApi) {
-            setGridColumnDefsForTab(tabName);
-            gridApi.setGridOption('rowData', workingDataWithStatus);
-            gridApi.hideOverlay();
-            updateSyncHistoryIndicator();
-        }
     } catch (error) {
-        if (typeof progressInterval !== 'undefined') clearInterval(progressInterval);
-        if (gridApi) gridApi.hideOverlay();
+        return;
     }
 }
 
@@ -4157,6 +4388,22 @@ async function executeRevertSnapshot(snapshotId) {
     updateSyncHistoryIndicator();
 }
 
+function ensureSyncResultSummaryEl() {
+    let el = document.getElementById('syncResultSummary');
+    if (el) return el;
+    const header = document.querySelector('.toolbar');
+    if (!header || !header.parentElement) return null;
+    el = document.createElement('div');
+    el.id = 'syncResultSummary';
+    el.style.display = 'none';
+    el.style.margin = '8px 0 0 0';
+    el.style.padding = '8px 10px';
+    el.style.borderRadius = '6px';
+    el.style.fontSize = '13px';
+    header.parentElement.insertBefore(el, header.nextSibling);
+    return el;
+}
+
 async function syncChanges() {
     if (!selectedCourseId) return alert('Select course first.');
     const tabChanges = changes[currentTab] || {};
@@ -4166,14 +4413,14 @@ async function syncChanges() {
     if (!itemIds.length) return alert('No changes.');
 
     const syncBtn = document.querySelector('button[onclick="syncChanges()"]');
-    const priorSyncLabel = syncBtn?.textContent || 'Sync Changes';
-    if (syncBtn) {
-        syncBtn.disabled = true;
-        syncBtn.textContent = 'Syncing...';
+    const syncSummaryEl = ensureSyncResultSummaryEl();
+    if (syncSummaryEl) {
+        syncSummaryEl.style.display = 'none';
+        syncSummaryEl.textContent = '';
     }
     showToast(`Sync started for ${itemIds.length} item(s).`, 'info', 1800);
 
-    try {
+    await withSpinner(async () => {
         const configKey = getConfigKey(currentTab);
         const config = FIELD_DEFINITIONS[configKey];
         if (!config) {
@@ -4421,17 +4668,32 @@ async function syncChanges() {
         const successCount = succeededRowIds.size;
         if (errors.length) {
             debugLog('[Sync] Summary FAILED count=' + errors.length + ' details=' + JSON.stringify(errors).slice(0, 3000), 'error');
+            if (syncSummaryEl) {
+                syncSummaryEl.style.display = 'block';
+                syncSummaryEl.style.background = '#fff4e5';
+                syncSummaryEl.style.border = '1px solid #f5c26b';
+                syncSummaryEl.style.color = '#8a4b00';
+                syncSummaryEl.textContent = `Sync complete with issues — ${successCount} succeeded, ${errors.length} failed.`;
+            }
             showToast(`Sync complete with issues — ${successCount} succeeded, ${errors.length} failed.`, 'warn', 5000);
             alert(`Sync failed for ${errors.length} item(s):\n\n${errors.map(e => `• ${e.label}: ${e.message}`).join('\n')}`);
             return;
         }
-        showToast(`Sync complete — ${successCount} item(s) synced.`, 'success', 3000);
-    } finally {
-        if (syncBtn) {
-            syncBtn.disabled = false;
-            syncBtn.textContent = priorSyncLabel;
+        if (syncSummaryEl) {
+            syncSummaryEl.style.display = 'block';
+            syncSummaryEl.style.background = '#ecfdf3';
+            syncSummaryEl.style.border = '1px solid #86efac';
+            syncSummaryEl.style.color = '#166534';
+            syncSummaryEl.textContent = `Sync complete — ${successCount} item(s) synced.`;
         }
-    }
+        showToast(`Sync complete — ${successCount} item(s) synced.`, 'success', 3000);
+    }, {
+        triggerEl: syncBtn,
+        mode: 'grid',
+        panelEl: document.getElementById('myGrid'),
+        label: 'Syncing...',
+        getScrollTarget: () => (syncSummaryEl && syncSummaryEl.style.display !== 'none') ? syncSummaryEl : null,
+    });
 }
 async function handleDeleteClick() {
     const selectedItems = getSelectedItems();
@@ -4809,7 +5071,7 @@ async function populateAssignmentGroupSelector() {
     const selectEl = document.getElementById('assignmentGroupTarget');
     const helpEl = document.getElementById('assignmentGroupHelp');
     if (!selectEl) return;
-    selectEl.innerHTML = '<option value="">Loading...</option>';
+    selectEl.innerHTML = '<option value="">Select assignment group...</option>';
     const hasAgField = getFieldsForTab(currentTab).some(f => f.key === 'assignment_group_id');
     if (!hasAgField) {
         selectEl.innerHTML = '<option value="">This tab does not support assignment groups</option>';
@@ -4824,13 +5086,19 @@ async function populateAssignmentGroupSelector() {
     let groups = assignmentGroupsCache[selectedCourseId] || {};
     if (Object.keys(groups).length === 0) {
         try {
-            const res = await fetch('/canvas/courses/' + selectedCourseId + '/assignment_groups');
-            if (res.ok) {
-                const agData = await res.json();
-                groups = {};
-                agData.forEach(g => { groups[g.id] = g.name; });
-                assignmentGroupsCache[selectedCourseId] = groups;
-            }
+            await withSpinner(async () => {
+                const res = await fetch('/canvas/courses/' + selectedCourseId + '/assignment_groups');
+                if (res.ok) {
+                    const agData = await res.json();
+                    groups = {};
+                    agData.forEach(g => { groups[g.id] = g.name; });
+                    assignmentGroupsCache[selectedCourseId] = groups;
+                }
+            }, {
+                panelEl: document.getElementById('assignmentGroupModal'),
+                label: 'Loading assignment groups...',
+                delayMs: 200,
+            });
         } catch (e) {}
     }
     selectEl.innerHTML = '';
@@ -5218,35 +5486,26 @@ async function executeClone() {
     const numCopies = Math.max(1, parseInt(document.getElementById('cloneNumCopies')?.value || '1', 10) || 1);
     const serialize = document.getElementById('cloneSerialize')?.checked !== false;
     if (currentTab === 'files' && (method === 'surface' || method === 'deep')) {
-        try {
-            if (gridApi) {
-                gridApi.showLoadingOverlay();
-                var ltf = document.getElementById('custom-loading-text');
-                if (ltf) ltf.textContent = (method === 'deep') ? 'Deep cloning folders...' : 'Cloning folder shells...';
-            }
+        await withSpinner(async () => {
             await executeFilesFolderClone(method, selectedRows, prefix, suffix, numCopies, serialize);
             await refreshCurrentTab();
-        } finally {
-            if (gridApi) gridApi.hideOverlay();
-        }
+        }, {
+            mode: 'grid',
+            panelEl: document.getElementById('myGrid'),
+            label: method === 'deep' ? 'Deep cloning folders...' : 'Cloning folder shells...',
+            scrollTargetEl: document.getElementById('myGrid'),
+        });
     } else if (currentTab === 'modules' && method === 'deep') {
-        try {
-            if (gridApi) {
-                gridApi.showLoadingOverlay();
-                var lt = document.getElementById('custom-loading-text');
-                if (lt) lt.textContent = 'Cloning modules...';
-            }
+        await withSpinner(async () => {
             for (const rowData of selectedRows) await performDeepClone(rowData, prefix, rowData.name || rowData.title, suffix);
-        } finally {
-            if (gridApi) gridApi.hideOverlay();
-        }
+        }, {
+            mode: 'grid',
+            panelEl: document.getElementById('myGrid'),
+            label: 'Cloning modules...',
+            scrollTargetEl: document.getElementById('myGrid'),
+        });
     } else if (method === 'deep') {
-        try {
-            if (gridApi) {
-                gridApi.showLoadingOverlay();
-                var lt2 = document.getElementById('custom-loading-text');
-                if (lt2) lt2.textContent = 'Cloning...';
-            }
+        await withSpinner(async () => {
             const configKey = getConfigKey(currentTab);
             const tabConfig = FIELD_DEFINITIONS[configKey];
             for (const rowData of selectedRows) {
@@ -5265,9 +5524,12 @@ async function executeClone() {
                 }
             }
             await refreshCurrentTab();
-        } finally {
-            if (gridApi) gridApi.hideOverlay();
-        }
+        }, {
+            mode: 'grid',
+            panelEl: document.getElementById('myGrid'),
+            label: 'Cloning...',
+            scrollTargetEl: document.getElementById('myGrid'),
+        });
     } else {
         const existingNames = new Set();
         const newItems = [];
@@ -5299,33 +5561,37 @@ async function executeDelete() {
     if (!courseId) { alert('No course.'); return; }
     try {
         const deleteBtn = document.querySelector('.modal-footer .btn-danger');
-        if (deleteBtn) { deleteBtn.disabled = true; deleteBtn.textContent = 'Deleting...'; }
-        for (const item of selectedItems) {
-            const type = item._originTab || currentTab;
-            if (mode === 'deep' && type === 'modules') {
-                await deepPurgeModule(courseId, item);
-            } else {
-                const identifier = getItemIdentifier(item, type);
-                const extra = (type === 'files' && item.is_folder) ? { isFolder: true } : undefined;
-                await deleteCanvasItem(type, courseId, identifier, extra);
+        await withSpinner(async () => {
+            for (const item of selectedItems) {
+                const type = item._originTab || currentTab;
+                if (mode === 'deep' && type === 'modules') {
+                    await deepPurgeModule(courseId, item);
+                } else {
+                    const identifier = getItemIdentifier(item, type);
+                    const extra = (type === 'files' && item.is_folder) ? { isFolder: true } : undefined;
+                    await deleteCanvasItem(type, courseId, identifier, extra);
+                }
             }
-        }
-        closeActiveModal();
-        delete originalData['assignments'];
-        if (changes['assignments']) changes['assignments'] = {};
-        await refreshCurrentTab();
-        if (currentTab !== 'assignments') {
-            const response = await fetch(`/canvas/courses/${selectedCourseId}/${FIELD_DEFINITIONS['assignments'].endpoint}`);
-            const data = await response.json();
-            originalData['assignments'] = data.map(record => ({ ...record, _edit_status: 'synced' }));
-        }
+            closeActiveModal();
+            delete originalData['assignments'];
+            if (changes['assignments']) changes['assignments'] = {};
+            await refreshCurrentTab();
+            if (currentTab !== 'assignments') {
+                const response = await fetch(`/canvas/courses/${selectedCourseId}/${FIELD_DEFINITIONS['assignments'].endpoint}`);
+                const data = await response.json();
+                originalData['assignments'] = data.map(record => ({ ...record, _edit_status: 'synced' }));
+            }
+        }, {
+            triggerEl: deleteBtn,
+            mode: 'grid',
+            panelEl: document.getElementById('myGrid'),
+            label: 'Deleting...',
+            scrollTargetEl: document.getElementById('myGrid'),
+        });
     } catch (error) {
         console.error(error);
         debugLog('[Delete] FAILED - ' + (error?.message || String(error)), 'error');
         alert(`Error: ${error.message}`);
-    } finally {
-        const deleteBtn = document.querySelector('.modal-footer .btn-danger');
-        if (deleteBtn) { deleteBtn.disabled = false; deleteBtn.textContent = 'Delete'; }
     }
 }
 
@@ -5379,86 +5645,79 @@ async function executeMerge() {
     // Execution
     try {
         const mergeBtn = document.querySelector('#mergeModal .primary-btn');
-        if (mergeBtn) {
-            mergeBtn.disabled = true;
-            mergeBtn.textContent = 'Merging...';
-        }
+        await withSpinner(async () => {
+            const targetItemsResponse = await fetch(`/canvas/courses/${courseId}/modules/${targetModuleId}/items`);
+            if (!targetItemsResponse.ok) throw new Error('Failed to fetch target module items');
+            const targetItems = await targetItemsResponse.json();
+            let nextPosition = targetItems.length + 1;
 
-        // Get current target items count for position numbering
-        const targetItemsResponse = await fetch(`/canvas/courses/${courseId}/modules/${targetModuleId}/items`);
-        if (!targetItemsResponse.ok) throw new Error('Failed to fetch target module items');
-        const targetItems = await targetItemsResponse.json();
-        let nextPosition = targetItems.length + 1;
-
-        // Copy items from each source module to target
-        for (const sourceModule of sourceModules) {
-            try {
-                const itemsResponse = await fetch(`/canvas/courses/${courseId}/modules/${sourceModule.id}/items`);
-                if (!itemsResponse.ok) {
-                    console.warn(`Failed to fetch items from module ${sourceModule.id}`);
-                    continue;
-                }
-                const items = await itemsResponse.json();
-                items.sort((a, b) => (a.position || 0) - (b.position || 0));
-
-                for (const item of items) {
-                    try {
-                        const itemParams = {
-                            title: item.title,
-                            type: item.type,
-                            position: nextPosition,
-                            indent: item.indent || 0
-                        };
-
-                        if (item.type === 'ExternalUrl') {
-                            itemParams.external_url = item.external_url;
-                        } else if (item.type === 'Page') {
-                            itemParams.page_url = item.page_url;
-                        } else if (item.content_id) {
-                            itemParams.content_id = item.content_id;
-                        }
-
-                        await addModuleItem(courseId, targetModuleId, itemParams);
-                        nextPosition++;
-                    } catch (itemError) {
-                        console.error(`Failed to copy item "${item.title}":`, itemError);
+            for (const sourceModule of sourceModules) {
+                try {
+                    const itemsResponse = await fetch(`/canvas/courses/${courseId}/modules/${sourceModule.id}/items`);
+                    if (!itemsResponse.ok) {
+                        console.warn(`Failed to fetch items from module ${sourceModule.id}`);
+                        continue;
                     }
+                    const items = await itemsResponse.json();
+                    items.sort((a, b) => (a.position || 0) - (b.position || 0));
+
+                    for (const item of items) {
+                        try {
+                            const itemParams = {
+                                title: item.title,
+                                type: item.type,
+                                position: nextPosition,
+                                indent: item.indent || 0
+                            };
+
+                            if (item.type === 'ExternalUrl') {
+                                itemParams.external_url = item.external_url;
+                            } else if (item.type === 'Page') {
+                                itemParams.page_url = item.page_url;
+                            } else if (item.content_id) {
+                                itemParams.content_id = item.content_id;
+                            }
+
+                            await addModuleItem(courseId, targetModuleId, itemParams);
+                            nextPosition++;
+                        } catch (itemError) {
+                            console.error(`Failed to copy item "${item.title}":`, itemError);
+                        }
+                    }
+                } catch (moduleError) {
+                    console.error(`Error processing module ${sourceModule.id}:`, moduleError);
                 }
-            } catch (moduleError) {
-                console.error(`Error processing module ${sourceModule.id}:`, moduleError);
             }
-        }
 
-        // Update target module name
-        const updateResponse = await fetch(`/canvas/courses/${courseId}/modules/${targetModuleId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ module: { name: combinedName } })
+            const updateResponse = await fetch(`/canvas/courses/${courseId}/modules/${targetModuleId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ module: { name: combinedName } })
+            });
+            if (!updateResponse.ok) console.warn('Failed to update module name');
+
+            for (const sourceModule of sourceModules) {
+                try {
+                    await deleteCanvasItem('modules', courseId, sourceModule.id);
+                } catch (deleteError) {
+                    console.error(`Failed to delete module ${sourceModule.id}:`, deleteError);
+                }
+            }
+
+            closeActiveModal();
+            await refreshCurrentTab();
+            alert(`Successfully merged ${sourceModules.length} module(s) into "${targetModule.name}"`);
+        }, {
+            triggerEl: mergeBtn,
+            mode: 'grid',
+            panelEl: document.getElementById('myGrid'),
+            label: 'Merging modules...',
+            scrollTargetEl: document.getElementById('myGrid'),
         });
-        if (!updateResponse.ok) console.warn('Failed to update module name');
-
-        // Delete source modules
-        for (const sourceModule of sourceModules) {
-            try {
-                await deleteCanvasItem('modules', courseId, sourceModule.id);
-            } catch (deleteError) {
-                console.error(`Failed to delete module ${sourceModule.id}:`, deleteError);
-            }
-        }
-
-        closeActiveModal();
-        await refreshCurrentTab();
-        alert(`Successfully merged ${sourceModules.length} module(s) into "${targetModule.name}"`);
 
     } catch (error) {
         console.error('Merge error:', error);
         alert(`Merge failed: ${error.message}\n\nSome changes may have been applied. Please refresh to see current state.`);
-    } finally {
-        const mergeBtn = document.querySelector('#mergeModal .primary-btn');
-        if (mergeBtn) {
-            mergeBtn.disabled = false;
-            mergeBtn.textContent = 'Confirm Merge';
-        }
     }
 }
 
