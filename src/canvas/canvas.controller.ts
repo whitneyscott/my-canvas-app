@@ -568,7 +568,7 @@ export class CanvasController {
   }
 
   // Bulk update endpoints (kept for future use)
-  @Put('courses/:courseId/assignments/_bulk')
+  @Put('courses/:courseId/assignments/_bulk/update')
   async bulkUpdateAssignments(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Body() body: { itemIds: number[]; updates: Record<string, any> }
@@ -576,7 +576,7 @@ export class CanvasController {
     return this.canvasService.bulkUpdateAssignments(courseId, body.itemIds, body.updates);
   }
 
-  @Put('courses/:courseId/quizzes/_bulk')
+  @Put('courses/:courseId/quizzes/_bulk/update')
   async bulkUpdateQuizzes(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Body() body: { itemIds: number[]; updates: Record<string, any> }
@@ -584,7 +584,7 @@ export class CanvasController {
     return this.canvasService.bulkUpdateQuizzes(courseId, body.itemIds, body.updates);
   }
 
-  @Put('courses/:courseId/discussions/_bulk')
+  @Put('courses/:courseId/discussions/_bulk/update')
   async bulkUpdateDiscussions(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Body() body: { itemIds: number[]; updates: Record<string, any> }
@@ -592,7 +592,7 @@ export class CanvasController {
     return this.canvasService.bulkUpdateDiscussions(courseId, body.itemIds, body.updates);
   }
 
-  @Put('courses/:courseId/pages/_bulk')
+  @Put('courses/:courseId/pages/_bulk/update')
   async bulkUpdatePages(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Body() body: { itemIds: string[]; updates: Record<string, any> }
@@ -600,7 +600,7 @@ export class CanvasController {
     return this.canvasService.bulkUpdatePages(courseId, body.itemIds, body.updates);
   }
 
-  @Put('courses/:courseId/announcements/_bulk')
+  @Put('courses/:courseId/announcements/_bulk/update')
   async bulkUpdateAnnouncements(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Body() body: { itemIds: number[]; updates: Record<string, any> }
@@ -608,7 +608,7 @@ export class CanvasController {
     return this.canvasService.bulkUpdateAnnouncements(courseId, body.itemIds, body.updates);
   }
 
-  @Put('courses/:courseId/modules/_bulk')
+  @Put('courses/:courseId/modules/_bulk/update')
   async bulkUpdateModules(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Body() body: { itemIds: number[]; updates: Record<string, any> }
