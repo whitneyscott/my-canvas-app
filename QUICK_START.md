@@ -10,7 +10,7 @@
 
 | | |
 |:---|:---|
-| **Who this is for** | Alpha testers. Your pilot either enrolls you in **Canvas FFT** to export a template course, or sends an **`.imscc`** + LTI details. |
+| **Who this is for** | Alpha testers. Your pilot either enrolls you in **Canvas FFT** to export a template course, or sends an **`.imscc`**. Shared **LTI secrets** may still come from the pilot separately. |
 | **Launch** | **Bulk Editor** / **Canvas Bulk Edit** in course navigation — **LTI 1.1 only** (no LTI 1.3 tool, no Canvas OAuth). |
 | **Token** | Create in the **same Canvas** as the course you edit. Paste when prompted; **not** saved across visits like a password. |
 | **Role** | **Teacher** (or equivalent) on the target course. |
@@ -24,7 +24,7 @@
 
 1. [Get the `.imscc` package](#1-get-the-imscc-package)
 2. [Import into your course](#2-import-into-your-course)
-3. [LTI 1.1 credentials](#3-lti-11-credentials)
+3. [LTI key and secret if Canvas asks](#3-lti-key-and-secret-if-canvas-asks)
 4. [Canvas API token](#4-canvas-api-token)
 5. [Launch and sign in](#5-launch-and-sign-in)
 
@@ -41,9 +41,7 @@
 ---
 
 ## 1) Get the `.imscc` package
-
-### Path A — Shared FFT alpha course
-
+You should have received an invitatin to my Canvas FFT course which contains the too. Accept the invitation.
 The FFT course is only a **download source**. Do **not** import your own content into that shared shell (other testers use it).
 
 | Step | Action |
@@ -52,9 +50,6 @@ The FFT course is only a **download source**. Do **not** import your own content
 | 2 | **Settings** → **Export Course Contents** (labels may vary in FFT). |
 | 3 | Download the **`.imscc`** when the export is ready. |
 
-### Path B — Package from your pilot lead
-
-Use the **`.imscc`** (and any `lti-config.xml`) they sent — e.g. e-mail or shared drive. **Skip Path A.**
 
 ---
 
@@ -67,27 +62,22 @@ Use the **`.imscc`** (and any `lti-config.xml`) they sent — e.g. e-mail or sha
 |:---:|:---|
 | 1 | In **your** Canvas → target course → **Settings** → **Import Course Content**. |
 | 2 | Content type: **Canvas Course Export Package** → select your **`.imscc`** → import. |
-| 3 | If Canvas says *The security parameters for the external tool need to be set* — **that is normal** until you finish [§3](#3-lti-11-credentials). |
+| 3 | If Canvas says *The security parameters for the external tool need to be set* — **that is normal** until you finish [§3](#3-lti-key-and-secret-if-canvas-asks) (usually just key + secret). |
 
 ---
 
-## 3) LTI 1.1 credentials
+## 3) LTI key and secret (if Canvas asks)
+
+Importing the **`.imscc`** already installs the **Canvas Bulk Edit** / **Bulk Editor** tool with the correct **launch URL** and tool configuration. Under normal alpha setup you do **not** choose a separate “config type,” paste XML again, or re-enter the launch URL.
+
+If Canvas still shows a security / external-tool warning, it is usually because **Consumer Key** and/or **Shared Secret** were not in the export (common for security) and must be filled in once:
 
 | Step | Action |
 |:---:|:---|
 | 1 | **Settings** → **Apps** → **View App Configurations**. |
-| 2 | Find **Canvas Bulk Edit** / **Bulk Editor** → **gear** → **Edit** (or add from XML if instructed). |
-
-**Values** (from your pilot — not every alpha uses the same consumer key):
-
-| Field | What to enter |
-|:---|:---|
-| **Consumer Key** | As provided by developer / pilot lead |
-| **Shared Secret** | Secure handoff from pilot lead |
-| **Launch URL** | As provided (example: `https://canvas-bulk-editor.onrender.com/lti/launch`) |
-| **Config type** | **By URL** or paste XML per `lti-config.xml` |
-
-Save. The external-tool warning should clear when this is valid.
+| 2 | **Canvas Bulk Edit** / **Bulk Editor** → **gear** → **Edit**. |
+| 3 | Enter **Consumer Key** and **Shared Secret** exactly as your **pilot lead** provides (secure handoff). Leave other fields as imported unless the pilot tells you to change them. |
+| 4 | **Submit** / save. The warning should clear when those values match the app server. |
 
 ---
 
@@ -185,11 +175,11 @@ Same **Canvas** instance as the course you will edit:
 
 | Problem | What to try |
 |:---|:---|
-| Security / external-tool warning after import | Finish [§3 LTI](#3-lti-11-credentials); valid key, secret, launch URL |
+| Security / external-tool warning after import | Finish [§3](#3-lti-key-and-secret-if-canvas-asks); confirm **Consumer Key** and **Shared Secret** with your pilot |
 | Tool won’t load / auth error | Re-check **Consumer Key** and **Shared Secret** in App Configurations |
 | Grid won’t load course content | New **API token**; check expiry/revocation; **Canvas URL** matches course instance |
 | **No LTI 1.1 shared secret found** | Contact developer — server secret must match Canvas |
 
 ---
 
-> *Canvas Bulk Editor — Alpha. Launch URL and LTI values come from your pilot; don’t use stale screenshots if your lead gave different ones.*
+> *Canvas Bulk Editor — Alpha. If Canvas asks for LTI credentials beyond what the import supplied, use the **Consumer Key** and **Shared Secret** from your pilot—not values from old screenshots or other testers.*
