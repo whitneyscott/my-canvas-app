@@ -1018,6 +1018,8 @@ export class CanvasService {
     cacheRead: 0,
     cacheWrite: 0,
     calls: 0,
+    estimatedInputUsd: 0,
+    estimatedOutputUsd: 0,
   };
 
   constructor(
@@ -1049,6 +1051,78 @@ export class CanvasService {
     };
   }
 
+  private modelFamilyPricingUsdPerMtok(model: string): {
+    inputPerMtok: number;
+    outputPerMtok: number;
+    cacheReadPerMtok: number;
+    cacheWritePerMtok: number;
+  } {
+    const m = String(model || '').toLowerCase();
+    const sonnetOrOpus = m.includes('sonnet') || m.includes('opus');
+    if (sonnetOrOpus) {
+      return {
+        inputPerMtok:
+          Number(
+            this.config.get<string>('ANTHROPIC_USD_PER_MTOK_SONNET_INPUT') ??
+              '3',
+          ) || 0,
+        outputPerMtok:
+          Number(
+            this.config.get<string>('ANTHROPIC_USD_PER_MTOK_SONNET_OUTPUT') ??
+              '15',
+          ) || 0,
+        cacheReadPerMtok:
+          Number(
+            this.config.get<string>(
+              'ANTHROPIC_USD_PER_MTOK_SONNET_CACHE_READ',
+            ) ?? '0.3',
+          ) || 0,
+        cacheWritePerMtok:
+          Number(
+            this.config.get<string>(
+              'ANTHROPIC_USD_PER_MTOK_SONNET_CACHE_WRITE',
+            ) ?? '3.75',
+          ) || 0,
+      };
+    }
+    return {
+      inputPerMtok:
+        Number(
+          this.config.get<string>('ANTHROPIC_USD_PER_MTOK_INPUT') ?? '1',
+        ) || 0,
+      outputPerMtok:
+        Number(
+          this.config.get<string>('ANTHROPIC_USD_PER_MTOK_OUTPUT') ?? '5',
+        ) || 0,
+      cacheReadPerMtok:
+        Number(
+          this.config.get<string>('ANTHROPIC_USD_PER_MTOK_CACHE_READ') ?? '0.1',
+        ) || 0,
+      cacheWritePerMtok:
+        Number(
+          this.config.get<string>('ANTHROPIC_USD_PER_MTOK_CACHE_WRITE') ??
+            '1.25',
+        ) || 0,
+    };
+  }
+
+  private estimatedUsdForAnthropicUsageChunk(
+    model: string,
+    input: number,
+    output: number,
+    cacheRead: number,
+    cacheWrite: number,
+  ): { inUsd: number; outUsd: number } {
+    const p = this.modelFamilyPricingUsdPerMtok(model);
+    const div = 1e6;
+    const inUsd =
+      (input * p.inputPerMtok) / div +
+      (cacheRead * p.cacheReadPerMtok) / div +
+      (cacheWrite * p.cacheWritePerMtok) / div;
+    const outUsd = (output * p.outputPerMtok) / div;
+    return { inUsd, outUsd };
+  }
+
   private recordAnthropicUsage(
     usage: unknown,
     meta: {
@@ -1075,6 +1149,15 @@ export class CanvasService {
     this.anthropicUsageSession.cacheRead += cr;
     this.anthropicUsageSession.cacheWrite += cw;
     this.anthropicUsageSession.calls += 1;
+    const { inUsd, outUsd } = this.estimatedUsdForAnthropicUsageChunk(
+      meta.model,
+      input,
+      output,
+      cr,
+      cw,
+    );
+    this.anthropicUsageSession.estimatedInputUsd += inUsd;
+    this.anthropicUsageSession.estimatedOutputUsd += outUsd;
     const s = this.anthropicUsageSession;
     const bits = [
       '[Anthropic]',
@@ -1099,6 +1182,8 @@ export class CanvasService {
     cacheRead: number;
     cacheWrite: number;
     calls: number;
+    estimatedInputUsd: number;
+    estimatedOutputUsd: number;
   } {
     const s = this.anthropicUsageSession;
     return {
@@ -1107,24 +1192,9 @@ export class CanvasService {
       cacheRead: s.cacheRead,
       cacheWrite: s.cacheWrite,
       calls: s.calls,
+      estimatedInputUsd: s.estimatedInputUsd,
+      estimatedOutputUsd: s.estimatedOutputUsd,
     };
-  }
-
-  private estimateUsdForAnthropicTokens(
-    input: number,
-    output: number,
-    cacheRead: number,
-    cacheWrite: number,
-  ): { inputUsd: number; outputUsd: number; total: number } {
-    const perMtok = (key: string, def: string) =>
-      (Number(this.config.get<string>(key) ?? def) || 0) / 1e6;
-    const pi = perMtok('ANTHROPIC_USD_PER_MTOK_INPUT', '1');
-    const po = perMtok('ANTHROPIC_USD_PER_MTOK_OUTPUT', '5');
-    const pr = perMtok('ANTHROPIC_USD_PER_MTOK_CACHE_READ', '0.1');
-    const pcw = perMtok('ANTHROPIC_USD_PER_MTOK_CACHE_WRITE', '1.25');
-    const inputUsd = input * pi + cacheRead * pr + cacheWrite * pcw;
-    const outputUsd = output * po;
-    return { inputUsd, outputUsd, total: inputUsd + outputUsd };
   }
 
   private meterSinceAnthropicSnapshot(start: {
@@ -1133,6 +1203,8 @@ export class CanvasService {
     cacheRead: number;
     cacheWrite: number;
     calls: number;
+    estimatedInputUsd: number;
+    estimatedOutputUsd: number;
   }): AccessibilityFixPreviewItemMeter {
     const s = this.anthropicUsageSession;
     const input_tokens = s.input - start.input;
@@ -1140,21 +1212,18 @@ export class CanvasService {
     const cache_read_input_tokens = s.cacheRead - start.cacheRead;
     const cache_creation_input_tokens = s.cacheWrite - start.cacheWrite;
     const requests = s.calls - start.calls;
-    const { inputUsd, outputUsd, total } = this.estimateUsdForAnthropicTokens(
-      input_tokens,
-      output_tokens,
-      cache_read_input_tokens,
-      cache_creation_input_tokens,
-    );
+    const estimated_input_usd = s.estimatedInputUsd - start.estimatedInputUsd;
+    const estimated_output_usd =
+      s.estimatedOutputUsd - start.estimatedOutputUsd;
     return {
       requests,
       input_tokens,
       output_tokens,
       cache_read_input_tokens,
       cache_creation_input_tokens,
-      estimated_input_usd: inputUsd,
-      estimated_output_usd: outputUsd,
-      estimated_total_usd: total,
+      estimated_input_usd,
+      estimated_output_usd,
+      estimated_total_usd: estimated_input_usd + estimated_output_usd,
     };
   }
 
