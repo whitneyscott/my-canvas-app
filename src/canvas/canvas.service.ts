@@ -3,6 +3,16 @@ import { ConfigService } from '@nestjs/config';
 import { REQUEST } from '@nestjs/core';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import {
+  detectLangWithFranc,
+  extractTableCaptionFromContext,
+  findSmallestManualListRegion,
+  isLayoutTableCandidate,
+  normalizeAriaRoleValue,
+  normalizeLangCode,
+  suggestIframeTitleFromSrc,
+  truncateHeadingText,
+} from './accessibility-heuristics';
 
 interface CanvasCourse {
   id: number;
@@ -62,25 +72,26 @@ const AccessibilityFixType = {
   ai_replace_ambiguous_link_text: 'ai_replace_ambiguous_link_text',
   ai_link_text: 'ai_link_text',
   ai_link_reconstruct: 'ai_link_reconstruct',
-  ai_link_file_hint: 'ai_link_file_hint',
   link_broken_teacher_href: 'link_broken_teacher_href',
-  ai_heading_shorten: 'ai_heading_shorten',
+  list_manual_markers_to_semantic: 'list_manual_markers_to_semantic',
+  table_promote_first_row_to_thead: 'table_promote_first_row_to_thead',
+  aria_role_normalize: 'aria_role_normalize',
+  heading_truncate_120: 'heading_truncate_120',
   heading_scope_fix: 'heading_scope_fix',
   heading_h1_demote: 'heading_h1_demote',
   heading_duplicate_h1_demote: 'heading_duplicate_h1_demote',
   ai_heading_visual: 'ai_heading_visual',
-  ai_list_semantic: 'ai_list_semantic',
-  ai_table_caption: 'ai_table_caption',
-  ai_table_header: 'ai_table_header',
+  iframe_title_from_src: 'iframe_title_from_src',
+  link_file_hint_append: 'link_file_hint_append',
+  table_caption_from_context: 'table_caption_from_context',
   table_scope_fix: 'table_scope_fix',
-  iframe_title_suggest: 'iframe_title_suggest',
+  aria_hidden_focusable_choice: 'aria_hidden_focusable_choice',
+  lang_inline_franc_suggest: 'lang_inline_franc_suggest',
+  lang_code_normalize: 'lang_code_normalize',
+  table_layout_presentation_or_headers: 'table_layout_presentation_or_headers',
   ai_button_label: 'ai_button_label',
   ai_form_label: 'ai_form_label',
   form_placeholder_to_label: 'form_placeholder_to_label',
-  ai_aria_invalid_role: 'ai_aria_invalid_role',
-  ai_aria_hidden_focusable: 'ai_aria_hidden_focusable',
-  ai_lang_invalid: 'ai_lang_invalid',
-  ai_lang_inline: 'ai_lang_inline',
   ai_color_only_information: 'ai_color_only_information',
   ai_sensory_only_instructions: 'ai_sensory_only_instructions',
   ai_landmark_structure: 'ai_landmark_structure',
@@ -100,6 +111,7 @@ interface AccessibilityFixabilityContract {
   requires_content_fetch: boolean;
   uses_ai: boolean;
   is_image_rule: boolean;
+  uses_second_stage_ai?: boolean;
 }
 
 type ConfidenceTier = 'high' | 'medium' | 'low';
@@ -131,10 +143,10 @@ export const ACCESSIBILITY_FIXABILITY_MAP: Record<
     requires_content_fetch: true,
   },
   heading_empty: {
-    uses_ai: true,
+    uses_ai: false,
     is_image_rule: false,
-    auto_fixable: false,
-    fix_strategy: 'suggested',
+    auto_fixable: true,
+    fix_strategy: 'auto',
     false_positive_risk: 'medium',
     risk: 'medium',
     fix_type: AccessibilityFixType.remove_empty_heading,
@@ -264,7 +276,7 @@ export const ACCESSIBILITY_FIXABILITY_MAP: Record<
   },
   img_alt_too_long: {
     uses_ai: true,
-    is_image_rule: false,
+    is_image_rule: true,
     auto_fixable: false,
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
@@ -352,13 +364,13 @@ export const ACCESSIBILITY_FIXABILITY_MAP: Record<
     requires_content_fetch: true,
   },
   link_file_missing_type_size_hint: {
-    uses_ai: true,
+    uses_ai: false,
     is_image_rule: false,
     auto_fixable: false,
     fix_strategy: 'suggested',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: AccessibilityFixType.ai_link_file_hint,
+    fix_type: AccessibilityFixType.link_file_hint_append,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -374,18 +386,18 @@ export const ACCESSIBILITY_FIXABILITY_MAP: Record<
     requires_content_fetch: true,
   },
   heading_too_long: {
-    uses_ai: true,
+    uses_ai: false,
     is_image_rule: false,
     auto_fixable: false,
     fix_strategy: 'suggested',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: AccessibilityFixType.ai_heading_shorten,
+    fix_type: AccessibilityFixType.heading_truncate_120,
     supports_preview: true,
     requires_content_fetch: true,
   },
   heading_skipped_level: {
-    uses_ai: true,
+    uses_ai: false,
     is_image_rule: false,
     auto_fixable: false,
     fix_strategy: 'suggested',
@@ -398,8 +410,8 @@ export const ACCESSIBILITY_FIXABILITY_MAP: Record<
   heading_h1_in_body: {
     uses_ai: false,
     is_image_rule: false,
-    auto_fixable: false,
-    fix_strategy: 'suggested',
+    auto_fixable: true,
+    fix_strategy: 'auto',
     false_positive_risk: 'medium',
     risk: 'medium',
     fix_type: AccessibilityFixType.heading_h1_demote,
@@ -409,8 +421,8 @@ export const ACCESSIBILITY_FIXABILITY_MAP: Record<
   heading_duplicate_h1: {
     uses_ai: false,
     is_image_rule: false,
-    auto_fixable: false,
-    fix_strategy: 'suggested',
+    auto_fixable: true,
+    fix_strategy: 'auto',
     false_positive_risk: 'medium',
     risk: 'medium',
     fix_type: AccessibilityFixType.heading_duplicate_h1_demote,
@@ -429,45 +441,43 @@ export const ACCESSIBILITY_FIXABILITY_MAP: Record<
     requires_content_fetch: true,
   },
   list_not_semantic: {
-    // TODO: replace with heuristic handler — see reclassification plan
-    uses_ai: true,
+    uses_ai: false,
     is_image_rule: false,
-    auto_fixable: false,
-    fix_strategy: 'suggested',
+    auto_fixable: true,
+    fix_strategy: 'auto',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: AccessibilityFixType.ai_list_semantic,
+    fix_type: AccessibilityFixType.list_manual_markers_to_semantic,
     supports_preview: true,
     requires_content_fetch: true,
   },
   table_missing_caption: {
-    uses_ai: true,
+    uses_ai: false,
     is_image_rule: false,
     auto_fixable: false,
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: AccessibilityFixType.ai_table_caption,
+    fix_type: AccessibilityFixType.table_caption_from_context,
     supports_preview: true,
     requires_content_fetch: true,
   },
   table_missing_header: {
-    // TODO: replace with heuristic handler — see reclassification plan
-    uses_ai: true,
+    uses_ai: false,
     is_image_rule: false,
-    auto_fixable: false,
-    fix_strategy: 'suggested',
+    auto_fixable: true,
+    fix_strategy: 'auto',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: AccessibilityFixType.ai_table_header,
+    fix_type: AccessibilityFixType.table_promote_first_row_to_thead,
     supports_preview: true,
     requires_content_fetch: true,
   },
   table_header_scope_missing: {
     uses_ai: false,
     is_image_rule: false,
-    auto_fixable: false,
-    fix_strategy: 'suggested',
+    auto_fixable: true,
+    fix_strategy: 'auto',
     false_positive_risk: 'medium',
     risk: 'medium',
     fix_type: AccessibilityFixType.table_scope_fix,
@@ -475,13 +485,13 @@ export const ACCESSIBILITY_FIXABILITY_MAP: Record<
     requires_content_fetch: true,
   },
   iframe_missing_title: {
-    uses_ai: true,
+    uses_ai: false,
     is_image_rule: false,
     auto_fixable: false,
     fix_strategy: 'suggested',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: AccessibilityFixType.iframe_title_suggest,
+    fix_type: AccessibilityFixType.iframe_title_from_src,
     supports_preview: true,
     requires_content_fetch: true,
   },
@@ -510,8 +520,8 @@ export const ACCESSIBILITY_FIXABILITY_MAP: Record<
   form_placeholder_as_label: {
     uses_ai: false,
     is_image_rule: false,
-    auto_fixable: false,
-    fix_strategy: 'suggested',
+    auto_fixable: true,
+    fix_strategy: 'auto',
     false_positive_risk: 'medium',
     risk: 'medium',
     fix_type: AccessibilityFixType.form_placeholder_to_label,
@@ -519,54 +529,53 @@ export const ACCESSIBILITY_FIXABILITY_MAP: Record<
     requires_content_fetch: true,
   },
   aria_invalid_role: {
-    // TODO: replace with heuristic handler — see reclassification plan
-    uses_ai: true,
+    uses_ai: false,
     is_image_rule: false,
-    auto_fixable: false,
-    fix_strategy: 'suggested',
+    auto_fixable: true,
+    fix_strategy: 'auto',
     false_positive_risk: 'medium',
     risk: 'medium',
-    fix_type: AccessibilityFixType.ai_aria_invalid_role,
+    fix_type: AccessibilityFixType.aria_role_normalize,
     supports_preview: true,
     requires_content_fetch: true,
   },
   aria_hidden_focusable: {
-    uses_ai: true,
+    uses_ai: false,
     is_image_rule: false,
     auto_fixable: false,
     fix_strategy: 'suggested',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: AccessibilityFixType.ai_aria_hidden_focusable,
+    fix_type: AccessibilityFixType.aria_hidden_focusable_choice,
     supports_preview: true,
     requires_content_fetch: true,
   },
   lang_invalid: {
-    // TODO: replace with heuristic handler — see reclassification plan
-    uses_ai: true,
+    uses_ai: false,
     is_image_rule: false,
     auto_fixable: false,
     fix_strategy: 'suggested',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: AccessibilityFixType.ai_lang_invalid,
+    fix_type: AccessibilityFixType.lang_code_normalize,
     supports_preview: true,
     requires_content_fetch: true,
   },
   lang_inline_missing: {
-    uses_ai: true,
+    uses_ai: false,
     is_image_rule: false,
     auto_fixable: false,
     fix_strategy: 'suggested',
     false_positive_risk: 'high',
     risk: 'high',
-    fix_type: AccessibilityFixType.ai_lang_inline,
+    fix_type: AccessibilityFixType.lang_inline_franc_suggest,
     supports_preview: true,
     requires_content_fetch: true,
   },
   color_only_information: {
     uses_ai: true,
     is_image_rule: false,
+    uses_second_stage_ai: true,
     auto_fixable: false,
     fix_strategy: 'suggested',
     false_positive_risk: 'high',
@@ -578,6 +587,7 @@ export const ACCESSIBILITY_FIXABILITY_MAP: Record<
   sensory_only_instructions: {
     uses_ai: true,
     is_image_rule: false,
+    uses_second_stage_ai: true,
     auto_fixable: false,
     fix_strategy: 'suggested',
     false_positive_risk: 'medium',
@@ -589,6 +599,7 @@ export const ACCESSIBILITY_FIXABILITY_MAP: Record<
   landmark_structure_quality: {
     uses_ai: true,
     is_image_rule: false,
+    uses_second_stage_ai: true,
     auto_fixable: false,
     fix_strategy: 'suggested',
     false_positive_risk: 'low',
@@ -601,12 +612,12 @@ export const ACCESSIBILITY_FIXABILITY_MAP: Record<
     uses_ai: false,
     is_image_rule: false,
     auto_fixable: false,
-    fix_strategy: 'manual_only',
+    fix_strategy: 'suggested',
     false_positive_risk: 'low',
     risk: 'low',
-    fix_type: AccessibilityFixType.manual_only,
-    supports_preview: false,
-    requires_content_fetch: false,
+    fix_type: AccessibilityFixType.table_layout_presentation_or_headers,
+    supports_preview: true,
+    requires_content_fetch: true,
   },
   table_complex_assoc_missing: {
     uses_ai: false,
@@ -9280,6 +9291,7 @@ export class CanvasService {
       image?: { base64: string; mediaType: string } | null;
       ruleId?: string;
       resourceType?: string;
+      useVisionTierModel?: boolean;
     },
   ): Promise<{
     suggestion: string;
@@ -9288,7 +9300,8 @@ export class CanvasService {
     requires_review: boolean;
   }> {
     const hasImage = !!(opts?.image?.base64 && opts?.image?.mediaType);
-    const model = hasImage
+    const useVision = hasImage || opts?.useVisionTierModel === true;
+    const model = useVision
       ? (
           this.config.get<string>('CLAUDE_VISION_MODEL') ||
           ANTHROPIC_VISION_MODEL_DEFAULT
@@ -9499,8 +9512,45 @@ export class CanvasService {
     errorNote?: string;
   }> {
     const s = String(suggestion || '').trim();
-    if (!s)
+    if (!s && ruleId !== 'link_file_missing_type_size_hint') {
       return { newHtml: html, changes: [], errorNote: 'Empty suggestion' };
+    }
+    if (ruleId === 'link_file_missing_type_size_hint') {
+      let hint = s.replace(/^Hint added:\s*/i, '').trim();
+      const boilerplate = !hint || /could not detect|enter a hint/i.test(hint);
+      if (boilerplate) {
+        const hrefM = html.match(
+          /<a\b[^>]*\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+        );
+        const href = (hrefM?.[2] ?? hrefM?.[3] ?? hrefM?.[4] ?? '').trim();
+        const meta = await this.fetchLinkFileMetaForHint(
+          href || 'https://invalid.invalid/',
+        );
+        hint = meta.suffix.trim();
+      }
+      if (!hint)
+        return {
+          newHtml: html,
+          changes: [],
+          errorNote: 'Enter a file type/size hint to append.',
+        };
+      const t = hint.trim();
+      const suffix =
+        /^\(/.test(t) && /\)$/.test(t)
+          ? t.startsWith(' ')
+            ? t
+            : ` ${t}`
+          : ` (${t.replace(/^\(|\)$/g, '').trim()})`;
+      const appended = this.applyLinkFileHintAppend(html, suffix);
+      if (!appended)
+        return {
+          newHtml: html,
+          changes: [],
+          errorNote:
+            'Could not append hint (no link found or hint already present).',
+        };
+      return { newHtml: appended.newHtml, changes: appended.changes };
+    }
     if (ruleId === 'heading_empty') {
       const m = html.match(/<h([1-6])\b([^>]*)>\s*<\/h\1>/i);
       if (!m)
@@ -9540,11 +9590,7 @@ export class CanvasService {
         changes: [{ before, after }],
       };
     }
-    if (
-      ruleId === 'link_ambiguous_text' ||
-      ruleId === 'link_empty_name' ||
-      ruleId === 'link_file_missing_type_size_hint'
-    ) {
+    if (ruleId === 'link_ambiguous_text' || ruleId === 'link_empty_name') {
       const m = html.match(/<a\b([^>]*)>([\s\S]*?)<\/a>/i);
       if (!m) return { newHtml: html, changes: [], errorNote: 'No link found' };
       const before = m[0];
@@ -9661,22 +9707,28 @@ export class CanvasService {
         changes: [{ before, after }],
       };
     }
+    if (ruleId === 'table_layout_heuristic') {
+      const mode =
+        s === 'acc_fix:table_layout:headers' ? 'headers' : 'presentation';
+      const r = this.applyTableLayoutFix(html, mode);
+      return r
+        ? { newHtml: r.newHtml, changes: r.changes }
+        : {
+            newHtml: html,
+            changes: [],
+            errorNote: 'Could not apply table layout fix.',
+          };
+    }
     if (ruleId === 'aria_hidden_focusable') {
-      const m = html.match(
-        /<([a-z0-9]+)\b[^>]*\baria-hidden\s*=\s*["']true["'][^>]*>/i,
-      );
-      if (!m)
-        return {
-          newHtml: html,
-          changes: [],
-          errorNote: 'No aria-hidden focusable candidate found',
-        };
-      const before = m[0];
-      const after = before.replace(/\s*\baria-hidden\s*=\s*["']true["']/i, '');
-      return {
-        newHtml: html.replace(before, after),
-        changes: [{ before, after }],
-      };
+      const mode = s === 'acc_fix:aria_hidden:tabindex' ? 'tabindex' : 'remove';
+      const r = this.applyAriaHiddenFocusableChoose(html, mode);
+      return r
+        ? { newHtml: r.newHtml, changes: r.changes }
+        : {
+            newHtml: html,
+            changes: [],
+            errorNote: 'No aria-hidden focusable candidate found',
+          };
     }
     if (ruleId === 'lang_inline_missing') {
       const m = html.match(/<span\b([^>]*)>([\s\S]*?)<\/span>/i);
@@ -9687,7 +9739,9 @@ export class CanvasService {
           errorNote: 'No inline text span found',
         };
       const before = m[0];
-      const lang = (s.match(/\b[a-z]{2}(?:-[A-Z]{2})?\b/)?.[0] || 'en').trim();
+      const lang = (
+        s.match(/\b[a-z]{2}(-[A-Za-z0-9]+)?\b/i)?.[0] || 'en'
+      ).toLowerCase();
       const after = `<span${m[1]} lang="${lang}">${m[2]}</span>`;
       return {
         newHtml: html.replace(before, after),
@@ -9714,71 +9768,44 @@ export class CanvasService {
       };
     }
     if (ruleId === 'list_not_semantic') {
-      const m = html.match(/<(ul|ol)\b[^>]*>[\s\S]*?<\/\1>/i);
-      if (!m) return { newHtml: html, changes: [], errorNote: 'No list found' };
-      const before = m[0];
-      const after = /[<>]/.test(s)
-        ? s
-        : `<ul><li>${s.replace(/</g, '&lt;')}</li></ul>`;
+      const reg = findSmallestManualListRegion(html);
+      if (!reg)
+        return {
+          newHtml: html,
+          changes: [],
+          errorNote: 'No manual list pattern found',
+        };
+      const after = /[<>]/.test(s) ? s : reg.after;
       return {
-        newHtml: html.replace(before, after),
-        changes: [{ before, after }],
+        newHtml: html.slice(0, reg.start) + after + html.slice(reg.end),
+        changes: [{ before: reg.before, after }],
       };
     }
     if (ruleId === 'table_missing_header') {
-      const m = html.match(/<table\b[^>]*>/i);
-      if (!m)
-        return { newHtml: html, changes: [], errorNote: 'No table found' };
-      const before = m[0];
-      const thead = /<thead/i.test(s)
-        ? s
-        : `<thead><tr><th scope="col">${s.replace(/</g, '&lt;')}</th></tr></thead>`;
-      const after = `${before}${thead}`;
-      return {
-        newHtml: html.replace(before, after),
-        changes: [{ before, after }],
-      };
+      const r = this.applyTablePromoteFirstRowToThead(html);
+      return r
+        ? { newHtml: r.newHtml, changes: r.changes }
+        : {
+            newHtml: html,
+            changes: [],
+            errorNote: 'No table or first row to promote',
+          };
     }
     if (ruleId === 'aria_invalid_role') {
-      const open = html.match(
-        /<[a-z0-9]+\b[^>]*\brole\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
-      );
-      if (!open)
-        return {
-          newHtml: html,
-          changes: [],
-          errorNote: 'No role attribute found',
-        };
-      const start = open.index ?? html.indexOf(open[0]);
-      const end = html.indexOf('>', start);
-      if (end < 0)
-        return { newHtml: html, changes: [], errorNote: 'Malformed tag' };
-      const before = html.slice(start, end + 1);
-      const newRole = s
-        .replace(/"/g, '')
-        .replace(/[^\w\-]/g, '')
-        .slice(0, 48);
-      if (!newRole)
-        return {
-          newHtml: html,
-          changes: [],
-          errorNote: 'Invalid role suggestion',
-        };
-      const after = before.replace(
-        /\brole\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
-        `role="${newRole}"`,
-      );
-      return {
-        newHtml: html.replace(before, after),
-        changes: [{ before, after }],
-      };
+      const r = this.applyAriaRoleNormalizeFirst(html);
+      return r
+        ? { newHtml: r.newHtml, changes: r.changes }
+        : {
+            newHtml: html,
+            changes: [],
+            errorNote: 'No normalizable ARIA role found',
+          };
     }
     if (ruleId === 'lang_invalid') {
+      const lang = normalizeLangCode(s);
       const htmlEl = html.match(/<html\b[^>]*>/i);
       if (htmlEl) {
         const before = htmlEl[0];
-        const lang =
-          s.match(/\b[a-z]{2}(-[A-Za-z0-9]+)?\b/i)?.[0]?.toLowerCase() || 'en';
         const after = /\blang\s*=\s*["'][^"']*["']/i.test(before)
           ? before.replace(/\blang\s*=\s*["'][^"']*["']/i, `lang="${lang}"`)
           : before.replace(/<html\b/i, `<html lang="${lang}"`);
@@ -9795,8 +9822,6 @@ export class CanvasService {
           errorNote: 'No html or span found',
         };
       const before = spanEl[0];
-      const lang =
-        s.match(/\b[a-z]{2}(-[A-Za-z0-9]+)?\b/i)?.[0]?.toLowerCase() || 'en';
       const after = /\blang\s*=\s*["'][^"']*["']/i.test(before)
         ? before.replace(/\blang\s*=\s*["'][^"']*["']/i, `lang="${lang}"`)
         : before.replace(/<span\b/i, `<span lang="${lang}" `);
@@ -9839,6 +9864,7 @@ export class CanvasService {
             landmark_structure_quality: 'ai_landmark_structure',
           } as any
         )[ruleId] || 'ai_landmark_structure',
+        ruleId,
       );
     }
     return {
@@ -11010,6 +11036,7 @@ export class CanvasService {
     html: string,
     resourceTitle: string,
     kind: string,
+    ruleId?: string,
   ): Promise<{
     newHtml: string;
     changes: Array<{ before: string; after: string }>;
@@ -11020,14 +11047,6 @@ export class CanvasService {
         'Add or adjust semantic landmarks: use <main> for primary content, <nav> for navigation blocks, and region roles where appropriate. Preserve all text and meaning.',
       ai_img_text_in_image:
         'For images that may contain important text (banners, posters, infographics), improve alt text to describe essential text or state that text appears in the image. Update only relevant <img> tags.',
-      ai_aria_invalid_role:
-        'Replace invalid ARIA role values with valid roles that match element semantics. Make minimal structural changes.',
-      ai_aria_hidden_focusable:
-        'Resolve conflicts where focusable elements have aria-hidden="true": remove aria-hidden from interactive elements or restructure so focusable controls are not hidden from assistive technology.',
-      ai_lang_invalid:
-        'Correct invalid or unrecognized lang attributes to valid BCP 47 language tags on <html> or inline elements as appropriate.',
-      ai_lang_inline:
-        'Add lang attributes to mark up mixed-language phrases or sentences correctly.',
       ai_color_only_information:
         'Revise content so required information is not conveyed by color alone; add text or non-color cues where needed.',
       ai_sensory_only_instructions:
@@ -11048,10 +11067,25 @@ export class CanvasService {
           'Content exceeds AI fix size limit (24k). Edit manually in Canvas.',
       };
     }
-    const prompt = `You are an accessibility expert. ${task}\n\nReturn ONLY the full corrected HTML document. Do not wrap in markdown code fences.\n\nPage title: ${resourceTitle}\n\nHTML:\n${html}`;
+    const staticBlock =
+      'You are an accessibility expert. Follow the task in the next block exactly.\nReturn ONLY the full corrected HTML document. Do not wrap in markdown code fences.';
+    const dynamicBlock = `Task:\n${task}\n\nPage title: ${resourceTitle}\n\nHTML:\n${html}`;
+    const model = (
+      this.config.get<string>('CLAUDE_MODEL') || ANTHROPIC_TEXT_MODEL_DEFAULT
+    ).trim();
     try {
-      let out = await this.callClaudeWithRetry(prompt, 12000);
-      out = out
+      const { text: outRaw } = await this.fetchAnthropicMessage({
+        model,
+        maxTokens: 12000,
+        temperature: 0.2,
+        staticBlock,
+        dynamicBlock,
+        meta: {
+          context: 'ada_second_stage_guided',
+          ruleId,
+        },
+      });
+      const out = String(outRaw || '')
         .replace(/^```html?\s*/i, '')
         .replace(/\s*```$/i, '')
         .trim();
@@ -11390,6 +11424,366 @@ export class CanvasService {
     return { newHtml, changes };
   }
 
+  private applyListManualMarkersToSemantic(html: string): {
+    newHtml: string;
+    changes: Array<{ before: string; after: string }>;
+  } | null {
+    const r = findSmallestManualListRegion(html);
+    if (!r) return null;
+    return {
+      newHtml: html.slice(0, r.start) + r.after + html.slice(r.end),
+      changes: [{ before: r.before, after: r.after }],
+    };
+  }
+
+  private applyTablePromoteFirstRowToThead(html: string): {
+    newHtml: string;
+    changes: Array<{ before: string; after: string }>;
+  } | null {
+    const tableOpen = html.match(/<table\b[^>]*>/i);
+    if (!tableOpen || tableOpen.index === undefined) return null;
+    const i0 = tableOpen.index;
+    const openTag = tableOpen[0];
+    const tail = html.slice(i0 + openTag.length);
+    if (/^\s*<thead\b/i.test(tail)) return null;
+    const trMatch = tail.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/i);
+    if (!trMatch || trMatch.index === undefined) return null;
+    const trFull = trMatch[0];
+    const thRow = trFull
+      .replace(/<td\b/gi, '<th scope="col"')
+      .replace(/<\/td>/gi, '</th>');
+    const theadBlock = `<thead>${thRow}</thead>`;
+    const beforeLen = openTag.length + trMatch.index + trFull.length;
+    const newMiddle =
+      openTag +
+      tail.slice(0, trMatch.index) +
+      theadBlock +
+      tail.slice(trMatch.index + trFull.length);
+    const before = html.slice(i0, i0 + beforeLen);
+    const after = newMiddle;
+    return {
+      newHtml: html.slice(0, i0) + newMiddle + html.slice(i0 + beforeLen),
+      changes: [{ before, after }],
+    };
+  }
+
+  private applyAriaRoleNormalizeFirst(html: string): {
+    newHtml: string;
+    changes: Array<{ before: string; after: string }>;
+  } | null {
+    const m = html.match(
+      /<([a-z0-9]+)(\b[^>]*\brole\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))[^>]*)>/i,
+    );
+    if (!m || m.index === undefined) return null;
+    const tag = String(m[1] || '').toLowerCase();
+    const rawRole = String(m[4] ?? m[5] ?? m[6] ?? '').trim();
+    const { next, action } = normalizeAriaRoleValue(rawRole, tag);
+    const start = m.index;
+    const end = html.indexOf('>', start);
+    if (end < 0) return null;
+    const before = html.slice(start, end + 1);
+    let after = before;
+    if (action === 'strip') {
+      after = before.replace(
+        /\s*\brole\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+        '',
+      );
+    } else if (next) {
+      after = before.replace(
+        /\brole\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+        `role="${next.replace(/"/g, '')}"`,
+      );
+    }
+    if (after === before) return null;
+    return {
+      newHtml: html.replace(before, after),
+      changes: [{ before, after }],
+    };
+  }
+
+  private applyHeadingTruncate120(html: string): {
+    newHtml: string;
+    changes: Array<{ before: string; after: string }>;
+  } | null {
+    const hm = html.match(/<h([1-6])\b([^>]*)>([\s\S]*?)<\/h\1>/i);
+    if (!hm) return null;
+    const innerText = String(hm[3] || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (innerText.length <= 120) return null;
+    const trunc = truncateHeadingText(innerText, 120);
+    const before = hm[0];
+    const after = `<h${hm[1]}${hm[2]}>${trunc.replace(/</g, '&lt;')}</h${hm[1]}>`;
+    return {
+      newHtml: html.replace(before, after),
+      changes: [{ before, after }],
+    };
+  }
+
+  private applyIframeTitleFromSrcFirst(html: string): {
+    newHtml: string;
+    changes: Array<{ before: string; after: string }>;
+  } | null {
+    const iframeRe = /<iframe\b([^>]*)>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = iframeRe.exec(html)) !== null) {
+      const tag = m[0];
+      if (/\btitle\s*=\s*["'][^"']*["']/i.test(tag)) continue;
+      const srcMatch = tag.match(
+        /\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+      );
+      const src = (
+        srcMatch?.[2] ??
+        srcMatch?.[3] ??
+        srcMatch?.[4] ??
+        ''
+      ).trim();
+      const title = suggestIframeTitleFromSrc(src);
+      const escaped = title.replace(/"/g, '&quot;');
+      const after = /\btitle\s*=/.test(tag)
+        ? tag.replace(
+            /\btitle\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+            `title="${escaped}"`,
+          )
+        : tag.replace(/<iframe\b/i, `<iframe title="${escaped}"`);
+      return {
+        newHtml: html.replace(tag, after),
+        changes: [{ before: tag, after }],
+      };
+    }
+    return null;
+  }
+
+  private applyLinkFileHintAppend(
+    html: string,
+    hintSuffix: string,
+  ): {
+    newHtml: string;
+    changes: Array<{ before: string; after: string }>;
+  } | null {
+    const hint = String(hintSuffix || '').trim();
+    if (!hint) return null;
+    const m = html.match(/<a\b([^>]*)>([\s\S]*?)<\/a>/i);
+    if (!m) return null;
+    const before = m[0];
+    const inner = m[2] ?? '';
+    if (inner.includes(hint)) return null;
+    const after = `<a${m[1]}>${inner}${hint.replace(/</g, '&lt;')}</a>`;
+    return {
+      newHtml: html.replace(before, after),
+      changes: [{ before, after }],
+    };
+  }
+
+  private async fetchLinkFileMetaForHint(href: string): Promise<{
+    suffix: string;
+    extPart: string;
+    sizePart: string;
+  }> {
+    let extPart = '';
+    try {
+      const u = /^https?:\/\//i.test(href)
+        ? new URL(href)
+        : href.startsWith('//')
+          ? new URL('https:' + href)
+          : new URL(href, 'https://example.invalid');
+      const path = u.pathname || '';
+      const ext = path.match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toLowerCase();
+      const map: Record<string, string> = {
+        pdf: 'PDF',
+        doc: 'Word',
+        docx: 'Word',
+        xls: 'Excel',
+        xlsx: 'Excel',
+        ppt: 'PowerPoint',
+        pptx: 'PowerPoint',
+        zip: 'ZIP',
+        csv: 'CSV',
+        txt: 'Text',
+        png: 'PNG',
+        jpg: 'JPEG',
+        jpeg: 'JPEG',
+        gif: 'GIF',
+        mp4: 'MP4',
+        mp3: 'MP3',
+      };
+      if (ext) extPart = map[ext] || ext.toUpperCase();
+    } catch {
+      /* ignore */
+    }
+    let sizePart = '';
+    if (/^https?:\/\//i.test(href)) {
+      try {
+        const res = await fetch(href, {
+          method: 'HEAD',
+          signal: AbortSignal.timeout(5000),
+        });
+        const cl = res.headers.get('content-length');
+        if (cl) {
+          const n = parseInt(cl, 10);
+          if (n > 0) {
+            if (n < 1024) sizePart = `${n} B`;
+            else if (n < 1048576) sizePart = `${(n / 1024).toFixed(1)} KB`;
+            else sizePart = `${(n / 1048576).toFixed(1)} MB`;
+          }
+        }
+      } catch {
+        /* HEAD often fails cross-origin */
+      }
+    }
+    const parts = [extPart, sizePart].filter(Boolean);
+    const suffix = parts.length ? ` (${parts.join(', ')})` : '';
+    return { suffix, extPart, sizePart };
+  }
+
+  private applyTableCaptionFromContextFirst(html: string): {
+    newHtml: string;
+    changes: Array<{ before: string; after: string }>;
+  } | null {
+    const m = html.match(/<table\b[^>]*>/i);
+    if (!m || m.index === undefined) return null;
+    const chunk = html.slice(m.index, m.index + 800);
+    if (/<caption\b/i.test(chunk)) return null;
+    const cap = extractTableCaptionFromContext(html, m.index);
+    const esc = cap.replace(/</g, '&lt;');
+    const before = m[0];
+    const after = `${before}<caption>${esc}</caption>`;
+    return {
+      newHtml: html.replace(before, after),
+      changes: [{ before, after }],
+    };
+  }
+
+  private applyAriaHiddenFocusableChoose(
+    html: string,
+    mode: 'remove' | 'tabindex',
+  ): {
+    newHtml: string;
+    changes: Array<{ before: string; after: string }>;
+  } | null {
+    const m = html.match(
+      /<([a-z0-9]+)\b([^>]*\baria-hidden\s*=\s*["']true["'][^>]*)>/i,
+    );
+    if (!m || m.index === undefined) return null;
+    const start = m.index;
+    const end = html.indexOf('>', start);
+    if (end < 0) return null;
+    const before = html.slice(start, end + 1);
+    let after = before;
+    if (mode === 'remove') {
+      after = before.replace(/\s*\baria-hidden\s*=\s*["']true["']/i, '');
+    } else {
+      if (/\btabindex\s*=/i.test(before))
+        after = before.replace(
+          /\btabindex\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+          'tabindex="-1"',
+        );
+      else after = before.replace(/>$/, ' tabindex="-1">');
+    }
+    if (after === before) return null;
+    return {
+      newHtml: html.replace(before, after),
+      changes: [{ before, after }],
+    };
+  }
+
+  private applyLangInlineFrancFirst(html: string): {
+    newHtml: string;
+    changes: Array<{ before: string; after: string }>;
+    suggestionText: string;
+  } | null {
+    const m = html.match(/<span\b([^>]*)>([\s\S]*?)<\/span>/i);
+    if (!m) return null;
+    const open = m[0];
+    if (/\blang\s*=\s*["'][^"']+["']/i.test(open)) return null;
+    const inner = m[2] ?? '';
+    const plain = inner
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const lang = detectLangWithFranc(plain);
+    const attrs = m[1] || '';
+    const after = `<span${attrs} lang="${lang}">${inner}</span>`;
+    return {
+      newHtml: html.replace(open, after),
+      changes: [{ before: open, after }],
+      suggestionText: lang,
+    };
+  }
+
+  private applyLangCodeNormalizeFirst(html: string): {
+    newHtml: string;
+    changes: Array<{ before: string; after: string }>;
+    suggestionText: string;
+  } | null {
+    const htmlEl = html.match(/<html\b[^>]*>/i);
+    if (htmlEl && /\blang\s*=\s*["'][^"']*["']/i.test(htmlEl[0])) {
+      const lm = htmlEl[0].match(/\blang\s*=\s*["']([^"']*)["']/i);
+      const raw = (lm?.[1] ?? '').trim();
+      if (!raw) return null;
+      const norm = normalizeLangCode(raw);
+      const rawLc = raw.toLowerCase().replace(/_/g, '-');
+      if (norm === rawLc) return null;
+      const before = htmlEl[0];
+      const after = before.replace(
+        /\blang\s*=\s*["'][^"']*["']/i,
+        `lang="${norm}"`,
+      );
+      if (after === before) return null;
+      return {
+        newHtml: html.replace(before, after),
+        changes: [{ before, after }],
+        suggestionText: norm,
+      };
+    }
+    const spanM = html.match(
+      /<span\b([^>]*\blang\s*=\s*["']([^"']*)["'][^>]*)>/i,
+    );
+    if (spanM) {
+      const raw = (spanM[2] ?? '').trim();
+      if (!raw) return null;
+      const norm = normalizeLangCode(raw);
+      const rawLc = raw.toLowerCase().replace(/_/g, '-');
+      if (norm === rawLc) return null;
+      const before = spanM[0];
+      const after = before.replace(
+        /\blang\s*=\s*["'][^"']*["']/i,
+        `lang="${norm}"`,
+      );
+      return {
+        newHtml: html.replace(before, after),
+        changes: [{ before, after }],
+        suggestionText: norm,
+      };
+    }
+    return null;
+  }
+
+  private applyTableLayoutFix(
+    html: string,
+    mode: 'presentation' | 'headers',
+  ): {
+    newHtml: string;
+    changes: Array<{ before: string; after: string }>;
+  } | null {
+    const tableOpen = html.match(/<table\b[^>]*>/i);
+    if (!tableOpen || tableOpen.index === undefined) return null;
+    if (!isLayoutTableCandidate(html, tableOpen.index)) return null;
+    if (mode === 'presentation') {
+      const tag = tableOpen[0];
+      if (/\brole\s*=\s*["']presentation["']/i.test(tag)) return null;
+      const after = /\brole\s*=/i.test(tag)
+        ? tag.replace(/\brole\s*=\s*["'][^"']*["']/i, 'role="presentation"')
+        : tag.replace(/<table\b/i, '<table role="presentation" ');
+      return {
+        newHtml: html.replace(tag, after),
+        changes: [{ before: tag, after }],
+      };
+    }
+    return this.applyTablePromoteFirstRowToThead(html);
+  }
+
   private applyLinkBrokenTeacherHref(html: string): {
     newHtml: string;
     changes: Array<{ before: string; after: string }>;
@@ -11462,9 +11856,9 @@ export class CanvasService {
         const r = this.applyHeadingDuplicateH1Demote(html);
         return { newHtml: r.newHtml, changes: r.changes };
       }
-      case AccessibilityFixType.iframe_title_suggest: {
-        const r = this.applyIframeTitleSuggest(html);
-        return { newHtml: r.newHtml, changes: r.changes };
+      case AccessibilityFixType.iframe_title_from_src: {
+        const r = this.applyIframeTitleFromSrcFirst(html);
+        return r ? { newHtml: r.newHtml, changes: r.changes } : null;
       }
       case AccessibilityFixType.duplicate_id_suffix: {
         const r = this.applyDuplicateIdSuffix(html);
@@ -11482,8 +11876,26 @@ export class CanvasService {
         const r = this.applyHeadingScopeFix(html);
         return r ? { newHtml: r.newHtml, changes: r.changes } : null;
       }
+      case AccessibilityFixType.list_manual_markers_to_semantic:
+        return this.applyListManualMarkersToSemantic(html);
+      case AccessibilityFixType.table_promote_first_row_to_thead:
+        return this.applyTablePromoteFirstRowToThead(html);
+      case AccessibilityFixType.aria_role_normalize:
+        return this.applyAriaRoleNormalizeFirst(html);
+      case AccessibilityFixType.heading_truncate_120:
+        return this.applyHeadingTruncate120(html);
+      case AccessibilityFixType.table_caption_from_context:
+        return this.applyTableCaptionFromContextFirst(html);
+      case AccessibilityFixType.aria_hidden_focusable_choice:
+        return this.applyAriaHiddenFocusableChoose(html, 'remove');
+      case AccessibilityFixType.table_layout_presentation_or_headers:
+        return this.applyTableLayoutFix(html, 'presentation');
       case AccessibilityFixType.link_broken_teacher_href:
         return this.applyLinkBrokenTeacherHref(html);
+      case AccessibilityFixType.link_file_hint_append:
+      case AccessibilityFixType.lang_inline_franc_suggest:
+      case AccessibilityFixType.lang_code_normalize:
+        return null;
       case AccessibilityFixType.ai_generate_alt_text:
       case AccessibilityFixType.ai_img_decorative:
       case AccessibilityFixType.ai_img_meaningful_alt:
@@ -11491,18 +11903,9 @@ export class CanvasService {
       case AccessibilityFixType.ai_replace_ambiguous_link_text:
       case AccessibilityFixType.ai_link_text:
       case AccessibilityFixType.ai_link_reconstruct:
-      case AccessibilityFixType.ai_link_file_hint:
-      case AccessibilityFixType.ai_heading_shorten:
       case AccessibilityFixType.ai_heading_visual:
-      case AccessibilityFixType.ai_list_semantic:
-      case AccessibilityFixType.ai_table_caption:
-      case AccessibilityFixType.ai_table_header:
       case AccessibilityFixType.ai_button_label:
       case AccessibilityFixType.ai_form_label:
-      case AccessibilityFixType.ai_aria_invalid_role:
-      case AccessibilityFixType.ai_aria_hidden_focusable:
-      case AccessibilityFixType.ai_lang_invalid:
-      case AccessibilityFixType.ai_lang_inline:
       case AccessibilityFixType.ai_color_only_information:
       case AccessibilityFixType.ai_sensory_only_instructions:
       case AccessibilityFixType.ai_landmark_structure:
@@ -11776,6 +12179,7 @@ export class CanvasService {
             image: imagePayload,
             ruleId: f.rule_id,
             resourceType: f.resource_type,
+            useVisionTierModel: contract.is_image_rule,
           },
         );
         suggestion = ai.suggestion;
@@ -11800,6 +12204,46 @@ export class CanvasService {
           suggestion,
         );
       }
+    } else if (f.rule_id === 'link_file_missing_type_size_hint') {
+      const hrefM = content.html.match(
+        /<a\b[^>]*\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+      );
+      const href = (hrefM?.[2] ?? hrefM?.[3] ?? hrefM?.[4] ?? '').trim();
+      const meta = await this.fetchLinkFileMetaForHint(
+        href || 'https://invalid.invalid/',
+      );
+      const appended = this.applyLinkFileHintAppend(content.html, meta.suffix);
+      if (appended) {
+        result = { newHtml: appended.newHtml, changes: appended.changes };
+        suggestion = meta.suffix
+          ? `Hint added:${meta.suffix}`
+          : 'Could not detect type/size. Enter a hint (e.g. PDF, 2 MB) and apply.';
+      } else if (!hrefM) {
+        result = {
+          newHtml: content.html,
+          changes: [],
+          errorNote: 'No link with href found in this content.',
+        };
+      } else {
+        result = {
+          newHtml: content.html,
+          changes: [],
+          errorNote:
+            'Could not detect file type or size. Enter a hint in the field below and apply.',
+        };
+        suggestion = '(PDF, 2 MB)';
+      }
+      confidence = 0.65;
+    } else if (f.rule_id === 'lang_inline_missing') {
+      const r = this.applyLangInlineFrancFirst(content.html);
+      result = r ? { newHtml: r.newHtml, changes: r.changes } : null;
+      if (r) suggestion = r.suggestionText;
+      confidence = 0.72;
+    } else if (f.rule_id === 'lang_invalid') {
+      const r = this.applyLangCodeNormalizeFirst(content.html);
+      result = r ? { newHtml: r.newHtml, changes: r.changes } : null;
+      if (r) suggestion = r.suggestionText;
+      confidence = 0.72;
     } else if (contract.fix_type === AccessibilityFixType.set_html_lang) {
       const nonEnglish = this.looksNonEnglishText(
         content.html.replace(/<[^>]+>/g, ' '),
@@ -11826,6 +12270,78 @@ export class CanvasService {
       const hm = before0.match(/\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
       const brokenHref = (hm?.[2] ?? hm?.[3] ?? hm?.[4] ?? '').trim();
       suggestion = `Enter the correct URL for this link. Broken href was: ${brokenHref || '(empty)'}`;
+    }
+    if (
+      f.rule_id === 'iframe_missing_title' &&
+      result &&
+      result.changes.length &&
+      !result.errorNote
+    ) {
+      const aft = result.changes[0].after;
+      const tm = aft.match(/\btitle\s*=\s*["']([^"']*)["']/i);
+      if (tm) suggestion = String(tm[1] || '').trim();
+    }
+    if (
+      f.rule_id === 'heading_too_long' &&
+      result &&
+      result.changes.length &&
+      !result.errorNote
+    ) {
+      const aft = result.changes[0].after;
+      const tm = aft.match(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/i);
+      if (tm)
+        suggestion = String(tm[1] || '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+    }
+    let fixChoices:
+      | Array<{ value: string; label: string; help: string }>
+      | undefined;
+    let fixChoiceIntro: string | undefined;
+    if (
+      f.rule_id === 'aria_hidden_focusable' &&
+      result &&
+      result.changes.length &&
+      !result.errorNote
+    ) {
+      fixChoiceIntro =
+        'Choose how to fix an element that is aria-hidden but can still receive keyboard focus. Removing aria-hidden exposes the element to assistive technology. Adding tabindex="-1" removes it from the tab order while keeping aria-hidden—use only when that matches your intent.';
+      fixChoices = [
+        {
+          value: 'acc_fix:aria_hidden:remove',
+          label: 'Remove aria-hidden="true"',
+          help: 'Use when the content should be available to screen readers.',
+        },
+        {
+          value: 'acc_fix:aria_hidden:tabindex',
+          label: 'Keep aria-hidden; add tabindex="-1"',
+          help: 'Use when the element should stay hidden from assistive tech and not be focusable.',
+        },
+      ];
+      suggestion = fixChoices[0].value;
+    }
+    if (
+      f.rule_id === 'table_layout_heuristic' &&
+      result &&
+      result.changes.length &&
+      !result.errorNote
+    ) {
+      fixChoiceIntro =
+        'This table looks like it might be a layout table (for visual alignment) or a data table with weak markup. Layout tables should use role="presentation" so screen readers ignore structure. Data tables need real header cells (<th>) so screen reader users understand rows and columns.';
+      fixChoices = [
+        {
+          value: 'acc_fix:table_layout:presentation',
+          label: 'Layout table: add role="presentation"',
+          help: 'Pick this when the table is only for visual layout, not for tabular data.',
+        },
+        {
+          value: 'acc_fix:table_layout:headers',
+          label: 'Data table: promote first row to header cells',
+          help: 'Pick this when the table holds real data and needs column/row headers.',
+        },
+      ];
+      suggestion = fixChoices[0].value;
     }
     if (!result || (result.changes.length === 0 && !result.errorNote))
       return null;
@@ -11883,6 +12399,12 @@ export class CanvasService {
       confidence_override_reason: confidenceResolved.override_reason,
       image_url: imageUrl || undefined,
       image_fetch_failed: !!imageFetchFailed,
+      ...(fixChoices?.length
+        ? {
+            fix_choices: fixChoices,
+            fix_choice_intro: fixChoiceIntro,
+          }
+        : {}),
     };
   }
 
