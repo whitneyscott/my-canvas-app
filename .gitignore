@@ -79,3 +79,7 @@ services/accreditation-lookup/proposed-cip6-mappings.json
 
 # Local teacher QA checklist (discussion only)
 TEACHER_QA_CHECKLIST.md
+
+# Quick Start docs (local / pilot-specific copies; not versioned)
+/QUICK_START.md
+/shauna_quick_start.docx
