@@ -1014,6 +1014,19 @@ export class CanvasService {
     private config: ConfigService,
   ) {}
 
+  private getAnthropicApiKey(): string {
+    const raw = this.config.get<string>('ANTHROPIC_API_KEY');
+    if (raw == null) return '';
+    let k = String(raw).trim();
+    if (
+      (k.startsWith('"') && k.endsWith('"') && k.length > 2) ||
+      (k.startsWith("'") && k.endsWith("'") && k.length > 2)
+    ) {
+      k = k.slice(1, -1).trim();
+    }
+    return k;
+  }
+
   private anthropicHeaders(key: string): Record<string, string> {
     return {
       'x-api-key': key,
@@ -1087,7 +1100,7 @@ export class CanvasService {
     meta: { context: string; ruleId?: string; resourceType?: string };
     image?: { base64: string; mediaType: string } | null;
   }): Promise<{ text: string; raw: unknown }> {
-    const key = (this.config.get<string>('ANTHROPIC_API_KEY') || '').trim();
+    const key = this.getAnthropicApiKey();
     if (!key) throw new Error('ANTHROPIC_API_KEY not configured');
     const userContent: Array<Record<string, unknown>> = [
       {
@@ -5937,7 +5950,7 @@ export class CanvasService {
     cip?: string,
     contextText?: string,
   ): Promise<AccreditationStandardNode[]> {
-    const key = (this.config.get<string>('ANTHROPIC_API_KEY') || '').trim();
+    const key = this.getAnthropicApiKey();
     if (!key) return [];
     const model = (
       this.config.get<string>('CLAUDE_MODEL') || ANTHROPIC_TEXT_MODEL_DEFAULT
@@ -6118,7 +6131,7 @@ export class CanvasService {
     courseId: number,
     n = 5,
   ): Promise<Array<{ id: string; title: string; reason: string }>> {
-    const key = (this.config.get<string>('ANTHROPIC_API_KEY') || '').trim();
+    const key = this.getAnthropicApiKey();
     if (!key) return [];
     const profile = await this.getAccreditationProfile(courseId);
     const p = profile;
