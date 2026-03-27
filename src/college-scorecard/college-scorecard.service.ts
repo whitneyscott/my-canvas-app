@@ -12,11 +12,17 @@ export class CollegeScorecardService {
     return this.config.get<string>('COLLEGE_SCORECARD_API_KEY') || null;
   }
 
-  private async fetchApi(params: Record<string, string>, retries = 2): Promise<{ results?: any[]; error?: string }> {
+  private async fetchApi(
+    params: Record<string, string>,
+    retries = 2,
+  ): Promise<{ results?: unknown[]; error?: string }> {
     const key = this.getApiKey();
     if (!key) {
       console.log('[CollegeScorecard] fetchApi: no API key');
-      return { results: [], error: 'College Scorecard API key is not configured.' };
+      return {
+        results: [],
+        error: 'College Scorecard API key is not configured.',
+      };
     }
     const q = new URLSearchParams({ api_key: key, per_page: '100', ...params });
     const url = `${BASE}?${q.toString().replace(/api_key=[^&]+/, 'api_key=***')}`;
@@ -27,31 +33,63 @@ export class CollegeScorecardService {
       if (attempt > 0) {
         const delay = attempt * 800;
         console.log('[CollegeScorecard] retry in', delay, 'ms');
-        await new Promise(r => setTimeout(r, delay));
+        await new Promise((r) => setTimeout(r, delay));
       }
       const res = await fetch(fullUrl);
       lastText = await res.text();
       if (res.ok) {
         try {
-          const data = JSON.parse(lastText);
-          console.log('[CollegeScorecard] fetchApi response: results count=', data?.results?.length ?? 0);
-          return data;
+          const parsed: unknown = JSON.parse(lastText);
+          const data =
+            parsed &&
+            typeof parsed === 'object' &&
+            !Array.isArray(parsed) &&
+            parsed
+              ? (parsed as Record<string, unknown>)
+              : null;
+          const rawResults = data?.results;
+          const results = Array.isArray(rawResults) ? rawResults : [];
+          const errField = data?.error;
+          console.log(
+            '[CollegeScorecard] fetchApi response: results count=',
+            results.length,
+          );
+          return {
+            results,
+            ...(typeof errField === 'string' ? { error: errField } : {}),
+          };
         } catch {
-          return { results: [], error: 'Invalid response from College Scorecard.' };
+          return {
+            results: [],
+            error: 'Invalid response from College Scorecard.',
+          };
         }
       }
-      console.log('[CollegeScorecard] fetchApi error:', res.status, lastText.slice(0, 300));
-      const isRetryable = [500, 502, 503].includes(res.status) && attempt < retries;
+      console.log(
+        '[CollegeScorecard] fetchApi error:',
+        res.status,
+        lastText.slice(0, 300),
+      );
+      const isRetryable =
+        [500, 502, 503].includes(res.status) && attempt < retries;
       if (!isRetryable) {
-        const msg = res.status === 429 ? 'Too many requests. Try again in a moment.'
-          : res.status >= 500 ? 'College Scorecard service is temporarily unavailable. Try again shortly.'
-          : lastText.toLowerCase().includes('api key') || lastText.toLowerCase().includes('apikey')
-            ? 'API key problem. Check COLLEGE_SCORECARD_API_KEY in .env.'
-            : `Request failed (${res.status}).`;
+        const msg =
+          res.status === 429
+            ? 'Too many requests. Try again in a moment.'
+            : res.status >= 500
+              ? 'College Scorecard service is temporarily unavailable. Try again shortly.'
+              : lastText.toLowerCase().includes('api key') ||
+                  lastText.toLowerCase().includes('apikey')
+                ? 'API key problem. Check COLLEGE_SCORECARD_API_KEY in .env.'
+                : `Request failed (${res.status}).`;
         return { results: [], error: msg };
       }
     }
-    return { results: [], error: 'College Scorecard service is temporarily unavailable. Try again shortly.' };
+    return {
+      results: [],
+      error:
+        'College Scorecard service is temporarily unavailable. Try again shortly.',
+    };
   }
 
   async getCitiesByState(state: string): Promise<string[] | { error: string }> {
@@ -62,7 +100,7 @@ export class CollegeScorecardService {
     const perPage = 100;
     let hasMore = true;
     while (hasMore) {
-      if (page > 0) await new Promise(r => setTimeout(r, 150));
+      if (page > 0) await new Promise((r) => setTimeout(r, 150));
       const data = await this.fetchApi({
         'school.state': stateTrim,
         fields: 'id,school.city',
@@ -71,8 +109,15 @@ export class CollegeScorecardService {
       });
       if (data.error) return { error: data.error };
       const results = data.results || [];
-      results.forEach((r: any) => {
-        const c = r?.['school.city'] ?? r?.school?.city;
+      results.forEach((r: unknown) => {
+        if (!r || typeof r !== 'object') return;
+        const rec = r as Record<string, unknown>;
+        const school = rec.school;
+        const nestedCity =
+          school && typeof school === 'object' && !Array.isArray(school)
+            ? (school as Record<string, unknown>).city
+            : undefined;
+        const c = rec['school.city'] ?? nestedCity;
         if (c && typeof c === 'string') cities.add(c.trim());
       });
       hasMore = results.length >= perPage;
@@ -81,7 +126,10 @@ export class CollegeScorecardService {
     return Array.from(cities).sort();
   }
 
-  async getInstitutionsByStateCity(state: string, city: string): Promise<Array<{ id: number; name: string }> | { error: string }> {
+  async getInstitutionsByStateCity(
+    state: string,
+    city: string,
+  ): Promise<Array<{ id: number; name: string }> | { error: string }> {
     const stateTrim = (state || '').trim().toUpperCase().slice(0, 2);
     const cityTrim = (city || '').trim();
     if (!stateTrim || !cityTrim) return [];
@@ -92,19 +140,50 @@ export class CollegeScorecardService {
     });
     if (data.error) return { error: data.error };
     return (data.results || [])
-      .filter((r: any) => r?.id && (r?.['school.name'] ?? r?.school?.name))
-      .map((r: any) => ({ id: r.id, name: String(r?.['school.name'] ?? r?.school?.name ?? '').trim() }))
-      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      .filter((r: unknown) => {
+        if (!r || typeof r !== 'object') return false;
+        const rec = r as Record<string, unknown>;
+        const school = rec.school;
+        const nestedName =
+          school && typeof school === 'object' && !Array.isArray(school)
+            ? (school as Record<string, unknown>).name
+            : undefined;
+        const name = rec['school.name'] ?? nestedName;
+        return rec.id != null && name;
+      })
+      .map((r: unknown) => {
+        const rec = r as Record<string, unknown>;
+        const school = rec.school;
+        const nestedName =
+          school && typeof school === 'object' && !Array.isArray(school)
+            ? (school as Record<string, unknown>).name
+            : undefined;
+        const rawName = rec['school.name'] ?? nestedName;
+        const nameStr =
+          typeof rawName === 'string'
+            ? rawName
+            : rawName != null &&
+                (typeof rawName === 'number' || typeof rawName === 'boolean')
+              ? String(rawName)
+              : '';
+        return {
+          id: Number(rec.id),
+          name: nameStr.trim(),
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  async getProgramsBySchoolId(schoolId: number): Promise<string[] | { error: string }> {
+  async getProgramsBySchoolId(
+    schoolId: number,
+  ): Promise<string[] | { error: string }> {
     if (!schoolId) return [];
     const titles = new Set<string>();
     let page = 0;
     const perPage = 100;
     let hasMore = true;
     while (hasMore) {
-      if (page > 0) await new Promise(r => setTimeout(r, 150));
+      if (page > 0) await new Promise((r) => setTimeout(r, 150));
       const data = await this.fetchApi({
         id: String(schoolId),
         fields: 'latest.programs.cip_4_digit,latest.programs.cip_6_digit',
@@ -113,20 +192,32 @@ export class CollegeScorecardService {
       });
       if (data.error) return { error: data.error };
       const results = data.results || [];
-      const extract = (raw: any) => {
+      const extract = (raw: unknown) => {
         if (Array.isArray(raw)) {
-          raw.forEach((p: any) => {
-            const t = p?.title ?? p?.['title'];
+          raw.forEach((p: unknown) => {
+            if (!p || typeof p !== 'object') return;
+            const pr = p as Record<string, unknown>;
+            const t = pr.title ?? pr['title'];
             if (t && typeof t === 'string') titles.add(String(t).trim());
           });
         } else if (raw && typeof raw === 'object') {
-          const t = raw?.title ?? raw?.['title'];
+          const ro = raw as Record<string, unknown>;
+          const t = ro.title ?? ro['title'];
           if (t && typeof t === 'string') titles.add(String(t).trim());
         }
       };
-      results.forEach((r: any) => {
-        extract(r?.['latest.programs.cip_4_digit'] ?? r?.latest?.programs?.cip_4_digit);
-        extract(r?.['latest.programs.cip_6_digit'] ?? r?.latest?.programs?.cip_6_digit);
+      results.forEach((r: unknown) => {
+        if (r && typeof r === 'object') {
+          const rec = r as Record<string, unknown>;
+          const latest = rec.latest;
+          const lat =
+            latest && typeof latest === 'object' && !Array.isArray(latest)
+              ? (latest as Record<string, unknown>)
+              : undefined;
+          const programs = lat?.programs as Record<string, unknown> | undefined;
+          extract(rec['latest.programs.cip_4_digit'] ?? programs?.cip_4_digit);
+          extract(rec['latest.programs.cip_6_digit'] ?? programs?.cip_6_digit);
+        }
       });
       hasMore = results.length >= perPage;
       page++;
@@ -134,14 +225,16 @@ export class CollegeScorecardService {
     return Array.from(titles).sort();
   }
 
-  async getProgramsCip4BySchoolId(schoolId: number): Promise<Array<{ cip4: string; title: string }> | { error: string }> {
+  async getProgramsCip4BySchoolId(
+    schoolId: number,
+  ): Promise<Array<{ cip4: string; title: string }> | { error: string }> {
     if (!schoolId) return [];
     const seen = new Map<string, string>();
     let page = 0;
     const perPage = 100;
     let hasMore = true;
     while (hasMore) {
-      if (page > 0) await new Promise(r => setTimeout(r, 150));
+      if (page > 0) await new Promise((r) => setTimeout(r, 150));
       const data = await this.fetchApi({
         id: String(schoolId),
         fields: 'latest.programs.cip_4_digit',
@@ -150,14 +243,33 @@ export class CollegeScorecardService {
       });
       if (data.error) return { error: data.error };
       const results = data.results || [];
-      results.forEach((r: any) => {
-        const raw = r?.['latest.programs.cip_4_digit'] ?? r?.latest?.programs?.cip_4_digit;
-        const arr = Array.isArray(raw) ? raw : raw && typeof raw === 'object' ? [raw] : [];
-        arr.forEach((p: any) => {
-          const code = p?.code ?? p?.cip4 ?? p?.['cip4'];
-          const title = p?.title ?? p?.['title'];
+      results.forEach((r: unknown) => {
+        if (!r || typeof r !== 'object') return;
+        const rec = r as Record<string, unknown>;
+        const latest = rec.latest;
+        const lat =
+          latest && typeof latest === 'object' && !Array.isArray(latest)
+            ? (latest as Record<string, unknown>)
+            : undefined;
+        const programs = lat?.programs as Record<string, unknown> | undefined;
+        const raw = rec['latest.programs.cip_4_digit'] ?? programs?.cip_4_digit;
+        const arr = Array.isArray(raw)
+          ? raw
+          : raw && typeof raw === 'object'
+            ? [raw]
+            : [];
+        arr.forEach((p: unknown) => {
+          if (!p || typeof p !== 'object') return;
+          const pr = p as Record<string, unknown>;
+          const code = pr.code ?? pr.cip4 ?? pr['cip4'];
+          const title = pr.title ?? pr['title'];
           if (code != null && title && typeof title === 'string') {
-            const cip4 = String(code).trim();
+            const cip4 =
+              typeof code === 'string'
+                ? code.trim()
+                : typeof code === 'number' || typeof code === 'boolean'
+                  ? String(code).trim()
+                  : '';
             if (cip4 && !seen.has(cip4)) seen.set(cip4, String(title).trim());
           }
         });
@@ -170,7 +282,9 @@ export class CollegeScorecardService {
       .sort((a, b) => a.title.localeCompare(b.title));
   }
 
-  getCip6OptionsForCip4(cip4: string): { options: Array<{ code: string; title: string }> } {
+  getCip6OptionsForCip4(cip4: string): {
+    options: Array<{ code: string; title: string }>;
+  } {
     return { options: getCip6Options(cip4) };
   }
 }

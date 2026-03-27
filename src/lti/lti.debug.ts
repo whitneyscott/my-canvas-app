@@ -1,5 +1,9 @@
 const MAX = 30;
-const entries: Array<{ ts: string; step: string; data: Record<string, unknown> }> = [];
+const entries: Array<{
+  ts: string;
+  step: string;
+  data: Record<string, unknown>;
+}> = [];
 
 export function log(step: string, data: Record<string, unknown>) {
   const entry = {
@@ -14,4 +18,15 @@ export function log(step: string, data: Record<string, unknown>) {
 
 export function getLog() {
   return [...entries];
+}
+
+export function unknownToErrorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  if (typeof e === 'number' || typeof e === 'boolean') return String(e);
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return 'unknown error';
+  }
 }

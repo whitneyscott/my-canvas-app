@@ -38,31 +38,34 @@ var __setFunctionName = (this && this.__setFunctionName) || function (f, name, p
     return Object.defineProperty(f, "name", { configurable: true, value: prefix ? "".concat(prefix, " ", name) : name });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AutomatedTestModule = void 0;
+exports.CanvasModule = void 0;
 var common_1 = require("@nestjs/common");
-var automated_test_controller_1 = require("./automated-test.controller");
-var automated_test_service_1 = require("./automated-test.service");
-var AutomatedTestModule = function () {
+var config_1 = require("@nestjs/config");
+var canvas_controller_1 = require("./canvas.controller");
+var canvas_service_1 = require("./canvas.service");
+var CanvasModule = function () {
     var _classDecorators = [(0, common_1.Module)({
-            controllers: [automated_test_controller_1.AutomatedTestController],
-            providers: [automated_test_service_1.AutomatedTestService],
+            imports: [config_1.ConfigModule],
+            controllers: [canvas_controller_1.CanvasController],
+            providers: [canvas_service_1.CanvasService],
+            exports: [canvas_service_1.CanvasService],
         })];
     var _classDescriptor;
     var _classExtraInitializers = [];
     var _classThis;
-    var AutomatedTestModule = _classThis = /** @class */ (function () {
-        function AutomatedTestModule_1() {
+    var CanvasModule = _classThis = /** @class */ (function () {
+        function CanvasModule_1() {
         }
-        return AutomatedTestModule_1;
+        return CanvasModule_1;
     }());
-    __setFunctionName(_classThis, "AutomatedTestModule");
+    __setFunctionName(_classThis, "CanvasModule");
     (function () {
         var _metadata = typeof Symbol === "function" && Symbol.metadata ? Object.create(null) : void 0;
         __esDecorate(null, _classDescriptor = { value: _classThis }, _classDecorators, { kind: "class", name: _classThis.name, metadata: _metadata }, null, _classExtraInitializers);
-        AutomatedTestModule = _classThis = _classDescriptor.value;
+        CanvasModule = _classThis = _classDescriptor.value;
         if (_metadata) Object.defineProperty(_classThis, Symbol.metadata, { enumerable: true, configurable: true, writable: true, value: _metadata });
         __runInitializers(_classThis, _classExtraInitializers);
     })();
-    return AutomatedTestModule = _classThis;
+    return CanvasModule = _classThis;
 }();
-exports.AutomatedTestModule = AutomatedTestModule;
+exports.CanvasModule = CanvasModule;

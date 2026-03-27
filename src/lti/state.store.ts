@@ -6,7 +6,9 @@ export function setState(state: string, target: string, nonce: string): void {
   setTimeout(() => store.delete(state), TTL_MS);
 }
 
-export function getState(state: string): { target: string; nonce: string } | null {
+export function getState(
+  state: string,
+): { target: string; nonce: string } | null {
   const v = store.get(state);
   if (v) store.delete(state);
   return v ?? null;

@@ -19,4 +19,3 @@ export class AutomatedTestController {
     return this.automatedTestService.runTests(courseId, shouldDelete);
   }
 }
-

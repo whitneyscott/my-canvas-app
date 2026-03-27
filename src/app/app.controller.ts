@@ -1,5 +1,15 @@
-import { Controller, Get, Post, Render, Query, Req, Res, Body, HttpException, HttpStatus } from '@nestjs/common';
-import type { Response } from 'express';
+import {
+  Controller,
+  Get,
+  Post,
+  Render,
+  Query,
+  Req,
+  Body,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
+import type { Request } from 'express';
 
 @Controller()
 export class AppController {
@@ -15,19 +25,23 @@ export class AppController {
 
   @Get()
   @Render('index')
-  root(@Query('courseId') courseId?: string, @Query('error') error?: string, @Req() req?: any) {
+  root(
+    @Req() req: Request,
+    @Query('courseId') courseId?: string,
+    @Query('error') errQuery?: string,
+  ) {
     const ltiVerified = !!req?.session?.ltiVerified;
     const hasToken = !!req?.session?.canvasToken && !!req?.session?.canvasUrl;
-    const ltiLaunchType = req?.session?.ltiLaunchType as '1.1' | '1.3' | undefined;
+    const ltiLaunchType = req?.session?.ltiLaunchType;
     const isProduction = process.env.NODE_ENV === 'production';
 
-    if (error) {
+    if (errQuery) {
       return {
         deploymentMode: 'lti',
-        error: decodeURIComponent(error || ''),
+        error: decodeURIComponent(errQuery || ''),
         courseId: null,
         needsToken: false,
-        modePassword: process.env.MODE_PASSWORD || 'dev2025'
+        modePassword: process.env.MODE_PASSWORD || 'dev2025',
       };
     }
 
@@ -39,7 +53,7 @@ export class AppController {
         needsOAuth,
         needsToken: true,
         courseId: req.session.courseId || courseId || null,
-        modePassword: process.env.MODE_PASSWORD || 'dev2025'
+        modePassword: process.env.MODE_PASSWORD || 'dev2025',
       };
     }
 
@@ -49,7 +63,7 @@ export class AppController {
         ltiVerified: true,
         autoLoad: true,
         courseId: req.session.courseId || courseId || null,
-        modePassword: process.env.MODE_PASSWORD || 'dev2025'
+        modePassword: process.env.MODE_PASSWORD || 'dev2025',
       };
     }
 
@@ -61,7 +75,7 @@ export class AppController {
         showLoginModal: !hasToken,
         needsToken: !hasToken,
         defaultCanvasUrl: 'https://canvas.instructure.com/api/v1',
-        modePassword: process.env.MODE_PASSWORD || 'dev2025'
+        modePassword: process.env.MODE_PASSWORD || 'dev2025',
       };
     }
 
@@ -71,40 +85,49 @@ export class AppController {
       autoLoad: false,
       showLoginModal: !hasToken,
       needsToken: !hasToken,
-      defaultCanvasUrl: process.env.CANVAS_BASE_URL || 'https://canvas.instructure.com/api/v1',
-      modePassword: process.env.MODE_PASSWORD || 'dev2025'
+      defaultCanvasUrl:
+        process.env.CANVAS_BASE_URL || 'https://canvas.instructure.com/api/v1',
+      modePassword: process.env.MODE_PASSWORD || 'dev2025',
     };
   }
 
   @Get('auth/status')
-  getStatus(@Req() req: any) {
+  getStatus(@Req() req: Request) {
     const ltiVerified = !!req.session?.ltiVerified;
     const hasToken = !!req.session?.canvasToken && !!req.session?.canvasUrl;
-    const ltiLaunchType = req.session?.ltiLaunchType as '1.1' | '1.3' | undefined;
+    const ltiLaunchType = req.session?.ltiLaunchType;
     const needsOAuth = ltiVerified && !hasToken && ltiLaunchType !== '1.1';
     const needsToken = !hasToken;
     const defaultUrl = req.session?.canvasApiDomain
       ? `${req.session.canvasApiDomain.replace(/\/api\/v1\/?$/, '')}/api/v1`
-      : (process.env.CANVAS_BASE_URL || 'https://canvas.instructure.com/api/v1');
+      : process.env.CANVAS_BASE_URL || 'https://canvas.instructure.com/api/v1';
 
     return {
       needsToken: needsOAuth || needsToken,
       needsOAuth,
       ltiVerified,
       hasToken,
-      defaultUrl
+      defaultUrl,
     };
   }
 
   @Post('auth/set-token')
-  async setToken(@Body() body: { token: string; canvasUrl: string }, @Req() req: any) {
+  async setToken(
+    @Body() body: { token: string; canvasUrl: string },
+    @Req() req: Request,
+  ) {
     if (!body?.token || !body?.canvasUrl || !req.session) {
-      throw new HttpException('Canvas URL and API token are required.', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Canvas URL and API token are required.',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
-    const normalizedUrl = body.canvasUrl.replace(/\/+$/, '').replace(/\/api\/v1\/?$/, '') + '/api/v1';
+    const normalizedUrl =
+      body.canvasUrl.replace(/\/+$/, '').replace(/\/api\/v1\/?$/, '') +
+      '/api/v1';
     const probeUrl = `${normalizedUrl}/users/self`;
-    let probeRes: any;
+    let probeRes: globalThis.Response;
     try {
       probeRes = await fetch(probeUrl, {
         headers: { Authorization: `Bearer ${body.token}` },

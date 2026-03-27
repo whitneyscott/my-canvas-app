@@ -1,3 +1,4 @@
-export function franc(_text?: string): string {
+export function franc(text?: string): string {
+  void text;
   return 'und';
 }

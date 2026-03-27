@@ -10,7 +10,12 @@ import { PlatformService } from './platform.service';
 @Module({
   imports: [ConfigModule],
   controllers: [LtiController, OAuthController],
-  providers: [JwksService, LaunchVerifyService, Lti11LaunchVerifyService, PlatformService],
+  providers: [
+    JwksService,
+    LaunchVerifyService,
+    Lti11LaunchVerifyService,
+    PlatformService,
+  ],
   exports: [],
 })
 export class LtiModule {}

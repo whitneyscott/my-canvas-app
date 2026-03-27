@@ -8,9 +8,17 @@ export class CollegeScorecardController {
   @Get('cities')
   async getCities(@Query('state') state: string) {
     const stateParam = state || '';
-    console.log('[CollegeScorecard] getCities requested, state=', JSON.stringify(stateParam));
+    console.log(
+      '[CollegeScorecard] getCities requested, state=',
+      JSON.stringify(stateParam),
+    );
     const result = await this.service.getCitiesByState(stateParam);
-    console.log('[CollegeScorecard] getCities result:', Array.isArray(result) ? `${result.length} cities` : JSON.stringify(result));
+    console.log(
+      '[CollegeScorecard] getCities result:',
+      Array.isArray(result)
+        ? `${result.length} cities`
+        : JSON.stringify(result),
+    );
     return result;
   }
 

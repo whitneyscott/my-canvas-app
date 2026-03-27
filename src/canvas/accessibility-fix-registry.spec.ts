@@ -36,8 +36,16 @@ describe('accessibility fixability registry', () => {
       'img_meaningful_empty_alt',
       'img_text_in_image_warning',
     ]);
-    expect(sort([...ACCESSIBILITY_AI_SUGGESTED_RULES])).toEqual(expectedAi);
-    expect(sort([...ACCESSIBILITY_IMAGE_RULES])).toEqual(expectedImg);
+    expect(
+      sort(
+        Array.from<string>(
+          ACCESSIBILITY_AI_SUGGESTED_RULES as Iterable<string>,
+        ),
+      ),
+    ).toEqual(expectedAi);
+    expect(
+      sort(Array.from<string>(ACCESSIBILITY_IMAGE_RULES as Iterable<string>)),
+    ).toEqual(expectedImg);
   });
 
   it('maps every rule_id to uses_ai consistent with the map', () => {

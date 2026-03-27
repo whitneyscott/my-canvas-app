@@ -39,8 +39,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var core_1 = require("@nestjs/core");
 var path_1 = require("path");
 var app_module_1 = require("./app.module");
-var express_session_1 = require("express-session");
 var express = require("express");
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- express-session is `export =`; Nest build reports TS1259 for default import from @types/express-session.
+var session = require("express-session");
+// IMPORTANT: Folder deletion is intentionally disabled in this tool.
+// Canvas requires recursive deletion of folder contents before the folder
+// itself can be removed. A bug in recursive deletion could cause
+// catastrophic, unrecoverable loss of course content.
+// Folder deletion must be performed manually in Canvas.
+// Do not implement folder delete without explicit written approval.
 function bootstrap() {
     return __awaiter(this, void 0, void 0, function () {
         var app, port;
@@ -53,10 +60,21 @@ function bootstrap() {
                     app.set('trust proxy', 1);
                     // Preserve raw request body for signature verification (LTI)
                     // Capture urlencoded and json raw body into `req.rawBody`
-                    app.use(express.urlencoded({ extended: false, verify: function (req, _res, buf) { req.rawBody = buf.toString(); } }));
-                    app.use(express.json({ verify: function (req, _res, buf) { if (buf && buf.length)
-                            req.rawBody = buf.toString(); } }));
-                    app.use((0, express_session_1.default)({
+                    app.use(express.urlencoded({
+                        extended: false,
+                        limit: '2mb',
+                        verify: function (req, _res, buf) {
+                            req.rawBody = buf.toString();
+                        },
+                    }));
+                    app.use(express.json({
+                        limit: '2mb',
+                        verify: function (req, _res, buf) {
+                            if (buf && buf.length)
+                                req.rawBody = buf.toString();
+                        },
+                    }));
+                    app.use(session({
                         secret: process.env.SESSION_SECRET || 'dev-secret',
                         resave: false,
                         saveUninitialized: false,
@@ -67,12 +85,30 @@ function bootstrap() {
                             maxAge: 3600000, // 1 hour session
                         },
                     }));
+                    app.use(function (req, _res, next) {
+                        var qaToken = req.headers['x-qa-canvas-token'];
+                        var qaUrl = req.headers['x-qa-canvas-url'];
+                        if (process.env.QA_ACCESSIBILITY_ENABLED === '1' &&
+                            qaToken &&
+                            qaUrl &&
+                            String(req.path || '').startsWith('/canvas/')) {
+                            if (!req.session) {
+                                req.session = {};
+                            }
+                            req.session.canvasToken = qaToken;
+                            req.session.canvasUrl =
+                                String(qaUrl)
+                                    .replace(/\/+$/, '')
+                                    .replace(/\/api\/v1\/?$/, '') + '/api/v1';
+                        }
+                        next();
+                    });
                     // Path resolution for both local and deployed environments
                     app.setBaseViewsDir((0, path_1.join)(__dirname, '..', 'views'));
                     app.useStaticAssets((0, path_1.join)(__dirname, '..', 'public'));
                     app.setViewEngine('ejs');
                     app.enableCors();
-                    port = process.env.PORT || 3000;
+                    port = process.env.PORT || 3002;
                     return [4 /*yield*/, app.listen(port)];
                 case 2:
                     _a.sent();
@@ -82,4 +118,4 @@ function bootstrap() {
         });
     });
 }
-bootstrap();
+void bootstrap();

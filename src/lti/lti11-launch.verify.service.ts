@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'crypto';
 
-const oauthGenerate = require('oauth-signature').generate as (
+type OauthGenerateFn = (
   httpMethod: string,
   url: string,
   parameters: Record<string, string>,
@@ -11,6 +11,10 @@ const oauthGenerate = require('oauth-signature').generate as (
   tokenSecret: string,
   options?: { encodeSignature?: boolean },
 ) => string;
+
+const oauthGenerate = (
+  require('oauth-signature') as { generate: OauthGenerateFn }
+).generate;
 
 export type Lti11LaunchResult = {
   courseId: string;
@@ -24,15 +28,21 @@ export type Lti11LaunchResult = {
 export class Lti11LaunchVerifyService {
   constructor(private config: ConfigService) {}
 
-  verifyAndExtract(body: Record<string, unknown>, launchUrl: string): Lti11LaunchResult {
+  verifyAndExtract(
+    body: Record<string, unknown>,
+    launchUrl: string,
+  ): Lti11LaunchResult {
     const params = this.flattenBody(body);
     const receivedSig = params.oauth_signature;
     if (!receivedSig) {
       throw new Error('Missing oauth_signature');
     }
-    const { oauth_signature: _drop, ...signParams } = params;
+    const { oauth_signature, ...signParams } = params;
+    void oauth_signature;
 
-    const method = (signParams.oauth_signature_method || 'HMAC-SHA1').toUpperCase();
+    const method = (
+      signParams.oauth_signature_method || 'HMAC-SHA1'
+    ).toUpperCase();
     if (method !== 'HMAC-SHA1') {
       throw new Error(`Unsupported oauth_signature_method: ${method}`);
     }
@@ -52,9 +62,16 @@ export class Lti11LaunchVerifyService {
     }
 
     const secret = this.resolveSecret(consumerKey);
-    const expectedRaw = oauthGenerate('POST', launchUrl, signParams, secret, '', {
-      encodeSignature: false,
-    });
+    const expectedRaw = oauthGenerate(
+      'POST',
+      launchUrl,
+      signParams,
+      secret,
+      '',
+      {
+        encodeSignature: false,
+      },
+    );
 
     const a = Buffer.from(expectedRaw, 'utf8');
     const b = Buffer.from(receivedSig, 'utf8');
@@ -85,7 +102,9 @@ export class Lti11LaunchVerifyService {
       : `https://${rawDomain.replace(/^\/+|\/+$/g, '')}`;
 
     const roles = signParams.roles || '';
-    const ltiSub = String(signParams.user_id || signParams.lis_person_sourcedid || '').trim();
+    const ltiSub = String(
+      signParams.user_id || signParams.lis_person_sourcedid || '',
+    ).trim();
 
     return {
       courseId,
@@ -100,7 +119,9 @@ export class Lti11LaunchVerifyService {
     const out: Record<string, string> = {};
     for (const [key, value] of Object.entries(body)) {
       if (value === undefined || value === null) continue;
-      const s = Array.isArray(value) ? String(value[0]) : String(value);
+      const s = Array.isArray(value)
+        ? String(value[0] as string | number | boolean)
+        : String(value as string | number | boolean);
       out[key] = s;
     }
     return out;
@@ -109,12 +130,16 @@ export class Lti11LaunchVerifyService {
   private envTrim(key: string): string | undefined {
     const v = this.config.get<string>(key) ?? process.env[key];
     if (v == null) return undefined;
-    const t = String(v).trim().replace(/^\uFEFF/, '');
+    const t = String(v)
+      .trim()
+      .replace(/^\uFEFF/, '');
     return t === '' ? undefined : t;
   }
 
   private resolveSecret(consumerKey: string): string {
-    const mapJsonRaw = this.config.get<string>('LTI11_SECRETS_JSON') ?? process.env['LTI11_SECRETS_JSON'];
+    const mapJsonRaw =
+      this.config.get<string>('LTI11_SECRETS_JSON') ??
+      process.env['LTI11_SECRETS_JSON'];
     const mapJson = mapJsonRaw?.trim();
     if (mapJson) {
       let map: Record<string, string>;
@@ -125,7 +150,9 @@ export class Lti11LaunchVerifyService {
       }
       const s = map[consumerKey];
       if (s != null && String(s).trim() !== '') {
-        return String(s).trim().replace(/^\uFEFF/, '');
+        return String(s)
+          .trim()
+          .replace(/^\uFEFF/, '');
       }
       throw new Error(
         `LTI11_SECRETS_JSON has no entry for oauth_consumer_key "${consumerKey}". ` +

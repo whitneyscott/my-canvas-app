@@ -3,7 +3,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getCip6Options = getCip6Options;
 var CIP4_TO_CIP6 = {
     '16.16': [
-        { code: '16.1601', title: 'American Sign Language (ASL)/Langue des signes québécoise (LSQ)' },
+        {
+            code: '16.1601',
+            title: 'American Sign Language (ASL)/Langue des signes québécoise (LSQ)',
+        },
         { code: '16.1602', title: 'Linguistics of ASL and Other Sign Languages' },
         { code: '16.1603', title: 'Sign Language Interpretation and Translation' },
     ],

@@ -2372,7 +2372,9 @@ export class CanvasService {
         const fromRev = this.nonEmptyBodyString(rev.body);
         if (fromRev) return fromRev;
       }
-    } catch (_) {}
+    } catch {
+      void 0;
+    }
 
     return typeof pageDetails.body === 'string' ? pageDetails.body : null;
   }
@@ -2902,7 +2904,7 @@ export class CanvasService {
             assignment_name: assignment.name,
           })),
         );
-      } catch (error) {
+      } catch {
         // Some assignments may not have overrides, continue
         console.warn(
           `Could not fetch overrides for assignment ${assignment.id}`,
@@ -2924,7 +2926,7 @@ export class CanvasService {
             type: 'quiz_extension',
           })),
         );
-      } catch (error) {
+      } catch {
         // Some quizzes may not have extensions, continue
         console.warn(`Could not fetch extensions for quiz ${quiz.id}`);
       }
@@ -3609,7 +3611,7 @@ export class CanvasService {
       const topic = await this.getDiscussion(courseId, discussionId);
       assignmentId = topic?.assignment_id ?? null;
       isAnnouncement = Boolean(topic?.is_announcement);
-    } catch (e: any) {
+    } catch {
       assignmentId = null;
       isAnnouncement = false;
     }
@@ -5285,7 +5287,7 @@ export class CanvasService {
         return v.length ? `${d.label}: ${JSON.stringify(v)}` : null;
       const s = String(v).trim();
       return s ? `${d.label}: ${s}` : null;
-    }).filter(Boolean) as string[];
+    }).filter(Boolean);
     const inner = lines.length
       ? lines.join('\n')
       : 'No profile data yet. Use the Standards Sync tab to set State, City, Institution, and Program.';
@@ -5841,8 +5843,8 @@ export class CanvasService {
           0.85,
         );
         if (standards.length) return { standards, sourceUri: filePath };
-      } catch (_) {
-        // ignore unreadable/missing files and continue fallback chain
+      } catch {
+        void 0;
       }
     }
     return { standards: [] };
@@ -5861,7 +5863,7 @@ export class CanvasService {
     const out: AccreditationStandardNode[] = [];
     for (const line of lines) {
       const m = line.match(
-        /^([A-Z]{2,}[A-Z0-9._-]*\d*[A-Z0-9._-]*)\s*[:\-]\s*(.+)$/,
+        /^([A-Z]{2,}[A-Z0-9._-]*\d*[A-Z0-9._-]*)\s*[-:]\s*(.+)$/,
       );
       if (m) {
         out.push({
@@ -6438,7 +6440,7 @@ export class CanvasService {
     const expanded = new Set<string>();
     const queue = Array.from(selected);
     while (queue.length) {
-      const id = queue.shift()!;
+      const id = queue.shift();
       if (!id || expanded.has(id)) continue;
       expanded.add(id);
       const kids = children.get(id) || [];
@@ -7525,9 +7527,9 @@ export class CanvasService {
       selectedStandardIds.size
         ? Array.from(selectedStandardIds)
             .map((id) => byId.get(id))
-            .filter(Boolean)
+            .filter((s): s is AccreditationStandardNode => Boolean(s))
         : Array.from(byId.values())
-    ).slice(0, 800) as AccreditationStandardNode[];
+    ).slice(0, 800);
     const outcomes = await this.getCourseOutcomeLinks(courseId);
     const outcome_mappings = outcomes.map((o: any) => {
       const existing = Array.isArray(o?.standards)
@@ -10554,15 +10556,6 @@ export class CanvasService {
     let m: RegExpExecArray | null;
     while ((m = imgRegex.exec(html)) !== null) {
       const attrs = m[1] || '';
-      const altMatch = attrs.match(
-        /\balt\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
-      );
-      const alt = (
-        altMatch?.[2] ??
-        altMatch?.[3] ??
-        altMatch?.[4] ??
-        ''
-      ).trim();
       const srcMatch = attrs.match(
         /\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
       );
@@ -10775,11 +10768,6 @@ export class CanvasService {
           'i',
         ).test(html);
       if (hasLabel) continue;
-      const nameMatch = attrs.match(/\bname\s*=\s*["']([^"']*)["']/i);
-      const placeholderMatch = attrs.match(
-        /\bplaceholder\s*=\s*["']([^"']*)["']/i,
-      );
-      const typeMatch = attrs.match(/\btype\s*=\s*["']?([^"'\s>]+)/i);
       const ctx = html
         .slice(Math.max(0, m.index - 150), m.index + m[0].length + 150)
         .replace(/<[^>]+>/g, ' ')
@@ -10911,7 +10899,6 @@ export class CanvasService {
   private async buildAiLinkBrokenFix(
     html: string,
     resourceTitle: string,
-    courseId: number,
   ): Promise<{
     newHtml: string;
     changes: Array<{ before: string; after: string }>;
@@ -10941,7 +10928,7 @@ export class CanvasService {
         const res = await fetch(href, { method: 'HEAD', redirect: 'follow' });
         if (res.ok) continue;
       } catch {
-        null;
+        void 0;
       }
       const ctx = html
         .slice(Math.max(0, m.index - 200), m.index + m[0].length + 200)
@@ -11011,7 +10998,6 @@ export class CanvasService {
           errorNote: 'Claude did not return valid link HTML.',
         };
       const href = fragmented.replace(/\s+/g, '');
-      const before = fragmented;
       const after = out.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
       if (!html.includes(fragmented))
         return {
@@ -11168,7 +11154,7 @@ export class CanvasService {
       newHtml = newHtml.replace(tag, '');
     }
     newHtml = newHtml
-      .replace(/(\s*<(?:p|div)\b[^>]*>\s*<\/\1>\s*)+/gi, ' ')
+      .replace(/(?:\s*<(p|div)\b[^>]*>\s*<\/\1>\s*)+/gi, ' ')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
     return { newHtml, changes };
@@ -12028,7 +12014,6 @@ export class CanvasService {
     while ((m = thRegex.exec(html)) !== null) {
       const full = m[0];
       if (/\bscope\s*=/i.test(full)) continue;
-      const inRow = html.slice(0, m.index).split(/<tr\b/i).length;
       const prevThInRow = (html.slice(0, m.index).match(/<th\b/gi) || [])
         .length;
       const scope = prevThInRow === 0 ? 'row' : 'col';
@@ -12501,7 +12486,8 @@ export class CanvasService {
           resourceType: a.resource_type,
         });
       }
-      const entry = byResource.get(key)!;
+      const entry = byResource.get(key);
+      if (!entry) continue;
       if (hash(entry.html) !== a.content_hash) {
         results.push({
           action_id: a.action_id,

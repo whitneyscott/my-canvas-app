@@ -7,16 +7,3 @@ import { AutomatedTestService } from './automated-test.service';
   providers: [AutomatedTestService],
 })
 export class AutomatedTestModule {}
-
-
-
-
-
-
-
-
-
-
-
-
-

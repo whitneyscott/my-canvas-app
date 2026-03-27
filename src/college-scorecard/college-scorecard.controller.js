@@ -1,15 +1,37 @@
 "use strict";
-var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
-    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
-    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-    return c > 3 && r && Object.defineProperty(target, key, r), r;
+var __runInitializers = (this && this.__runInitializers) || function (thisArg, initializers, value) {
+    var useValue = arguments.length > 2;
+    for (var i = 0; i < initializers.length; i++) {
+        value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
+    }
+    return useValue ? value : void 0;
 };
-var __metadata = (this && this.__metadata) || function (k, v) {
-    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
-};
-var __param = (this && this.__param) || function (paramIndex, decorator) {
-    return function (target, key) { decorator(target, key, paramIndex); }
+var __esDecorate = (this && this.__esDecorate) || function (ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+    function accept(f) { if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected"); return f; }
+    var kind = contextIn.kind, key = kind === "getter" ? "get" : kind === "setter" ? "set" : "value";
+    var target = !descriptorIn && ctor ? contextIn["static"] ? ctor : ctor.prototype : null;
+    var descriptor = descriptorIn || (target ? Object.getOwnPropertyDescriptor(target, contextIn.name) : {});
+    var _, done = false;
+    for (var i = decorators.length - 1; i >= 0; i--) {
+        var context = {};
+        for (var p in contextIn) context[p] = p === "access" ? {} : contextIn[p];
+        for (var p in contextIn.access) context.access[p] = contextIn.access[p];
+        context.addInitializer = function (f) { if (done) throw new TypeError("Cannot add initializers after decoration has completed"); extraInitializers.push(accept(f || null)); };
+        var result = (0, decorators[i])(kind === "accessor" ? { get: descriptor.get, set: descriptor.set } : descriptor[key], context);
+        if (kind === "accessor") {
+            if (result === void 0) continue;
+            if (result === null || typeof result !== "object") throw new TypeError("Object expected");
+            if (_ = accept(result.get)) descriptor.get = _;
+            if (_ = accept(result.set)) descriptor.set = _;
+            if (_ = accept(result.init)) initializers.unshift(_);
+        }
+        else if (_ = accept(result)) {
+            if (kind === "field") initializers.unshift(_);
+            else descriptor[key] = _;
+        }
+    }
+    if (target) Object.defineProperty(target, contextIn.name, descriptor);
+    done = true;
 };
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
@@ -47,99 +69,95 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+var __setFunctionName = (this && this.__setFunctionName) || function (f, name, prefix) {
+    if (typeof name === "symbol") name = name.description ? "[".concat(name.description, "]") : "";
+    return Object.defineProperty(f, "name", { configurable: true, value: prefix ? "".concat(prefix, " ", name) : name });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CollegeScorecardController = void 0;
 var common_1 = require("@nestjs/common");
-var college_scorecard_service_1 = require("./college-scorecard.service");
-var CollegeScorecardController = /** @class */ (function () {
-    function CollegeScorecardController(service) {
-        this.service = service;
-    }
-    CollegeScorecardController.prototype.getCities = function (state) {
-        return __awaiter(this, void 0, void 0, function () {
-            var stateParam, result;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        stateParam = state || '';
-                        console.log('[CollegeScorecard] getCities requested, state=', JSON.stringify(stateParam));
-                        return [4 /*yield*/, this.service.getCitiesByState(stateParam)];
-                    case 1:
-                        result = _a.sent();
-                        console.log('[CollegeScorecard] getCities result:', Array.isArray(result) ? "".concat(result.length, " cities") : JSON.stringify(result));
-                        return [2 /*return*/, result];
-                }
+var CollegeScorecardController = function () {
+    var _classDecorators = [(0, common_1.Controller)('college-scorecard')];
+    var _classDescriptor;
+    var _classExtraInitializers = [];
+    var _classThis;
+    var _instanceExtraInitializers = [];
+    var _getCities_decorators;
+    var _getInstitutions_decorators;
+    var _getPrograms_decorators;
+    var _getProgramsCip4_decorators;
+    var _getCip6Options_decorators;
+    var CollegeScorecardController = _classThis = /** @class */ (function () {
+        function CollegeScorecardController_1(service) {
+            this.service = (__runInitializers(this, _instanceExtraInitializers), service);
+        }
+        CollegeScorecardController_1.prototype.getCities = function (state) {
+            return __awaiter(this, void 0, void 0, function () {
+                var stateParam, result;
+                return __generator(this, function (_a) {
+                    switch (_a.label) {
+                        case 0:
+                            stateParam = state || '';
+                            console.log('[CollegeScorecard] getCities requested, state=', JSON.stringify(stateParam));
+                            return [4 /*yield*/, this.service.getCitiesByState(stateParam)];
+                        case 1:
+                            result = _a.sent();
+                            console.log('[CollegeScorecard] getCities result:', Array.isArray(result)
+                                ? "".concat(result.length, " cities")
+                                : JSON.stringify(result));
+                            return [2 /*return*/, result];
+                    }
+                });
             });
-        });
-    };
-    CollegeScorecardController.prototype.getInstitutions = function (state, city) {
-        return __awaiter(this, void 0, void 0, function () {
-            return __generator(this, function (_a) {
-                return [2 /*return*/, this.service.getInstitutionsByStateCity(state || '', city || '')];
+        };
+        CollegeScorecardController_1.prototype.getInstitutions = function (state, city) {
+            return __awaiter(this, void 0, void 0, function () {
+                return __generator(this, function (_a) {
+                    return [2 /*return*/, this.service.getInstitutionsByStateCity(state || '', city || '')];
+                });
             });
-        });
-    };
-    CollegeScorecardController.prototype.getPrograms = function (schoolId) {
-        return __awaiter(this, void 0, void 0, function () {
-            var id;
-            return __generator(this, function (_a) {
-                id = parseInt(schoolId || '0', 10);
-                return [2 /*return*/, this.service.getProgramsBySchoolId(id)];
+        };
+        CollegeScorecardController_1.prototype.getPrograms = function (schoolId) {
+            return __awaiter(this, void 0, void 0, function () {
+                var id;
+                return __generator(this, function (_a) {
+                    id = parseInt(schoolId || '0', 10);
+                    return [2 /*return*/, this.service.getProgramsBySchoolId(id)];
+                });
             });
-        });
-    };
-    CollegeScorecardController.prototype.getProgramsCip4 = function (schoolId) {
-        return __awaiter(this, void 0, void 0, function () {
-            var id;
-            return __generator(this, function (_a) {
-                id = parseInt(schoolId || '0', 10);
-                return [2 /*return*/, this.service.getProgramsCip4BySchoolId(id)];
+        };
+        CollegeScorecardController_1.prototype.getProgramsCip4 = function (schoolId) {
+            return __awaiter(this, void 0, void 0, function () {
+                var id;
+                return __generator(this, function (_a) {
+                    id = parseInt(schoolId || '0', 10);
+                    return [2 /*return*/, this.service.getProgramsCip4BySchoolId(id)];
+                });
             });
-        });
-    };
-    CollegeScorecardController.prototype.getCip6Options = function (cip4) {
-        return this.service.getCip6OptionsForCip4(cip4 || '');
-    };
-    __decorate([
-        (0, common_1.Get)('cities'),
-        __param(0, (0, common_1.Query)('state')),
-        __metadata("design:type", Function),
-        __metadata("design:paramtypes", [String]),
-        __metadata("design:returntype", Promise)
-    ], CollegeScorecardController.prototype, "getCities", null);
-    __decorate([
-        (0, common_1.Get)('institutions'),
-        __param(0, (0, common_1.Query)('state')),
-        __param(1, (0, common_1.Query)('city')),
-        __metadata("design:type", Function),
-        __metadata("design:paramtypes", [String, String]),
-        __metadata("design:returntype", Promise)
-    ], CollegeScorecardController.prototype, "getInstitutions", null);
-    __decorate([
-        (0, common_1.Get)('programs'),
-        __param(0, (0, common_1.Query)('schoolId')),
-        __metadata("design:type", Function),
-        __metadata("design:paramtypes", [String]),
-        __metadata("design:returntype", Promise)
-    ], CollegeScorecardController.prototype, "getPrograms", null);
-    __decorate([
-        (0, common_1.Get)('programs-cip4'),
-        __param(0, (0, common_1.Query)('schoolId')),
-        __metadata("design:type", Function),
-        __metadata("design:paramtypes", [String]),
-        __metadata("design:returntype", Promise)
-    ], CollegeScorecardController.prototype, "getProgramsCip4", null);
-    __decorate([
-        (0, common_1.Get)('cip6-options'),
-        __param(0, (0, common_1.Query)('cip4')),
-        __metadata("design:type", Function),
-        __metadata("design:paramtypes", [String]),
-        __metadata("design:returntype", void 0)
-    ], CollegeScorecardController.prototype, "getCip6Options", null);
-    CollegeScorecardController = __decorate([
-        (0, common_1.Controller)('college-scorecard'),
-        __metadata("design:paramtypes", [college_scorecard_service_1.CollegeScorecardService])
-    ], CollegeScorecardController);
-    return CollegeScorecardController;
-}());
+        };
+        CollegeScorecardController_1.prototype.getCip6Options = function (cip4) {
+            return this.service.getCip6OptionsForCip4(cip4 || '');
+        };
+        return CollegeScorecardController_1;
+    }());
+    __setFunctionName(_classThis, "CollegeScorecardController");
+    (function () {
+        var _metadata = typeof Symbol === "function" && Symbol.metadata ? Object.create(null) : void 0;
+        _getCities_decorators = [(0, common_1.Get)('cities')];
+        _getInstitutions_decorators = [(0, common_1.Get)('institutions')];
+        _getPrograms_decorators = [(0, common_1.Get)('programs')];
+        _getProgramsCip4_decorators = [(0, common_1.Get)('programs-cip4')];
+        _getCip6Options_decorators = [(0, common_1.Get)('cip6-options')];
+        __esDecorate(_classThis, null, _getCities_decorators, { kind: "method", name: "getCities", static: false, private: false, access: { has: function (obj) { return "getCities" in obj; }, get: function (obj) { return obj.getCities; } }, metadata: _metadata }, null, _instanceExtraInitializers);
+        __esDecorate(_classThis, null, _getInstitutions_decorators, { kind: "method", name: "getInstitutions", static: false, private: false, access: { has: function (obj) { return "getInstitutions" in obj; }, get: function (obj) { return obj.getInstitutions; } }, metadata: _metadata }, null, _instanceExtraInitializers);
+        __esDecorate(_classThis, null, _getPrograms_decorators, { kind: "method", name: "getPrograms", static: false, private: false, access: { has: function (obj) { return "getPrograms" in obj; }, get: function (obj) { return obj.getPrograms; } }, metadata: _metadata }, null, _instanceExtraInitializers);
+        __esDecorate(_classThis, null, _getProgramsCip4_decorators, { kind: "method", name: "getProgramsCip4", static: false, private: false, access: { has: function (obj) { return "getProgramsCip4" in obj; }, get: function (obj) { return obj.getProgramsCip4; } }, metadata: _metadata }, null, _instanceExtraInitializers);
+        __esDecorate(_classThis, null, _getCip6Options_decorators, { kind: "method", name: "getCip6Options", static: false, private: false, access: { has: function (obj) { return "getCip6Options" in obj; }, get: function (obj) { return obj.getCip6Options; } }, metadata: _metadata }, null, _instanceExtraInitializers);
+        __esDecorate(null, _classDescriptor = { value: _classThis }, _classDecorators, { kind: "class", name: _classThis.name, metadata: _metadata }, null, _classExtraInitializers);
+        CollegeScorecardController = _classThis = _classDescriptor.value;
+        if (_metadata) Object.defineProperty(_classThis, Symbol.metadata, { enumerable: true, configurable: true, writable: true, value: _metadata });
+        __runInitializers(_classThis, _classExtraInitializers);
+    })();
+    return CollegeScorecardController = _classThis;
+}();
 exports.CollegeScorecardController = CollegeScorecardController;

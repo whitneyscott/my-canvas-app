@@ -10,7 +10,24 @@ export interface TestResult {
 
 @Injectable()
 export class AutomatedTestService {
-  private async getAuthHeaders(): Promise<{ token: string; baseUrl: string }> {
+  private unknownToMessage(e: unknown): string {
+    if (e instanceof Error) return e.message;
+    if (typeof e === 'string') return e;
+    if (typeof e === 'number' || typeof e === 'boolean') return String(e);
+    try {
+      return JSON.stringify(e);
+    } catch {
+      return 'unknown error';
+    }
+  }
+
+  private canvasItemNamePart(v: unknown): string {
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    return '';
+  }
+
+  private getAuthHeaders(): { token: string; baseUrl: string } {
     const token = process.env.CANVAS_TOKEN;
     const baseUrl = process.env.CANVAS_BASE_URL;
 
@@ -21,23 +38,30 @@ export class AutomatedTestService {
     return { token, baseUrl };
   }
 
-  private async fetchPaginatedData(url: string, token: string): Promise<any[]> {
-    const allData: any[] = [];
+  private async fetchPaginatedData(
+    url: string,
+    token: string,
+  ): Promise<unknown[]> {
+    const allData: unknown[] = [];
     let currentUrl: string | null = url;
 
     while (currentUrl) {
-      const response = await fetch(currentUrl, {
+      const response = (await fetch(currentUrl, {
         headers: { Authorization: `Bearer ${token}` },
-      });
+      })) as unknown as globalThis.Response;
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch: ${response.status} ${response.statusText}`,
+        );
       }
 
-      const chunk = await response.json();
+      const chunk: unknown = await response.json();
       if (Array.isArray(chunk)) {
-        allData.push(...chunk);
-      } else if (chunk) {
+        for (const el of chunk) {
+          allData.push(el);
+        }
+      } else if (chunk !== null && chunk !== undefined) {
         allData.push(chunk);
       }
 
@@ -54,14 +78,20 @@ export class AutomatedTestService {
     return allData;
   }
 
-  async findExistingExampleItems(courseId: number): Promise<Array<{ type: string; id: string | number; name: string }>> {
-    const { token, baseUrl } = await this.getAuthHeaders();
-    const existingItems: Array<{ type: string; id: string | number; name: string }> = [];
+  async findExistingExampleItems(
+    courseId: number,
+  ): Promise<Array<{ type: string; id: string | number; name: string }>> {
+    const { token, baseUrl } = this.getAuthHeaders();
+    const existingItems: Array<{
+      type: string;
+      id: string | number;
+      name: string;
+    }> = [];
 
     // Check each type for existing "Example" items
-    for (const [type, config] of Object.entries(TEST_CONFIG)) {
+    for (const [type] of Object.entries(TEST_CONFIG)) {
       try {
-        let items: any[] = [];
+        let items: unknown[] = [];
 
         if (type === 'assignments') {
           const url = `${baseUrl}/courses/${courseId}/assignments?per_page=100`;
@@ -84,36 +114,65 @@ export class AutomatedTestService {
         }
 
         // Filter for items that start with "Example" (to catch both original and updated items)
-        const exampleItems = items.filter((item: any) => {
-          const name = item.name || item.title || item.url || '';
+        const exampleItems = items.filter((item: unknown) => {
+          if (!item || typeof item !== 'object') return false;
+          const rec = item as Record<string, unknown>;
+          const nameRaw = rec.name ?? rec.title ?? rec.url;
+          const name = this.canvasItemNamePart(nameRaw);
           return name.startsWith('Example');
         });
 
-        exampleItems.forEach((item: any) => {
+        exampleItems.forEach((item: unknown) => {
+          if (!item || typeof item !== 'object') return;
+          const rec = item as Record<string, unknown>;
+          const nameRaw = rec.name ?? rec.title ?? rec.url;
+          const name = this.canvasItemNamePart(nameRaw) || 'Unknown';
+          const idRaw = type === 'pages' ? rec.url : rec.id;
           existingItems.push({
             type,
-            id: type === 'pages' ? item.url : item.id,
-            name: item.name || item.title || item.url || 'Unknown',
+            id: idRaw as string | number,
+            name,
           });
         });
-      } catch (error) {
-        // Log error but continue checking other types
-        console.error(`Error checking for existing ${type} items:`, error);
+      } catch (err: unknown) {
+        console.error(`Error checking for existing ${type} items:`, err);
       }
     }
 
     return existingItems;
   }
 
-  async deleteExampleItems(courseId: number, itemsToDelete: Array<{ type: string; id: string | number }>): Promise<Array<{ type: string; id: string | number; success: boolean; error?: string }>> {
-    const { token, baseUrl } = await this.getAuthHeaders();
-    const results: Array<{ type: string; id: string | number; success: boolean; error?: string }> = [];
+  async deleteExampleItems(
+    courseId: number,
+    itemsToDelete: Array<{ type: string; id: string | number }>,
+  ): Promise<
+    Array<{
+      type: string;
+      id: string | number;
+      success: boolean;
+      error?: string;
+    }>
+  > {
+    const { token, baseUrl } = this.getAuthHeaders();
+    const results: Array<{
+      type: string;
+      id: string | number;
+      success: boolean;
+      error?: string;
+    }> = [];
 
     for (const item of itemsToDelete) {
       try {
-        const config = TEST_CONFIG[item.type as keyof typeof TEST_CONFIG] as { deletePath?: (c: number, i: string | number) => string };
+        const config = TEST_CONFIG[item.type as keyof typeof TEST_CONFIG] as {
+          deletePath?: (c: number, i: string | number) => string;
+        };
         if (!config?.deletePath) {
-          results.push({ type: item.type, id: item.id, success: false, error: config ? 'Unsupported type' : 'Unknown type' });
+          results.push({
+            type: item.type,
+            id: item.id,
+            success: false,
+            error: config ? 'Unsupported type' : 'Unknown type',
+          });
           continue;
         }
         const deleteUrl = `${baseUrl}${config.deletePath(courseId, item.id)}`;
@@ -126,36 +185,54 @@ export class AutomatedTestService {
         if (!response.ok) {
           const errorText = await response.text();
           const errorMsg = `${response.status} ${response.statusText}: ${errorText}`;
-          console.error(`Failed to delete ${item.type} ${item.id}: ${errorMsg}`);
-          results.push({ type: item.type, id: item.id, success: false, error: errorMsg });
+          console.error(
+            `Failed to delete ${item.type} ${item.id}: ${errorMsg}`,
+          );
+          results.push({
+            type: item.type,
+            id: item.id,
+            success: false,
+            error: errorMsg,
+          });
         } else {
           results.push({ type: item.type, id: item.id, success: true });
         }
-      } catch (error: any) {
-        const errorMsg = error.message || String(error);
+      } catch (err: unknown) {
+        const errorMsg = this.unknownToMessage(err);
         console.error(`Error deleting ${item.type} ${item.id}:`, errorMsg);
-        results.push({ type: item.type, id: item.id, success: false, error: errorMsg });
+        results.push({
+          type: item.type,
+          id: item.id,
+          success: false,
+          error: errorMsg,
+        });
       }
     }
 
     return results;
   }
 
-  async runTests(courseId: number, deleteExisting: boolean = false): Promise<TestResult[]> {
+  async runTests(
+    courseId: number,
+    deleteExisting: boolean = false,
+  ): Promise<TestResult[]> {
     const results: TestResult[] = [];
-    const { token, baseUrl } = await this.getAuthHeaders();
+    const { token, baseUrl } = this.getAuthHeaders();
 
     // If deleteExisting is true, find and delete existing Example items first
     if (deleteExisting) {
       const existingItems = await this.findExistingExampleItems(courseId);
       if (existingItems.length > 0) {
-        const deleteResults = await this.deleteExampleItems(courseId, existingItems);
-        const failed = deleteResults.filter(r => !r.success);
+        const deleteResults = await this.deleteExampleItems(
+          courseId,
+          existingItems,
+        );
+        const failed = deleteResults.filter((r) => !r.success);
         if (failed.length > 0) {
           console.warn(`Failed to delete ${failed.length} items:`, failed);
         }
         // Wait a moment for deletions to complete
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
     }
 
@@ -165,8 +242,8 @@ export class AutomatedTestService {
         // 1. Create a shell item prefixed 'Example'
         const createData = this.getCreateDataForType(type);
         const createUrl = `${baseUrl}${config.createPath(courseId)}`;
-        
-        let createdItem: any;
+
+        let createdItem: unknown;
         let createdId: string | number;
 
         try {
@@ -191,19 +268,30 @@ export class AutomatedTestService {
           }
 
           createdItem = await createResponse.json();
-          createdId = type === 'pages' ? createdItem.url : createdItem.id;
+          if (!createdItem || typeof createdItem !== 'object') {
+            results.push({
+              endpoint: `${type} (create)`,
+              parameter: 'create',
+              result: 'failed',
+              errorMessage: 'Invalid create response',
+            });
+            continue;
+          }
+          const cr = createdItem as Record<string, unknown>;
+          const idRaw = type === 'pages' ? cr.url : cr.id;
+          createdId = idRaw as string | number;
 
           results.push({
             endpoint: `${type} (create)`,
             parameter: 'create',
             result: 'success',
           });
-        } catch (createError: any) {
+        } catch (createError: unknown) {
           results.push({
             endpoint: `${type} (create)`,
             parameter: 'create',
             result: 'failed',
-            errorMessage: createError.message || String(createError),
+            errorMessage: this.unknownToMessage(createError),
           });
           continue; // Skip this type if creation failed
         }
@@ -239,21 +327,21 @@ export class AutomatedTestService {
                 result: 'success',
               });
             }
-          } catch (updateError: any) {
+          } catch (updateError: unknown) {
             results.push({
               endpoint: type,
               parameter: param,
               result: 'failed',
-              errorMessage: updateError.message || String(updateError),
+              errorMessage: this.unknownToMessage(updateError),
             });
           }
         }
-      } catch (typeError: any) {
+      } catch (typeError: unknown) {
         results.push({
           endpoint: type,
           parameter: 'all',
           result: 'failed',
-          errorMessage: typeError.message || String(typeError),
+          errorMessage: this.unknownToMessage(typeError),
         });
       }
     }
@@ -267,7 +355,7 @@ export class AutomatedTestService {
 
   private getCreateDataForType(type: string): Record<string, any> {
     const baseName = this.getExpectedNameForType(type);
-    
+
     switch (type) {
       case 'assignments':
         return { assignment: { name: baseName } };
@@ -278,7 +366,11 @@ export class AutomatedTestService {
       case 'discussions':
         return { title: baseName, message: 'Test discussion' };
       case 'announcements':
-        return { title: baseName, message: 'Test announcement', is_announcement: true };
+        return {
+          title: baseName,
+          message: 'Test announcement',
+          is_announcement: true,
+        };
       case 'modules':
         return { module: { name: baseName } };
       default:
@@ -286,7 +378,10 @@ export class AutomatedTestService {
     }
   }
 
-  private getUpdateBodyForType(type: string, updateData: Record<string, any>): Record<string, any> {
+  private getUpdateBodyForType(
+    type: string,
+    updateData: Record<string, any>,
+  ): Record<string, any> {
     // Wrap in appropriate object for Canvas API based on type
     if (type === 'assignments') {
       return { assignment: updateData };
@@ -300,17 +395,20 @@ export class AutomatedTestService {
     }
   }
 
-  private getUpdateDataForParameter(param: string, type: string): Record<string, any> {
+  private getUpdateDataForParameter(
+    param: string,
+    type: string,
+  ): Record<string, any> {
     // Return test values based on parameter type (without wrapping)
     const updateValue: Record<string, any> = {};
-    
+
     switch (param) {
       case 'name':
-      case 'title':
-        // Preserve "Example" prefix so items can be found for deletion
+      case 'title': {
         const expectedName = this.getExpectedNameForType(type);
         updateValue[param] = `${expectedName} - Updated ${param}`;
         break;
+      }
       case 'description':
       case 'message':
       case 'body':
@@ -339,7 +437,6 @@ export class AutomatedTestService {
         updateValue[param] = 'threaded';
         break;
       case 'allow_rating':
-      case 'published':
         updateValue[param] = true;
         break;
       case 'editing_roles':
@@ -352,4 +449,3 @@ export class AutomatedTestService {
     return updateValue;
   }
 }
-

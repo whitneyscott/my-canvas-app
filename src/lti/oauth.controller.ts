@@ -1,16 +1,9 @@
-import {
-  Controller,
-  Get,
-  Query,
-  Req,
-  Res,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Controller, Get, Query, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import { randomBytes } from 'crypto';
 import { getOAuthState, setOAuthState } from './oauth-state.store';
-import { log as debugLog } from './lti.debug';
+import { log as debugLog, unknownToErrorMessage } from './lti.debug';
 
 @Controller('oauth')
 export class OAuthController {
@@ -18,15 +11,12 @@ export class OAuthController {
 
   @Get('canvas')
   canvasAuth(@Req() req: Request, @Res() res: Response) {
-    const sess = req.session as import('express-session').Session & {
-      ltiVerified?: boolean;
-      canvasApiDomain?: string;
-      ltiClientId?: string;
-      ltiLaunchType?: '1.1' | '1.3';
-    };
+    const sess = req.session;
     if (!sess.ltiVerified || !sess.canvasApiDomain) {
       debugLog('oauth_error', { error: 'Launch via LTI first' });
-      return res.redirect('/lti/debug?error=' + encodeURIComponent('Launch via LTI first'));
+      return res.redirect(
+        '/lti/debug?error=' + encodeURIComponent('Launch via LTI first'),
+      );
     }
 
     debugLog('oauth_session_check', {
@@ -38,48 +28,45 @@ export class OAuthController {
 
     if (sess.ltiLaunchType === '1.1') {
       const returnUrl = (req.query.returnUrl as string) || '/';
-      debugLog('oauth_skipped', { reason: 'LTI_1.1 uses manual token flow', returnUrl });
+      debugLog('oauth_skipped', {
+        reason: 'LTI_1.1 uses manual token flow',
+        returnUrl,
+      });
       return res.redirect(returnUrl);
     }
 
     const apiKeyClientId = this.config.get<string>('CANVAS_OAUTH_CLIENT_ID');
-    const apiKeyValid = apiKeyClientId && apiKeyClientId !== 'your_canvas_oauth_client_id';
+    const apiKeyValid =
+      apiKeyClientId && apiKeyClientId !== 'your_canvas_oauth_client_id';
 
-    let clientId: string | null;
-    if (sess.ltiLaunchType === '1.1') {
-      if (!apiKeyValid) {
-        debugLog('oauth_error', { error: 'LTI 1.1 requires CANVAS_OAUTH_CLIENT_ID (API key) for OAuth' });
-        return res.redirect(
-          '/lti/debug?error=' +
-            encodeURIComponent('LTI 1.1 requires CANVAS_OAUTH_CLIENT_ID and CANVAS_OAUTH_CLIENT_SECRET on Render. Use an API Developer Key, not the LTI key.')
-        );
-      }
-      clientId = apiKeyClientId;
-      debugLog('oauth_client_selected', { source: 'LTI_1.1', useApiKeyOnly: true, clientIdPrefix: clientId?.slice(0, 8) + '...' });
-    } else {
-      clientId =
-        (apiKeyValid ? apiKeyClientId : null) ||
-        sess.ltiClientId ||
-        this.config.get<string>('LTI_CLIENT_ID') ||
-        null;
-      debugLog('oauth_client_selected', {
-        source: sess.ltiLaunchType === '1.3' ? 'LTI_1.3' : 'fallback',
-        useApiKey: !!apiKeyValid,
-        useLtiClientId: !!sess.ltiClientId,
-        clientIdPrefix: clientId?.slice(0, 8) + '...',
-      });
-    }
-    const appUrl = this.config.get<string>('APP_URL') || 'http://localhost:3000';
+    const clientId: string | null =
+      (apiKeyValid ? apiKeyClientId : null) ||
+      sess.ltiClientId ||
+      this.config.get<string>('LTI_CLIENT_ID') ||
+      null;
+    debugLog('oauth_client_selected', {
+      source: sess.ltiLaunchType === '1.3' ? 'LTI_1.3' : 'fallback',
+      useApiKey: !!apiKeyValid,
+      useLtiClientId: !!sess.ltiClientId,
+      clientIdPrefix: clientId?.slice(0, 8) + '...',
+    });
+    const appUrl =
+      this.config.get<string>('APP_URL') || 'http://localhost:3000';
     if (!clientId) {
       debugLog('oauth_error', { error: 'OAuth client ID not configured' });
-      return res.redirect('/lti/debug?error=' + encodeURIComponent('OAuth client ID not configured'));
+      return res.redirect(
+        '/lti/debug?error=' +
+          encodeURIComponent('OAuth client ID not configured'),
+      );
     }
 
     const state = randomBytes(16).toString('hex');
     const returnUrl = (req.query.returnUrl as string) || '/';
     setOAuthState(state, returnUrl);
 
-    const base = String(sess.canvasApiDomain).replace(/\/$/, '').replace(/\/api\/v1\/?$/, '');
+    const base = String(sess.canvasApiDomain)
+      .replace(/\/$/, '')
+      .replace(/\/api\/v1\/?$/, '');
     const redirectUri = `${appUrl.replace(/\/$/, '')}/oauth/canvas/callback`;
     debugLog('oauth_redirect', {
       clientIdPrefix: clientId?.slice(0, 12) + '...',
@@ -105,9 +92,9 @@ export class OAuthController {
     @Query('error') oauthError: string,
     @Query('error_description') oauthErrorDesc: string,
     @Req() req: Request,
-    @Res() res: Response
+    @Res() res: Response,
   ) {
-    const sessForLog = req.session as import('express-session').Session & { ltiLaunchType?: string };
+    const sessForLog = req.session;
     debugLog('oauth_callback', {
       hasCode: !!code,
       hasState: !!state,
@@ -117,31 +104,39 @@ export class OAuthController {
     });
     if (oauthError) {
       const returnUrl = getOAuthState(state);
-      if ((oauthError === 'interaction_required' || oauthError === 'login_required') && returnUrl) {
-        return res.redirect(`/oauth/canvas?returnUrl=${encodeURIComponent(returnUrl)}&retry=1`);
+      if (
+        (oauthError === 'interaction_required' ||
+          oauthError === 'login_required') &&
+        returnUrl
+      ) {
+        return res.redirect(
+          `/oauth/canvas?returnUrl=${encodeURIComponent(returnUrl)}&retry=1`,
+        );
       }
-      return res.redirect('/lti/debug?error=' + encodeURIComponent(oauthErrorDesc || oauthError));
+      return res.redirect(
+        '/lti/debug?error=' + encodeURIComponent(oauthErrorDesc || oauthError),
+      );
     }
     if (!code || !state) {
-      return res.redirect('/lti/debug?error=' + encodeURIComponent('Missing code or state'));
+      return res.redirect(
+        '/lti/debug?error=' + encodeURIComponent('Missing code or state'),
+      );
     }
 
     const returnUrl = getOAuthState(state);
     if (!returnUrl) {
       debugLog('oauth_error', { error: 'Invalid or expired state' });
-      return res.redirect('/lti/debug?error=' + encodeURIComponent('Invalid or expired state'));
+      return res.redirect(
+        '/lti/debug?error=' + encodeURIComponent('Invalid or expired state'),
+      );
     }
 
-    const sess = req.session as import('express-session').Session & {
-      canvasApiDomain?: string;
-      canvasToken?: string;
-      canvasUrl?: string;
-      ltiClientId?: string;
-      ltiLaunchType?: '1.1' | '1.3';
-    };
+    const sess = req.session;
     if (!sess.canvasApiDomain) {
       debugLog('oauth_error', { error: 'Session expired' });
-      return res.redirect('/lti/debug?error=' + encodeURIComponent('Session expired'));
+      return res.redirect(
+        '/lti/debug?error=' + encodeURIComponent('Session expired'),
+      );
     }
 
     debugLog('oauth_callback_client_select', {
@@ -150,7 +145,8 @@ export class OAuthController {
     });
 
     const apiKeyClientId = this.config.get<string>('CANVAS_OAUTH_CLIENT_ID');
-    const apiKeyValid = apiKeyClientId && apiKeyClientId !== 'your_canvas_oauth_client_id';
+    const apiKeyValid =
+      apiKeyClientId && apiKeyClientId !== 'your_canvas_oauth_client_id';
 
     let clientId: string | null;
     if (sess.ltiLaunchType === '1.1') {
@@ -163,15 +159,34 @@ export class OAuthController {
         null;
     }
     const secretsJson = this.config.get<string>('CANVAS_OAUTH_CLIENT_SECRETS');
-    const secretsMap = secretsJson ? (() => { try { return JSON.parse(secretsJson) as Record<string, string>; } catch { return null; } })() : null;
-    const clientSecret = (secretsMap && clientId && secretsMap[clientId]) || this.config.get<string>('CANVAS_OAUTH_CLIENT_SECRET');
-    const appUrl = this.config.get<string>('APP_URL') || 'http://localhost:3000';
+    const secretsMap = secretsJson
+      ? (() => {
+          try {
+            return JSON.parse(secretsJson) as Record<string, string>;
+          } catch {
+            return null;
+          }
+        })()
+      : null;
+    const clientSecret =
+      (secretsMap && clientId && secretsMap[clientId]) ||
+      this.config.get<string>('CANVAS_OAUTH_CLIENT_SECRET');
+    const appUrl =
+      this.config.get<string>('APP_URL') || 'http://localhost:3000';
     if (!clientId || !clientSecret) {
-      debugLog('oauth_error', { error: 'OAuth not configured', hasClientId: !!clientId, hasClientSecret: !!clientSecret });
-      return res.redirect('/lti/debug?error=' + encodeURIComponent('OAuth not configured'));
+      debugLog('oauth_error', {
+        error: 'OAuth not configured',
+        hasClientId: !!clientId,
+        hasClientSecret: !!clientSecret,
+      });
+      return res.redirect(
+        '/lti/debug?error=' + encodeURIComponent('OAuth not configured'),
+      );
     }
 
-    const base = String(sess.canvasApiDomain).replace(/\/$/, '').replace(/\/api\/v1\/?$/, '');
+    const base = String(sess.canvasApiDomain)
+      .replace(/\/$/, '')
+      .replace(/\/api\/v1\/?$/, '');
     const redirectUri = `${appUrl.replace(/\/$/, '')}/oauth/canvas/callback`;
     const tokenUrl = `${base}/login/oauth2/token`;
     const body = new URLSearchParams({
@@ -190,15 +205,27 @@ export class OAuthController {
 
     if (!tokenRes.ok) {
       const errText = await tokenRes.text();
-      debugLog('oauth_error', { error: 'Token exchange failed', status: tokenRes.status, body: errText });
-      return res.redirect('/lti/debug?error=' + encodeURIComponent(`Canvas OAuth token exchange failed: ${tokenRes.status} - ${errText}`));
+      debugLog('oauth_error', {
+        error: 'Token exchange failed',
+        status: tokenRes.status,
+        body: errText,
+      });
+      return res.redirect(
+        '/lti/debug?error=' +
+          encodeURIComponent(
+            `Canvas OAuth token exchange failed: ${tokenRes.status} - ${errText}`,
+          ),
+      );
     }
 
     const data = (await tokenRes.json()) as { access_token?: string };
     const token = data?.access_token;
     if (!token) {
       debugLog('oauth_error', { error: 'No access_token in Canvas response' });
-      return res.redirect('/lti/debug?error=' + encodeURIComponent('No access_token in Canvas response'));
+      return res.redirect(
+        '/lti/debug?error=' +
+          encodeURIComponent('No access_token in Canvas response'),
+      );
     }
 
     debugLog('oauth_success', { canvasUrl: `${base}/api/v1` });
@@ -206,9 +233,11 @@ export class OAuthController {
     sess.canvasUrl = `${base}/api/v1`;
 
     return new Promise<void>((resolve, reject) => {
-      (sess as import('express-session').Session).save((err) => {
+      sess.save((err) => {
         if (err) {
-          reject(err);
+          reject(
+            err instanceof Error ? err : new Error(unknownToErrorMessage(err)),
+          );
           return;
         }
         res.redirect(returnUrl);

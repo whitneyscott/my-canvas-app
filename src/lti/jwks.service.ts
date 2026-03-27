@@ -11,9 +11,10 @@ export class JwksService {
   constructor(private config: ConfigService) {}
 
   private async loadJwk(): Promise<jose.JWK | null> {
-    if (this.jwkPromise) return this.jwkPromise;
+    if (this.jwkPromise != null) return this.jwkPromise;
     this.jwkPromise = (async () => {
-      const pemPath = this.config.get<string>('LTI_PRIVATE_KEY_PATH') ||
+      const pemPath =
+        this.config.get<string>('LTI_PRIVATE_KEY_PATH') ||
         join(process.cwd(), 'private-key.pem');
       if (!existsSync(pemPath)) return null;
       const pem = readFileSync(pemPath, 'utf8');

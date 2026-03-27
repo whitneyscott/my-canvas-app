@@ -13,7 +13,7 @@ import { LtiModule } from './lti/lti.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-      expandVariables: true
+      expandVariables: true,
     }),
     AutomatedTestModule,
     LtiModule,

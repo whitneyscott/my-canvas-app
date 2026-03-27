@@ -1,4 +1,17 @@
-import { Controller, Get, Post, Put, Delete, Param, ParseIntPipe, Body, Query, HttpException, HttpStatus, Header } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Param,
+  ParseIntPipe,
+  Body,
+  Query,
+  HttpException,
+  HttpStatus,
+  Header,
+} from '@nestjs/common';
 import { CanvasService } from './canvas.service';
 @Controller('canvas')
 export class CanvasController {
@@ -32,19 +45,24 @@ export class CanvasController {
     try {
       console.log(`[Controller] Getting quizzes for course ${id}`);
       const result = await this.canvasService.getCourseQuizzes(id);
-      console.log(`[Controller] Successfully retrieved ${result.length} quizzes`);
+      console.log(
+        `[Controller] Successfully retrieved ${result.length} quizzes`,
+      );
       return result;
     } catch (error: any) {
-      console.error(`[Controller] Error getting quizzes for course ${id}:`, error);
+      console.error(
+        `[Controller] Error getting quizzes for course ${id}:`,
+        error,
+      );
       console.error(`[Controller] Error message:`, error.message);
       console.error(`[Controller] Error stack:`, error.stack);
       throw new HttpException(
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
           message: `Failed to load quizzes: ${error.message || 'Unknown error'}`,
-          error: error.message || 'Internal server error'
+          error: error.message || 'Internal server error',
         },
-        HttpStatus.INTERNAL_SERVER_ERROR
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -60,7 +78,10 @@ export class CanvasController {
       return await this.canvasService.getCourseNewQuizzes(id);
     } catch (error: any) {
       throw new HttpException(
-        { message: error.message || 'Failed to load New Quizzes', error: String(error?.message || error) },
+        {
+          message: error.message || 'Failed to load New Quizzes',
+          error: String(error?.message || error),
+        },
         HttpStatus.BAD_GATEWAY,
       );
     }
@@ -79,7 +100,12 @@ export class CanvasController {
   @Post('courses/:id/rubrics')
   async createCourseRubric(
     @Param('id', ParseIntPipe) courseId: number,
-    @Body() body: { title?: string; association_id?: number; association_type?: string },
+    @Body()
+    body: {
+      title?: string;
+      association_id?: number;
+      association_type?: string;
+    },
   ) {
     return this.canvasService.createCourseRubric(courseId, body || {});
   }
@@ -87,16 +113,20 @@ export class CanvasController {
   @Post('courses/:id/assignment_groups')
   async createAssignmentGroup(
     @Param('id', ParseIntPipe) courseId: number,
-    @Body() body: { name: string; group_weight?: number }
+    @Body() body: { name: string; group_weight?: number },
   ) {
-    return this.canvasService.createAssignmentGroup(courseId, body.name, body.group_weight);
+    return this.canvasService.createAssignmentGroup(
+      courseId,
+      body.name,
+      body.group_weight,
+    );
   }
 
   @Put('courses/:courseId/assignment_groups/:id')
   async updateAssignmentGroup(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
-    @Body() updates: { name?: string; group_weight?: number }
+    @Body() updates: { name?: string; group_weight?: number },
   ) {
     return this.canvasService.updateAssignmentGroup(courseId, id, updates);
   }
@@ -104,7 +134,7 @@ export class CanvasController {
   @Delete('courses/:courseId/assignment_groups/:id')
   async deleteAssignmentGroup(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('id', ParseIntPipe) id: number
+    @Param('id', ParseIntPipe) id: number,
   ) {
     return this.canvasService.deleteAssignmentGroup(courseId, id);
   }
@@ -154,9 +184,14 @@ export class CanvasController {
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('columnId', ParseIntPipe) columnId: number,
     @Param('userId', ParseIntPipe) userId: number,
-    @Body() body: { content: string }
+    @Body() body: { content: string },
   ) {
-    return this.canvasService.saveAccommodationValue(courseId, columnId, userId, body.content);
+    return this.canvasService.saveAccommodationValue(
+      courseId,
+      columnId,
+      userId,
+      body.content,
+    );
   }
 
   @Get('courses/:id/custom_gradebook_columns')
@@ -172,7 +207,7 @@ export class CanvasController {
   @Put('courses/:id/accreditation/profile')
   async saveAccreditationProfile(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { profile: Record<string, unknown> }
+    @Body() body: { profile: Record<string, unknown> },
   ) {
     return this.canvasService.saveAccreditationProfile(id, body.profile);
   }
@@ -183,7 +218,11 @@ export class CanvasController {
     @Query('cip') cip: string,
     @Query('degree_level') degreeLevel: string,
   ) {
-    return this.canvasService.getAccreditorsForCourse(id, cip || undefined, degreeLevel || undefined);
+    return this.canvasService.getAccreditorsForCourse(
+      id,
+      cip || undefined,
+      degreeLevel || undefined,
+    );
   }
 
   @Post('courses/:id/accreditation/standards/suggest')
@@ -191,22 +230,35 @@ export class CanvasController {
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { n?: number },
   ) {
-    return this.canvasService.suggestAdditionalStandardsForCourse(id, body?.n ?? 5);
+    return this.canvasService.suggestAdditionalStandardsForCourse(
+      id,
+      body?.n ?? 5,
+    );
   }
 
   @Post('courses/:id/accreditation/standards/finalize')
   async finalizeStandards(@Param('id', ParseIntPipe) id: number) {
     await this.canvasService.setAccreditationStageState(id, '1', 'approved');
-    await this.canvasService.logAccreditationOperation(id, 'standards_finalized', '1', {});
+    await this.canvasService.logAccreditationOperation(
+      id,
+      'standards_finalized',
+      '1',
+      {},
+    );
     return { success: true };
   }
 
   @Post('courses/:id/accreditation/standards/ai-action')
   async applyAiSuggestionAction(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { standardId: string; action: 'accept' | 'reject' | 'review_later' },
+    @Body()
+    body: { standardId: string; action: 'accept' | 'reject' | 'review_later' },
   ) {
-    return this.canvasService.applyAiSuggestionAction(id, body.standardId, body.action);
+    return this.canvasService.applyAiSuggestionAction(
+      id,
+      body.standardId,
+      body.action,
+    );
   }
 
   @Get('courses/:id/accreditation/standards')
@@ -215,7 +267,11 @@ export class CanvasController {
     @Query('cip') cip: string,
     @Query('degree_level') degreeLevel: string,
   ): Promise<any> {
-    return this.canvasService.getAccreditationStandardsForCourse(id, cip || undefined, degreeLevel || undefined);
+    return this.canvasService.getAccreditationStandardsForCourse(
+      id,
+      cip || undefined,
+      degreeLevel || undefined,
+    );
   }
 
   @Get('courses/:id/accreditation/outcomes')
@@ -229,13 +285,24 @@ export class CanvasController {
     @Query('cip') cip: string,
     @Query('degree_level') degreeLevel: string,
   ) {
-    return this.canvasService.getOutcomesPreviewByOrg(id, cip || undefined, degreeLevel || undefined);
+    return this.canvasService.getOutcomesPreviewByOrg(
+      id,
+      cip || undefined,
+      degreeLevel || undefined,
+    );
   }
 
   @Post('courses/:id/accreditation/outcomes/sync-org')
   async syncOutcomesForOrg(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { orgId: string; orgAbbrev: string; orgName: string; cip?: string; selectedStandardIds?: string[] },
+    @Body()
+    body: {
+      orgId: string;
+      orgAbbrev: string;
+      orgName: string;
+      cip?: string;
+      selectedStandardIds?: string[];
+    },
   ) {
     try {
       return await this.canvasService.syncOutcomesForOrg(
@@ -249,7 +316,13 @@ export class CanvasController {
       );
     } catch (e: any) {
       const msg = e?.message || String(e);
-      console.error('[sync-org]', id, body.orgAbbrev || body.orgId, msg, e?.stack);
+      console.error(
+        '[sync-org]',
+        id,
+        body.orgAbbrev || body.orgId,
+        msg,
+        e?.stack,
+      );
       throw new HttpException(msg, 500);
     }
   }
@@ -257,9 +330,15 @@ export class CanvasController {
   @Post('courses/:id/accreditation/outcomes/sync')
   async syncCourseOutcomesFromStandards(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { cip?: string; degree_level?: string; include_groups?: boolean },
+    @Body()
+    body: { cip?: string; degree_level?: string; include_groups?: boolean },
   ) {
-    return this.canvasService.syncCourseOutcomesFromSelectedStandards(id, body?.cip, body?.degree_level, !!body?.include_groups);
+    return this.canvasService.syncCourseOutcomesFromSelectedStandards(
+      id,
+      body?.cip,
+      body?.degree_level,
+      !!body?.include_groups,
+    );
   }
 
   @Get('courses/:id/accreditation/workflow')
@@ -272,39 +351,82 @@ export class CanvasController {
     @Param('id', ParseIntPipe) id: number,
     @Query('cip') cip: string,
   ) {
-    return this.canvasService.getInstructionAlignmentSuggestions(id, cip || undefined);
+    return this.canvasService.getInstructionAlignmentSuggestions(
+      id,
+      cip || undefined,
+    );
   }
 
   @Post('courses/:id/accreditation/rubrics/create')
   async createRubricForResource(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { resource_type: string; resource_id: string; criteria: Array<{ description: string; outcome_id?: number; points?: number }> },
+    @Body()
+    body: {
+      resource_type: string;
+      resource_id: string;
+      criteria: Array<{
+        description: string;
+        outcome_id?: number;
+        points?: number;
+      }>;
+    },
   ) {
-    return this.canvasService.createRubricForResource(id, body.resource_type, body.resource_id, body.criteria ?? []);
+    return this.canvasService.createRubricForResource(
+      id,
+      body.resource_type,
+      body.resource_id,
+      body.criteria ?? [],
+    );
   }
 
   @Post('courses/:id/accreditation/tagging/resource')
   async applyResourceTagging(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { resource_type: string; resource_id: string; standards: Array<{ id: string; title: string; org?: string }> },
+    @Body()
+    body: {
+      resource_type: string;
+      resource_id: string;
+      standards: Array<{ id: string; title: string; org?: string }>;
+    },
   ) {
-    return this.canvasService.applyResourceTagging(id, body.resource_type, body.resource_id, body.standards ?? []);
+    return this.canvasService.applyResourceTagging(
+      id,
+      body.resource_type,
+      body.resource_id,
+      body.standards ?? [],
+    );
   }
 
   @Post('courses/:id/accreditation/tagging/quiz')
   async applyQuizTagging(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { quiz_id: number; standards: Array<{ id: string; title: string; org?: string }> },
+    @Body()
+    body: {
+      quiz_id: number;
+      standards: Array<{ id: string; title: string; org?: string }>;
+    },
   ) {
-    return this.canvasService.applyQuizTagging(id, body.quiz_id, body.standards ?? []);
+    return this.canvasService.applyQuizTagging(
+      id,
+      body.quiz_id,
+      body.standards ?? [],
+    );
   }
 
   @Post('courses/:id/accreditation/tagging/new-quiz')
   async applyNewQuizTagging(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { assignment_id: number; standards: Array<{ id: string; title: string; org?: string }> },
+    @Body()
+    body: {
+      assignment_id: number;
+      standards: Array<{ id: string; title: string; org?: string }>;
+    },
   ) {
-    return this.canvasService.applyNewQuizTagging(id, body.assignment_id, body.standards ?? []);
+    return this.canvasService.applyNewQuizTagging(
+      id,
+      body.assignment_id,
+      body.standards ?? [],
+    );
   }
 
   @Get('courses/:id/accreditation/alignment')
@@ -313,7 +435,11 @@ export class CanvasController {
     @Query('cip') cip: string,
     @Query('degree_level') degreeLevel: string,
   ) {
-    return this.canvasService.getAccreditationAlignment(id, cip || undefined, degreeLevel || undefined);
+    return this.canvasService.getAccreditationAlignment(
+      id,
+      cip || undefined,
+      degreeLevel || undefined,
+    );
   }
 
   @Get('courses/:id/accessibility/scan')
@@ -323,7 +449,10 @@ export class CanvasController {
     @Query('resource_types') resourceTypesRaw?: string,
     @Query('rule_ids') ruleIdsRaw?: string,
   ): Promise<any> {
-    const baselineMs = baselineMsRaw != null && baselineMsRaw !== '' ? Number(baselineMsRaw) : undefined;
+    const baselineMs =
+      baselineMsRaw != null && baselineMsRaw !== ''
+        ? Number(baselineMsRaw)
+        : undefined;
     const resourceTypes = (resourceTypesRaw || '')
       .split(',')
       .map((x) => x.trim())
@@ -333,7 +462,9 @@ export class CanvasController {
       .map((x) => x.trim())
       .filter(Boolean);
     return this.canvasService.getAccessibilityScan(id, {
-      canvasNativeBaselineMs: Number.isFinite(baselineMs as number) ? (baselineMs as number) : undefined,
+      canvasNativeBaselineMs: Number.isFinite(baselineMs)
+        ? baselineMs
+        : undefined,
       resourceTypes: resourceTypes.length ? resourceTypes : undefined,
       ruleIds: ruleIds.length ? ruleIds : undefined,
     });
@@ -342,10 +473,41 @@ export class CanvasController {
   @Post('courses/:id/accessibility/fix-preview')
   async getAccessibilityFixPreview(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { findings?: Array<{ resource_type: string; resource_id: string; resource_title?: string; rule_id: string; snippet?: string | null }> },
+    @Body()
+    body: {
+      findings?: Array<{
+        resource_type: string;
+        resource_id: string;
+        resource_title?: string;
+        rule_id: string;
+        snippet?: string | null;
+      }>;
+    },
   ) {
     const findings = Array.isArray(body?.findings) ? body.findings : [];
     return this.canvasService.getAccessibilityFixPreview(id, findings);
+  }
+
+  @Post('courses/:id/accessibility/fix-preview-item')
+  async getAccessibilityFixPreviewItem(
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    body: {
+      finding?: {
+        resource_type: string;
+        resource_id: string;
+        resource_title?: string;
+        rule_id: string;
+        snippet?: string | null;
+      };
+    },
+  ) {
+    if (!body?.finding) return { action: null };
+    const action = await this.canvasService.getAccessibilityFixPreviewItem(
+      id,
+      body.finding,
+    );
+    return { action };
   }
 
   @Post('courses/:id/accessibility/fix-apply')
@@ -369,7 +531,10 @@ export class CanvasController {
 
   @Get('courses/:id/accessibility/export.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="accessibility_report.csv"')
+  @Header(
+    'Content-Disposition',
+    'attachment; filename="accessibility_report.csv"',
+  )
   async exportAccessibilityCsv(
     @Param('id', ParseIntPipe) id: number,
     @Query('resource_types') resourceTypesRaw?: string,
@@ -393,9 +558,12 @@ export class CanvasController {
   @Put('outcomes/:outcomeId/standards')
   async updateOutcomeStandards(
     @Param('outcomeId', ParseIntPipe) outcomeId: number,
-    @Body() body: { standards: string[] }
+    @Body() body: { standards: string[] },
   ) {
-    return this.canvasService.updateOutcomeStandards(outcomeId, body.standards ?? []);
+    return this.canvasService.updateOutcomeStandards(
+      outcomeId,
+      body.standards ?? [],
+    );
   }
 
   @Get('courses/:id/bulk_user_tags')
@@ -407,7 +575,7 @@ export class CanvasController {
   @Get('courses/:courseId/assignments/:id')
   async getAssignment(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('id', ParseIntPipe) id: number
+    @Param('id', ParseIntPipe) id: number,
   ) {
     return this.canvasService.getAssignment(courseId, id);
   }
@@ -415,7 +583,7 @@ export class CanvasController {
   @Get('courses/:courseId/quizzes/:id')
   async getQuiz(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('id', ParseIntPipe) id: number
+    @Param('id', ParseIntPipe) id: number,
   ) {
     return this.canvasService.getQuiz(courseId, id);
   }
@@ -423,7 +591,7 @@ export class CanvasController {
   @Get('courses/:courseId/discussions/:id')
   async getDiscussion(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('id', ParseIntPipe) id: number
+    @Param('id', ParseIntPipe) id: number,
   ) {
     return this.canvasService.getDiscussion(courseId, id);
   }
@@ -431,7 +599,7 @@ export class CanvasController {
   @Get('courses/:courseId/pages/:id')
   async getPage(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('id') id: string
+    @Param('id') id: string,
   ) {
     return this.canvasService.getPage(courseId, id);
   }
@@ -439,7 +607,7 @@ export class CanvasController {
   @Get('courses/:courseId/announcements/:id')
   async getAnnouncement(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('id', ParseIntPipe) id: number
+    @Param('id', ParseIntPipe) id: number,
   ) {
     return this.canvasService.getAnnouncement(courseId, id);
   }
@@ -447,7 +615,7 @@ export class CanvasController {
   @Get('courses/:courseId/modules/:id')
   async getModule(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('id', ParseIntPipe) id: number
+    @Param('id', ParseIntPipe) id: number,
   ) {
     return this.canvasService.getModule(courseId, id);
   }
@@ -463,7 +631,10 @@ export class CanvasController {
       return await this.canvasService.updateNewQuizRow(courseId, id, updates);
     } catch (error: any) {
       throw new HttpException(
-        { message: error.message || 'Failed to update New Quiz', error: String(error?.message || error) },
+        {
+          message: error.message || 'Failed to update New Quiz',
+          error: String(error?.message || error),
+        },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -473,7 +644,7 @@ export class CanvasController {
   async updateAssignment(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
-    @Body() updates: Record<string, any>
+    @Body() updates: Record<string, any>,
   ) {
     try {
       return await this.canvasService.updateAssignment(courseId, id, updates);
@@ -482,9 +653,9 @@ export class CanvasController {
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
           message: `Failed to update assignment: ${error.message || 'Unknown error'}`,
-          error: error.message || 'Internal server error'
+          error: error.message || 'Internal server error',
         },
-        HttpStatus.INTERNAL_SERVER_ERROR
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -493,7 +664,7 @@ export class CanvasController {
   async updateQuiz(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
-    @Body() updates: Record<string, any>
+    @Body() updates: Record<string, any>,
   ) {
     try {
       return await this.canvasService.updateQuiz(courseId, id, updates);
@@ -502,9 +673,9 @@ export class CanvasController {
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
           message: `Failed to update quiz ${id}: ${error.message || 'Unknown error'}`,
-          error: error.message || 'Internal server error'
+          error: error.message || 'Internal server error',
         },
-        HttpStatus.INTERNAL_SERVER_ERROR
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -513,7 +684,7 @@ export class CanvasController {
   async updateDiscussion(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
-    @Body() updates: Record<string, any>
+    @Body() updates: Record<string, any>,
   ) {
     try {
       return await this.canvasService.updateDiscussion(courseId, id, updates);
@@ -522,9 +693,9 @@ export class CanvasController {
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
           message: `Failed to update discussion ${id}: ${error?.message || 'Unknown error'}`,
-          error: error?.message || 'Internal server error'
+          error: error?.message || 'Internal server error',
         },
-        HttpStatus.INTERNAL_SERVER_ERROR
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -533,7 +704,7 @@ export class CanvasController {
   async updatePage(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id') id: string,
-    @Body() updates: Record<string, any>
+    @Body() updates: Record<string, any>,
   ) {
     return this.canvasService.updatePage(courseId, id, updates);
   }
@@ -542,7 +713,7 @@ export class CanvasController {
   async updateAnnouncement(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
-    @Body() updates: Record<string, any>
+    @Body() updates: Record<string, any>,
   ) {
     try {
       return await this.canvasService.updateAnnouncement(courseId, id, updates);
@@ -551,9 +722,9 @@ export class CanvasController {
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
           message: `Failed to update announcement ${id}: ${error?.message || 'Unknown error'}`,
-          error: error?.message || 'Internal server error'
+          error: error?.message || 'Internal server error',
         },
-        HttpStatus.INTERNAL_SERVER_ERROR
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -562,7 +733,7 @@ export class CanvasController {
   async updateModule(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('id', ParseIntPipe) id: number,
-    @Body() updates: Record<string, any>
+    @Body() updates: Record<string, any>,
   ) {
     return this.canvasService.updateModule(courseId, id, updates);
   }
@@ -571,56 +742,80 @@ export class CanvasController {
   @Put('courses/:courseId/assignments/_bulk/update')
   async bulkUpdateAssignments(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: { itemIds: number[]; updates: Record<string, any> }
+    @Body() body: { itemIds: number[]; updates: Record<string, any> },
   ) {
-    return this.canvasService.bulkUpdateAssignments(courseId, body.itemIds, body.updates);
+    return this.canvasService.bulkUpdateAssignments(
+      courseId,
+      body.itemIds,
+      body.updates,
+    );
   }
 
   @Put('courses/:courseId/quizzes/_bulk/update')
   async bulkUpdateQuizzes(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: { itemIds: number[]; updates: Record<string, any> }
+    @Body() body: { itemIds: number[]; updates: Record<string, any> },
   ) {
-    return this.canvasService.bulkUpdateQuizzes(courseId, body.itemIds, body.updates);
+    return this.canvasService.bulkUpdateQuizzes(
+      courseId,
+      body.itemIds,
+      body.updates,
+    );
   }
 
   @Put('courses/:courseId/discussions/_bulk/update')
   async bulkUpdateDiscussions(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: { itemIds: number[]; updates: Record<string, any> }
+    @Body() body: { itemIds: number[]; updates: Record<string, any> },
   ) {
-    return this.canvasService.bulkUpdateDiscussions(courseId, body.itemIds, body.updates);
+    return this.canvasService.bulkUpdateDiscussions(
+      courseId,
+      body.itemIds,
+      body.updates,
+    );
   }
 
   @Put('courses/:courseId/pages/_bulk/update')
   async bulkUpdatePages(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: { itemIds: string[]; updates: Record<string, any> }
+    @Body() body: { itemIds: string[]; updates: Record<string, any> },
   ) {
-    return this.canvasService.bulkUpdatePages(courseId, body.itemIds, body.updates);
+    return this.canvasService.bulkUpdatePages(
+      courseId,
+      body.itemIds,
+      body.updates,
+    );
   }
 
   @Put('courses/:courseId/announcements/_bulk/update')
   async bulkUpdateAnnouncements(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: { itemIds: number[]; updates: Record<string, any> }
+    @Body() body: { itemIds: number[]; updates: Record<string, any> },
   ) {
-    return this.canvasService.bulkUpdateAnnouncements(courseId, body.itemIds, body.updates);
+    return this.canvasService.bulkUpdateAnnouncements(
+      courseId,
+      body.itemIds,
+      body.updates,
+    );
   }
 
   @Put('courses/:courseId/modules/_bulk/update')
   async bulkUpdateModules(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: { itemIds: number[]; updates: Record<string, any> }
+    @Body() body: { itemIds: number[]; updates: Record<string, any> },
   ) {
-    return this.canvasService.bulkUpdateModules(courseId, body.itemIds, body.updates);
+    return this.canvasService.bulkUpdateModules(
+      courseId,
+      body.itemIds,
+      body.updates,
+    );
   }
 
   // Delete endpoints
   @Delete('courses/:courseId/assignments/:id')
   async deleteAssignment(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('id', ParseIntPipe) id: number
+    @Param('id', ParseIntPipe) id: number,
   ) {
     return this.canvasService.deleteAssignment(courseId, id);
   }
@@ -628,7 +823,7 @@ export class CanvasController {
   @Delete('courses/:courseId/quizzes/:id')
   async deleteQuiz(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('id', ParseIntPipe) id: number
+    @Param('id', ParseIntPipe) id: number,
   ) {
     return this.canvasService.deleteQuiz(courseId, id);
   }
@@ -636,7 +831,7 @@ export class CanvasController {
   @Delete('courses/:courseId/discussions/:id')
   async deleteDiscussion(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('id', ParseIntPipe) id: number
+    @Param('id', ParseIntPipe) id: number,
   ) {
     return this.canvasService.deleteDiscussion(courseId, id);
   }
@@ -644,7 +839,7 @@ export class CanvasController {
   @Delete('courses/:courseId/pages/:id')
   async deletePage(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('id') id: string
+    @Param('id') id: string,
   ) {
     return this.canvasService.deletePage(courseId, id);
   }
@@ -652,7 +847,7 @@ export class CanvasController {
   @Delete('courses/:courseId/modules/:id')
   async deleteModule(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('id', ParseIntPipe) id: number
+    @Param('id', ParseIntPipe) id: number,
   ) {
     return this.canvasService.deleteModule(courseId, id);
   }
@@ -660,7 +855,7 @@ export class CanvasController {
   @Delete('courses/:courseId/announcements/:id')
   async deleteAnnouncement(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('id', ParseIntPipe) id: number
+    @Param('id', ParseIntPipe) id: number,
   ) {
     return this.canvasService.deleteAnnouncement(courseId, id);
   }
@@ -669,16 +864,19 @@ export class CanvasController {
   @Post('courses/:courseId/content_exports')
   async createContentExport(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: { export_type?: string }
+    @Body() body: { export_type?: string },
   ) {
-    return this.canvasService.createContentExport(courseId, body.export_type || 'common_cartridge');
+    return this.canvasService.createContentExport(
+      courseId,
+      body.export_type || 'common_cartridge',
+    );
   }
 
   // Create endpoints (for duplication)
   @Post('courses/:courseId/assignments')
   async createAssignment(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: Record<string, any>
+    @Body() body: Record<string, any>,
   ) {
     return this.canvasService.createAssignment(courseId, body);
   }
@@ -686,7 +884,7 @@ export class CanvasController {
   @Post('courses/:courseId/quizzes')
   async createQuiz(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: Record<string, any>
+    @Body() body: Record<string, any>,
   ) {
     return this.canvasService.createQuiz(courseId, body);
   }
@@ -694,7 +892,7 @@ export class CanvasController {
   @Post('courses/:courseId/discussions')
   async createDiscussion(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: Record<string, any>
+    @Body() body: Record<string, any>,
   ) {
     return this.canvasService.createDiscussion(courseId, body);
   }
@@ -702,7 +900,7 @@ export class CanvasController {
   @Post('courses/:courseId/pages')
   async createPage(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: Record<string, any>
+    @Body() body: Record<string, any>,
   ) {
     return this.canvasService.createPage(courseId, body);
   }
@@ -710,7 +908,7 @@ export class CanvasController {
   @Post('courses/:courseId/announcements')
   async createAnnouncement(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: Record<string, any>
+    @Body() body: Record<string, any>,
   ) {
     return this.canvasService.createAnnouncement(courseId, body);
   }
@@ -718,7 +916,7 @@ export class CanvasController {
   @Post('courses/:courseId/modules')
   async createModule(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: Record<string, any>
+    @Body() body: Record<string, any>,
   ) {
     return this.canvasService.createModule(courseId, body);
   }
@@ -726,7 +924,7 @@ export class CanvasController {
   @Post('courses/:courseId/new_quizzes')
   async createNewQuiz(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: Record<string, any>
+    @Body() body: Record<string, any>,
   ) {
     return this.canvasService.createNewQuiz(courseId, body);
   }
@@ -735,15 +933,26 @@ export class CanvasController {
   async createQuizExtensions(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('quizId', ParseIntPipe) quizId: number,
-    @Body() body: { quiz_extensions: Array<{ user_id: number; extra_time?: number; extra_attempts?: number }> }
+    @Body()
+    body: {
+      quiz_extensions: Array<{
+        user_id: number;
+        extra_time?: number;
+        extra_attempts?: number;
+      }>;
+    },
   ) {
-    return this.canvasService.createQuizExtensions(courseId, quizId, body.quiz_extensions);
+    return this.canvasService.createQuizExtensions(
+      courseId,
+      quizId,
+      body.quiz_extensions,
+    );
   }
 
   @Get('courses/:courseId/assignments/:assignmentId/overrides')
   async getAssignmentOverrides(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('assignmentId', ParseIntPipe) assignmentId: number
+    @Param('assignmentId', ParseIntPipe) assignmentId: number,
   ) {
     return this.canvasService.getAssignmentOverrides(courseId, assignmentId);
   }
@@ -752,25 +961,41 @@ export class CanvasController {
   async deleteAssignmentOverride(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('assignmentId', ParseIntPipe) assignmentId: number,
-    @Param('overrideId', ParseIntPipe) overrideId: number
+    @Param('overrideId', ParseIntPipe) overrideId: number,
   ) {
-    return this.canvasService.deleteAssignmentOverride(courseId, assignmentId, overrideId);
+    return this.canvasService.deleteAssignmentOverride(
+      courseId,
+      assignmentId,
+      overrideId,
+    );
   }
 
-@Post('courses/:courseId/assignments/:assignmentId/overrides')
+  @Post('courses/:courseId/assignments/:assignmentId/overrides')
   async createAssignmentOverride(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('assignmentId', ParseIntPipe) assignmentId: number,
-    @Body() body: { assignment_override: { student_ids?: number[]; due_at?: string; unlock_at?: string; lock_at?: string } }
+    @Body()
+    body: {
+      assignment_override: {
+        student_ids?: number[];
+        due_at?: string;
+        unlock_at?: string;
+        lock_at?: string;
+      };
+    },
   ) {
-    return this.canvasService.createAssignmentOverride(courseId, assignmentId, body.assignment_override);
+    return this.canvasService.createAssignmentOverride(
+      courseId,
+      assignmentId,
+      body.assignment_override,
+    );
   }
 
   @Post('courses/:courseId/modules/:moduleId/items')
   async createModuleItem(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('moduleId', ParseIntPipe) moduleId: number,
-    @Body() body: Record<string, any>
+    @Body() body: Record<string, any>,
   ) {
     return this.canvasService.createModuleItem(courseId, moduleId, body);
   }
@@ -778,7 +1003,7 @@ export class CanvasController {
   @Get('courses/:courseId/modules/:moduleId/items')
   async getModuleItems(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Param('moduleId', ParseIntPipe) moduleId: number
+    @Param('moduleId', ParseIntPipe) moduleId: number,
   ) {
     return this.canvasService.getModuleItems(courseId, moduleId);
   }
@@ -788,7 +1013,7 @@ export class CanvasController {
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('moduleId', ParseIntPipe) moduleId: number,
     @Param('itemId') itemId: string,
-    @Body() body: { type: string; content_id: number | string }
+    @Body() body: { type: string; content_id: number | string },
   ) {
     return this.canvasService.deleteModuleItem(courseId, {
       type: body.type,
@@ -799,21 +1024,36 @@ export class CanvasController {
   @Delete('courses/:id/files/bulk')
   async bulkDeleteFiles(
     @Param('id', ParseIntPipe) courseId: number,
-    @Body() body: { fileIds: number[]; isFolders?: boolean[] }
+    @Body() body: { fileIds: number[]; isFolders?: boolean[] },
   ) {
     if (Array.isArray(body?.isFolders) && body.isFolders.some(Boolean)) {
-      throw new HttpException('Folders must be deleted directly in Canvas', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Folders must be deleted directly in Canvas',
+        HttpStatus.BAD_REQUEST,
+      );
     }
-    return this.canvasService.bulkDeleteFiles(courseId, body.fileIds, body.isFolders || []);
+    return this.canvasService.bulkDeleteFiles(
+      courseId,
+      body.fileIds,
+      body.isFolders || [],
+    );
   }
 
   @Post('courses/:courseId/files/copy')
   async copyFile(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: { source_file_id: number; parent_folder_id?: number; display_name?: string }
+    @Body()
+    body: {
+      source_file_id: number;
+      parent_folder_id?: number;
+      display_name?: string;
+    },
   ) {
     if (!body?.source_file_id) {
-      throw new HttpException('source_file_id required', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'source_file_id required',
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return this.canvasService.copyFileToFolder(
       courseId,
@@ -826,19 +1066,32 @@ export class CanvasController {
   @Post('courses/:courseId/folders')
   async createFolder(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: { name: string; parent_folder_id?: number }
+    @Body() body: { name: string; parent_folder_id?: number },
   ) {
-    if (!body?.name) throw new HttpException('name required', HttpStatus.BAD_REQUEST);
-    return this.canvasService.createFolder(courseId, body.name, body.parent_folder_id);
+    if (!body?.name)
+      throw new HttpException('name required', HttpStatus.BAD_REQUEST);
+    return this.canvasService.createFolder(
+      courseId,
+      body.name,
+      body.parent_folder_id,
+    );
   }
 
   @Post('courses/:courseId/folders/copy')
   async copyFolder(
     @Param('courseId', ParseIntPipe) courseId: number,
-    @Body() body: { source_folder_id: number; parent_folder_id?: number; name?: string }
+    @Body()
+    body: {
+      source_folder_id: number;
+      parent_folder_id?: number;
+      name?: string;
+    },
   ) {
     if (!body?.source_folder_id) {
-      throw new HttpException('source_folder_id required', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'source_folder_id required',
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return this.canvasService.copyFolderToFolder(
       courseId,
@@ -852,14 +1105,25 @@ export class CanvasController {
   async deleteFileOrFolder(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Param('fileId', ParseIntPipe) fileId: number,
-    @Body() body: { isFolder?: boolean }
+    @Body() body: { isFolder?: boolean },
   ) {
     if (body?.isFolder) {
-      throw new HttpException('Folders must be deleted directly in Canvas', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Folders must be deleted directly in Canvas',
+        HttpStatus.BAD_REQUEST,
+      );
     }
-    const results = await this.canvasService.bulkDeleteFiles(courseId, [fileId], [!!body?.isFolder]);
+    const results = await this.canvasService.bulkDeleteFiles(
+      courseId,
+      [fileId],
+      [!!body?.isFolder],
+    );
     const r = results[0];
-    if (r && !r.success) throw new HttpException(r.error || 'Delete failed', HttpStatus.BAD_REQUEST);
+    if (r && !r.success)
+      throw new HttpException(
+        r.error || 'Delete failed',
+        HttpStatus.BAD_REQUEST,
+      );
     return { success: true };
   }
 
@@ -867,7 +1131,13 @@ export class CanvasController {
   async updateFileOrFolder(
     @Param('id', ParseIntPipe) courseId: number,
     @Param('fileId', ParseIntPipe) fileId: number,
-    @Body() body: { name?: string; display_name?: string; locked?: boolean; isFolder?: boolean }
+    @Body()
+    body: {
+      name?: string;
+      display_name?: string;
+      locked?: boolean;
+      isFolder?: boolean;
+    },
   ) {
     if (body.isFolder) return this.canvasService.updateFolder(fileId, body);
     return this.canvasService.updateFile(courseId, fileId, body);

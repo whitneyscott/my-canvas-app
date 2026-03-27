@@ -1,12 +1,37 @@
 "use strict";
-var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
-    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
-    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-    return c > 3 && r && Object.defineProperty(target, key, r), r;
+var __esDecorate = (this && this.__esDecorate) || function (ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+    function accept(f) { if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected"); return f; }
+    var kind = contextIn.kind, key = kind === "getter" ? "get" : kind === "setter" ? "set" : "value";
+    var target = !descriptorIn && ctor ? contextIn["static"] ? ctor : ctor.prototype : null;
+    var descriptor = descriptorIn || (target ? Object.getOwnPropertyDescriptor(target, contextIn.name) : {});
+    var _, done = false;
+    for (var i = decorators.length - 1; i >= 0; i--) {
+        var context = {};
+        for (var p in contextIn) context[p] = p === "access" ? {} : contextIn[p];
+        for (var p in contextIn.access) context.access[p] = contextIn.access[p];
+        context.addInitializer = function (f) { if (done) throw new TypeError("Cannot add initializers after decoration has completed"); extraInitializers.push(accept(f || null)); };
+        var result = (0, decorators[i])(kind === "accessor" ? { get: descriptor.get, set: descriptor.set } : descriptor[key], context);
+        if (kind === "accessor") {
+            if (result === void 0) continue;
+            if (result === null || typeof result !== "object") throw new TypeError("Object expected");
+            if (_ = accept(result.get)) descriptor.get = _;
+            if (_ = accept(result.set)) descriptor.set = _;
+            if (_ = accept(result.init)) initializers.unshift(_);
+        }
+        else if (_ = accept(result)) {
+            if (kind === "field") initializers.unshift(_);
+            else descriptor[key] = _;
+        }
+    }
+    if (target) Object.defineProperty(target, contextIn.name, descriptor);
+    done = true;
 };
-var __metadata = (this && this.__metadata) || function (k, v) {
-    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+var __runInitializers = (this && this.__runInitializers) || function (thisArg, initializers, value) {
+    var useValue = arguments.length > 2;
+    for (var i = 0; i < initializers.length; i++) {
+        value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
+    }
+    return useValue ? value : void 0;
 };
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
@@ -44,86 +69,105 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+var __setFunctionName = (this && this.__setFunctionName) || function (f, name, prefix) {
+    if (typeof name === "symbol") name = name.description ? "[".concat(name.description, "]") : "";
+    return Object.defineProperty(f, "name", { configurable: true, value: prefix ? "".concat(prefix, " ", name) : name });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LaunchVerifyService = void 0;
 var common_1 = require("@nestjs/common");
-var config_1 = require("@nestjs/config");
 var jose = require("jose");
 var crypto_1 = require("crypto");
-var LaunchVerifyService = /** @class */ (function () {
-    function LaunchVerifyService(config) {
-        this.config = config;
-    }
-    LaunchVerifyService.prototype.verify = function (idToken) {
-        return __awaiter(this, void 0, void 0, function () {
-            var expectedClientId, unprotected, payload, iss, jwksUrl, jwksRes, jwks, jwk, _a, _b, _c, err_1, key, _d, headerB64, payloadB64, sigB64, data, sig, ok, aud, audienceOk;
-            var _e, _f;
-            return __generator(this, function (_g) {
-                switch (_g.label) {
-                    case 0:
-                        expectedClientId = this.config.get('LTI_CLIENT_ID');
-                        unprotected = jose.decodeProtectedHeader(idToken);
-                        if (!unprotected.alg || !unprotected.kid)
-                            throw new Error('Invalid JWT header');
-                        payload = jose.decodeJwt(idToken);
-                        iss = payload.iss;
-                        if (!iss || typeof iss !== 'string')
-                            throw new Error('Missing iss');
-                        jwksUrl = "".concat(iss.replace(/\/$/, ''), "/api/lti/security/jwks");
-                        return [4 /*yield*/, fetch(jwksUrl)];
-                    case 1:
-                        jwksRes = _g.sent();
-                        if (!jwksRes.ok)
-                            throw new Error("JWKS fetch failed: ".concat(jwksRes.status));
-                        return [4 /*yield*/, jwksRes.json()];
-                    case 2:
-                        jwks = (_g.sent());
-                        jwk = ((_e = jwks.keys) === null || _e === void 0 ? void 0 : _e.find(function (k) { return k.kid === unprotected.kid; })) || ((_f = jwks.keys) === null || _f === void 0 ? void 0 : _f[0]);
-                        if (!jwk)
-                            throw new Error('Could not resolve JWK');
-                        _g.label = 3;
-                    case 3:
-                        _g.trys.push([3, 6, , 7]);
-                        _b = (_a = jose).compactVerify;
-                        _c = [idToken];
-                        return [4 /*yield*/, jose.importJWK(jwk, unprotected.alg)];
-                    case 4: return [4 /*yield*/, _b.apply(_a, _c.concat([_g.sent()]))];
-                    case 5:
-                        _g.sent();
-                        return [3 /*break*/, 7];
-                    case 6:
-                        err_1 = _g.sent();
-                        if (String(err_1).includes('2048') || String(err_1).includes('modulusLength')) {
-                            key = (0, crypto_1.createPublicKey)({ key: jwk, format: 'jwk' });
-                            _d = idToken.split('.'), headerB64 = _d[0], payloadB64 = _d[1], sigB64 = _d[2];
-                            data = Buffer.from("".concat(headerB64, ".").concat(payloadB64), 'utf8');
-                            sig = Buffer.from(sigB64, 'base64url');
-                            ok = (0, crypto_1.verify)('RSA-SHA256', data, key, sig);
-                            if (!ok)
-                                throw new Error('Invalid signature');
-                        }
-                        else {
-                            throw err_1;
-                        }
-                        return [3 /*break*/, 7];
-                    case 7:
-                        if (expectedClientId) {
-                            aud = payload.aud;
-                            audienceOk = Array.isArray(aud)
-                                ? aud.includes(expectedClientId)
-                                : aud === expectedClientId;
-                            if (!audienceOk)
-                                throw new Error('Invalid audience');
-                        }
-                        return [2 /*return*/, payload];
-                }
+var LaunchVerifyService = function () {
+    var _classDecorators = [(0, common_1.Injectable)()];
+    var _classDescriptor;
+    var _classExtraInitializers = [];
+    var _classThis;
+    var LaunchVerifyService = _classThis = /** @class */ (function () {
+        function LaunchVerifyService_1(config) {
+            this.config = config;
+        }
+        LaunchVerifyService_1.prototype.verify = function (idToken) {
+            return __awaiter(this, void 0, void 0, function () {
+                var expectedClientId, unprotected, payload, iss, jwksUrl, jwksRes, jwks, jwk, _a, _b, _c, err_1, key, _d, headerB64, payloadB64, sigB64, data, sig, ok, aud, audienceOk;
+                var _e, _f;
+                return __generator(this, function (_g) {
+                    switch (_g.label) {
+                        case 0:
+                            expectedClientId = this.config.get('LTI_CLIENT_ID');
+                            unprotected = jose.decodeProtectedHeader(idToken);
+                            if (!unprotected.alg || !unprotected.kid)
+                                throw new Error('Invalid JWT header');
+                            payload = jose.decodeJwt(idToken);
+                            iss = payload.iss;
+                            if (!iss || typeof iss !== 'string')
+                                throw new Error('Missing iss');
+                            jwksUrl = "".concat(iss.replace(/\/$/, ''), "/api/lti/security/jwks");
+                            return [4 /*yield*/, fetch(jwksUrl)];
+                        case 1:
+                            jwksRes = _g.sent();
+                            if (!jwksRes.ok)
+                                throw new Error("JWKS fetch failed: ".concat(jwksRes.status));
+                            return [4 /*yield*/, jwksRes.json()];
+                        case 2:
+                            jwks = (_g.sent());
+                            jwk = ((_e = jwks.keys) === null || _e === void 0 ? void 0 : _e.find(function (k) { return k.kid === unprotected.kid; })) ||
+                                ((_f = jwks.keys) === null || _f === void 0 ? void 0 : _f[0]);
+                            if (!jwk)
+                                throw new Error('Could not resolve JWK');
+                            _g.label = 3;
+                        case 3:
+                            _g.trys.push([3, 6, , 7]);
+                            _b = (_a = jose).compactVerify;
+                            _c = [idToken];
+                            return [4 /*yield*/, jose.importJWK(jwk, unprotected.alg)];
+                        case 4: return [4 /*yield*/, _b.apply(_a, _c.concat([_g.sent()]))];
+                        case 5:
+                            _g.sent();
+                            return [3 /*break*/, 7];
+                        case 6:
+                            err_1 = _g.sent();
+                            if (String(err_1).includes('2048') ||
+                                String(err_1).includes('modulusLength')) {
+                                key = (0, crypto_1.createPublicKey)({
+                                    key: jwk,
+                                    format: 'jwk',
+                                });
+                                _d = idToken.split('.'), headerB64 = _d[0], payloadB64 = _d[1], sigB64 = _d[2];
+                                data = Buffer.from("".concat(headerB64, ".").concat(payloadB64), 'utf8');
+                                sig = Buffer.from(sigB64, 'base64url');
+                                ok = (0, crypto_1.verify)('RSA-SHA256', data, key, sig);
+                                if (!ok)
+                                    throw new Error('Invalid signature');
+                            }
+                            else {
+                                throw err_1;
+                            }
+                            return [3 /*break*/, 7];
+                        case 7:
+                            if (expectedClientId) {
+                                aud = payload.aud;
+                                audienceOk = Array.isArray(aud)
+                                    ? aud.includes(expectedClientId)
+                                    : aud === expectedClientId;
+                                if (!audienceOk)
+                                    throw new Error('Invalid audience');
+                            }
+                            return [2 /*return*/, payload];
+                    }
+                });
             });
-        });
-    };
-    LaunchVerifyService = __decorate([
-        (0, common_1.Injectable)(),
-        __metadata("design:paramtypes", [config_1.ConfigService])
-    ], LaunchVerifyService);
-    return LaunchVerifyService;
-}());
+        };
+        return LaunchVerifyService_1;
+    }());
+    __setFunctionName(_classThis, "LaunchVerifyService");
+    (function () {
+        var _metadata = typeof Symbol === "function" && Symbol.metadata ? Object.create(null) : void 0;
+        __esDecorate(null, _classDescriptor = { value: _classThis }, _classDecorators, { kind: "class", name: _classThis.name, metadata: _metadata }, null, _classExtraInitializers);
+        LaunchVerifyService = _classThis = _classDescriptor.value;
+        if (_metadata) Object.defineProperty(_classThis, Symbol.metadata, { enumerable: true, configurable: true, writable: true, value: _metadata });
+        __runInitializers(_classThis, _classExtraInitializers);
+    })();
+    return LaunchVerifyService = _classThis;
+}();
 exports.LaunchVerifyService = LaunchVerifyService;

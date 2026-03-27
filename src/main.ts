@@ -2,8 +2,11 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { AppModule } from './app.module';
-import session from 'express-session';
 import * as express from 'express';
+import type { Request } from 'express';
+import type { Session } from 'express-session';
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- express-session is `export =`; Nest build reports TS1259 for default import from @types/express-session.
+import session = require('express-session');
 
 // IMPORTANT: Folder deletion is intentionally disabled in this tool.
 // Canvas requires recursive deletion of folder contents before the folder
@@ -20,8 +23,23 @@ async function bootstrap() {
 
   // Preserve raw request body for signature verification (LTI)
   // Capture urlencoded and json raw body into `req.rawBody`
-  app.use(express.urlencoded({ extended: false, limit: '2mb', verify: (req: any, _res, buf: Buffer) => { req.rawBody = buf.toString(); } }));
-  app.use(express.json({ limit: '2mb', verify: (req: any, _res, buf: Buffer) => { if (buf && buf.length) req.rawBody = buf.toString(); } }));
+  app.use(
+    express.urlencoded({
+      extended: false,
+      limit: '2mb',
+      verify: (req: Request, _res, buf: Buffer) => {
+        req.rawBody = buf.toString();
+      },
+    }),
+  );
+  app.use(
+    express.json({
+      limit: '2mb',
+      verify: (req: Request, _res, buf: Buffer) => {
+        if (buf && buf.length) req.rawBody = buf.toString();
+      },
+    }),
+  );
 
   app.use(
     session({
@@ -37,21 +55,28 @@ async function bootstrap() {
     }),
   );
 
-  app.use((req: any, _res, next) => {
-    const qaToken = req.headers['x-qa-canvas-token'];
-    const qaUrl = req.headers['x-qa-canvas-url'];
-    if (
-      process.env.QA_ACCESSIBILITY_ENABLED === '1' &&
-      qaToken &&
-      qaUrl &&
-      String(req.path || '').startsWith('/canvas/')
-    ) {
-      if (!req.session) req.session = {};
-      req.session.canvasToken = qaToken;
-      req.session.canvasUrl = String(qaUrl).replace(/\/+$/, '').replace(/\/api\/v1\/?$/, '') + '/api/v1';
-    }
-    next();
-  });
+  app.use(
+    (req: Request, _res: express.Response, next: express.NextFunction) => {
+      const qaToken = req.headers['x-qa-canvas-token'];
+      const qaUrl = req.headers['x-qa-canvas-url'];
+      if (
+        process.env.QA_ACCESSIBILITY_ENABLED === '1' &&
+        qaToken &&
+        qaUrl &&
+        String(req.path || '').startsWith('/canvas/')
+      ) {
+        if (!req.session) {
+          req.session = {} as Session;
+        }
+        req.session.canvasToken = qaToken as string;
+        req.session.canvasUrl =
+          String(qaUrl)
+            .replace(/\/+$/, '')
+            .replace(/\/api\/v1\/?$/, '') + '/api/v1';
+      }
+      next();
+    },
+  );
 
   // Path resolution for both local and deployed environments
   app.setBaseViewsDir(join(__dirname, '..', 'views'));
@@ -64,4 +89,4 @@ async function bootstrap() {
   await app.listen(port);
   console.log(`Application is running on port: ${port}`);
 }
-bootstrap();
+void bootstrap();
