@@ -2377,9 +2377,16 @@ async function generateAccessibilityFixPreview() {
     if (accessibilityGridApi && typeof accessibilityGridApi.getSelectedRows === 'function') {
         rowsData = accessibilityGridApi.getSelectedRows() || [];
     }
+    if (!rowsData.length && accessibilityGridApi?.forEachNodeAfterFilterAndSort) {
+        const filteredRows = [];
+        accessibilityGridApi.forEachNodeAfterFilterAndSort((node) => {
+            if (node?.data) filteredRows.push(node.data);
+        });
+        rowsData = filteredRows;
+    }
     if (!rowsData.length) {
-        showToast('Select at least one finding row to preview fixes.', 'warn');
-        if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Preview aborted: no accessibility rows selected', 'warn');
+        showToast('Select at least one finding row or apply a filter to preview fixes.', 'warn');
+        if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Preview aborted: no selected or filtered rows', 'warn');
         return;
     }
     if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Preview request starting: selected_rows=${rowsData.length}`, 'info');
@@ -2430,9 +2437,13 @@ function renderAccessibilityFixQueue(actions) {
         return;
     }
     queue.style.display = 'block';
-    const rows = actions.map((a, i) => `
+    const rows = actions.map((a, i) => {
+        const isManualOnly = String(a.fix_strategy || '') === 'manual_only';
+        const checkedAttr = isManualOnly ? '' : ' checked';
+        const disabledAttr = isManualOnly ? ' disabled' : '';
+        return `
         <tr>
-            <td style="padding:6px;"><input type="checkbox" class="acc-fix-approve" data-action-id="${escapeHtml(a.action_id)}" data-index="${i}" checked></td>
+            <td style="padding:6px;"><input type="checkbox" class="acc-fix-approve" data-action-id="${escapeHtml(a.action_id)}" data-index="${i}"${checkedAttr}${disabledAttr}></td>
             <td style="padding:6px;">${escapeHtml(ACCESSIBILITY_RULE_LABELS[a.rule_id] || a.rule_id)}</td>
             <td style="padding:6px;">${escapeHtml(a.resource_type)}</td>
             <td style="padding:6px;">${escapeHtml(a.resource_title || '').slice(0, 60)}</td>
@@ -2441,7 +2452,8 @@ function renderAccessibilityFixQueue(actions) {
             <td style="padding:6px;max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(a.before_snippet || '')}">${escapeHtml(String(a.before_snippet || '').slice(0, 80))}…</td>
             <td style="padding:6px;max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(a.after_snippet || '')}">${escapeHtml(String(a.after_snippet || '').slice(0, 80))}…</td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
     wrap.innerHTML = `
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
             <thead>
@@ -2533,27 +2545,55 @@ async function applyApprovedAccessibilityFixes() {
     if (statusEl) statusEl.textContent = 'Applying...';
     if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Apply request starting: approved_actions=${approved.length}`, 'info');
     try {
-        const res = await fetch(`/canvas/courses/${selectedCourseId}/accessibility/fix-apply`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ actions: approved })
-        });
-        if (!res.ok) {
-            const errText = await res.text().catch(() => res.statusText);
-            if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Apply HTTP failed: status=${res.status} body=${String(errText).slice(0, 600)}`, 'error');
-            throw new Error(errText);
+        const batches = [];
+        const chunkSize = 25;
+        for (let i = 0; i < approved.length; i += chunkSize) batches.push(approved.slice(i, i + chunkSize));
+        let fixed = 0;
+        let skipped = 0;
+        let failed = 0;
+        const fixedResultKeys = new Set();
+        for (let i = 0; i < batches.length; i++) {
+            if (statusEl) statusEl.textContent = `Applying... (${i + 1}/${batches.length})`;
+            const res = await fetch(`/canvas/courses/${selectedCourseId}/accessibility/fix-apply`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ actions: batches[i] })
+            });
+            if (!res.ok) {
+                const errText = await res.text().catch(() => res.statusText);
+                if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Apply HTTP failed: status=${res.status} body=${String(errText).slice(0, 600)}`, 'error');
+                throw new Error(errText);
+            }
+            const data = await res.json();
+            fixed += Number(data?.fixed || 0);
+            skipped += Number(data?.skipped || 0);
+            failed += Number(data?.failed || 0);
+            const batchResults = Array.isArray(data?.results) ? data.results : [];
+            batchResults.forEach((r) => {
+                if (String(r?.status || '') !== 'fixed') return;
+                fixedResultKeys.add(`${r?.resource_type || ''}:${r?.resource_id || ''}:${r?.rule_id || ''}`);
+            });
         }
-        const data = await res.json();
-        const { fixed = 0, skipped = 0, failed = 0 } = data;
         if (typeof debugLog === 'function') debugLog(`[Accessibility Fix] Apply success: fixed=${fixed} skipped=${skipped} failed=${failed}`, failed > 0 ? 'warn' : 'info');
-        const beforeCount = accessibilityLastReport?.summary?.total_findings ?? 0;
         if (statusEl) statusEl.textContent = `Fixed: ${fixed}, Skipped: ${skipped}, Failed: ${failed}`;
         showToast(`Applied fixes: ${fixed} fixed, ${skipped} skipped, ${failed} failed.`, fixed > 0 ? 'success' : 'info');
         if (fixed > 0) {
-            await runAccessibilityScan();
-            const afterCount = accessibilityLastReport?.summary?.total_findings ?? 0;
-            if (statusEl) statusEl.textContent = `Before: ${beforeCount} findings → After: ${afterCount} findings. Fixed: ${fixed}, Skipped: ${skipped}, Failed: ${failed}`;
+            const approvedKeySet = new Set(approved.map(a => `${a.resource_type}:${a.resource_id}:${a.rule_id}`));
+            const keysToRemove = fixedResultKeys.size ? fixedResultKeys : approvedKeySet;
+            accessibilityFixPreviewActions = (accessibilityFixPreviewActions || []).filter(
+                a => !keysToRemove.has(`${a.resource_type}:${a.resource_id}:${a.rule_id}`)
+            );
+            renderAccessibilityFixQueue(accessibilityFixPreviewActions);
+            if (accessibilityGridApi?.forEachNode && accessibilityGridApi?.applyTransaction) {
+                const toRemove = [];
+                accessibilityGridApi.forEachNode((node) => {
+                    const d = node?.data || {};
+                    const key = `${d.resource_type || ''}:${d.resource_id || ''}:${d.rule_id || ''}`;
+                    if (keysToRemove.has(key)) toRemove.push(d);
+                });
+                if (toRemove.length) accessibilityGridApi.applyTransaction({ remove: toRemove });
+            }
         }
     } catch (e) {
         if (typeof debugLog === 'function') debugLog('[Accessibility Fix] Apply failed: ' + (e?.stack || e?.message || String(e)), 'error');
@@ -4269,7 +4309,15 @@ async function syncChanges() {
                 debugLog('[Sync] BULK HTTP FAILED: tab=' + currentTab + ' status=' + response.status + ' endpoint=' + url + ' response=' + rawText.slice(0, 1000), 'error');
                 throw new Error(toRequestErrorMessage(response, rawText));
             }
-            return req;
+            let payload = null;
+            try { payload = await response.json(); } catch { payload = null; }
+            const failedById = new Map();
+            if (Array.isArray(payload)) {
+                payload.forEach((entry) => {
+                    if (entry?.success === false) failedById.set(String(entry?.id), String(entry?.error || 'Bulk item failed'));
+                });
+            }
+            return { req, failedById };
         });
 
         const perItemResults = await runWithConcurrency(perItemRequests, REQUEST_CONCURRENCY_LIMIT, async (req) => {
@@ -4302,9 +4350,19 @@ async function syncChanges() {
         const succeededRowIds = new Set();
 
         bulkResults.forEach((result, idx) => {
-            const req = bulkRequests[idx];
+            const fallbackReq = bulkRequests[idx];
             if (result.status === 'fulfilled') {
+                const req = result.value?.req || fallbackReq;
+                const failedById = result.value?.failedById || new Map();
                 req.originalItemIds.forEach(id => {
+                    if (failedById.has(String(id))) {
+                        let label = id;
+                        gridApi.forEachNode(nd => {
+                            if (String(nd.data?.id || nd.data?.url) === String(id)) label = nd.data?.name ?? nd.data?.title ?? nd.data?.display_name ?? id;
+                        });
+                        errors.push({ itemId: id, label, message: failedById.get(String(id)) });
+                        return;
+                    }
                     succeededRowIds.add(String(id));
                     delete changes[currentTab][id];
                     gridApi.forEachNode(node => {
@@ -4320,7 +4378,7 @@ async function syncChanges() {
                     });
                 });
             } else {
-                req.originalItemIds.forEach(id => {
+                fallbackReq.originalItemIds.forEach(id => {
                     let label = id;
                     gridApi.forEachNode(nd => {
                         if (String(nd.data?.id || nd.data?.url) === String(id)) label = nd.data?.name ?? nd.data?.title ?? nd.data?.display_name ?? id;

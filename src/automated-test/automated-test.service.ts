@@ -324,6 +324,10 @@ export class AutomatedTestService {
       case 'due_at':
       case 'unlock_at':
       case 'lock_at':
+      case 'publish_at':
+      case 'delayed_post_at':
+      case 'show_correct_answers_at':
+      case 'hide_correct_answers_at':
         updateValue[param] = new Date().toISOString();
         break;
       case 'published':
@@ -333,6 +337,10 @@ export class AutomatedTestService {
         break;
       case 'discussion_type':
         updateValue[param] = 'threaded';
+        break;
+      case 'allow_rating':
+      case 'published':
+        updateValue[param] = true;
         break;
       case 'editing_roles':
         updateValue[param] = 'teachers';

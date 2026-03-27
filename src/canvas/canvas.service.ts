@@ -74,7 +74,7 @@ function accessibilityTierForRuleId(ruleId: string): 1 | 2 {
 const ACCESSIBILITY_FIXABILITY_MAP: Record<string, AccessibilityFixabilityContract> = {
   adjacent_duplicate_links: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'merge_duplicate_links', supports_preview: true, requires_content_fetch: true },
   list_empty_item: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'remove_empty_li', supports_preview: true, requires_content_fetch: true },
-  heading_empty: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'remove_empty_heading', supports_preview: true, requires_content_fetch: true },
+  heading_empty: { auto_fixable: false, fix_strategy: 'suggested', false_positive_risk: 'medium', risk: 'medium', fix_type: 'remove_empty_heading', supports_preview: true, requires_content_fetch: true },
   link_new_tab_no_warning: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'append_new_tab_warning', supports_preview: true, requires_content_fetch: true },
   font_size_too_small: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'low', risk: 'low', fix_type: 'font_size_min_12', supports_preview: true, requires_content_fetch: true },
   media_autoplay: { auto_fixable: true, fix_strategy: 'auto', false_positive_risk: 'medium', risk: 'medium', fix_type: 'remove_media_autoplay', supports_preview: true, requires_content_fetch: true },
@@ -222,6 +222,62 @@ function cleanContentUpdates(
     }
   });
   return cleanedUpdates;
+}
+
+function normalizeUpdatePayload(
+  updates: Record<string, any>,
+  options: {
+    clearableTextFields: boolean;
+    nullableKeys?: Set<string>;
+    floorIntegerKeys?: Set<string>;
+  },
+): Record<string, any> {
+  const cleaned: Record<string, any> = {};
+  Object.keys(updates || {}).forEach((key) => {
+    const value = updates[key];
+    if (value === undefined) return;
+    const dateVal = processDateField(key, value);
+    if (dateVal !== undefined) {
+      cleaned[key] = dateVal;
+      return;
+    }
+    if ((value === null || value === '') && options.clearableTextFields && CLEARABLE_CONTENT_KEYS.has(key)) {
+      cleaned[key] = value === null ? null : '';
+      return;
+    }
+    if (value === null && options.nullableKeys?.has(key)) {
+      cleaned[key] = null;
+      return;
+    }
+    if (options.floorIntegerKeys?.has(key)) {
+      const n = typeof value === 'number' ? value : parseInt(String(value), 10);
+      cleaned[key] = isNaN(n) || n < 0 ? null : Math.floor(n);
+      return;
+    }
+    if (value === null || value === '') return;
+    cleaned[key] = value;
+  });
+  return cleaned;
+}
+
+function splitNewQuizTextUpdates(pending: Record<string, any>): { assignmentUpdates: Record<string, any>; quizUpdates: { instructions?: string; title?: string } } {
+  const assignmentUpdates: Record<string, any> = { ...(pending || {}) };
+  const quizUpdates: { instructions?: string; title?: string } = {};
+  if (Object.prototype.hasOwnProperty.call(assignmentUpdates, 'description')) {
+    const rawDesc = assignmentUpdates.description;
+    quizUpdates.instructions = rawDesc === null || rawDesc === undefined ? '' : String(rawDesc);
+    delete assignmentUpdates.description;
+  }
+  if (Object.prototype.hasOwnProperty.call(assignmentUpdates, 'name')) {
+    const rawTitle = assignmentUpdates.name;
+    quizUpdates.title = rawTitle === null || rawTitle === undefined ? '' : String(rawTitle);
+    delete assignmentUpdates.name;
+  }
+  return { assignmentUpdates, quizUpdates };
+}
+
+function getDiscussionDateRoutingPolicy(isAnnouncement: boolean): { dateDetailKeys: string[] } {
+  return { dateDetailKeys: isAnnouncement ? ['due_at', 'unlock_at'] : ['due_at', 'unlock_at', 'lock_at'] };
 }
 
 @Injectable({ scope: Scope.REQUEST })
@@ -533,19 +589,9 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
   async updateNewQuizRow(courseId: number, assignmentId: number, updates: Record<string, any>) {
     const { token, baseUrl } = await this.getAuthHeaders();
-    const assignmentUpdates: Record<string, any> = { ...updates };
-    const quizUpdates: { instructions?: string; title?: string } = {};
-
-    if (Object.prototype.hasOwnProperty.call(assignmentUpdates, 'description')) {
-      const rawDesc = assignmentUpdates.description;
-      quizUpdates.instructions = rawDesc === null || rawDesc === undefined ? '' : String(rawDesc);
-      delete assignmentUpdates.description;
-    }
-    if (Object.prototype.hasOwnProperty.call(assignmentUpdates, 'name')) {
-      const rawTitle = assignmentUpdates.name;
-      quizUpdates.title = rawTitle === null || rawTitle === undefined ? '' : String(rawTitle);
-      delete assignmentUpdates.name;
-    }
+    const split = splitNewQuizTextUpdates(updates);
+    const assignmentUpdates: Record<string, any> = split.assignmentUpdates;
+    const quizUpdates: { instructions?: string; title?: string } = split.quizUpdates;
 
     if (Object.keys(quizUpdates).length > 0) {
       await this.patchNewQuizByAssignment(courseId, assignmentId, quizUpdates, token, baseUrl);
@@ -1496,7 +1542,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
         this.fetchPaginatedData(`${baseUrl}/courses/${courseId}/assignments?per_page=100`, token).catch(() => []),
         this.fetchPaginatedData(`${baseUrl}/courses/${courseId}/quizzes?per_page=100`, token).catch(() => []),
         this.fetchPaginatedData(`${baseUrl}/courses/${courseId}/pages?per_page=100`, token).catch(() => []),
-        this.fetchPaginatedData(`${baseUrl}/courses/${courseId}/discussions?per_page=100`, token).catch(() => []),
+        this.fetchPaginatedData(`${baseUrl}/courses/${courseId}/discussion_topics?per_page=100`, token).catch(() => []),
       ]);
       
       assignments.forEach((assignment: any) => {
@@ -1808,54 +1854,17 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
           resolvedAsNewQuiz: isNewQuiz,
         });
         if (isNewQuiz) {
-          const quizUpdates: { instructions?: string; title?: string } = {};
-          if (Object.prototype.hasOwnProperty.call(pending, 'description')) {
-            const rawDesc = pending.description;
-            quizUpdates.instructions = rawDesc === null || rawDesc === undefined ? '' : String(rawDesc);
-            delete pending.description;
-          }
-          if (Object.prototype.hasOwnProperty.call(pending, 'name')) {
-            const rawTitle = pending.name;
-            quizUpdates.title = rawTitle === null || rawTitle === undefined ? '' : String(rawTitle);
-            delete pending.name;
-          }
+          const split = splitNewQuizTextUpdates(pending);
+          const quizUpdates = split.quizUpdates;
+          Object.keys(pending).forEach((k) => delete pending[k]);
+          Object.assign(pending, split.assignmentUpdates);
           if (Object.keys(quizUpdates).length > 0) {
             await this.patchNewQuizByAssignment(courseId, assignmentId, quizUpdates, token, baseUrl);
           }
         }
       }
 
-      const cleanedUpdates: Record<string, any> = {};
-      Object.keys(pending).forEach(key => {
-        const value = pending[key];
-        const dateVal = processDateField(key, value);
-        if (dateVal !== undefined) {
-          cleanedUpdates[key] = dateVal;
-          return;
-        }
-        if (value === undefined) return;
-        if ((value === null || value === '') && CLEARABLE_CONTENT_KEYS.has(key)) {
-          cleanedUpdates[key] = value === null ? null : '';
-          return;
-        }
-        if (value === null || value === '') return;
-
-        // Handle boolean values
-        if (typeof value === 'boolean') {
-          cleanedUpdates[key] = value;
-        }
-        // Handle numbers
-        else if (typeof value === 'number') {
-          cleanedUpdates[key] = value;
-        }
-        // Handle strings
-        else if (typeof value === 'string') {
-          cleanedUpdates[key] = value;
-        }
-        else {
-          cleanedUpdates[key] = value;
-        }
-      });
+      const cleanedUpdates = normalizeUpdatePayload(pending, { clearableTextFields: true });
       
       if (Object.keys(cleanedUpdates).length === 0) {
         if (rubricSelection !== undefined) {
@@ -1985,48 +1994,10 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       delete pending.rubric_url;
       delete pending.rubric_association_id;
 
-      const cleanedUpdates: Record<string, any> = {};
-      Object.keys(pending).forEach(key => {
-        const value = pending[key];
-        if (value === undefined) return;
-        const dateVal = processDateField(key, value);
-        if (dateVal !== undefined) {
-          cleanedUpdates[key] = dateVal;
-          return;
-        }
-        if ((value === null || value === '') && CLEARABLE_CONTENT_KEYS.has(key)) {
-          cleanedUpdates[key] = value === null ? null : '';
-          return;
-        }
-        if (value === null && NULLABLE_QUIZ_FIELDS.has(key)) {
-          cleanedUpdates[key] = null;
-          return;
-        }
-        if (key === 'time_limit') {
-          const n = typeof value === 'number' ? value : parseInt(String(value), 10);
-          if (isNaN(n) || n < 0) {
-            cleanedUpdates[key] = null;
-          } else {
-            cleanedUpdates[key] = Math.floor(n);
-          }
-          return;
-        }
-        if (value === null || value === '') return;
-
-        if (typeof value === 'boolean') {
-          cleanedUpdates[key] = value;
-        }
-        // Handle numbers
-        else if (typeof value === 'number') {
-          cleanedUpdates[key] = value;
-        }
-        // Handle strings
-        else if (typeof value === 'string') {
-          cleanedUpdates[key] = value;
-        }
-        else {
-          cleanedUpdates[key] = value;
-        }
+      const cleanedUpdates = normalizeUpdatePayload(pending, {
+        clearableTextFields: true,
+        nullableKeys: NULLABLE_QUIZ_FIELDS,
+        floorIntegerKeys: new Set(['time_limit']),
       });
 
       delete cleanedUpdates.points_possible;
@@ -2375,7 +2346,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
     });
 
     const dateDetailsUpdates: Record<string, any> = {};
-    const dateDetailKeys = isAnnouncement ? ['due_at', 'unlock_at'] : ['due_at', 'unlock_at', 'lock_at'];
+    const { dateDetailKeys } = getDiscussionDateRoutingPolicy(isAnnouncement);
     dateDetailKeys.forEach((k) => {
       if (Object.prototype.hasOwnProperty.call(discussionUpdates, k)) {
         dateDetailsUpdates[k] = discussionUpdates[k];
@@ -6985,13 +6956,14 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       action_id: string;
       resource_type: string;
       resource_id: string;
+      rule_id?: string;
       status: 'fixed' | 'skipped' | 'failed';
       error?: string;
     }>;
   }> {
     const crypto = await import('crypto');
     const hash = (s: string) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
-    const results: Array<{ action_id: string; resource_type: string; resource_id: string; status: 'fixed' | 'skipped' | 'failed'; error?: string }> = [];
+    const results: Array<{ action_id: string; resource_type: string; resource_id: string; rule_id?: string; status: 'fixed' | 'skipped' | 'failed'; error?: string }> = [];
     let fixed = 0;
     let skipped = 0;
     let failed = 0;
@@ -7002,12 +6974,12 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       if (!byResource.has(key)) {
         const content = await this.fetchAccessibilityResourceContent(courseId, a.resource_type, a.resource_id);
         if (!content) {
-          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, status: 'failed', error: 'Could not fetch resource content' });
+          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, rule_id: a.rule_id, status: 'failed', error: 'Could not fetch resource content' });
           failed++;
           continue;
         }
         if (hash(content.html) !== a.content_hash) {
-          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, status: 'skipped', error: 'Content changed since preview' });
+          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, rule_id: a.rule_id, status: 'skipped', error: 'Content changed since preview' });
           skipped++;
           continue;
         }
@@ -7015,7 +6987,7 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
       }
       const entry = byResource.get(key)!;
       if (hash(entry.html) !== a.content_hash) {
-        results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, status: 'skipped', error: 'Content hash mismatch' });
+        results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, rule_id: a.rule_id, status: 'skipped', error: 'Content hash mismatch' });
         skipped++;
         continue;
       }
@@ -7024,33 +6996,48 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
 
     for (const [, entry] of byResource) {
       let html = entry.html;
+      const appliedActionIds = new Set<string>();
 
       for (const a of entry.actions) {
         if (a.fix_strategy === 'manual_only') {
-          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, status: 'skipped', error: a.error_note || 'Marked manual_only in preview' });
+          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, rule_id: a.rule_id, status: 'skipped', error: a.error_note || 'Marked manual_only in preview' });
           skipped++;
           continue;
         }
         const c = ACCESSIBILITY_FIXABILITY_MAP[a.rule_id];
         if (a.before_html && typeof a.after_html === 'string' && a.after_html !== '(removed)' && html.includes(a.before_html)) {
           html = html.replace(a.before_html, a.after_html);
+          appliedActionIds.add(a.action_id);
           continue;
         }
         if (a.before_html && a.after_html === '(removed)' && html.includes(a.before_html)) {
           html = html.replace(a.before_html, '');
+          appliedActionIds.add(a.action_id);
           continue;
         }
         if (typeof a.proposed_html === 'string' && a.proposed_html.trim()) {
-          html = a.proposed_html;
+          const nextHtml = a.proposed_html;
+          if (nextHtml !== html) {
+            html = nextHtml;
+            appliedActionIds.add(a.action_id);
+          }
           continue;
         }
         if (c?.fix_type) {
           const result = this.runFixExecutor(html, c.fix_type);
-          if (result) html = result.newHtml;
+          if (result && result.newHtml !== html) {
+            html = result.newHtml;
+            appliedActionIds.add(a.action_id);
+          }
+        }
+        if (!appliedActionIds.has(a.action_id)) {
+          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, rule_id: a.rule_id, status: 'skipped', error: 'No effective content change for action' });
+          skipped++;
         }
       }
 
       try {
+        if (!appliedActionIds.size) continue;
         if (entry.resourceType === 'pages') {
           await this.updatePage(courseId, entry.updateKey, { wiki_page: { body: html } });
         } else if (entry.resourceType === 'assignments') {
@@ -7070,18 +7057,20 @@ private async getTermMap(): Promise<Record<number, { name: string; end: string }
           if (!r.ok) throw new Error(`Syllabus update failed: ${r.status}`);
         } else {
           for (const a of entry.actions) {
-            results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, status: 'failed', error: 'Unsupported resource type' });
+            results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, rule_id: a.rule_id, status: 'failed', error: 'Unsupported resource type' });
             failed++;
           }
           continue;
         }
         for (const a of entry.actions) {
-          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, status: 'fixed' });
+          if (!appliedActionIds.has(a.action_id)) continue;
+          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, rule_id: a.rule_id, status: 'fixed' });
           fixed++;
         }
       } catch (e: any) {
         for (const a of entry.actions) {
-          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, status: 'failed', error: e?.message ?? 'Update failed' });
+          if (!appliedActionIds.has(a.action_id)) continue;
+          results.push({ action_id: a.action_id, resource_type: a.resource_type, resource_id: a.resource_id, rule_id: a.rule_id, status: 'failed', error: e?.message ?? 'Update failed' });
           failed++;
         }
       }

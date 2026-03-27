@@ -20,8 +20,8 @@ async function bootstrap() {
 
   // Preserve raw request body for signature verification (LTI)
   // Capture urlencoded and json raw body into `req.rawBody`
-  app.use(express.urlencoded({ extended: false, verify: (req: any, _res, buf: Buffer) => { req.rawBody = buf.toString(); } }));
-  app.use(express.json({ verify: (req: any, _res, buf: Buffer) => { if (buf && buf.length) req.rawBody = buf.toString(); } }));
+  app.use(express.urlencoded({ extended: false, limit: '2mb', verify: (req: any, _res, buf: Buffer) => { req.rawBody = buf.toString(); } }));
+  app.use(express.json({ limit: '2mb', verify: (req: any, _res, buf: Buffer) => { if (buf && buf.length) req.rawBody = buf.toString(); } }));
 
   app.use(
     session({
