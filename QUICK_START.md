@@ -70,13 +70,20 @@ The FFT course is only a **download source**. Do **not** import your own content
 
 Importing the **`.imscc`** already installs the **Canvas Bulk Edit** / **Bulk Editor** tool with the correct **launch URL** and tool configuration. Under normal alpha setup you do **not** choose a separate “config type,” paste XML again, or re-enter the launch URL.
 
-If Canvas still shows a security / external-tool warning, it is usually because **Consumer Key** and/or **Shared Secret** were not in the export (common for security) and must be filled in once:
+If Canvas still shows a security / external-tool warning, it is usually because **Consumer Key** and/or **Shared Secret** were not in the export (common for security) and must be filled in once.
+
+**Enter these in the tool configuration** (other fields should already match the import):
+
+| Field | Value |
+|:---|:---|
+| **Consumer Key** | `1234` |
+| **Shared Secret** | `5678` |
 
 | Step | Action |
 |:---:|:---|
 | 1 | **Settings** → **Apps** → **View App Configurations**. |
 | 2 | **Canvas Bulk Edit** / **Bulk Editor** → **gear** → **Edit**. |
-| 3 | Enter **Consumer Key** and **Shared Secret** exactly as your **pilot lead** provides (secure handoff). Leave other fields as imported unless the pilot tells you to change them. |
+| 3 | Paste or type the **Consumer Key** and **Shared Secret** from the table above (or updated values if your pilot gave you different ones). Leave launch URL and other imported fields as-is unless the pilot says otherwise. |
 | 4 | **Submit** / save. The warning should clear when those values match the app server. |
 
 ---
