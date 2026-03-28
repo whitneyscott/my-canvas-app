@@ -13,6 +13,10 @@ import {
   suggestIframeTitleFromSrc,
   truncateHeadingText,
 } from './accessibility-heuristics';
+import {
+  getLinkCheckAllowlistHosts,
+  probeHttpUrlBroken,
+} from './accessibility-link-probe';
 
 interface CanvasCourse {
   id: number;
@@ -9354,6 +9358,59 @@ export class CanvasService {
     return findings;
   }
 
+  private async evaluateLinkBrokenFindingsForHtml(
+    base: Omit<
+      AccessibilityFinding,
+      'rule_id' | 'tier' | 'severity' | 'message' | 'snippet'
+    >,
+    html: string,
+  ): Promise<AccessibilityFinding[]> {
+    const findings: AccessibilityFinding[] = [];
+    const allowHosts = getLinkCheckAllowlistHosts();
+    const content = String(html || '');
+    if (!content.trim() || allowHosts.length === 0) return findings;
+    const anchorRegex = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+    const probed = new Set<string>();
+    let aMatch: RegExpExecArray | null;
+    while ((aMatch = anchorRegex.exec(content)) !== null) {
+      const attrs = aMatch[1] || '';
+      const hrefMatch = attrs.match(
+        /\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+      );
+      const raw = (
+        hrefMatch?.[2] ??
+        hrefMatch?.[3] ??
+        hrefMatch?.[4] ??
+        ''
+      ).trim();
+      if (!raw || !/^https?:\/\//i.test(raw)) continue;
+      let u: URL;
+      try {
+        u = new URL(raw);
+      } catch {
+        continue;
+      }
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
+      const host = u.hostname.toLowerCase();
+      if (!allowHosts.includes(host)) continue;
+      const canon = `${u.protocol}//${u.host}${u.pathname}${u.search}`;
+      if (probed.has(canon)) continue;
+      probed.add(canon);
+      const outcome = await probeHttpUrlBroken(u.href);
+      if (outcome === 'broken') {
+        this.addFinding(
+          findings,
+          base,
+          'link_broken',
+          'medium',
+          'This link returned an error or was not found. Replace or remove it.',
+          aMatch[0],
+        );
+      }
+    }
+    return findings;
+  }
+
   async getAccessibilityScan(
     courseId: number,
     options: AccessibilityScanOptions = {},
@@ -9511,6 +9568,12 @@ export class CanvasService {
         );
         all.push(
           ...this.evaluateAccessibilityTier2ForHtml(base, resource.html),
+        );
+        all.push(
+          ...(await this.evaluateLinkBrokenFindingsForHtml(
+            base,
+            resource.html,
+          )),
         );
       }
       return all;

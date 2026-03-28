@@ -164,6 +164,8 @@ async function main() {
       if (reg.pending_heuristic) entry.pending_heuristic = true;
       if (typeof f.dual_option_choice === 'string' && f.dual_option_choice.trim())
         entry.dual_option_choice = f.dual_option_choice.trim();
+      if (typeof f.broken_link_url === 'string' && f.broken_link_url.trim())
+        entry.broken_link_url = f.broken_link_url.trim();
     }
     try {
       if (f.content_type === 'pages') {

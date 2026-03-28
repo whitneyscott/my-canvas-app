@@ -335,7 +335,7 @@ async function main() {
       }
 
       const rk = resourceKey(fixture);
-      const resourceFindings = byResource.get(rk) || [];
+      let resourceFindings = byResource.get(rk) || [];
       const tier = fixture.expectation_tier || 'strict';
       report.by_tier[tier] = report.by_tier[tier] || {
         pass: 0,
@@ -363,10 +363,37 @@ async function main() {
         continue;
       }
 
-      const { scannerOk, notes } = assertScannerForFixture(
+      let { scannerOk, notes } = assertScannerForFixture(
         fixture,
         resourceFindings,
       );
+      if (
+        !scannerOk &&
+        (fixture.broken_link_url || fixture.rule_id === 'link_broken')
+      ) {
+        const retries = Math.max(
+          2,
+          Number(process.env.QA_LINK_SCAN_RETRIES) || 3,
+        );
+        for (let a = 1; a < retries && !scannerOk; a++) {
+          await new Promise((r) => setTimeout(r, 1500));
+          try {
+            scanData = await fetchScan(apiBase, courseId, headers);
+          } catch {
+            continue;
+          }
+          findings = scanData.findings || [];
+          const br = indexFindingsByResource(findings);
+          byResource.clear();
+          for (const [k, v] of br.entries()) {
+            byResource.set(k, v);
+          }
+          resourceFindings = byResource.get(rk) || [];
+          const again = assertScannerForFixture(fixture, resourceFindings);
+          scannerOk = again.scannerOk;
+          notes = again.notes;
+        }
+      }
       const status = scannerOk ? 'pass' : 'fail';
       let fixStatus = 'n/a';
       let fixNotes = '';

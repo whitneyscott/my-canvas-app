@@ -185,6 +185,24 @@
       "html": "<p>Assignment SproutVideo:</p><iframe src=\"https://videos.sproutvideo.com/embed/00000000/qa-placeholder\" width=\"560\" height=\"315\"></iframe>"
     },
     {
+      "fixture_id": "page_link_broken_allowlisted",
+      "rule_id": "link_broken",
+      "content_type": "pages",
+      "location_hint": "page-link-broken-allowlisted",
+      "expectation_tier": "strict",
+      "broken_link_url": "https://httpstat.us/404",
+      "html": "<p>Allowlisted broken URL (httpstat.us): <a href=\"https://httpstat.us/404\">Expected 404 probe</a></p>"
+    },
+    {
+      "fixture_id": "assign_link_broken_allowlisted",
+      "rule_id": "link_broken",
+      "content_type": "assignments",
+      "location_hint": "[QA] Assignment link_broken allowlisted",
+      "expectation_tier": "strict",
+      "broken_link_url": "https://httpstat.us/404",
+      "html": "<p>Assignment allowlisted broken link: <a href=\"https://httpstat.us/404\">Expected 404 probe</a></p>"
+    },
+    {
       "fixture_id": "page_clean_control",
       "rule_id": null,
       "content_type": "pages",

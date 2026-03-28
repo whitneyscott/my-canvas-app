@@ -85,6 +85,8 @@ That only affects the **current** PowerShell window. To go back to scan-only, cl
 | QA_REPORT_PATH | — | ✓ | Override report output path |
 | QA_FIX_AUTO | — | ✓ | Set `1` to verify non-AI `auto` fixes (preview → apply → re-scan) |
 | QA_FIX_AUTO_AI | — | ✓ | Set `1` with `QA_FIX_AUTO=1` to include `uses_ai` auto rules (calls Anthropic) |
+| QA_LINK_SCAN_RETRIES | — | ✓ | Max scan refetches for `link_broken` fixtures when the HTTP probe is flaky (default `3`) |
+| ACCESSIBILITY_LINK_CHECK_HOSTS | — | (server) | Comma-separated extra hostnames allowed for `link_broken` HTTP probes in the Nest process (default includes `httpstat.us`) |
 
 ## Server note
 
