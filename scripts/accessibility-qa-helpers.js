@@ -65,9 +65,9 @@ function resolveCanvasApiBaseForScripts() {
 
 function resolveCanvasTokenForScripts() {
   return (
+    process.env.CANVAS_ACCESS_TOKEN ||
     process.env.CANVAS_TOKEN ||
     process.env.QA_CANVAS_TOKEN ||
-    process.env.CANVAS_ACCESS_TOKEN ||
     ''
   ).trim();
 }
