@@ -85,6 +85,8 @@ If `QA_FIX_AUTO` was still set from earlier, the first `qa:accessibility:run` **
 
 **Required order (one runner command per workflow — rebuild before each fix pass):** `kill:api-port` → **`qa:accessibility:build`** or **`qa:accessibility:build:force`** → start API → **one** `qa:accessibility:run` with `QA_FIX_AUTO=1`. After that fix pass, if you want another fix pass or a trustworthy scan-only, **build again** — do not run `qa:accessibility:run` twice in a row without a build between.
 
+The builder and the runner are **often different terminals** (or different windows). That is fine: the runner only reads `test/fixtures/accessibility-qa/manifest.json` from disk and calls the API. Use the **same repo path** and **same Canvas token/base** as the builder; wait until the builder prints **`Manifest written to`** before starting the runner.
+
 **PowerShell — fix mode (single paste, one run):**
 
 ```powershell
