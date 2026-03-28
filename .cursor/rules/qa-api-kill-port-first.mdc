@@ -1,0 +1,18 @@
+---
+description: Nest API and accessibility QA steps must start with freeing port 3002 / killing stray processes.
+alwaysApply: true
+---
+
+# QA / API — kill port first
+
+Whenever you give **copy-paste steps** (or extend RUNBOOK-style docs) for:
+
+- `npm run start:api`, `start:dev`, or any Nest listen on **3002**
+- `npm run qa:accessibility:*` (runner expects API up)
+
+**Always put this block first** (PowerShell, repo root), before starting the API or assuming port 3002 is free:
+
+1. `npm run kill:api-port`
+2. If still in use: `netstat -ano | findstr :3002` then `taskkill /PID <pid> /F`
+
+Do not skip this unless the user explicitly says the port is already clear.
