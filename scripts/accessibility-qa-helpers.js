@@ -3,8 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULT_CANVAS_API_BASE =
-  'https://canvas.instructure.com/api/v1';
+const DEFAULT_CANVAS_API_BASE = 'http://localhost:3000/api/v1';
 
 function normalizeCanvasApiV1Base(raw) {
   const s = String(raw || '').trim();

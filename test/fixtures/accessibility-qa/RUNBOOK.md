@@ -18,7 +18,7 @@ export CANVAS_ACCESS_TOKEN="your_canvas_api_token"
 npm run qa:accessibility:build
 ```
 
-Token resolution: **`CANVAS_ACCESS_TOKEN`**, then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`. Canvas API base: **`CANVAS_BASE_URL`** or **`QA_CANVAS_BASE_URL`** if set; otherwise the same default as local app login (`https://canvas.instructure.com/api/v1`). For Canvas OSS or another host, set `CANVAS_BASE_URL` (e.g. `http://localhost:3000/api/v1`).
+Token resolution: **`CANVAS_ACCESS_TOKEN`**, then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`. Canvas API base: **`CANVAS_BASE_URL`** or **`QA_CANVAS_BASE_URL`** if set; otherwise **`http://localhost:3000/api/v1`** (Canvas LMS in Docker / local OSS). For hosted Instructure (or any other host), set `CANVAS_BASE_URL` (e.g. `https://yourschool.instructure.com/api/v1`).
 
 Creates/updates course `[QA][A11y] Automated Fixtures` (code `QA-A11Y-FIX`), injects Pages and Assignments with intentional violations, writes `test/fixtures/accessibility-qa/manifest.json` (includes `fix_strategy`, `uses_ai`, `is_image_rule`, `uses_second_stage_ai`, `dual_option`, `pending_heuristic` per fixture where applicable).
 
@@ -51,7 +51,7 @@ Runner loads manifest, calls scan API with `X-QA-Canvas-Token` and `X-QA-Canvas-
 | CANVAS_ACCESS_TOKEN | ✓ | ✓ | Canvas API token (preferred name in this repo’s `.env`) |
 | CANVAS_TOKEN | ✓ | ✓ | Alternate token (optional) |
 | QA_CANVAS_TOKEN | ✓ | ✓ | Alternate token for QA-only runs (optional) |
-| CANVAS_BASE_URL | ✓ | ✓ | Canvas API base; optional if default host matches (`https://canvas.instructure.com/api/v1`) |
+| CANVAS_BASE_URL | ✓ | ✓ | Canvas API base; optional if default matches Docker OSS (`http://localhost:3000/api/v1`) |
 | QA_CANVAS_BASE_URL | ✓ | ✓ | Overrides `CANVAS_BASE_URL` when set |
 | QA_ACCESSIBILITY_ENABLED | — | (server) | Set `1` so server accepts QA headers |
 | API_BASE_URL | — | ✓ | App URL (default `http://localhost:3002`) |

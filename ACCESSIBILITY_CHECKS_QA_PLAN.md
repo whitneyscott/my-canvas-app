@@ -69,7 +69,7 @@ QA_ACCESSIBILITY_ENABLED=1
 QA_COURSE_ID=<populated automatically after first builder run>
 ```
 
-**Recommended:** Point QA scripts at OSS using `QA_CANVAS_BASE_URL` (or `CANVAS_BASE_URL`) when not using the default host. **Token resolution (scripts):** `CANVAS_ACCESS_TOKEN` (this repo’s `.env` name), then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`. **API base (scripts):** `CANVAS_BASE_URL` or `QA_CANVAS_BASE_URL`, else the same default as local app UI: `https://canvas.instructure.com/api/v1` (`scripts/accessibility-qa-helpers.js`).
+**Recommended:** For hosted Canvas, set `CANVAS_BASE_URL` / `QA_CANVAS_BASE_URL`. **Token resolution (scripts):** `CANVAS_ACCESS_TOKEN`, then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`. **API base (scripts):** explicit URL or default **`http://localhost:3000/api/v1`** for Docker / local Canvas OSS (`scripts/accessibility-qa-helpers.js`). The Bulk Editor **browser login** default remains `https://canvas.instructure.com/api/v1` in `AppController` for online sessions; QA CLI defaults are intentionally different.
 
 ### Local Service Routing Switch
 
@@ -91,9 +91,9 @@ QA_COURSE_ID=<populated automatically after first builder run>
 
 | Variable | Local QA | Local Dev | Render |
 |---|---|---|---|
-| `CANVAS_BASE_URL` | Optional in scripts (default instructure API base) | Institution/dev Canvas | Institution Canvas |
+| `CANVAS_BASE_URL` | Optional in scripts (default `http://localhost:3000/api/v1` for Docker OSS) | Institution/dev Canvas | Institution Canvas |
 | `CANVAS_ACCESS_TOKEN` / `CANVAS_TOKEN` / `QA_CANVAS_TOKEN` | Script token chain | Dev token | N/A for header QA path |
-| `QA_CANVAS_BASE_URL` | OSS `http://localhost:3000/...` (recommended) | *(not set)* | *(must not be set)* |
+| `QA_CANVAS_BASE_URL` | Override when Canvas is not on default Docker port/host | *(not set)* | *(must not be set)* |
 | `QA_CANVAS_TOKEN` | OSS token (recommended) | *(not set)* | *(must not be set)* |
 | `QA_ACCESSIBILITY_ENABLED` | `1` on Nest process for runner | *(not set)* | *(ignored for header override when `NODE_ENV=production`)* |
 | `API_BASE_URL` / `QA_API_BASE_URL` | Runner → Nest (default `http://localhost:3002`) | — | — |
