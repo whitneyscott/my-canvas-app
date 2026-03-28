@@ -24,7 +24,7 @@ Token resolution: **`CANVAS_ACCESS_TOKEN`**, then `CANVAS_TOKEN`, then `QA_CANVA
 
 1. If **`CANVAS_BASE_URL`** or **`QA_CANVAS_BASE_URL`** is set, that URL is used (any host).
 2. Else **`CANVAS_QA_PROFILE`** (alias **`QA_CANVAS_PROFILE`**) must select which *known* default applies:
-   - **`docker`** or **`local`** → `http://localhost:3000/api/v1` (typical Canvas OSS in Docker)
+   - **`docker`** or **`local`** → `http://127.0.0.1:3000/api/v1` (typical Canvas OSS in Docker; `127.0.0.1` avoids Windows IPv6 `localhost` issues)
    - **`online`** or **`hosted`** → `https://canvas.instructure.com/api/v1` (hosted Instructure-style API host)
 
 If neither an explicit URL nor a profile is set, the scripts exit with an error. The builder and runner load the project **`.env`** first (without overriding variables already set in the shell).
@@ -77,6 +77,25 @@ Runner loads manifest, calls scan API with `X-QA-Canvas-Token` and `X-QA-Canvas-
 ## Server note
 
 With `QA_ACCESSIBILITY_ENABLED=1`, **header override is disabled when `NODE_ENV=production`**, even if the variable is set. The process logs a warning at startup when `QA_ACCESSIBILITY_ENABLED=1`.
+
+## Connection refused / `fetch failed` / `ECONNREFUSED`
+
+Run these **on the same PC** where Docker and the repo live (your terminal, not a remote agent).
+
+1. **Confirm the real published port**  
+   `docker ps` — find the Canvas container and the host mapping (e.g. `0.0.0.0:3000->3000/tcp`). If the left side is not `3000`, set **`CANVAS_BASE_URL`** to that port, e.g. `http://127.0.0.1:8080/api/v1`.
+
+2. **Confirm the host can reach Canvas**  
+   `curl.exe -I http://127.0.0.1:3000/` (use your port). You should get an HTTP response, not timeout/refused.
+
+3. **Windows + Node: prefer `127.0.0.1` over `localhost`**  
+   Node may resolve `localhost` to IPv6 (`::1`) while Docker only listens on IPv4 — same machine still fails. The **`docker`** profile default uses `http://127.0.0.1:3000/api/v1`. If you set **`CANVAS_BASE_URL`** yourself, use `127.0.0.1` unless you know IPv6 works.
+
+4. **Override with an explicit URL**  
+   In `.env`: `CANVAS_BASE_URL=http://127.0.0.1:<port>/api/v1` — this wins over `CANVAS_QA_PROFILE`.
+
+5. **Token**  
+   The token must be issued **on that same Canvas instance** (Account → Settings → New Access Token).
 
 ## Protection
 

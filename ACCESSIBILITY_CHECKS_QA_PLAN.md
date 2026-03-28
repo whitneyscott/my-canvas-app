@@ -69,7 +69,7 @@ QA_ACCESSIBILITY_ENABLED=1
 QA_COURSE_ID=<populated automatically after first builder run>
 ```
 
-**QA scripts (`accessibility-qa-helpers.js`):** **Token:** `CANVAS_ACCESS_TOKEN`, then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`. **API base:** `CANVAS_BASE_URL` / `QA_CANVAS_BASE_URL` if set; otherwise **`CANVAS_QA_PROFILE`** (`docker`|`local` → localhost OSS default, `online`|`hosted` → Instructure API default). No third hidden default — missing both URL and profile is an error. Project `.env` is loaded for CLI runs without overriding existing shell env. **Browser login** in `AppController` keeps its own defaults; that path is separate.
+**QA scripts (`accessibility-qa-helpers.js`):** **Token:** `CANVAS_ACCESS_TOKEN`, then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`. **API base:** `CANVAS_BASE_URL` / `QA_CANVAS_BASE_URL` if set; otherwise **`CANVAS_QA_PROFILE`** (`docker`|`local` → `http://127.0.0.1:3000/api/v1` by default — IPv4 loopback avoids Windows `localhost`→IPv6 issues with Docker; `online`|`hosted` → Instructure API default). No third hidden default — missing both URL and profile is an error. Project `.env` is loaded for CLI runs without overriding existing shell env. **Browser login** in `AppController` keeps its own defaults; that path is separate.
 
 ### Local Service Routing Switch
 

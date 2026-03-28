@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const CANVAS_QA_DEFAULT_BASES = {
-  docker: 'http://localhost:3000/api/v1',
+  docker: 'http://127.0.0.1:3000/api/v1',
   online: 'https://canvas.instructure.com/api/v1',
 };
 
