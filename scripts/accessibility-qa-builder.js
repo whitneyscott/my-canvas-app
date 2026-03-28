@@ -5,10 +5,13 @@ const fs = require('fs');
 const path = require('path');
 const {
   loadFixabilityMapFromDist,
+  loadLocalProjectDotEnv,
   enrichFixtureRegistryFields,
   resolveCanvasApiBaseForScripts,
   resolveCanvasTokenForScripts,
 } = require('./accessibility-qa-helpers');
+
+loadLocalProjectDotEnv();
 
 const QA_COURSE_NAME = '[QA][A11y] Automated Fixtures';
 const QA_COURSE_CODE = 'QA-A11Y-FIX';
@@ -103,7 +106,13 @@ async function createOrUpdateAssignment(baseUrl, token, courseId, name, descript
 
 async function main() {
   const token = resolveCanvasTokenForScripts();
-  const baseUrl = resolveCanvasApiBaseForScripts();
+  let baseUrl;
+  try {
+    baseUrl = resolveCanvasApiBaseForScripts();
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
   if (!token) {
     console.error(
       'Set CANVAS_ACCESS_TOKEN, CANVAS_TOKEN, or QA_CANVAS_TOKEN',

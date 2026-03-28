@@ -5,9 +5,12 @@ const fs = require('fs');
 const path = require('path');
 const {
   manifestContentTypeToScanResourceType,
+  loadLocalProjectDotEnv,
   resolveCanvasApiBaseForScripts,
   resolveCanvasTokenForScripts,
 } = require('./accessibility-qa-helpers');
+
+loadLocalProjectDotEnv();
 
 async function fetchScan(apiBase, courseId, headers) {
   const scanUrl = `${apiBase}/canvas/courses/${courseId}/accessibility/scan`;
@@ -151,7 +154,13 @@ async function main() {
     path.join(__dirname, '..', 'test', 'fixtures', 'accessibility-qa', 'manifest.json');
   const apiBase = process.env.API_BASE_URL || process.env.QA_API_BASE_URL || 'http://localhost:3002';
   const token = resolveCanvasTokenForScripts();
-  const baseUrl = resolveCanvasApiBaseForScripts();
+  let baseUrl;
+  try {
+    baseUrl = resolveCanvasApiBaseForScripts();
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
   const strictAll = process.env.QA_STRICT_ALL === '1';
   const fixAuto = process.env.QA_FIX_AUTO === '1';
   const fixAutoAi = process.env.QA_FIX_AUTO_AI === '1';

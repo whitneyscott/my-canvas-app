@@ -3,7 +3,32 @@
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULT_CANVAS_API_BASE = 'http://localhost:3000/api/v1';
+const CANVAS_QA_DEFAULT_BASES = {
+  docker: 'http://localhost:3000/api/v1',
+  online: 'https://canvas.instructure.com/api/v1',
+};
+
+function loadLocalProjectDotEnv() {
+  const envPath = path.join(__dirname, '..', '.env');
+  if (!fs.existsSync(envPath)) return;
+  const text = fs.readFileSync(envPath, 'utf8');
+  for (const line of text.split('\n')) {
+    const s = line.trim();
+    if (!s || s.startsWith('#')) continue;
+    const eq = s.indexOf('=');
+    if (eq < 1) continue;
+    const key = s.slice(0, eq).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    let val = s.slice(eq + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    if (process.env[key] === undefined) process.env[key] = val;
+  }
+}
 
 function normalizeCanvasApiV1Base(raw) {
   const s = String(raw || '').trim();
@@ -14,7 +39,28 @@ function normalizeCanvasApiV1Base(raw) {
 function resolveCanvasApiBaseForScripts() {
   const explicit =
     process.env.CANVAS_BASE_URL || process.env.QA_CANVAS_BASE_URL || '';
-  return normalizeCanvasApiV1Base(explicit.trim() || DEFAULT_CANVAS_API_BASE);
+  if (explicit.trim()) {
+    return normalizeCanvasApiV1Base(explicit.trim());
+  }
+  const profile = String(
+    process.env.CANVAS_QA_PROFILE || process.env.QA_CANVAS_PROFILE || '',
+  )
+    .trim()
+    .toLowerCase();
+  if (profile === 'docker' || profile === 'local') {
+    return normalizeCanvasApiV1Base(CANVAS_QA_DEFAULT_BASES.docker);
+  }
+  if (profile === 'online' || profile === 'hosted') {
+    return normalizeCanvasApiV1Base(CANVAS_QA_DEFAULT_BASES.online);
+  }
+  throw new Error(
+    [
+      'Canvas API base is ambiguous: set CANVAS_BASE_URL or QA_CANVAS_BASE_URL,',
+      'or set CANVAS_QA_PROFILE to choose a default:',
+      `  docker → ${CANVAS_QA_DEFAULT_BASES.docker} (Canvas OSS / Docker)`,
+      `  online → ${CANVAS_QA_DEFAULT_BASES.online} (hosted Instructure-style)`,
+    ].join('\n'),
+  );
 }
 
 function resolveCanvasTokenForScripts() {
@@ -86,10 +132,11 @@ function enrichFixtureRegistryFields(ruleId, fixabilityMap) {
 
 module.exports = {
   loadFixabilityMapFromDist,
+  loadLocalProjectDotEnv,
   manifestContentTypeToScanResourceType,
   enrichFixtureRegistryFields,
   DUAL_OPTION_RULE_IDS,
-  DEFAULT_CANVAS_API_BASE,
+  CANVAS_QA_DEFAULT_BASES,
   normalizeCanvasApiV1Base,
   resolveCanvasApiBaseForScripts,
   resolveCanvasTokenForScripts,

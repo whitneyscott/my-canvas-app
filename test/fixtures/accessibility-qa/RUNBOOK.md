@@ -18,7 +18,18 @@ export CANVAS_ACCESS_TOKEN="your_canvas_api_token"
 npm run qa:accessibility:build
 ```
 
-Token resolution: **`CANVAS_ACCESS_TOKEN`**, then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`. Canvas API base: **`CANVAS_BASE_URL`** or **`QA_CANVAS_BASE_URL`** if set; otherwise **`http://localhost:3000/api/v1`** (Canvas LMS in Docker / local OSS). For hosted Instructure (or any other host), set `CANVAS_BASE_URL` (e.g. `https://yourschool.instructure.com/api/v1`).
+Token resolution: **`CANVAS_ACCESS_TOKEN`**, then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`.
+
+**Canvas API base (differentiated — no silent single default):**
+
+1. If **`CANVAS_BASE_URL`** or **`QA_CANVAS_BASE_URL`** is set, that URL is used (any host).
+2. Else **`CANVAS_QA_PROFILE`** (alias **`QA_CANVAS_PROFILE`**) must select which *known* default applies:
+   - **`docker`** or **`local`** → `http://localhost:3000/api/v1` (typical Canvas OSS in Docker)
+   - **`online`** or **`hosted`** → `https://canvas.instructure.com/api/v1` (hosted Instructure-style API host)
+
+If neither an explicit URL nor a profile is set, the scripts exit with an error. The builder and runner load the project **`.env`** first (without overriding variables already set in the shell).
+
+The Bulk Editor **browser** login still uses its own default URL in `AppController`; that is separate from these CLI rules.
 
 Creates/updates course `[QA][A11y] Automated Fixtures` (code `QA-A11Y-FIX`), injects Pages and Assignments with intentional violations, writes `test/fixtures/accessibility-qa/manifest.json` (includes `fix_strategy`, `uses_ai`, `is_image_rule`, `uses_second_stage_ai`, `dual_option`, `pending_heuristic` per fixture where applicable).
 
@@ -51,8 +62,10 @@ Runner loads manifest, calls scan API with `X-QA-Canvas-Token` and `X-QA-Canvas-
 | CANVAS_ACCESS_TOKEN | ✓ | ✓ | Canvas API token (preferred name in this repo’s `.env`) |
 | CANVAS_TOKEN | ✓ | ✓ | Alternate token (optional) |
 | QA_CANVAS_TOKEN | ✓ | ✓ | Alternate token for QA-only runs (optional) |
-| CANVAS_BASE_URL | ✓ | ✓ | Canvas API base; optional if default matches Docker OSS (`http://localhost:3000/api/v1`) |
+| CANVAS_BASE_URL | ✓ | ✓ | Canvas API base when set (wins over profile) |
 | QA_CANVAS_BASE_URL | ✓ | ✓ | Overrides `CANVAS_BASE_URL` when set |
+| CANVAS_QA_PROFILE | ✓ | ✓ | `docker` \| `local` \| `online` \| `hosted` when URL envs unset |
+| QA_CANVAS_PROFILE | ✓ | ✓ | Same as `CANVAS_QA_PROFILE` |
 | QA_ACCESSIBILITY_ENABLED | — | (server) | Set `1` so server accepts QA headers |
 | API_BASE_URL | — | ✓ | App URL (default `http://localhost:3002`) |
 | MANIFEST_PATH | — | ✓ | Override manifest path |
