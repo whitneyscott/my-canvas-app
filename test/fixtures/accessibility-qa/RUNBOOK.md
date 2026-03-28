@@ -75,6 +75,14 @@ npm run qa:accessibility:run
 
 That only affects the **current** PowerShell window. To go back to scan-only, close the window or run `$env:QA_FIX_AUTO = $null` before `npm run qa:accessibility:run`. Token and Canvas URL still come from `.env` or variables you already use for the normal run.
 
+**Scan-only, then fix-mode in the same PowerShell session:** before the scan-only run, clear fix mode so the first command cannot mutate Canvas:
+
+```powershell
+Remove-Item Env:QA_FIX_AUTO -ErrorAction SilentlyContinue
+```
+
+If `QA_FIX_AUTO` was still set from earlier, the first `qa:accessibility:run` **applies fixes**; the second run (with fix on again) then often shows strict scanner **`got 0`** and `fix_fail=0` — not because the tool is broken, but because the course was already cleared on the first command.
+
 **Note:** fix mode **mutates** the QA course HTML in Canvas (then re-scans). If you need a clean course again, re-run `npm run qa:accessibility:build` afterward.
 
 ### 2.1 Verify auto + dual-option fixes (full tool)

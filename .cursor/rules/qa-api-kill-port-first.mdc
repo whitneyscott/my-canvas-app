@@ -16,3 +16,15 @@ Whenever you give **copy-paste steps** (or extend RUNBOOK-style docs) for:
 2. If still in use: `netstat -ano | findstr :3002` then `taskkill /PID <pid> /F`
 
 Do not skip this unless the user explicitly says the port is already clear.
+
+## Accessibility runner order (avoid bogus `got 0` failures)
+
+When giving **two** `npm run qa:accessibility:run` blocks (scan-only, then fix-mode):
+
+1. **Before scan-only**, require clearing fix mode so the first run cannot mutate Canvas:
+   `Remove-Item Env:QA_FIX_AUTO -ErrorAction SilentlyContinue`
+   (A leftover `QA_FIX_AUTO=1` in that shell makes the “scan” run apply fixes and clears violations; the **next** run then fails strict scanner with `got 0`.)
+
+2. Do **not** present scan + fix as a single paste **without** that clear step and **without** stating that **only one** fix pass is expected per fresh course; a **second** fix pass needs **`qa:accessibility:build`** (or `:force`) first (RUNBOOK §2.1).
+
+3. Do not tell the user to “pull/sync” when you can run `git pull` in the repo yourself.
