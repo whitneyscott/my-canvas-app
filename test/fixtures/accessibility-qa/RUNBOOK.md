@@ -13,11 +13,12 @@ Per [ACCESSIBILITY_CHECKS_QA_PLAN.md](../../ACCESSIBILITY_CHECKS_QA_PLAN.md).
 `npm run qa:accessibility:build` runs **`nest build`** first so the builder can load `ACCESSIBILITY_FIXABILITY_MAP` from `dist/canvas/canvas.service.js` and embed registry fields in the manifest.
 
 ```bash
-export CANVAS_TOKEN="your_canvas_api_token"
-export CANVAS_BASE_URL="https://your-canvas.instance.edu/api/v1"
+export CANVAS_ACCESS_TOKEN="your_canvas_api_token"
 
 npm run qa:accessibility:build
 ```
+
+Token resolution: **`CANVAS_ACCESS_TOKEN`**, then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`. Canvas API base: **`CANVAS_BASE_URL`** or **`QA_CANVAS_BASE_URL`** if set; otherwise the same default as local app login (`https://canvas.instructure.com/api/v1`). For Canvas OSS or another host, set `CANVAS_BASE_URL` (e.g. `http://localhost:3000/api/v1`).
 
 Creates/updates course `[QA][A11y] Automated Fixtures` (code `QA-A11Y-FIX`), injects Pages and Assignments with intentional violations, writes `test/fixtures/accessibility-qa/manifest.json` (includes `fix_strategy`, `uses_ai`, `is_image_rule`, `uses_second_stage_ai`, `dual_option`, `pending_heuristic` per fixture where applicable).
 
@@ -33,8 +34,7 @@ npm run start:api
 In another terminal:
 
 ```bash
-export CANVAS_TOKEN="your_canvas_api_token"
-export CANVAS_BASE_URL="https://your-canvas.instance.edu/api/v1"
+export CANVAS_ACCESS_TOKEN="your_canvas_api_token"
 export API_BASE_URL="http://localhost:3002"   # default
 
 npm run qa:accessibility:run
@@ -48,8 +48,11 @@ Runner loads manifest, calls scan API with `X-QA-Canvas-Token` and `X-QA-Canvas-
 
 | Var | Builder | Runner | Description |
 |-----|---------|--------|-------------|
-| CANVAS_TOKEN | ✓ | ✓ | Canvas API token |
-| CANVAS_BASE_URL | ✓ | ✓ | Canvas API base (e.g. `https://canvas.example.edu/api/v1`) |
+| CANVAS_ACCESS_TOKEN | ✓ | ✓ | Canvas API token (preferred name in this repo’s `.env`) |
+| CANVAS_TOKEN | ✓ | ✓ | Alternate token (optional) |
+| QA_CANVAS_TOKEN | ✓ | ✓ | Alternate token for QA-only runs (optional) |
+| CANVAS_BASE_URL | ✓ | ✓ | Canvas API base; optional if default host matches (`https://canvas.instructure.com/api/v1`) |
+| QA_CANVAS_BASE_URL | ✓ | ✓ | Overrides `CANVAS_BASE_URL` when set |
 | QA_ACCESSIBILITY_ENABLED | — | (server) | Set `1` so server accepts QA headers |
 | API_BASE_URL | — | ✓ | App URL (default `http://localhost:3002`) |
 | MANIFEST_PATH | — | ✓ | Override manifest path |

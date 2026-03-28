@@ -6,6 +6,8 @@ const path = require('path');
 const {
   loadFixabilityMapFromDist,
   enrichFixtureRegistryFields,
+  resolveCanvasApiBaseForScripts,
+  resolveCanvasTokenForScripts,
 } = require('./accessibility-qa-helpers');
 
 const QA_COURSE_NAME = '[QA][A11y] Automated Fixtures';
@@ -100,10 +102,12 @@ async function createOrUpdateAssignment(baseUrl, token, courseId, name, descript
 }
 
 async function main() {
-  const token = process.env.CANVAS_TOKEN || process.env.QA_CANVAS_TOKEN;
-  const baseUrl = (process.env.CANVAS_BASE_URL || process.env.QA_CANVAS_BASE_URL || '').replace(/\/api\/v1\/?$/, '') + '/api/v1';
-  if (!token || !baseUrl) {
-    console.error('Set CANVAS_TOKEN and CANVAS_BASE_URL (or QA_* equivalents)');
+  const token = resolveCanvasTokenForScripts();
+  const baseUrl = resolveCanvasApiBaseForScripts();
+  if (!token) {
+    console.error(
+      'Set CANVAS_ACCESS_TOKEN, CANVAS_TOKEN, or QA_CANVAS_TOKEN',
+    );
     process.exit(1);
   }
   const fixturesPath = path.join(__dirname, '..', 'test', 'fixtures', 'accessibility-qa', 'fixtures.json');

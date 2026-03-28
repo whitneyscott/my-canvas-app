@@ -3,6 +3,30 @@
 const fs = require('fs');
 const path = require('path');
 
+const DEFAULT_CANVAS_API_BASE =
+  'https://canvas.instructure.com/api/v1';
+
+function normalizeCanvasApiV1Base(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  return s.replace(/\/+$/, '').replace(/\/api\/v1\/?$/, '') + '/api/v1';
+}
+
+function resolveCanvasApiBaseForScripts() {
+  const explicit =
+    process.env.CANVAS_BASE_URL || process.env.QA_CANVAS_BASE_URL || '';
+  return normalizeCanvasApiV1Base(explicit.trim() || DEFAULT_CANVAS_API_BASE);
+}
+
+function resolveCanvasTokenForScripts() {
+  return (
+    process.env.CANVAS_TOKEN ||
+    process.env.QA_CANVAS_TOKEN ||
+    process.env.CANVAS_ACCESS_TOKEN ||
+    ''
+  ).trim();
+}
+
 const DUAL_OPTION_RULE_IDS = new Set([
   'aria_hidden_focusable',
   'table_layout_heuristic',
@@ -66,4 +90,8 @@ module.exports = {
   manifestContentTypeToScanResourceType,
   enrichFixtureRegistryFields,
   DUAL_OPTION_RULE_IDS,
+  DEFAULT_CANVAS_API_BASE,
+  normalizeCanvasApiV1Base,
+  resolveCanvasApiBaseForScripts,
+  resolveCanvasTokenForScripts,
 };

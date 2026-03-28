@@ -5,6 +5,8 @@ const fs = require('fs');
 const path = require('path');
 const {
   manifestContentTypeToScanResourceType,
+  resolveCanvasApiBaseForScripts,
+  resolveCanvasTokenForScripts,
 } = require('./accessibility-qa-helpers');
 
 async function fetchScan(apiBase, courseId, headers) {
@@ -148,8 +150,8 @@ async function main() {
     process.env.QA_MANIFEST_PATH ||
     path.join(__dirname, '..', 'test', 'fixtures', 'accessibility-qa', 'manifest.json');
   const apiBase = process.env.API_BASE_URL || process.env.QA_API_BASE_URL || 'http://localhost:3002';
-  const token = process.env.CANVAS_TOKEN || process.env.QA_CANVAS_TOKEN;
-  const baseUrl = process.env.CANVAS_BASE_URL || process.env.QA_CANVAS_BASE_URL;
+  const token = resolveCanvasTokenForScripts();
+  const baseUrl = resolveCanvasApiBaseForScripts();
   const strictAll = process.env.QA_STRICT_ALL === '1';
   const fixAuto = process.env.QA_FIX_AUTO === '1';
   const fixAutoAi = process.env.QA_FIX_AUTO_AI === '1';
@@ -158,8 +160,10 @@ async function main() {
     console.error(`Manifest not found: ${manifestPath}. Run the builder first.`);
     process.exit(1);
   }
-  if (!token || !baseUrl) {
-    console.error('Set CANVAS_TOKEN and CANVAS_BASE_URL (or QA_* equivalents)');
+  if (!token) {
+    console.error(
+      'Set CANVAS_ACCESS_TOKEN, CANVAS_TOKEN, or QA_CANVAS_TOKEN',
+    );
     process.exit(1);
   }
 

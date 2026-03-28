@@ -55,7 +55,7 @@ Canvas will be available at `http://localhost:3000` after initial setup complete
 **After setup:**
 1. Create an admin account
 2. Generate an API token: Account → Settings → New Access Token
-3. Set `CANVAS_BASE_URL=http://localhost:3000` and `CANVAS_TOKEN=<your-token>` in your local `.env`
+3. Set `CANVAS_ACCESS_TOKEN=<your-token>` in `.env`; for OSS set `CANVAS_BASE_URL=http://localhost:3000/api/v1` (or your API base). Hosted Instructure Canvas can omit `CANVAS_BASE_URL` if the default API host is correct.
 4. Run the QA course builder: `npm run qa:accessibility:build` (script: `scripts/accessibility-qa-builder.js`)
 
 ### Environment variables for QA
@@ -69,7 +69,7 @@ QA_ACCESSIBILITY_ENABLED=1
 QA_COURSE_ID=<populated automatically after first builder run>
 ```
 
-**Recommended:** Point QA scripts at OSS using `QA_CANVAS_BASE_URL` and `QA_CANVAS_TOKEN` only. **Current code:** builder and runner also accept `CANVAS_BASE_URL` / `CANVAS_TOKEN` as fallbacks (`scripts/accessibility-qa-builder.js`, `scripts/accessibility-qa-runner.js`), which is convenient but weaker than strict separation.
+**Recommended:** Point QA scripts at OSS using `QA_CANVAS_BASE_URL` (or `CANVAS_BASE_URL`) when not using the default host. **Token resolution (scripts):** `CANVAS_ACCESS_TOKEN` (this repo’s `.env` name), then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`. **API base (scripts):** `CANVAS_BASE_URL` or `QA_CANVAS_BASE_URL`, else the same default as local app UI: `https://canvas.instructure.com/api/v1` (`scripts/accessibility-qa-helpers.js`).
 
 ### Local Service Routing Switch
 
@@ -91,8 +91,8 @@ QA_COURSE_ID=<populated automatically after first builder run>
 
 | Variable | Local QA | Local Dev | Render |
 |---|---|---|---|
-| `CANVAS_BASE_URL` | Optional fallback in scripts | Institution/dev Canvas | Institution Canvas |
-| `CANVAS_TOKEN` | Optional fallback in scripts | Developer token | Teacher token (session) |
+| `CANVAS_BASE_URL` | Optional in scripts (default instructure API base) | Institution/dev Canvas | Institution Canvas |
+| `CANVAS_ACCESS_TOKEN` / `CANVAS_TOKEN` / `QA_CANVAS_TOKEN` | Script token chain | Dev token | N/A for header QA path |
 | `QA_CANVAS_BASE_URL` | OSS `http://localhost:3000/...` (recommended) | *(not set)* | *(must not be set)* |
 | `QA_CANVAS_TOKEN` | OSS token (recommended) | *(not set)* | *(must not be set)* |
 | `QA_ACCESSIBILITY_ENABLED` | `1` on Nest process for runner | *(not set)* | *(ignored for header override when `NODE_ENV=production`)* |
@@ -490,7 +490,7 @@ For rules with `dual_option: true` in the manifest (`aria_hidden_focusable`, `ta
 
 ### 4.5 CI/CD integration
 
-- **Manual / on-demand:** `npm run qa:accessibility:build` then start Nest with `QA_ACCESSIBILITY_ENABLED=1`, then `npm run qa:accessibility:run`. Env vars: see [`test/fixtures/accessibility-qa/RUNBOOK.md`](./test/fixtures/accessibility-qa/RUNBOOK.md) (`CANVAS_TOKEN`, `CANVAS_BASE_URL`, `API_BASE_URL`, `MANIFEST_PATH` / `QA_MANIFEST_PATH`, `QA_REPORT_PATH`, `QA_STRICT_ALL`). There is **no** single `npm run qa:accessibility` umbrella script.
+- **Manual / on-demand:** `npm run qa:accessibility:build` then start Nest with `QA_ACCESSIBILITY_ENABLED=1`, then `npm run qa:accessibility:run`. Env vars: see [`test/fixtures/accessibility-qa/RUNBOOK.md`](./test/fixtures/accessibility-qa/RUNBOOK.md) (`CANVAS_ACCESS_TOKEN` / token fallbacks, optional `CANVAS_BASE_URL`, `API_BASE_URL`, `MANIFEST_PATH` / `QA_MANIFEST_PATH`, `QA_REPORT_PATH`, `QA_STRICT_ALL`). There is **no** single `npm run qa:accessibility` umbrella script.
 - **Pipeline (future):** Nightly or pre-deploy against Canvas OSS or isolated staging only; secrets in CI vault; **no** production Canvas URL; fail build on regression flag; artifact upload of JSON report.
 
 ### 4.6 Rate limiting
