@@ -620,6 +620,11 @@ async function main() {
         (r) => r.scanner_status === 'fail' || r.fix_status === 'fail',
       ),
     );
+    if (fixAuto && strictFail > 0 && strictFixFail === 0) {
+      console.error(
+        '[QA] Scanner failed but fix_fail=0: the QA course may already be fixed from a prior run. Run npm run qa:accessibility:build, then retry. See RUNBOOK §2.1.',
+      );
+    }
     process.exit(1);
   }
 }

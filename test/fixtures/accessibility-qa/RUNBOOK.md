@@ -71,6 +71,10 @@ That only affects the **current** PowerShell window. To go back to scan-only, cl
 
 ### 2.1 Verify auto + dual-option fixes (full tool)
 
+**Every** fix run **writes** Canvas HTML. A **second** `qa:accessibility:run:fix` (or `run:fix:ai`) **without** a new `qa:accessibility:build` will usually show **strict scanner failures** on all **`fix_strategy: auto`** rows (`got 0` for the expected rule): those pages/topics were already cleared on the last fix pass. **`fix_fail` can still be 0** — that only measures preview/apply errors, not “violations still present.”
+
+**Required order:** `qa:accessibility:build` → start API → `qa:accessibility:run:fix` (then, if you need scan-only green again, build once more).
+
 Use a **fresh** course after Phase 1 (`npm run qa:accessibility:build`). Start the API as in §2, then:
 
 ```powershell
