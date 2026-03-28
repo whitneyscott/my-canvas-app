@@ -17,14 +17,12 @@ Whenever you give **copy-paste steps** (or extend RUNBOOK-style docs) for:
 
 Do not skip this unless the user explicitly says the port is already clear.
 
-## Accessibility runner order (avoid bogus `got 0` failures)
+## Accessibility runner — one `qa:accessibility:run` per paste; build before fix-mode
 
-When giving **two** `npm run qa:accessibility:run` blocks (scan-only, then fix-mode):
+- **Do not** put **two** `npm run qa:accessibility:run` lines in one copy-paste block. If they need scan-only **and** fix-mode, give **two separate** sections and put **`npm run qa:accessibility:build`** or **`npm run qa:accessibility:build:force`** **between** them (re-seed violations). Never imply “run A then run B” without that build in the middle.
 
-1. **Before scan-only**, require clearing fix mode so the first run cannot mutate Canvas:
-   `Remove-Item Env:QA_FIX_AUTO -ErrorAction SilentlyContinue`
-   (A leftover `QA_FIX_AUTO=1` in that shell makes the “scan” run apply fixes and clears violations; the **next** run then fails strict scanner with `got 0`.)
+- **Fix-mode** (`QA_FIX_AUTO=1`): always include **`npm run qa:accessibility:build:force`** (or `qa:accessibility:build`) **in the same flow immediately before** the single fix run, so the course still has seeded violations. Do **not** label that build “optional” for fix-mode.
 
-2. Do **not** present scan + fix as a single paste **without** that clear step and **without** stating that **only one** fix pass is expected per fresh course; a **second** fix pass needs **`qa:accessibility:build`** (or `:force`) first (RUNBOOK §2.1).
+- **Scan-only**: before it, `Remove-Item Env:QA_FIX_AUTO -ErrorAction SilentlyContinue` so the shell is not still in fix-mode.
 
-3. Do not tell the user to “pull/sync” when you can run `git pull` in the repo yourself.
+- Do not tell the user to “pull/sync” when you can run `git pull` in the repo yourself.

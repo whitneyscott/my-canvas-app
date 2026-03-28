@@ -65,15 +65,9 @@ Runner loads manifest, calls **`GET .../accessibility/scan` once** at the start 
 
 **Optional auto-fix verification:** set `QA_FIX_AUTO=1` for `fix-preview-item` → `fix-apply` → **evaluate-html** (not a course re-scan). **Auto rules:** `fix_strategy === 'auto'` (skips `uses_ai` unless `QA_FIX_AUTO_AI=1`). **Dual-option suggested rules:** manifest rows with `dual_option_choice` use `edited_suggestion` as today. Rows with `dual_option` but no `dual_option_choice` are skipped for fix. Default is scan-only (`QA_FIX_AUTO` unset). **`QA_FIX_VERIFY=apply_only`** skips evaluate-html after apply (apply-only; weaker).
 
-**PowerShell (same machine, second terminal — API still running in the first):**
+**Fix-mode needs a course that still has violations:** run **`npm run qa:accessibility:build`** or **`npm run qa:accessibility:build:force`** **before** the fix run (same workflow — do not paste two `qa:accessibility:run` commands back-to-back without a build in between). Full PowerShell flow is in **§2.1**.
 
-```powershell
-cd C:\dev\Canvas-Bulk-Editor
-$env:QA_FIX_AUTO = "1"
-npm run qa:accessibility:run
-```
-
-That only affects the **current** PowerShell window. To go back to scan-only, close the window or run `$env:QA_FIX_AUTO = $null` before `npm run qa:accessibility:run`. Token and Canvas URL still come from `.env` or variables you already use for the normal run.
+To leave fix-mode in a shell: `Remove-Item Env:QA_FIX_AUTO -ErrorAction SilentlyContinue` (or new window) before a scan-only run.
 
 **Scan-only, then fix-mode in the same PowerShell session:** before the scan-only run, clear fix mode so the first command cannot mutate Canvas:
 
@@ -89,16 +83,34 @@ If `QA_FIX_AUTO` was still set from earlier, the first `qa:accessibility:run` **
 
 **Every** fix run **writes** Canvas HTML. A **second** `qa:accessibility:run:fix` (or `run:fix:ai`) **without** a new `qa:accessibility:build` will usually show **strict scanner failures** on all **`fix_strategy: auto`** rows (`got 0` for the expected rule): those pages/topics were already cleared on the last fix pass. **`fix_fail` can still be 0** — that only measures preview/apply errors, not “violations still present.”
 
-**Required order:** `qa:accessibility:build` → start API → `qa:accessibility:run:fix` (then, if you need scan-only green again, build once more).
+**Required order (one runner command per workflow — rebuild before each fix pass):** `kill:api-port` → **`qa:accessibility:build`** or **`qa:accessibility:build:force`** → start API → **one** `qa:accessibility:run` with `QA_FIX_AUTO=1`. After that fix pass, if you want another fix pass or a trustworthy scan-only, **build again** — do not run `qa:accessibility:run` twice in a row without a build between.
 
-Use a **fresh** course after Phase 1 (`npm run qa:accessibility:build`). Start the API as in §2, then:
+**PowerShell — fix mode (single paste, one run):**
 
 ```powershell
 cd C:\dev\Canvas-Bulk-Editor
-npm run qa:accessibility:run:fix
+npm run kill:api-port
+npm run qa:accessibility:build:force
 ```
 
-Same as `QA_FIX_AUTO=1` + `qa:accessibility:run`: runs **`fix-preview-item` → `fix-apply` → evaluate-html** for manifest rows with **`fix_strategy === 'auto'`** and `uses_ai === false`, and for **`dual_option` + `dual_option_choice`** rows. **`fix_strategy: suggested`** rows without dual-option still show `fix_status` **skip** (expected). Exit **0** only if strict **scanner** and strict **fix** tiers both pass (`fix_fail=0`). A **final full course scan** still runs after the loop unless **`QA_FINAL_SCAN=0`**.
+Terminal A (leave running):
+
+```powershell
+cd C:\dev\Canvas-Bulk-Editor
+$env:QA_ACCESSIBILITY_ENABLED = "1"
+npm run start:api
+```
+
+Terminal B:
+
+```powershell
+cd C:\dev\Canvas-Bulk-Editor
+$env:API_BASE_URL = "http://127.0.0.1:3002"
+$env:QA_FIX_AUTO = "1"
+npm run qa:accessibility:run
+```
+
+Equivalent to **`npm run qa:accessibility:run:fix`** when that script sets `QA_FIX_AUTO=1`. Runs **`fix-preview-item` → `fix-apply` → evaluate-html** for manifest rows with **`fix_strategy === 'auto'`** and `uses_ai === false`, and for **`dual_option` + `dual_option_choice`** rows. **`fix_strategy: suggested`** rows without dual-option still show `fix_status` **skip** (expected). Exit **0** only if strict **scanner** and strict **fix** tiers both pass (`fix_fail=0`). A **final full course scan** still runs after the loop unless **`QA_FINAL_SCAN=0`**.
 
 **Optional — include `uses_ai` auto fixes:** set **`ANTHROPIC_API_KEY`** (see app `.env` / ConfigService), then:
 
