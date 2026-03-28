@@ -2932,6 +2932,37 @@ export class CanvasService {
     return await res.json();
   }
 
+  private async findModuleItemByIdInCourseModules(
+    courseId: number,
+    itemId: number,
+  ): Promise<any | null> {
+    const modules = await this.getCourseModules(courseId);
+    for (const mod of Array.isArray(modules) ? modules : []) {
+      const rawItems =
+        (mod as any)?.items ?? (mod as any)?.module_items ?? [];
+      for (const it of Array.isArray(rawItems) ? rawItems : []) {
+        if (Number((it as any)?.id) === itemId) return it;
+      }
+    }
+    return null;
+  }
+
+  private async resolveModuleItemRecord(
+    courseId: number,
+    itemId: number,
+  ): Promise<any | null> {
+    const fromList = await this.findModuleItemByIdInCourseModules(
+      courseId,
+      itemId,
+    );
+    if (fromList) return fromList;
+    try {
+      return await this.getCourseModuleItem(courseId, itemId);
+    } catch {
+      return null;
+    }
+  }
+
   async getCourseFiles(courseId: number) {
     const { token, baseUrl } = await this.getAuthHeaders();
     const filesUrl = `${baseUrl}/courses/${courseId}/files?per_page=100`;
@@ -10138,10 +10169,10 @@ export class CanvasService {
         : null;
     }
     if (resourceType === 'modules') {
-      const item = await this.getCourseModuleItem(
-        courseId,
-        Number(resourceId),
-      );
+      const mid = Number(resourceId);
+      if (!Number.isFinite(mid)) return null;
+      const item = await this.resolveModuleItemRecord(courseId, mid);
+      if (!item) return null;
       const t = String((item as any)?.type || '');
       if (t === 'Page') {
         const pageUrl = String((item as any)?.page_url || '').trim();
@@ -13703,7 +13734,12 @@ export class CanvasService {
           if (!Number.isFinite(mid)) {
             throw new Error('Invalid module item id for apply');
           }
-          const item = await this.getCourseModuleItem(courseId, mid);
+          const item = await this.resolveModuleItemRecord(courseId, mid);
+          if (!item) {
+            throw new Error(
+              `Could not resolve module item ${mid} (list + module_items show)`,
+            );
+          }
           const t = String((item as any)?.type || '');
           if (t === 'Page') {
             const pageUrl = String((item as any)?.page_url || '').trim();
