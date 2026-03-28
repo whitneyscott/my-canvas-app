@@ -83,3 +83,6 @@ TEACHER_QA_CHECKLIST.md
 # Quick Start docs (local / pilot-specific copies; not versioned)
 /QUICK_START.md
 /shauna_quick_start.docx
+
+test/fixtures/accessibility-qa/qa-scan-telemetry.jsonl
+test/fixtures/accessibility-qa/qa-scan-telemetry.latest.json

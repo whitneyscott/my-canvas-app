@@ -1059,6 +1059,12 @@ export class CanvasService {
     private config: ConfigService,
   ) {}
 
+  private canvasServiceDebug(): boolean {
+    const raw = this.config.get<string>('CANVAS_SERVICE_DEBUG');
+    if (raw === undefined || raw === null) return false;
+    return String(raw).trim() === '1';
+  }
+
   private getAnthropicApiKey(): string {
     const raw = this.config.get<string>('ANTHROPIC_API_KEY');
     if (raw == null) return '';
@@ -2144,15 +2150,19 @@ export class CanvasService {
 
       while (currentUrl) {
         pageCount++;
-        console.log(`[Service] Fetching page ${pageCount} from: ${currentUrl}`);
+        if (this.canvasServiceDebug()) {
+          console.log(`[Service] Fetching page ${pageCount} from: ${currentUrl}`);
+        }
 
         const response = await fetch(currentUrl, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        console.log(
-          `[Service] Response status: ${response.status} ${response.statusText}`,
-        );
+        if (this.canvasServiceDebug()) {
+          console.log(
+            `[Service] Response status: ${response.status} ${response.statusText}`,
+          );
+        }
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -2166,12 +2176,14 @@ export class CanvasService {
         }
 
         const responseText = await response.text();
-        console.log(
-          `[Service] Response body length: ${responseText.length} characters`,
-        );
-        console.log(
-          `[Service] Raw response body: ${responseText.substring(0, 500)}${responseText.length > 500 ? '...' : ''}`,
-        );
+        if (this.canvasServiceDebug()) {
+          console.log(
+            `[Service] Response body length: ${responseText.length} characters`,
+          );
+          console.log(
+            `[Service] Raw response body: ${responseText.substring(0, 500)}${responseText.length > 500 ? '...' : ''}`,
+          );
+        }
 
         let chunk;
         try {
@@ -2184,60 +2196,86 @@ export class CanvasService {
           throw new Error(`Invalid JSON response: ${parseError.message}`);
         }
 
-        console.log(
-          `[Service] Parsed chunk type: ${Array.isArray(chunk) ? 'array' : typeof chunk}, length: ${Array.isArray(chunk) ? chunk.length : 'N/A'}`,
-        );
+        if (this.canvasServiceDebug()) {
+          console.log(
+            `[Service] Parsed chunk type: ${Array.isArray(chunk) ? 'array' : typeof chunk}, length: ${Array.isArray(chunk) ? chunk.length : 'N/A'}`,
+          );
+        }
 
         if (Array.isArray(chunk)) {
           allData.push(...chunk);
-          console.log(
-            `[Service] Added ${chunk.length} items, total: ${allData.length}`,
-          );
+          if (this.canvasServiceDebug()) {
+            console.log(
+              `[Service] Added ${chunk.length} items, total: ${allData.length}`,
+            );
+          }
         } else if (chunk) {
-          // Some endpoints return objects instead of arrays
           allData.push(chunk);
-          console.log(`[Service] Added 1 object, total: ${allData.length}`);
-        } else {
+          if (this.canvasServiceDebug()) {
+            console.log(`[Service] Added 1 object, total: ${allData.length}`);
+          }
+        } else if (this.canvasServiceDebug()) {
           console.log(`[Service] Chunk is null/undefined, skipping`);
         }
 
         const linkHeader = response.headers.get('link');
-        console.log(`[Service] Link header: ${linkHeader || 'none'}`);
+        if (this.canvasServiceDebug()) {
+          console.log(`[Service] Link header: ${linkHeader || 'none'}`);
+        }
         currentUrl = this.getNextUrl(linkHeader);
 
-        if (currentUrl) {
-          console.log(
-            `[Service] More pages available, next URL: ${currentUrl}`,
-          );
-        } else {
-          console.log(
-            `[Service] No more pages, total items: ${allData.length}`,
-          );
+        if (this.canvasServiceDebug()) {
+          if (currentUrl) {
+            console.log(
+              `[Service] More pages available, next URL: ${currentUrl}`,
+            );
+          } else {
+            console.log(
+              `[Service] No more pages, total items: ${allData.length}`,
+            );
+          }
         }
       }
 
-      console.log(
-        `[Service] fetchPaginatedData complete, returning ${allData.length} items`,
-      );
+      if (this.canvasServiceDebug()) {
+        console.log(
+          `[Service] fetchPaginatedData complete, returning ${allData.length} items`,
+        );
+      }
       return allData;
     } catch (error: any) {
       console.error(`[Service] Error in fetchPaginatedData:`, error);
-      console.error(`[Service] Error message:`, error.message);
-      console.error(`[Service] Error stack:`, error.stack);
+      if (this.canvasServiceDebug()) {
+        console.error(`[Service] Error message:`, error.message);
+        console.error(`[Service] Error stack:`, error.stack);
+      }
       throw error;
     }
   }
 
-  async getCourseQuizzes(courseId: number) {
+  async getCourseQuizzes(
+    courseId: number,
+    opts?: { forAccessibilityScan?: boolean },
+  ) {
     try {
-      console.log(`[Service] Getting quizzes for course ${courseId}`);
+      if (this.canvasServiceDebug()) {
+        console.log(`[Service] Getting quizzes for course ${courseId}`);
+      }
       const { token, baseUrl } = await this.getAuthHeaders();
       const url = `${baseUrl}/courses/${courseId}/quizzes?per_page=100`;
-      console.log(`[Service] Fetching from: ${url}`);
-      console.log(`[Service] Base URL: ${baseUrl}`);
-      console.log(`[Service] Course ID: ${courseId}`);
-      console.log(`[Service] Full URL: ${url}`);
+      if (this.canvasServiceDebug()) {
+        console.log(`[Service] Fetching from: ${url}`);
+        console.log(`[Service] Base URL: ${baseUrl}`);
+        console.log(`[Service] Course ID: ${courseId}`);
+        console.log(`[Service] Full URL: ${url}`);
+      }
       const result = await this.fetchPaginatedData(url, token);
+      if (opts?.forAccessibilityScan) {
+        if (this.canvasServiceDebug()) {
+          console.log(`[Service] Retrieved ${result.length} quizzes (no rubric lookup)`);
+        }
+        return result;
+      }
       const rubricLookup = await this.getAssignmentRubricLookup(
         courseId,
         token,
@@ -2256,7 +2294,9 @@ export class CanvasService {
           rubric_association_id: rubric?.rubric_association_id ?? null,
         };
       });
-      console.log(`[Service] Retrieved ${enriched.length} quizzes`);
+      if (this.canvasServiceDebug()) {
+        console.log(`[Service] Retrieved ${enriched.length} quizzes`);
+      }
       return enriched;
     } catch (error: any) {
       console.error(
@@ -3500,10 +3540,12 @@ export class CanvasService {
     updates: Record<string, any>,
   ) {
     try {
-      console.log(
-        `[Service] updateAssignment called for assignment ${assignmentId} in course ${courseId}`,
-      );
-      console.log(`[Service] Raw updates:`, JSON.stringify(updates, null, 2));
+      if (this.canvasServiceDebug()) {
+        console.log(
+          `[Service] updateAssignment called for assignment ${assignmentId} in course ${courseId}`,
+        );
+        console.log(`[Service] Raw updates:`, JSON.stringify(updates, null, 2));
+      }
 
       const { token, baseUrl } = await this.getAuthHeaders();
       const pending: Record<string, any> = { ...updates };
@@ -3530,16 +3572,18 @@ export class CanvasService {
       if (needsNewQuizRoute) {
         const snapshot = await this.getAssignment(courseId, assignmentId);
         const isNewQuiz = this.isLikelyNewQuizAssignment(snapshot);
-        console.log(
-          `[Service][NewQuiz] Assignment ${assignmentId} detection:`,
-          {
-            isNewQuizAssignment: snapshot?.is_quiz_assignment,
-            quizLti: snapshot?.quiz_lti,
-            quizId: snapshot?.quiz_id,
-            submissionTypes: snapshot?.submission_types,
-            resolvedAsNewQuiz: isNewQuiz,
-          },
-        );
+        if (this.canvasServiceDebug()) {
+          console.log(
+            `[Service][NewQuiz] Assignment ${assignmentId} detection:`,
+            {
+              isNewQuizAssignment: snapshot?.is_quiz_assignment,
+              quizLti: snapshot?.quiz_lti,
+              quizId: snapshot?.quiz_id,
+              submissionTypes: snapshot?.submission_types,
+              resolvedAsNewQuiz: isNewQuiz,
+            },
+          );
+        }
         if (isNewQuiz) {
           const split = splitNewQuizTextUpdates(pending);
           const quizUpdates = split.quizUpdates;
@@ -3576,20 +3620,23 @@ export class CanvasService {
 
       validateDateOrder(cleanedUpdates, `Assignment ${assignmentId}`);
 
-      console.log(
-        `[Service] Updating assignment ${assignmentId} in course ${courseId}`,
-      );
-      console.log(
-        `[Service] Cleaned updates:`,
-        JSON.stringify(cleanedUpdates, null, 2),
-      );
-      console.log(
-        `[Service] Canvas API URL: ${baseUrl}/courses/${courseId}/assignments/${assignmentId}`,
-      );
+      if (this.canvasServiceDebug()) {
+        console.log(
+          `[Service] Updating assignment ${assignmentId} in course ${courseId}`,
+        );
+        console.log(
+          `[Service] Cleaned updates:`,
+          JSON.stringify(cleanedUpdates, null, 2),
+        );
+        console.log(
+          `[Service] Canvas API URL: ${baseUrl}/courses/${courseId}/assignments/${assignmentId}`,
+        );
+      }
 
-      // Canvas API expects the request body to be wrapped in an "assignment" object
       const requestBody = JSON.stringify({ assignment: cleanedUpdates });
-      console.log(`[Service] Request body (wrapped):`, requestBody);
+      if (this.canvasServiceDebug()) {
+        console.log(`[Service] Request body (wrapped):`, requestBody);
+      }
 
       const response = await fetch(
         `${baseUrl}/courses/${courseId}/assignments/${assignmentId}`,
@@ -3603,16 +3650,19 @@ export class CanvasService {
         },
       );
 
-      console.log(
-        `[Service] Response status: ${response.status} ${response.statusText}`,
-      );
+      if (this.canvasServiceDebug()) {
+        console.log(
+          `[Service] Response status: ${response.status} ${response.statusText}`,
+        );
+      }
 
-      // Get response text first to see raw response
       const responseText = await response.text();
-      console.log(`[Service] Raw response body:`, responseText);
-      console.log(
-        `[Service] Response body length: ${responseText.length} characters`,
-      );
+      if (this.canvasServiceDebug()) {
+        console.log(`[Service] Raw response body:`, responseText);
+        console.log(
+          `[Service] Response body length: ${responseText.length} characters`,
+        );
+      }
 
       if (!response.ok) {
         console.error(
@@ -3636,11 +3686,12 @@ export class CanvasService {
         );
       }
 
-      // Parse JSON response
       let result;
       try {
         result = JSON.parse(responseText);
-        console.log(`[Service] Parsed JSON response successfully`);
+        if (this.canvasServiceDebug()) {
+          console.log(`[Service] Parsed JSON response successfully`);
+        }
       } catch (parseError: any) {
         console.error(`[Service] Failed to parse JSON response:`, parseError);
         console.error(
@@ -3650,11 +3701,13 @@ export class CanvasService {
         throw new Error(`Canvas API returned invalid JSON: ${responseText}`);
       }
 
-      console.log(`[Service] Assignment ${assignmentId} updated successfully`);
-      console.log(
-        `[Service] Canvas API response (formatted):`,
-        JSON.stringify(result, null, 2),
-      );
+      if (this.canvasServiceDebug()) {
+        console.log(`[Service] Assignment ${assignmentId} updated successfully`);
+        console.log(
+          `[Service] Canvas API response (formatted):`,
+          JSON.stringify(result, null, 2),
+        );
+      }
 
       if (rubricSelection !== undefined) {
         await this.upsertAssignmentRubricAssociation(
@@ -3673,9 +3726,10 @@ export class CanvasService {
         `[Service] Error in updateAssignment for assignment ${assignmentId}:`,
         error,
       );
-      console.error(`[Service] Error message:`, error.message);
-      console.error(`[Service] Error stack:`, error.stack);
-      // Ensure we throw a proper error that NestJS can handle
+      if (this.canvasServiceDebug()) {
+        console.error(`[Service] Error message:`, error.message);
+        console.error(`[Service] Error stack:`, error.stack);
+      }
       if (error instanceof Error) {
         throw error;
       } else {
@@ -3692,10 +3746,12 @@ export class CanvasService {
     updates: Record<string, any>,
   ) {
     try {
-      console.log(
-        `[Service] updateQuiz called for quiz ${quizId} in course ${courseId}`,
-      );
-      console.log(`[Service] Raw updates:`, JSON.stringify(updates, null, 2));
+      if (this.canvasServiceDebug()) {
+        console.log(
+          `[Service] updateQuiz called for quiz ${quizId} in course ${courseId}`,
+        );
+        console.log(`[Service] Raw updates:`, JSON.stringify(updates, null, 2));
+      }
 
       const { token, baseUrl } = await this.getAuthHeaders();
 
@@ -3723,7 +3779,9 @@ export class CanvasService {
           courseCheckError.message,
         );
       }
-      console.log(`[Service] Got auth headers, baseUrl: ${baseUrl}`);
+      if (this.canvasServiceDebug()) {
+        console.log(`[Service] Got auth headers, baseUrl: ${baseUrl}`);
+      }
       const pending: Record<string, any> = { ...updates };
       let rubricSelection: number | null | undefined = undefined;
       if (Object.prototype.hasOwnProperty.call(pending, 'rubric_id')) {
@@ -3782,18 +3840,18 @@ export class CanvasService {
 
       validateDateOrder(cleanedUpdates, `Quiz ${quizId}`);
 
-      console.log(`[Service] Updating quiz ${quizId} in course ${courseId}`);
-      console.log(
-        `[Service] Cleaned updates:`,
-        JSON.stringify(cleanedUpdates, null, 2),
-      );
-      console.log(
-        `[Service] Canvas API URL: ${baseUrl}/courses/${courseId}/quizzes/${quizId}`,
-      );
-
-      // Canvas API expects the request body to be wrapped in a "quiz" object
       const requestBody = JSON.stringify({ quiz: cleanedUpdates });
-      console.log(`[Service] Request body (wrapped):`, requestBody);
+      if (this.canvasServiceDebug()) {
+        console.log(`[Service] Updating quiz ${quizId} in course ${courseId}`);
+        console.log(
+          `[Service] Cleaned updates:`,
+          JSON.stringify(cleanedUpdates, null, 2),
+        );
+        console.log(
+          `[Service] Canvas API URL: ${baseUrl}/courses/${courseId}/quizzes/${quizId}`,
+        );
+        console.log(`[Service] Request body (wrapped):`, requestBody);
+      }
 
       const response = await fetch(
         `${baseUrl}/courses/${courseId}/quizzes/${quizId}`,
@@ -3807,20 +3865,23 @@ export class CanvasService {
         },
       );
 
-      console.log(
-        `[Service] Response status: ${response.status} ${response.statusText}`,
-      );
-      console.log(
-        `[Service] Response headers:`,
-        JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2),
-      );
+      if (this.canvasServiceDebug()) {
+        console.log(
+          `[Service] Response status: ${response.status} ${response.statusText}`,
+        );
+        console.log(
+          `[Service] Response headers:`,
+          JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2),
+        );
+      }
 
-      // Get response text first to see raw response
       const responseText = await response.text();
-      console.log(`[Service] Raw response body:`, responseText);
-      console.log(
-        `[Service] Response body length: ${responseText.length} characters`,
-      );
+      if (this.canvasServiceDebug()) {
+        console.log(`[Service] Raw response body:`, responseText);
+        console.log(
+          `[Service] Response body length: ${responseText.length} characters`,
+        );
+      }
 
       if (!response.ok) {
         console.error(
@@ -3848,7 +3909,9 @@ export class CanvasService {
       let result;
       try {
         result = JSON.parse(responseText);
-        console.log(`[Service] Parsed JSON response successfully`);
+        if (this.canvasServiceDebug()) {
+          console.log(`[Service] Parsed JSON response successfully`);
+        }
       } catch (parseError: any) {
         console.error(`[Service] Failed to parse JSON response:`, parseError);
         console.error(
@@ -3858,79 +3921,80 @@ export class CanvasService {
         throw new Error(`Canvas API returned invalid JSON: ${responseText}`);
       }
 
-      console.log(`[Service] Quiz ${quizId} updated successfully`);
-      console.log(
-        `[Service] Canvas API response (formatted):`,
-        JSON.stringify(result, null, 2),
-      );
-
-      // Log specific fields we care about
-      console.log(`[Service] Response quiz ID: ${result.id}`);
-      console.log(`[Service] Response quiz title: ${result.title}`);
-      console.log(
-        `[Service] Response due_at: ${result.due_at || 'null/undefined'}`,
-      );
-      console.log(
-        `[Service] Response assignment_id: ${result.assignment_id || 'null/undefined'}`,
-      );
-      console.log(
-        `[Service] Response lock_at: ${result.lock_at || 'null/undefined'}`,
-      );
-      console.log(
-        `[Service] Response unlock_at: ${result.unlock_at || 'null/undefined'}`,
-      );
-      console.log(`[Service] Response published: ${result.published}`);
-
-      // Compare what we sent vs what we got back
-      console.log(`[Service] === UPDATE COMPARISON ===`);
-      console.log(`[Service] Fields we sent:`, Object.keys(cleanedUpdates));
-      console.log(`[Service] Fields in response:`, Object.keys(result));
-
-      // Check each field we updated
-      Object.keys(cleanedUpdates).forEach((key) => {
-        const sentValue = cleanedUpdates[key];
-        const receivedValue = result[key];
-        if (sentValue !== receivedValue) {
-          console.warn(`[Service] ⚠️  FIELD MISMATCH for ${key}:`);
-          console.warn(`[Service]    Sent: ${sentValue}`);
-          console.warn(`[Service]    Received: ${receivedValue}`);
-        } else {
-          console.log(`[Service] ✓ Field ${key} matches: ${sentValue}`);
-        }
-      });
+      if (this.canvasServiceDebug()) {
+        console.log(`[Service] Quiz ${quizId} updated successfully`);
+        console.log(
+          `[Service] Canvas API response (formatted):`,
+          JSON.stringify(result, null, 2),
+        );
+        console.log(`[Service] Response quiz ID: ${result.id}`);
+        console.log(`[Service] Response quiz title: ${result.title}`);
+        console.log(
+          `[Service] Response due_at: ${result.due_at || 'null/undefined'}`,
+        );
+        console.log(
+          `[Service] Response assignment_id: ${result.assignment_id || 'null/undefined'}`,
+        );
+        console.log(
+          `[Service] Response lock_at: ${result.lock_at || 'null/undefined'}`,
+        );
+        console.log(
+          `[Service] Response unlock_at: ${result.unlock_at || 'null/undefined'}`,
+        );
+        console.log(`[Service] Response published: ${result.published}`);
+        console.log(`[Service] === UPDATE COMPARISON ===`);
+        console.log(`[Service] Fields we sent:`, Object.keys(cleanedUpdates));
+        console.log(`[Service] Fields in response:`, Object.keys(result));
+        Object.keys(cleanedUpdates).forEach((key) => {
+          const sentValue = cleanedUpdates[key];
+          const receivedValue = result[key];
+          if (sentValue !== receivedValue) {
+            console.warn(`[Service] ⚠️  FIELD MISMATCH for ${key}:`);
+            console.warn(`[Service]    Sent: ${sentValue}`);
+            console.warn(`[Service]    Received: ${receivedValue}`);
+          } else {
+            console.log(`[Service] ✓ Field ${key} matches: ${sentValue}`);
+          }
+        });
+      }
 
       if (
         Object.prototype.hasOwnProperty.call(cleanedUpdates, 'due_at') &&
         result.assignment_id
       ) {
-        console.log(
-          `[Service] Quiz has assignment_id ${result.assignment_id}, updating assignment due date as well`,
-        );
-        console.log(
-          `[Service] Updating assignment ${result.assignment_id} with due_at: ${cleanedUpdates.due_at}`,
-        );
+        if (this.canvasServiceDebug()) {
+          console.log(
+            `[Service] Quiz has assignment_id ${result.assignment_id}, updating assignment due date as well`,
+          );
+          console.log(
+            `[Service] Updating assignment ${result.assignment_id} with due_at: ${cleanedUpdates.due_at}`,
+          );
+        }
         try {
           const assignmentResult = await this.updateAssignment(
             courseId,
             result.assignment_id,
             { due_at: cleanedUpdates.due_at },
           );
-          console.log(
-            `[Service] ✓ Successfully updated assignment ${result.assignment_id} due date`,
-          );
-          console.log(
-            `[Service] Assignment response due_at: ${assignmentResult.due_at || 'null/undefined'}`,
-          );
+          if (this.canvasServiceDebug()) {
+            console.log(
+              `[Service] ✓ Successfully updated assignment ${result.assignment_id} due date`,
+            );
+            console.log(
+              `[Service] Assignment response due_at: ${assignmentResult.due_at || 'null/undefined'}`,
+            );
+          }
         } catch (assignmentError: any) {
           console.error(
             `[Service] ✗ Failed to update assignment due date:`,
             assignmentError.message,
           );
-          console.error(
-            `[Service] Assignment error stack:`,
-            assignmentError.stack,
-          );
-          // Don't throw - the quiz update succeeded, this is just a warning
+          if (this.canvasServiceDebug()) {
+            console.error(
+              `[Service] Assignment error stack:`,
+              assignmentError.stack,
+            );
+          }
           console.warn(
             `[Service] ⚠️  Quiz due date updated, but assignment due date update failed. The quiz due date may not display correctly in Canvas.`,
           );
@@ -3939,9 +4003,11 @@ export class CanvasService {
         Object.prototype.hasOwnProperty.call(cleanedUpdates, 'due_at') &&
         !result.assignment_id
       ) {
-        console.log(
-          `[Service] Quiz does not have an assignment_id (likely a practice quiz or ungraded survey)`,
-        );
+        if (this.canvasServiceDebug()) {
+          console.log(
+            `[Service] Quiz does not have an assignment_id (likely a practice quiz or ungraded survey)`,
+          );
+        }
       }
 
       if (
@@ -3949,17 +4015,21 @@ export class CanvasService {
         cleanedUpdates.due_at
       ) {
         if (result.due_at) {
-          console.log(`[Service] Due date comparison:`);
-          console.log(`[Service]   Request: ${cleanedUpdates.due_at}`);
-          console.log(`[Service]   Response: ${result.due_at}`);
+          if (this.canvasServiceDebug()) {
+            console.log(`[Service] Due date comparison:`);
+            console.log(`[Service]   Request: ${cleanedUpdates.due_at}`);
+            console.log(`[Service]   Response: ${result.due_at}`);
+          }
           if (cleanedUpdates.due_at !== result.due_at) {
-            console.warn(`[Service] ⚠️  WARNING: Due date mismatch!`);
-            console.warn(`[Service]   Request: ${cleanedUpdates.due_at}`);
-            console.warn(`[Service]   Response: ${result.due_at}`);
-          } else {
+            if (this.canvasServiceDebug()) {
+              console.warn(`[Service] ⚠️  WARNING: Due date mismatch!`);
+              console.warn(`[Service]   Request: ${cleanedUpdates.due_at}`);
+              console.warn(`[Service]   Response: ${result.due_at}`);
+            }
+          } else if (this.canvasServiceDebug()) {
             console.log(`[Service] ✓ Due date matches in response`);
           }
-        } else {
+        } else if (this.canvasServiceDebug()) {
           console.warn(
             `[Service] ⚠️  WARNING: Sent due_at but it's not in the response!`,
           );
@@ -3989,9 +4059,10 @@ export class CanvasService {
       return result;
     } catch (error: any) {
       console.error(`[Service] Error in updateQuiz for quiz ${quizId}:`, error);
-      console.error(`[Service] Error message:`, error.message);
-      console.error(`[Service] Error stack:`, error.stack);
-      // Ensure we throw a proper error that NestJS can handle
+      if (this.canvasServiceDebug()) {
+        console.error(`[Service] Error message:`, error.message);
+        console.error(`[Service] Error stack:`, error.stack);
+      }
       if (error instanceof Error) {
         throw error;
       } else {
@@ -9610,7 +9681,9 @@ export class CanvasService {
     if (types.includes('quizzes')) {
       fetchers.push(
         timed('fetch_quizzes', async () => {
-          const quizzes = await this.getCourseQuizzes(courseId);
+          const quizzes = await this.getCourseQuizzes(courseId, {
+            forAccessibilityScan: true,
+          });
           const items = (Array.isArray(quizzes) ? quizzes : [])
             .map((q: any) => ({
               type: 'quizzes',
@@ -9838,6 +9911,124 @@ export class CanvasService {
       findings: enrichedFindings,
       warnings,
       rule_version: 'tier2-v1',
+    };
+  }
+
+  async evaluateAccessibilityHtml(
+    courseId: number,
+    body: {
+      html?: string;
+      rule_ids?: string[];
+      resource_type: string;
+      resource_id: string;
+      resource_title?: string;
+      resource_url?: string | null;
+      refetch?: boolean;
+    },
+  ): Promise<{
+    findings: AccessibilityFinding[];
+    summary: { total_findings: number; course_id: number };
+    refetched: boolean;
+    warnings: string[];
+  }> {
+    const warnings: string[] = [];
+    let html = String(body?.html ?? '').trim();
+    let refetched = false;
+    const rt = String(body?.resource_type ?? '').trim();
+    const rid = String(body?.resource_id ?? '').trim();
+    if (!rt || !rid) {
+      return {
+        findings: [],
+        summary: { total_findings: 0, course_id: courseId },
+        refetched: false,
+        warnings: ['resource_type and resource_id are required'],
+      };
+    }
+    let resourceTitle = String(body?.resource_title ?? '').trim();
+    if (!html || body?.refetch) {
+      const fetched = await this.fetchAccessibilityResourceContent(
+        courseId,
+        rt,
+        rid,
+      );
+      refetched = true;
+      if (!fetched?.html?.trim()) {
+        return {
+          findings: [],
+          summary: { total_findings: 0, course_id: courseId },
+          refetched,
+          warnings: ['Could not load HTML for resource'],
+        };
+      }
+      html = fetched.html;
+      if (!resourceTitle) resourceTitle = String(fetched.resourceTitle || rid);
+    }
+    if (!resourceTitle) resourceTitle = rid;
+    const base = {
+      resource_type: rt,
+      resource_id: rid,
+      resource_title: resourceTitle,
+      resource_url: body?.resource_url ?? null,
+    };
+    const findings = await this.collectAccessibilityFindingsForHtml(
+      base,
+      html,
+    );
+    return this.finishAccessibilityHtmlEval(
+      courseId,
+      findings,
+      body?.rule_ids,
+      warnings,
+      refetched,
+    );
+  }
+
+  private async collectAccessibilityFindingsForHtml(
+    base: {
+      resource_type: string;
+      resource_id: string;
+      resource_title: string;
+      resource_url?: string | null;
+    },
+    html: string,
+  ): Promise<AccessibilityFinding[]> {
+    const all: AccessibilityFinding[] = [];
+    all.push(...this.evaluateAccessibilityTier1ForHtml(base, html));
+    all.push(...this.evaluateAccessibilityTier2ForHtml(base, html));
+    all.push(...this.evaluateLangScannerFindingsForHtml(base, html));
+    all.push(...(await this.evaluateLinkBrokenFindingsForHtml(base, html)));
+    return all;
+  }
+
+  private finishAccessibilityHtmlEval(
+    courseId: number,
+    findings: AccessibilityFinding[],
+    ruleIds: string[] | undefined,
+    warnings: string[],
+    refetched: boolean,
+  ): {
+    findings: AccessibilityFinding[];
+    summary: { total_findings: number; course_id: number };
+    refetched: boolean;
+    warnings: string[];
+  } {
+    const requestedRuleIds = Array.isArray(ruleIds)
+      ? ruleIds.map((x) => String(x || '').trim()).filter(Boolean)
+      : [];
+    const requestedRuleSet = new Set(requestedRuleIds);
+    const filtered = requestedRuleSet.size
+      ? findings.filter((f) => requestedRuleSet.has(f.rule_id))
+      : findings;
+    const enriched = filtered.map((f) => ({
+      ...f,
+      fix_strategy:
+        ACCESSIBILITY_FIXABILITY_MAP[f.rule_id]?.fix_strategy ?? 'manual_only',
+    }));
+    return {
+      findings: enriched,
+      summary: { total_findings: enriched.length, course_id: courseId },
+      refetched,
+      warnings,
     };
   }
 

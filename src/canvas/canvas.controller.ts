@@ -470,6 +470,23 @@ export class CanvasController {
     });
   }
 
+  @Post('courses/:id/accessibility/evaluate-html')
+  async postAccessibilityEvaluateHtml(
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    body: {
+      html?: string;
+      rule_ids?: string[];
+      resource_type: string;
+      resource_id: string;
+      resource_title?: string;
+      resource_url?: string | null;
+      refetch?: boolean;
+    },
+  ): Promise<any> {
+    return this.canvasService.evaluateAccessibilityHtml(id, body);
+  }
+
   @Post('courses/:id/accessibility/fix-preview')
   async getAccessibilityFixPreview(
     @Param('id', ParseIntPipe) id: number,

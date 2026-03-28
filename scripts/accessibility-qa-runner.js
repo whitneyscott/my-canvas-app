@@ -19,17 +19,17 @@ function fetchErrorDetail(err) {
   return String(c);
 }
 
-const A11Y_SCOPED_RESOURCE_TYPES = new Set([
-  'pages',
-  'assignments',
-  'announcements',
-  'syllabus',
-  'discussions',
-  'quizzes',
-  'modules',
-]);
+const TELEMETRY_DIR = path.join(
+  __dirname,
+  '..',
+  'test',
+  'fixtures',
+  'accessibility-qa',
+);
+const TELEMETRY_JSONL = path.join(TELEMETRY_DIR, 'qa-scan-telemetry.jsonl');
+const TELEMETRY_LATEST = path.join(TELEMETRY_DIR, 'qa-scan-telemetry.latest.json');
 
-async function fetchScan(apiBase, courseId, headers, opts) {
+async function fetchScan(apiBase, courseId, headers, opts, recordScanTelemetry) {
   const base = String(apiBase || '').replace(/\/$/, '');
   const params = new URLSearchParams();
   if (opts && Array.isArray(opts.resource_types) && opts.resource_types.length) {
@@ -54,21 +54,159 @@ async function fetchScan(apiBase, courseId, headers, opts) {
     const text = await scanRes.text();
     throw new Error(`Scan ${scanRes.status}: ${text.slice(0, 400)}`);
   }
-  return scanRes.json();
+  const data = await scanRes.json();
+  if (typeof recordScanTelemetry === 'function') {
+    recordScanTelemetry(opts?.trigger || 'scan', courseId, data);
+  }
+  return data;
 }
 
-function partialScanOptsForFixture(fixture) {
-  const rt = String(fixture?.content_type || '').trim().toLowerCase();
-  if (!A11Y_SCOPED_RESOURCE_TYPES.has(rt)) return undefined;
-  return { resource_types: [rt] };
+function appendScanTelemetryFile(rec) {
+  fs.mkdirSync(TELEMETRY_DIR, { recursive: true });
+  fs.appendFileSync(TELEMETRY_JSONL, `${JSON.stringify(rec)}\n`, 'utf8');
+  fs.writeFileSync(TELEMETRY_LATEST, JSON.stringify(rec, null, 2), 'utf8');
 }
 
-function mergeFindingsForResourceType(prev, partial, resourceType) {
-  const rt = String(resourceType || '').trim().toLowerCase();
-  const next = (prev || []).filter(
-    (f) => String(f.resource_type || '').toLowerCase() !== rt,
+function snapshotScan(scanData) {
+  return {
+    requested_resource_types: scanData.requested_resource_types,
+    requested_rule_ids: scanData.requested_rule_ids,
+    summary: scanData.summary,
+    benchmark: scanData.benchmark,
+    findings: scanData.findings || [],
+    warnings: scanData.warnings,
+    rule_version: scanData.rule_version,
+  };
+}
+
+function buildScanCompare(initialFindings, finalFindings) {
+  function sig(f) {
+    return [
+      String(f.resource_type || '').toLowerCase(),
+      String(f.resource_id || ''),
+      String(f.rule_id || ''),
+      String(f.snippet || '').slice(0, 300),
+    ].join('\x1f');
+  }
+  function countByRule(arr) {
+    const o = {};
+    for (const f of arr) {
+      const r = String(f.rule_id || '');
+      o[r] = (o[r] || 0) + 1;
+    }
+    return o;
+  }
+  const ini = initialFindings || [];
+  const fin = finalFindings || [];
+  const fMap = new Map(fin.map((f) => [sig(f), f]));
+  const iMap = new Map(ini.map((f) => [sig(f), f]));
+  const removed = [...iMap.keys()].filter((k) => !fMap.has(k));
+  const added = [...fMap.keys()].filter((k) => !iMap.has(k));
+  const byInitial = countByRule(ini);
+  const byFinal = countByRule(fin);
+  const ruleIds = new Set([...Object.keys(byInitial), ...Object.keys(byFinal)]);
+  const by_rule_delta = {};
+  for (const r of ruleIds) {
+    const a = byInitial[r] || 0;
+    const b = byFinal[r] || 0;
+    if (a !== b) by_rule_delta[r] = { initial: a, final: b, delta: b - a };
+  }
+  const newFindings = added.map((k) => fMap.get(k));
+  const high_severity_new_count = newFindings.filter(
+    (f) => String(f?.severity || '').toLowerCase() === 'high',
+  ).length;
+  return {
+    total_findings_initial: ini.length,
+    total_findings_final: fin.length,
+    cleared_count: removed.length,
+    new_count: added.length,
+    high_severity_new_count,
+    by_rule_delta,
+    removed_keys: removed.slice(0, 500),
+    new_findings_sample: newFindings.slice(0, 50),
+  };
+}
+
+function replaceResourceFindings(findings, resourceType, resourceId, newSlice) {
+  const rtl = String(resourceType || '').toLowerCase();
+  const rid = String(resourceId || '');
+  const rest = findings.filter(
+    (f) =>
+      !(
+        String(f.resource_type || '').toLowerCase() === rtl &&
+        String(f.resource_id || '') === rid
+      ),
   );
-  return next.concat(partial || []);
+  findings.length = 0;
+  findings.push(...rest, ...(newSlice || []));
+}
+
+async function postEvaluateHtml(apiBase, courseId, headers, fixture, finding) {
+  const base = String(apiBase || '').replace(/\/$/, '');
+  const url = `${base}/canvas/courses/${courseId}/accessibility/evaluate-html`;
+  const body = {
+    resource_type: String(fixture.content_type || '').trim(),
+    resource_id: String(fixture.resource_id || '').trim(),
+    resource_title: finding?.resource_title,
+    resource_url: finding?.resource_url ?? null,
+    refetch: true,
+  };
+  const res = await postJson(url, headers, body);
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`evaluate-html ${res.status}: ${t.slice(0, 400)}`);
+  }
+  return res.json();
+}
+
+async function verifyFixWithEvaluateHtml({
+  apiBase,
+  courseId,
+  headers,
+  fixture,
+  finding,
+  findings,
+  byResource,
+  rk,
+}) {
+  if (process.env.QA_FIX_VERIFY === 'apply_only') {
+    return {
+      ok: true,
+      fixNotes: 'QA_FIX_VERIFY=apply_only (no evaluate-html)',
+    };
+  }
+  try {
+    const data = await postEvaluateHtml(
+      apiBase,
+      courseId,
+      headers,
+      fixture,
+      finding,
+    );
+    const slice = data.findings || [];
+    replaceResourceFindings(
+      findings,
+      fixture.content_type,
+      fixture.resource_id,
+      slice,
+    );
+    syncFindingsMaps(byResource, findings);
+    const rf2 = byResource.get(rk) || [];
+    const ruleId = fixture.rule_id;
+    const after = rf2.filter((x) => x.rule_id === ruleId).length;
+    if (after > 0) {
+      return {
+        ok: false,
+        fixNotes: `After apply, evaluate-html expected 0 ${ruleId}, got ${after}`,
+      };
+    }
+    return { ok: true, fixNotes: 'Rule cleared (evaluate-html refetch)' };
+  } catch (e) {
+    return {
+      ok: false,
+      fixNotes: `evaluate-html: ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
 }
 
 function syncFindingsMaps(byResource, findings) {
@@ -428,6 +566,11 @@ async function main() {
         }
       : undefined,
     ai_heuristic_assert_failures: 0,
+    initial_scan: null,
+    final_scan: null,
+    scan_compare: null,
+    scan_telemetry: [],
+    final_scan_skipped: false,
   };
 
   const headers = {
@@ -435,12 +578,32 @@ async function main() {
     'X-QA-Canvas-Url': baseUrl,
   };
 
+  const scanTelemetry = [];
+  function recordScanTelemetry(trigger, cid, scanData) {
+    const summary = scanData.summary || {};
+    const rec = {
+      ts: new Date().toISOString(),
+      trigger,
+      course_id: cid,
+      total_findings:
+        summary.total_findings ?? (scanData.findings || []).length,
+    };
+    console.error(
+      `[QA_SCAN] trigger=${trigger} course_id=${cid} total_findings=${rec.total_findings}`,
+    );
+    scanTelemetry.push(rec);
+    appendScanTelemetryFile(rec);
+  }
+
   let scanData;
   try {
     console.error(
-      '[QA] Initial scan loads the whole course from Canvas (can be slow). With QA_FIX_AUTO=1, post-fix reverification uses resource_types scoped to each fixture when supported, so Canvas is not fully re-listed after every fix.',
+      '[QA] Initial GET accessibility/scan loads the whole course (slow). Mid-loop: no course rescan — fixes verified with POST evaluate-html (refetch). After fixtures: second full scan by default (QA_FINAL_SCAN=0 to skip).',
     );
-    scanData = await fetchScan(apiBase, courseId, headers);
+    scanData = await fetchScan(apiBase, courseId, headers, {
+      trigger: 'initial',
+    }, recordScanTelemetry);
+    report.initial_scan = snapshotScan(scanData);
   } catch (e) {
     report.failure_domain = 'infrastructure';
     console.error('Scan request failed:', e instanceof Error ? e.message : e);
@@ -537,23 +700,34 @@ async function main() {
           2,
           Number(process.env.QA_LINK_SCAN_RETRIES) || 3,
         );
+        const hint = resourceFindings[0] || {
+          resource_title: undefined,
+          resource_url: null,
+        };
         for (let a = 1; a < retries && !scannerOk; a++) {
           await new Promise((r) => setTimeout(r, 1500));
-          const rt = String(fixture.content_type || '').trim().toLowerCase();
-          const opts = partialScanOptsForFixture(fixture);
           try {
-            scanData = await fetchScan(apiBase, courseId, headers, opts);
+            const ev = await postEvaluateHtml(
+              apiBase,
+              courseId,
+              headers,
+              fixture,
+              hint,
+            );
+            replaceResourceFindings(
+              findings,
+              fixture.content_type,
+              fixture.resource_id,
+              ev.findings || [],
+            );
+            syncFindingsMaps(byResource, findings);
+            resourceFindings = byResource.get(rk) || [];
+            const again = assertScannerForFixture(fixture, resourceFindings);
+            scannerOk = again.scannerOk;
+            notes = again.notes;
           } catch {
             continue;
           }
-          findings = opts
-            ? mergeFindingsForResourceType(findings, scanData.findings || [], rt)
-            : scanData.findings || [];
-          syncFindingsMaps(byResource, findings);
-          resourceFindings = byResource.get(rk) || [];
-          const again = assertScannerForFixture(fixture, resourceFindings);
-          scannerOk = again.scannerOk;
-          notes = again.notes;
         }
       }
       const status = scannerOk ? 'pass' : 'fail';
@@ -611,24 +785,25 @@ async function main() {
               if (tier === 'strict') strictFixFail++;
               else bestEffortFixFail++;
             } else {
-              const rt = String(fixture.content_type || '').trim().toLowerCase();
-              const opts = partialScanOptsForFixture(fixture);
-              scanData = await fetchScan(apiBase, courseId, headers, opts);
-              findings = opts
-                ? mergeFindingsForResourceType(findings, scanData.findings || [], rt)
-                : scanData.findings || [];
-              syncFindingsMaps(byResource, findings);
-              const rf2 = byResource.get(rk) || [];
-              const after = rf2.filter((x) => x.rule_id === 'link_broken').length;
-              if (after > 0) {
+              const v = await verifyFixWithEvaluateHtml({
+                apiBase,
+                courseId,
+                headers,
+                fixture,
+                finding: match,
+                findings,
+                byResource,
+                rk,
+              });
+              if (!v.ok) {
                 fixStatus = 'fail';
-                fixNotes = `After apply, expected 0 link_broken, got ${after}`;
+                fixNotes = v.fixNotes;
                 report.by_tier[tier].fix_fail++;
                 if (tier === 'strict') strictFixFail++;
                 else bestEffortFixFail++;
               } else {
                 fixStatus = 'pass';
-                fixNotes = 'link_broken cleared after teacher href apply';
+                fixNotes = v.fixNotes;
               }
             }
           }
@@ -676,24 +851,25 @@ async function main() {
               if (tier === 'strict') strictFixFail++;
               else bestEffortFixFail++;
             } else {
-              const rt = String(fixture.content_type || '').trim().toLowerCase();
-              const opts = partialScanOptsForFixture(fixture);
-              scanData = await fetchScan(apiBase, courseId, headers, opts);
-              findings = opts
-                ? mergeFindingsForResourceType(findings, scanData.findings || [], rt)
-                : scanData.findings || [];
-              syncFindingsMaps(byResource, findings);
-              const rf2 = byResource.get(rk) || [];
-              const after = rf2.filter((x) => x.rule_id === fixture.rule_id).length;
-              if (after > 0) {
+              const v = await verifyFixWithEvaluateHtml({
+                apiBase,
+                courseId,
+                headers,
+                fixture,
+                finding: match,
+                findings,
+                byResource,
+                rk,
+              });
+              if (!v.ok) {
                 fixStatus = 'fail';
-                fixNotes = `After apply, expected 0 findings for ${fixture.rule_id}, got ${after}`;
+                fixNotes = v.fixNotes;
                 report.by_tier[tier].fix_fail++;
                 if (tier === 'strict') strictFixFail++;
                 else bestEffortFixFail++;
               } else {
                 fixStatus = 'pass';
-                fixNotes = 'Rule cleared on resource after apply (dual_option_choice)';
+                fixNotes = v.fixNotes;
               }
             }
           }
@@ -744,24 +920,25 @@ async function main() {
                 if (tier === 'strict') strictFixFail++;
                 else bestEffortFixFail++;
               } else {
-                const rt = String(fixture.content_type || '').trim().toLowerCase();
-                const opts = partialScanOptsForFixture(fixture);
-                scanData = await fetchScan(apiBase, courseId, headers, opts);
-                findings = opts
-                  ? mergeFindingsForResourceType(findings, scanData.findings || [], rt)
-                  : scanData.findings || [];
-                syncFindingsMaps(byResource, findings);
-                const rf2 = byResource.get(rk) || [];
-                const after = rf2.filter((x) => x.rule_id === fixture.rule_id).length;
-                if (after > 0) {
+                const v = await verifyFixWithEvaluateHtml({
+                  apiBase,
+                  courseId,
+                  headers,
+                  fixture,
+                  finding: match,
+                  findings,
+                  byResource,
+                  rk,
+                });
+                if (!v.ok) {
                   fixStatus = 'fail';
-                  fixNotes = `After apply, expected 0 findings for ${fixture.rule_id}, got ${after}`;
+                  fixNotes = v.fixNotes;
                   report.by_tier[tier].fix_fail++;
                   if (tier === 'strict') strictFixFail++;
                   else bestEffortFixFail++;
                 } else {
                   fixStatus = 'pass';
-                  fixNotes = 'Rule cleared on resource after apply';
+                  fixNotes = v.fixNotes;
                 }
               }
             }
@@ -795,6 +972,45 @@ async function main() {
   };
 
   const { strictFixFail, bestEffortFixFail } = await runManifestPass();
+
+  report.scan_telemetry = scanTelemetry;
+
+  const finalScanEnabled = process.env.QA_FINAL_SCAN !== '0';
+  if (finalScanEnabled) {
+    try {
+      const finalScanData = await fetchScan(
+        apiBase,
+        courseId,
+        headers,
+        { trigger: 'final' },
+        recordScanTelemetry,
+      );
+      report.final_scan = snapshotScan(finalScanData);
+      if (report.initial_scan && report.final_scan) {
+        report.scan_compare = buildScanCompare(
+          report.initial_scan.findings,
+          report.final_scan.findings,
+        );
+        const h = report.scan_compare.high_severity_new_count || 0;
+        if (h > 0) {
+          console.error(
+            '[QA] scan_compare: new high-severity findings vs initial: %d (see report.scan_compare.new_findings_sample)',
+            h,
+          );
+        }
+      }
+    } catch (e) {
+      report.final_scan = null;
+      report.scan_compare = null;
+      report.final_scan_error = e instanceof Error ? e.message : String(e);
+      if (!report.failure_domain) report.failure_domain = 'infrastructure';
+      console.error('[QA] Final scan failed:', report.final_scan_error);
+    }
+  } else {
+    report.final_scan_skipped = true;
+    report.final_scan = null;
+    report.scan_compare = null;
+  }
 
   const baselinePathRaw =
     process.env.QA_BASELINE_REPORT || process.env.QA_BASELINE_PATH || '';

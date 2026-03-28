@@ -61,9 +61,9 @@ export API_BASE_URL="http://127.0.0.1:3002"   # default in runner (avoids Window
 npm run qa:accessibility:run
 ```
 
-Runner loads manifest, calls scan API with `X-QA-Canvas-Token` and `X-QA-Canvas-Url`, asserts expected findings (resource types `page` / `assignment` match the API), writes `test/fixtures/accessibility-qa/report-<run_id>.json`. Exits 1 on strict-tier scanner failures and, when fix QA is on, strict-tier **fix** failures.
+Runner loads manifest, calls **`GET .../accessibility/scan` once** at the start (full course), asserts expected findings from that snapshot, then (when `QA_FIX_AUTO=1`) runs `fix-preview-item` → `fix-apply` and verifies each fix with **`POST .../accessibility/evaluate-html`** (Canvas HTML refetch on the server — no mid-loop course scan). After all fixtures, it runs a **second full `GET` scan by default** and writes **`initial_scan`**, **`final_scan`**, and **`scan_compare`** on the report. Telemetry: stderr lines prefixed **`[QA_SCAN]`** plus `test/fixtures/accessibility-qa/qa-scan-telemetry.jsonl` and **`qa-scan-telemetry.latest.json`** (gitignored). Exits 1 on strict-tier scanner failures and, when fix QA is on, strict-tier **fix** failures.
 
-**Optional auto-fix verification:** set `QA_FIX_AUTO=1` to run `fix-preview-item` → `fix-apply` → re-scan. **Auto rules:** `fix_strategy === 'auto'` (skips `uses_ai` unless `QA_FIX_AUTO_AI=1`). **Dual-option suggested rules:** manifest rows with `dual_option_choice` set (`acc_fix:aria_hidden:remove` / `tabindex`, `acc_fix:table_layout:presentation` / `headers`) use the same path with `edited_suggestion`. Rows with `dual_option` but no `dual_option_choice` are skipped for fix. Default is scan-only (`QA_FIX_AUTO` unset).
+**Optional auto-fix verification:** set `QA_FIX_AUTO=1` for `fix-preview-item` → `fix-apply` → **evaluate-html** (not a course re-scan). **Auto rules:** `fix_strategy === 'auto'` (skips `uses_ai` unless `QA_FIX_AUTO_AI=1`). **Dual-option suggested rules:** manifest rows with `dual_option_choice` use `edited_suggestion` as today. Rows with `dual_option` but no `dual_option_choice` are skipped for fix. Default is scan-only (`QA_FIX_AUTO` unset). **`QA_FIX_VERIFY=apply_only`** skips evaluate-html after apply (apply-only; weaker).
 
 **PowerShell (same machine, second terminal — API still running in the first):**
 
@@ -90,7 +90,7 @@ cd C:\dev\Canvas-Bulk-Editor
 npm run qa:accessibility:run:fix
 ```
 
-Same as `QA_FIX_AUTO=1` + `qa:accessibility:run`: runs **`fix-preview-item` → `fix-apply` → re-scan** for manifest rows with **`fix_strategy === 'auto'`** and `uses_ai === false`, and for **`dual_option` + `dual_option_choice`** rows. **`fix_strategy: suggested`** rows without dual-option still show `fix_status` **skip** (expected). Exit **0** only if strict **scanner** and strict **fix** tiers both pass (`fix_fail=0`).
+Same as `QA_FIX_AUTO=1` + `qa:accessibility:run`: runs **`fix-preview-item` → `fix-apply` → evaluate-html** for manifest rows with **`fix_strategy === 'auto'`** and `uses_ai === false`, and for **`dual_option` + `dual_option_choice`** rows. **`fix_strategy: suggested`** rows without dual-option still show `fix_status` **skip** (expected). Exit **0** only if strict **scanner** and strict **fix** tiers both pass (`fix_fail=0`). A **final full course scan** still runs after the loop unless **`QA_FINAL_SCAN=0`**.
 
 **Optional — include `uses_ai` auto fixes:** set **`ANTHROPIC_API_KEY`** (see app `.env` / ConfigService), then:
 
@@ -117,12 +117,15 @@ Costs API tokens; run only when you intend to validate AI-backed auto fixes.
 | MANIFEST_PATH | — | ✓ | Override manifest path |
 | QA_STRICT_ALL | — | ✓ | Set `1` to fail on best_effort tier too |
 | QA_REPORT_PATH | — | ✓ | Override report output path |
-| QA_FIX_AUTO | — | ✓ | Set `1` to verify non-AI `auto` fixes (preview → apply → re-scan); or **`npm run qa:accessibility:run:fix`** |
+| QA_FIX_AUTO | — | ✓ | Set `1` to verify non-AI `auto` fixes (preview → apply → **evaluate-html**); or **`npm run qa:accessibility:run:fix`** |
+| QA_FIX_VERIFY | — | ✓ | Default: after apply, **POST evaluate-html** refetches HTML and asserts the rule cleared. Set **`apply_only`** to skip that check. |
+| QA_FINAL_SCAN | — | ✓ | Default (unset): run a **second full `GET` scan** after fixtures and fill **`scan_compare`**. Set **`0`** to skip final scan (faster / rate-limit escape; no whole-course before/after delta in the report). |
 | QA_FIX_AUTO_AI | — | ✓ | Set `1` with `QA_FIX_AUTO=1` for `uses_ai` auto rules; or **`npm run qa:accessibility:run:fix:ai`** (needs **`ANTHROPIC_API_KEY`** on the Nest process) |
 | ANTHROPIC_API_KEY | — | (server) | Required only for `QA_FIX_AUTO_AI` / `run:fix:ai` when applying AI-backed auto fixes |
+| CANVAS_SERVICE_DEBUG | — | (server) | Set **`1`** for verbose `[Service]` / `fetchPaginatedData` / `updateAssignment` / `updateQuiz` logs (default off). |
 | QA_DEBUG_SCAN | — | ✓ | Set `1` to log scan finding counts and sample `resource_type:resource_id` keys (debug) |
 | QA_BASELINE_REPORT | — | ✓ | Path to a prior **`report-qa-*.json`**; after the run, exit **1** if any **strict** row that **passed** in the baseline **fails** now (scanner and, when `QA_FIX_AUTO=1`, fix). Alias: **`QA_BASELINE_PATH`**. |
-| QA_LINK_SCAN_RETRIES | — | ✓ | Max scan refetches for `link_broken` fixtures when the HTTP probe is flaky (default `3`) |
+| QA_LINK_SCAN_RETRIES | — | ✓ | For flaky **`link_broken`** scanner asserts: delay + **evaluate-html** retries (no course rescan); default `3` |
 | ACCESSIBILITY_LINK_CHECK_HOSTS | — | (server) | Comma-separated extra hostnames allowed for `link_broken` HTTP probes in the Nest process (defaults include `httpbin.org`, `httpstat.us`) |
 
 ## Server note
