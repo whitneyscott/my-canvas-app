@@ -77,11 +77,9 @@ QA_COURSE_ID=<populated automatically after first builder run>
 
 **Runner wiring:** `scripts/accessibility-qa-runner.js` calls `GET {API_BASE_URL}/canvas/courses/{courseId}/accessibility/scan` with those headers (`API_BASE_URL` defaults to `http://localhost:3002`, the Nest app port in `main.ts`).
 
-**Still open (align with safety rules below):**
+**Done:** `qaAccessibilityHeadersAllowed()` in `src/qa-accessibility-env.ts` disables QA header handling when `NODE_ENV=production`; startup warns when `QA_ACCESSIBILITY_ENABLED=1` (production vs non-production message). Unit tests in `src/qa-accessibility-env.spec.ts`.
 
-- Block or no-op QA header handling when `NODE_ENV=production` (not in code today).
-- Startup log when `QA_ACCESSIBILITY_ENABLED=1` (not in code today).
-- Optional: remove `CANVAS_*` fallback from QA scripts so mis-pointing at institutional Canvas is harder.
+**Still open:** Optional hardening — remove `CANVAS_*` fallback from QA scripts so mis-pointing at institutional Canvas is harder.
 
 #### Target behavior
 
@@ -97,22 +95,22 @@ QA_COURSE_ID=<populated automatically after first builder run>
 | `CANVAS_TOKEN` | Optional fallback in scripts | Developer token | Teacher token (session) |
 | `QA_CANVAS_BASE_URL` | OSS `http://localhost:3000/...` (recommended) | *(not set)* | *(must not be set)* |
 | `QA_CANVAS_TOKEN` | OSS token (recommended) | *(not set)* | *(must not be set)* |
-| `QA_ACCESSIBILITY_ENABLED` | `1` on Nest process for runner | *(not set)* | *(must be `0` / unset; guard TBD)* |
+| `QA_ACCESSIBILITY_ENABLED` | `1` on Nest process for runner | *(not set)* | *(ignored for header override when `NODE_ENV=production`)* |
 | `API_BASE_URL` / `QA_API_BASE_URL` | Runner → Nest (default `http://localhost:3002`) | — | — |
 | `NODE_ENV` | `development` | `development` | `production` |
 
 #### Safety rules
 
-- `QA_ACCESSIBILITY_ENABLED=1` should be **blocked** when `NODE_ENV=production` — **to implement** in `main.ts`.
-- Log a clear warning at startup when QA mode is active — **to implement**.
+- `QA_ACCESSIBILITY_ENABLED=1` has **no header override effect** when `NODE_ENV=production` — **implemented** via `qaAccessibilityHeadersAllowed()`.
+- Startup warning when `QA_ACCESSIBILITY_ENABLED=1` — **implemented** in `main.ts`.
 - Prefer failing loudly in scripts if `QA_CANVAS_*` is required (optional hardening); today scripts allow `CANVAS_*` fallback.
 
 #### Implementation checklist (remaining)
 
 1. ~~Locate Canvas base URL / token resolution~~ — session + `CanvasService` for `/canvas/*`; QA override via headers in `main.ts`.
-2. Add `NODE_ENV=production` guard for QA middleware.
-3. Add startup logging when `QA_ACCESSIBILITY_ENABLED=1`.
-4. Add tests for production guard (e.g. middleware does not apply QA session override when `NODE_ENV=production`).
+2. ~~`NODE_ENV=production` guard for QA middleware~~ — `src/qa-accessibility-env.ts` + `main.ts`.
+3. ~~Startup logging when `QA_ACCESSIBILITY_ENABLED=1`~~.
+4. ~~Tests for production guard~~ — `qa-accessibility-env.spec.ts`.
 5. Optional: script env strict mode using only `QA_CANVAS_*`.
 
 ### Resetting the QA environment
@@ -227,7 +225,7 @@ The QA runner **may optionally assert** correct model selection by inspecting to
 | **QA Runner (Phase 2)** | Reads manifest; drives scanner API; asserts expected findings; drives fix-preview and fix-apply; re-scans; validates HTML; optional undo round-trip. |
 | **Report sink** | Structured report (JSON for machines, summary Markdown for humans); optional push into AG Grid–backed UI as a "QA run" entity. |
 
-**Implementation status (this repo):** Phase 1 is **partial**: `accessibility-qa-builder.js` implements **pages + assignments** only; skips other content types with `skipped_reason: content_type_not_implemented`. Manifest entries do **not** yet pull `uses_ai`, `is_image_rule`, or `uses_second_stage_ai` from the TypeScript registry (would require a small compile step, `ts-node`, or duplicated JSON export). Phase 2 runner implements **scanner assertions only** (single course scan, match manifest expectations); `fix_status` stays `n/a` — no fix-preview/apply loop, token logging checks, or dual-option tests yet.
+**Implementation status (this repo):** Phase 1 is **partial**: `accessibility-qa-builder.js` implements **pages + assignments** only; skips other content types with `skipped_reason: content_type_not_implemented`. After `nest build`, the builder loads `ACCESSIBILITY_FIXABILITY_MAP` from **`dist/canvas/canvas.service.js`** and writes `fix_strategy`, `uses_ai`, `is_image_rule`, `uses_second_stage_ai`, `dual_option`, and `pending_heuristic` on manifest rows (`npm run qa:accessibility:build` runs `nest build` first). Phase 2 runner: **scanner assertions** plus optional **`QA_FIX_AUTO=1`** path (preview → apply → re-scan for non-AI `auto` rules; skips `dual_option` and `uses_ai` unless `QA_FIX_AUTO_AI=1`). Scan matching uses API resource types **`page`** / **`assignment`**. No dual-option variant tests or strict AI token assertions yet.
 
 **Data flow:** Builder → Canvas + **`test/fixtures/accessibility-qa/manifest.json`** → Runner calls Nest **`/canvas/courses/:id/accessibility/scan`** with QA headers → Runner writes **`report-<run_id>.json`** (and optional future baseline diff).
 
@@ -550,12 +548,12 @@ For rules with `dual_option: true` in the manifest (`aria_hidden_focusable`, `ta
 
 ## 7. Deliverables Checklist
 
-- [ ] Manifest JSON Schema (`test/fixtures/accessibility-qa/manifest.schema.json`) — **partial:** file exists; extend for §2.1 fields (`uses_ai`, `is_image_rule`, `uses_second_stage_ai`, `dual_option`, `broken_link_url`, `canvas_capability`, etc.).
-- [ ] Fixture definitions (`test/fixtures/accessibility-qa/fixtures.json`) — **partial:** pages + assignments; refresh for registry changes, dual-option variants, franc-length text, iframe patterns, broken-link strategy.
-- [x] Runbook (`test/fixtures/accessibility-qa/RUNBOOK.md`) — env vars and commands; **should** emphasize Canvas OSS per §Prerequisites when this plan is enforced.
-- [ ] Builder (`npm run qa:accessibility:build` → `scripts/accessibility-qa-builder.js`) — **partial:** pages + assignments only; add registry sync, optional `--force-rebuild`, file-upload / quiz / module paths per Phase 1.
-- [ ] Runner (`npm run qa:accessibility:run` → `scripts/accessibility-qa-runner.js`) — **partial:** scanner-only, QA headers, tier rollup, `QA_STRICT_ALL`; add fix loop, dual-option tests, AI token assertions per Phase 2.
-- [ ] `NODE_ENV=production` guard + startup warning for `QA_ACCESSIBILITY_ENABLED` in `main.ts`.
+- [ ] Manifest JSON Schema (`test/fixtures/accessibility-qa/manifest.schema.json`) — extended for registry fields; still **missing** optional §2.1 fields such as `broken_link_url` shape, `canvas_capability` detail.
+- [ ] Fixture definitions (`test/fixtures/accessibility-qa/fixtures.json`) — **partial:** pages + assignments; refresh for dual-option variants, franc-length text, iframe patterns, broken-link strategy.
+- [x] Runbook (`test/fixtures/accessibility-qa/RUNBOOK.md`) — env vars, `QA_FIX_AUTO`, production QA note, builder `nest build` prerequisite.
+- [ ] Builder — **partial:** registry sync via dist (done); still **missing** `--force-rebuild`, file-upload / quiz / module paths per Phase 1.
+- [ ] Runner — **partial:** scanner + optional `QA_FIX_AUTO` auto fix path; **missing** dual-option tests, AI token assertions, suggested-flow simulation.
+- [x] `NODE_ENV=production` guard + startup warning for `QA_ACCESSIBILITY_ENABLED` (`src/qa-accessibility-env.ts`, `main.ts`).
 - [ ] List of **manual** AI QA spots per rule (double-AI rules, franc ambiguity, etc.).
 - [x] Documented default: **sequential_reapply** or **single_rule_per_resource** for fix QA (applies once fix loop exists).
 - [ ] Allowlisted / internal **broken link** URLs for E2E (§2.5).

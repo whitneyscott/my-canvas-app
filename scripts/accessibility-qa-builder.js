@@ -3,6 +3,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const {
+  loadFixabilityMapFromDist,
+  enrichFixtureRegistryFields,
+} = require('./accessibility-qa-helpers');
 
 const QA_COURSE_NAME = '[QA][A11y] Automated Fixtures';
 const QA_COURSE_CODE = 'QA-A11Y-FIX';
@@ -105,6 +109,7 @@ async function main() {
   const fixturesPath = path.join(__dirname, '..', 'test', 'fixtures', 'accessibility-qa', 'fixtures.json');
   const fixturesData = JSON.parse(fs.readFileSync(fixturesPath, 'utf8'));
   const rawFixtures = fixturesData.fixtures || [];
+  const fixabilityMap = loadFixabilityMapFromDist();
   const courseId = await findOrCreateCourse(baseUrl, token);
   console.log(`Using course ${courseId} (${QA_COURSE_NAME})`);
 
@@ -118,6 +123,7 @@ async function main() {
     created_at: new Date().toISOString(),
     rebuilt_at: new Date().toISOString(),
     rebuild_reason: 'script run',
+    registry_rule_count: Object.keys(fixabilityMap).length,
     fixtures: [],
   };
 
@@ -135,6 +141,15 @@ async function main() {
       expectation_tier: f.expectation_tier || 'strict',
       is_clean_control: !!f.is_clean_control,
     };
+    if (!f.is_clean_control) {
+      const reg = enrichFixtureRegistryFields(ruleId, fixabilityMap);
+      entry.fix_strategy = reg.fix_strategy;
+      entry.uses_ai = reg.uses_ai;
+      entry.is_image_rule = reg.is_image_rule;
+      entry.uses_second_stage_ai = reg.uses_second_stage_ai;
+      if (reg.dual_option) entry.dual_option = true;
+      if (reg.pending_heuristic) entry.pending_heuristic = true;
+    }
     try {
       if (f.content_type === 'pages') {
         const slug = (f.location_hint || f.fixture_id).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');

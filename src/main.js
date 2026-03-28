@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var core_1 = require("@nestjs/core");
 var path_1 = require("path");
 var app_module_1 = require("./app.module");
+var qa_accessibility_env_1 = require("./qa-accessibility-env");
 var express = require("express");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- express-session is `export =`; Nest build reports TS1259 for default import from @types/express-session.
 var session = require("express-session");
@@ -88,7 +89,7 @@ function bootstrap() {
                     app.use(function (req, _res, next) {
                         var qaToken = req.headers['x-qa-canvas-token'];
                         var qaUrl = req.headers['x-qa-canvas-url'];
-                        if (process.env.QA_ACCESSIBILITY_ENABLED === '1' &&
+                        if ((0, qa_accessibility_env_1.qaAccessibilityHeadersAllowed)() &&
                             qaToken &&
                             qaUrl &&
                             String(req.path || '').startsWith('/canvas/')) {
@@ -112,6 +113,14 @@ function bootstrap() {
                     return [4 /*yield*/, app.listen(port)];
                 case 2:
                     _a.sent();
+                    if (process.env.QA_ACCESSIBILITY_ENABLED === '1') {
+                        if (process.env.NODE_ENV === 'production') {
+                            console.warn('[QA] QA_ACCESSIBILITY_ENABLED is set but header override is disabled in production.');
+                        }
+                        else {
+                            console.warn('[QA] Accessibility QA header override is active (non-production): /canvas/* may use X-QA-Canvas-* headers.');
+                        }
+                    }
                     console.log("Application is running on port: ".concat(port));
                     return [2 /*return*/];
             }

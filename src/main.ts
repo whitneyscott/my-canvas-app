@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { AppModule } from './app.module';
+import { qaAccessibilityHeadersAllowed } from './qa-accessibility-env';
 import * as express from 'express';
 import type { Request } from 'express';
 import type { Session } from 'express-session';
@@ -60,7 +61,7 @@ async function bootstrap() {
       const qaToken = req.headers['x-qa-canvas-token'];
       const qaUrl = req.headers['x-qa-canvas-url'];
       if (
-        process.env.QA_ACCESSIBILITY_ENABLED === '1' &&
+        qaAccessibilityHeadersAllowed() &&
         qaToken &&
         qaUrl &&
         String(req.path || '').startsWith('/canvas/')
@@ -87,6 +88,17 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3002;
   await app.listen(port);
+  if (process.env.QA_ACCESSIBILITY_ENABLED === '1') {
+    if (process.env.NODE_ENV === 'production') {
+      console.warn(
+        '[QA] QA_ACCESSIBILITY_ENABLED is set but header override is disabled in production.',
+      );
+    } else {
+      console.warn(
+        '[QA] Accessibility QA header override is active (non-production): /canvas/* may use X-QA-Canvas-* headers.',
+      );
+    }
+  }
   console.log(`Application is running on port: ${port}`);
 }
 void bootstrap();

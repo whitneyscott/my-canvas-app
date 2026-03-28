@@ -21,7 +21,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "down": "cd services/accreditation-lookup && wsl docker compose down",
-    "qa:accessibility:build": "node scripts/accessibility-qa-builder.js",
+    "qa:accessibility:build": "nest build && node scripts/accessibility-qa-builder.js",
     "qa:accessibility:run": "node scripts/accessibility-qa-runner.js"
   },
   "dependencies": {
