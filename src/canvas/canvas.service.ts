@@ -8844,7 +8844,24 @@ export class CanvasService {
           aMatch[0],
         );
       }
-      if (/\.(pdf|docx?|pptx?|xlsx?|csv)(?:[?#].*)?$/i.test(href)) {
+      const fileExtMatch = href.match(
+        /\.(pdf|docx?|doc|pptx?|xlsx?|csv)(?:[?#].*)?$/i,
+      );
+      const fileTypeHintMatch = text.match(
+        /\b(pdf|docx?|doc|word|pptx?|ppt|powerpoint|xlsx?|xls|excel|csv)\b/i,
+      );
+      const hintedType = String(
+        fileTypeHintMatch?.[1] || '',
+      ).toLowerCase();
+      const normalizedHintedType = hintedType.startsWith('word')
+        ? 'doc'
+        : hintedType.startsWith('powerpoint')
+          ? 'ppt'
+          : hintedType.startsWith('excel')
+            ? 'xls'
+            : hintedType;
+      const isFileLink = !!fileExtMatch || !!normalizedHintedType;
+      if (isFileLink) {
         if (
           !/\b(pdf|doc|word|ppt|powerpoint|xls|excel|csv)\b/i.test(text) ||
           !/\b\d+\s?(kb|mb|gb)\b/i.test(text)
@@ -8858,7 +8875,9 @@ export class CanvasService {
             `${text} ${href}`.trim(),
           );
         }
-        if (/\.pdf(?:[?#].*)?$/i.test(href)) {
+        const ext = String(fileExtMatch?.[1] || '').toLowerCase();
+        const docType = ext || normalizedHintedType;
+        if (docType === 'pdf') {
           this.addFinding(
             findings,
             base,
@@ -8867,7 +8886,9 @@ export class CanvasService {
             'Linked PDF accessibility (tags/text layer/title/lang) is unknown and should be verified.',
             href,
           );
-        } else if (/\.(docx?|pptx?)(?:[?#].*)?$/i.test(href)) {
+        } else if (
+          ['doc', 'docx', 'ppt', 'pptx'].includes(docType)
+        ) {
           this.addFinding(
             findings,
             base,
@@ -8876,7 +8897,7 @@ export class CanvasService {
             'Linked Office file accessibility structure should be verified.',
             href,
           );
-        } else if (/\.(xlsx?|csv)(?:[?#].*)?$/i.test(href)) {
+        } else if (['xls', 'xlsx', 'csv'].includes(docType)) {
           this.addFinding(
             findings,
             base,
