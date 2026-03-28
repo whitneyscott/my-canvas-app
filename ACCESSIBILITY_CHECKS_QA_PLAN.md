@@ -214,6 +214,17 @@ The QA runner **may optionally assert** correct model selection by inspecting to
 
 `lang_inline_missing` and `lang_invalid` now use the **franc** language detection library for heuristic language identification. Fixture HTML for these rules must contain sufficient text (minimum ~50 words recommended) for franc to produce reliable detection results.
 
+### 0.8 Video embeds — SproutVideo (product standard)
+
+Bulk course content in this app **standardizes on SproutVideo** for video: pages and assignments use **SproutVideo `<iframe>` embeds** (typical hostnames under **`sproutvideo.com`**, e.g. `videos.sproutvideo.com` / CDN/player subdomains — match whatever the live embed `src` uses in production).
+
+**QA implication:** Any **`iframe_missing_title`** (or future iframe accessibility) fixture matrix must **prioritize SproutVideo** — at minimum:
+
+- One fixture: SproutVideo `iframe` **without** `title` (fix path / manual verify that suggested title is acceptable; today `applyIframeTitleSuggest` derives `Embedded content from <hostname>`).
+- Optional: SproutVideo `iframe` **with** valid `title` as clean or negative control.
+
+Other providers (YouTube, Vimeo, Google Docs/Forms) remain **secondary** parity checks for generic URL parsing and caption-unknown heuristics where applicable; they do **not** replace SproutVideo coverage.
+
 ---
 
 ## 1. Architecture Overview
@@ -400,7 +411,12 @@ Fixtures for these rules must be tagged `uses_second_stage_ai: true` in the mani
 - Report estimated cost per fixture run given double-call nature
 
 #### `iframe_missing_title` (heuristic pattern matching)
-Fixtures must include iframes with recognizable src patterns (YouTube, Vimeo, Google Docs, Google Forms) AND at least one unrecognized domain to verify the fallback `[domain] embedded content` pattern.
+
+**Primary (required for this product):** **SproutVideo** — include at least one `<iframe>` whose `src` uses the same **SproutVideo host pattern** as production embeds (e.g. `https://videos.sproutvideo.com/embed/...` or the hostname your tenant uses). Assert fix-preview / suggested title behavior for that embed; the implementation uses hostname-derived titles (`Embedded content from <hostname>` in `applyIframeTitleSuggest`).
+
+**Secondary (recommended parity):** Additional iframes for YouTube, Vimeo, Google Docs, or Google Forms where those appear in legacy or copied content.
+
+**Fallback:** At least one iframe with an **unrecognized** or internal `src` to verify generic domain / fallback labeling when the URL does not match a known vendor pattern.
 
 ### 3.8 Implementation order (Phase 1)
 
@@ -549,10 +565,10 @@ For rules with `dual_option: true` in the manifest (`aria_hidden_focusable`, `ta
 
 ## 7. Deliverables Checklist
 
-**Where we are (Mar 2026):** Local Canvas OSS + Nest QA headers can run **`qa:accessibility:build`** / **`qa:accessibility:run`** with **strict scanner assertions** for **17** pages+assignments violation fixtures + clean control (rebuild manifest after pulling). Next gaps: **Option A/B HTML variants** for dual-option *fix* QA, **lang / iframe** scanner gaps, **broken-link** E2E, **CI** wiring.
+**Where we are (Mar 2026):** Local Canvas OSS + Nest QA headers can run **`qa:accessibility:build`** / **`qa:accessibility:run`** with **strict scanner assertions** for **17** pages+assignments violation fixtures + clean control (rebuild manifest after pulling). Next gaps: **Option A/B HTML variants** for dual-option *fix* QA, **SproutVideo iframe** fixtures + `iframe_missing_title` fix QA (scanner for generic iframes still absent per catalog), **lang** scanner gaps, **broken-link** E2E, **CI** wiring.
 
 - [x] Manifest JSON Schema (`test/fixtures/accessibility-qa/manifest.schema.json`) — registry fields (`fix_strategy`, `uses_ai`, `is_image_rule`, `uses_second_stage_ai`, `dual_option`, `pending_heuristic`), `broken_link_url`, `canvas_capability` property placeholders; optional: richer `canvas_capability` inner shape per §2.1.
-- [x] Fixture definitions (`test/fixtures/accessibility-qa/fixtures.json`) — pages + assignments **strict scanner** set (**17** violation rows + clean control), including `aria_hidden_focusable` and `table_layout_heuristic` on both surfaces. **Still to add:** dual-option **fix** variants (Option A/B HTML per rule), franc-length lang fixtures (when scanner emits), iframe patterns (when scanner emits), broken-link strategy, more content types.
+- [x] Fixture definitions (`test/fixtures/accessibility-qa/fixtures.json`) — pages + assignments **strict scanner** set (**17** violation rows + clean control), including `aria_hidden_focusable` and `table_layout_heuristic` on both surfaces. **Still to add:** dual-option **fix** variants (Option A/B HTML per rule), franc-length lang fixtures (when scanner emits), **SproutVideo `iframe` + `iframe_missing_title` fix** coverage (see §0.8 / §3.7; strict scanner row optional until scanner emits), broken-link strategy, more content types.
 - [x] Runbook (`test/fixtures/accessibility-qa/RUNBOOK.md`) — env vars, `QA_FIX_AUTO`, production QA note, builder `nest build` prerequisite.
 - [x] Builder (`scripts/accessibility-qa-builder.js`) — **done for v1:** course create/reuse, pages + assignments HTML, manifest emit, **registry sync from `dist`** after `nest build`. **Still missing:** `--force-rebuild`, announcements/discussions/syllabus/quizzes/modules, file-upload pipeline.
 - [x] Runner (`scripts/accessibility-qa-runner.js`) — **done for v1:** manifest load + schema validation, **strict/best-effort** scanner assertions, JSON report, optional **`QA_FIX_AUTO`** path. **Verified:** end-to-end strict run green on Canvas OSS with prior fixture set (Mar 2026); **re-run** after adding fixtures. **Still missing:** dual-option *fix* tests, AI token assertions, suggested-flow simulation, regression baseline diff.
@@ -562,7 +578,7 @@ For rules with `dual_option: true` in the manifest (`aria_hidden_focusable`, `ta
 - [ ] Allowlisted / internal **broken link** URLs for E2E (§2.5).
 - [ ] Dual-option **fix** fixture variants (Option A vs B HTML) + runner coverage for `aria_hidden_focusable` and `table_layout_heuristic` (scanner fixtures for both rules exist on pages and assignments).
 - [ ] Minimum-length text fixtures for `lang_inline_missing` and `lang_invalid` (franc requirement).
-- [ ] iframe fixture variants covering YouTube, Vimeo, Google Docs, Google Forms, and unknown domain patterns.
+- [ ] **Iframe fixtures (SproutVideo-first):** at least one **SproutVideo** embed `src` (production-equivalent hostname) for `iframe_missing_title` / title suggest behavior; then optional YouTube, Vimeo, Google Docs/Forms, and unknown-domain fallbacks (§0.8, §3.7).
 
 ---
 

@@ -38,6 +38,6 @@ Verify link text, labels, and rewrites are sensible in context.
 
 ## Not covered by scanner-only QA
 
-- **`iframe_missing_title`:** suggest fix exists; **scanner does not emit** generic iframe findings yet (`ACCESSIBILITY_CHECKS.md`).
+- **`iframe_missing_title`:** suggest fix exists; **scanner does not emit** generic iframe findings yet (`ACCESSIBILITY_CHECKS.md`). When adding fixtures, **use SproutVideo `iframe` URLs first** — this app standardizes on SproutVideo embeds; verify `applyIframeTitleSuggest` titling for that hostname.
 - **Broken-link HTTP checks:** depend on network or allowlisted test URLs (see plan §2.5).
 - **Dual-option rules** (`aria_hidden_focusable`, `table_layout_heuristic`): each fix option should be exercised manually or via a future runner variant until automated dual-option runs exist.
