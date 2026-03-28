@@ -543,6 +543,12 @@ async function main() {
     console.error('Manifest missing course_id');
     process.exit(1);
   }
+  console.error(
+    '[QA] manifest %s course_id=%s rebuilt_at=%s',
+    manifestPath,
+    courseId,
+    manifest.rebuilt_at ?? 'n/a',
+  );
 
   const report = {
     run_id: `qa-${Date.now()}`,
@@ -1083,8 +1089,14 @@ async function main() {
       ),
     );
     if (fixAuto && strictFail > 0 && strictFixFail === 0) {
+      const ini =
+        report.initial_scan?.summary?.total_findings ??
+        (Array.isArray(report.initial_scan?.findings)
+          ? report.initial_scan.findings.length
+          : null);
       console.error(
-        '[QA] Scanner failed but fix_fail=0: the QA course may already be fixed from a prior run. Run npm run qa:accessibility:build, then retry. See RUNBOOK §2.1.',
+        '[QA] Scanner failed but fix_fail=0: strict rows expected violations that were missing on the initial scan (initial total_findings=%s). Re-seed: npm run qa:accessibility:build:force, confirm this run logs the same course_id as manifest.json, then one runner command. If total_findings stays low after build, check builder output for Canvas errors. RUNBOOK §2.1.',
+        ini == null ? 'n/a' : String(ini),
       );
     }
     process.exit(1);
