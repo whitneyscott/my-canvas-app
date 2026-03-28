@@ -41,5 +41,5 @@ Verify link text, labels, and rewrites are sensible in context.
 ## Not covered by scanner-only QA
 
 - **`iframe_missing_title`:** scanner emits when an `<iframe>` has no non-empty `title`. Suggested title comes from **`suggestIframeTitleFromSrc`** (`accessibility-heuristics.ts`): **`SproutVideo embedded content`** for `*.sproutvideo.com`, known YouTube/Vimeo/Google patterns, else **`{hostname} embedded content`**. Strict QA fixtures use SproutVideo-style `src` on pages and assignments.
-- **`link_broken` HTTP probe:** strict QA uses allowlisted **`https://httpstat.us/404`**; extend hosts via **`ACCESSIBILITY_LINK_CHECK_HOSTS`**. Spot-check that real courses do not rely only on allowlisted hosts for full coverage (see plan §2.5).
+- **`link_broken` HTTP probe:** strict QA uses allowlisted **`https://httpbin.org/status/404`** (fallback defaults also allow `httpstat.us`); extend hosts via **`ACCESSIBILITY_LINK_CHECK_HOSTS`**. Spot-check that real courses do not rely only on allowlisted hosts for full coverage (see plan §2.5).
 - **Dual-option rules** (`aria_hidden_focusable`, `table_layout_heuristic`): runner can apply one chosen option per manifest row via `dual_option_choice` and `QA_FIX_AUTO=1`; still spot-check that the **other** option behaves acceptably in the UI when you care about both paths.

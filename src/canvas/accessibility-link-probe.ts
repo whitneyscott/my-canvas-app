@@ -1,4 +1,8 @@
-const DEFAULT_LINK_CHECK_HOSTS = ['httpstat.us'];
+const DEFAULT_LINK_CHECK_HOSTS = [
+  'httpstat.us',
+  'www.httpstat.us',
+  'httpbin.org',
+];
 
 export function getLinkCheckAllowlistHosts(): string[] {
   const raw = process.env.ACCESSIBILITY_LINK_CHECK_HOSTS?.trim();
@@ -20,20 +24,30 @@ export type LinkProbeOutcome = 'broken' | 'ok' | 'inconclusive';
 
 export async function probeHttpUrlBroken(url: string): Promise<LinkProbeOutcome> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 10_000);
+  const timer = setTimeout(() => ctrl.abort(), 15_000);
+  const drain = async (res: Response) => {
+    try {
+      await res.arrayBuffer();
+    } catch {
+      /* ignore */
+    }
+  };
   try {
     let res = await fetch(url, {
-      method: 'HEAD',
-      redirect: 'manual',
+      method: 'GET',
+      redirect: 'follow',
       signal: ctrl.signal,
+      headers: { Range: 'bytes=0-0', Accept: '*/*' },
     });
+    await drain(res);
     if (res.status === 405 || res.status === 501) {
       res = await fetch(url, {
-        method: 'GET',
-        redirect: 'manual',
+        method: 'HEAD',
+        redirect: 'follow',
         signal: ctrl.signal,
-        headers: { Range: 'bytes=0-0' },
+        headers: { Accept: '*/*' },
       });
+      await drain(res);
     }
     if (res.status === 404 || res.status === 410) return 'broken';
     if (res.status >= 200 && res.status < 400) return 'ok';
