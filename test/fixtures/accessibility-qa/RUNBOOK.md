@@ -55,6 +55,18 @@ Runner loads manifest, calls scan API with `X-QA-Canvas-Token` and `X-QA-Canvas-
 
 **Optional auto-fix verification:** set `QA_FIX_AUTO=1` to run `fix-preview-item` → `fix-apply` → re-scan. **Auto rules:** `fix_strategy === 'auto'` (skips `uses_ai` unless `QA_FIX_AUTO_AI=1`). **Dual-option suggested rules:** manifest rows with `dual_option_choice` set (`acc_fix:aria_hidden:remove` / `tabindex`, `acc_fix:table_layout:presentation` / `headers`) use the same path with `edited_suggestion`. Rows with `dual_option` but no `dual_option_choice` are skipped for fix. Default is scan-only (`QA_FIX_AUTO` unset).
 
+**PowerShell (same machine, second terminal — API still running in the first):**
+
+```powershell
+cd C:\dev\Canvas-Bulk-Editor
+$env:QA_FIX_AUTO = "1"
+npm run qa:accessibility:run
+```
+
+That only affects the **current** PowerShell window. To go back to scan-only, close the window or run `$env:QA_FIX_AUTO = $null` before `npm run qa:accessibility:run`. Token and Canvas URL still come from `.env` or variables you already use for the normal run.
+
+**Note:** fix mode **mutates** the QA course HTML in Canvas (then re-scans). If you need a clean course again, re-run `npm run qa:accessibility:build` afterward.
+
 ## Env vars
 
 | Var | Builder | Runner | Description |
