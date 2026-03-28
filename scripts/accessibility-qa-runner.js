@@ -53,6 +53,24 @@ function resourceKey(fixture) {
   return `${fixture.content_type}:${fixture.resource_id}`;
 }
 
+function assertZeroAiForNonAiRule(fixture, meter, fixAutoAi) {
+  if (process.env.QA_ASSERT_ZERO_AI_HEURISTIC === '0') {
+    return { ok: true };
+  }
+  if (fixAutoAi) return { ok: true };
+  if (!meter || fixture.uses_ai !== false) return { ok: true };
+  if (fixture.pending_heuristic) return { ok: true };
+  const inT = Number(meter.input_tokens) || 0;
+  const outT = Number(meter.output_tokens) || 0;
+  if (inT + outT > 0) {
+    return {
+      ok: false,
+      reason: `Expected 0 AI tokens for uses_ai=false rule; got input=${inT} output=${outT}`,
+    };
+  }
+  return { ok: true };
+}
+
 function compareStrictBaseline(currentReport, baselinePath, fixAuto) {
   const regressions = [];
   let baseline;
@@ -349,6 +367,7 @@ async function main() {
     manifest_version: manifest.manifest_version,
     course_id: courseId,
     qa_fix_auto: fixAuto,
+    qa_assert_zero_ai_heuristic: process.env.QA_ASSERT_ZERO_AI_HEURISTIC !== '0',
     results: [],
     by_tier: {
       strict: { pass: 0, fail: 0, skip: 0, fix_fail: 0 },
@@ -363,6 +382,7 @@ async function main() {
           cache_creation_input_tokens: 0,
         }
       : undefined,
+    ai_heuristic_assert_failures: 0,
   };
 
   const headers = {
@@ -499,7 +519,72 @@ async function main() {
             ? fixture.dual_option_choice.trim()
             : '';
 
-        if (fixture.dual_option && dualChoice) {
+        if (
+          fixture.rule_id === 'link_broken' &&
+          typeof fixture.correct_link_href === 'string' &&
+          fixture.correct_link_href.trim()
+        ) {
+          const match = resourceFindings.find((x) => x.rule_id === 'link_broken');
+          if (!match) {
+            fixStatus = 'skip';
+            fixNotes = 'No link_broken finding for teacher URL fix';
+          } else {
+            const fixResult = await trySuggestedFixWithEditedChoice({
+              apiBase,
+              courseId,
+              headers,
+              fixture,
+              finding: match,
+              editedSuggestion: fixture.correct_link_href.trim(),
+            });
+            previewMeter = fixResult.meter;
+            if (previewMeter && report.fix_meter_aggregate) {
+              report.fix_meter_aggregate.input_tokens +=
+                Number(previewMeter.input_tokens) || 0;
+              report.fix_meter_aggregate.output_tokens +=
+                Number(previewMeter.output_tokens) || 0;
+              report.fix_meter_aggregate.cache_read_input_tokens +=
+                Number(previewMeter.cache_read_input_tokens) || 0;
+              report.fix_meter_aggregate.cache_creation_input_tokens +=
+                Number(previewMeter.cache_creation_input_tokens) || 0;
+            }
+            const aiChk = assertZeroAiForNonAiRule(fixture, previewMeter, fixAutoAi);
+            if (!aiChk.ok) {
+              fixStatus = 'fail';
+              fixNotes = aiChk.reason || 'AI heuristic assert failed';
+              report.ai_heuristic_assert_failures += 1;
+              report.by_tier[tier].fix_fail++;
+              if (tier === 'strict') strictFixFail++;
+              else bestEffortFixFail++;
+            } else if (!fixResult.ok) {
+              fixStatus = 'fail';
+              fixNotes = fixResult.reason;
+              report.by_tier[tier].fix_fail++;
+              if (tier === 'strict') strictFixFail++;
+              else bestEffortFixFail++;
+            } else {
+              scanData = await fetchScan(apiBase, courseId, headers);
+              findings = scanData.findings || [];
+              const br2 = indexFindingsByResource(findings);
+              const rf2 = br2.get(rk) || [];
+              const after = rf2.filter((x) => x.rule_id === 'link_broken').length;
+              if (after > 0) {
+                fixStatus = 'fail';
+                fixNotes = `After apply, expected 0 link_broken, got ${after}`;
+                report.by_tier[tier].fix_fail++;
+                if (tier === 'strict') strictFixFail++;
+                else bestEffortFixFail++;
+              } else {
+                fixStatus = 'pass';
+                fixNotes = 'link_broken cleared after teacher href apply';
+              }
+              byResource.clear();
+              for (const [k, v] of indexFindingsByResource(findings).entries()) {
+                byResource.set(k, v);
+              }
+            }
+          }
+        } else if (fixture.dual_option && dualChoice) {
           const match = resourceFindings.find((x) => x.rule_id === fixture.rule_id);
           if (!match) {
             fixStatus = 'skip';
@@ -524,7 +609,19 @@ async function main() {
               report.fix_meter_aggregate.cache_creation_input_tokens +=
                 Number(previewMeter.cache_creation_input_tokens) || 0;
             }
-            if (!fixResult.ok) {
+            const aiChkDual = assertZeroAiForNonAiRule(
+              fixture,
+              previewMeter,
+              fixAutoAi,
+            );
+            if (!aiChkDual.ok) {
+              fixStatus = 'fail';
+              fixNotes = aiChkDual.reason || 'AI heuristic assert failed';
+              report.ai_heuristic_assert_failures += 1;
+              report.by_tier[tier].fix_fail++;
+              if (tier === 'strict') strictFixFail++;
+              else bestEffortFixFail++;
+            } else if (!fixResult.ok) {
               fixStatus = 'fail';
               fixNotes = fixResult.reason;
               report.by_tier[tier].fix_fail++;
@@ -580,7 +677,19 @@ async function main() {
                 report.fix_meter_aggregate.cache_creation_input_tokens +=
                   Number(previewMeter.cache_creation_input_tokens) || 0;
               }
-              if (!fixResult.ok) {
+              const aiChkAuto = assertZeroAiForNonAiRule(
+                fixture,
+                previewMeter,
+                fixAutoAi,
+              );
+              if (!aiChkAuto.ok) {
+                fixStatus = 'fail';
+                fixNotes = aiChkAuto.reason || 'AI heuristic assert failed';
+                report.ai_heuristic_assert_failures += 1;
+                report.by_tier[tier].fix_fail++;
+                if (tier === 'strict') strictFixFail++;
+                else bestEffortFixFail++;
+              } else if (!fixResult.ok) {
                 fixStatus = 'fail';
                 fixNotes = fixResult.reason;
                 report.by_tier[tier].fix_fail++;
@@ -696,6 +805,12 @@ async function main() {
     report.by_tier.best_effort?.skip ?? 0,
     report.by_tier.best_effort?.fix_fail ?? 0,
   );
+  if (fixAuto && (report.ai_heuristic_assert_failures || 0) > 0) {
+    console.error(
+      'AI heuristic token assertions failed: %d (set QA_ASSERT_ZERO_AI_HEURISTIC=0 to disable)',
+      report.ai_heuristic_assert_failures,
+    );
+  }
   if (exitFail > 0) {
     console.error(
       'Failures:',

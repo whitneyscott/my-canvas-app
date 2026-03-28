@@ -191,6 +191,7 @@
       "location_hint": "page-link-broken-allowlisted",
       "expectation_tier": "strict",
       "broken_link_url": "https://httpbin.org/status/404",
+      "correct_link_href": "https://example.com/",
       "html": "<p>Allowlisted broken URL: <a href=\"https://httpbin.org/status/404\">Expected 404 probe</a></p>"
     },
     {
@@ -200,7 +201,89 @@
       "location_hint": "[QA] Assignment link_broken allowlisted",
       "expectation_tier": "strict",
       "broken_link_url": "https://httpbin.org/status/404",
+      "correct_link_href": "https://example.com/",
       "html": "<p>Assignment allowlisted broken link: <a href=\"https://httpbin.org/status/404\">Expected 404 probe</a></p>"
+    },
+    {
+      "fixture_id": "page_doc_pdf_accessibility_unknown",
+      "rule_id": "doc_pdf_accessibility_unknown",
+      "content_type": "pages",
+      "location_hint": "page-doc-pdf-unknown",
+      "expectation_tier": "strict",
+      "html": "<p>Policy file <a href=\"https://example.com/qa-policy.pdf\">Annual report (PDF, 2 MB)</a> for review.</p>"
+    },
+    {
+      "fixture_id": "page_doc_office_structure_unknown",
+      "rule_id": "doc_office_structure_unknown",
+      "content_type": "pages",
+      "location_hint": "page-doc-office-unknown",
+      "expectation_tier": "strict",
+      "html": "<p>Slides <a href=\"https://example.com/qa-deck.pptx\">Q4 deck (PPTX, 5 MB)</a>.</p>"
+    },
+    {
+      "fixture_id": "page_doc_spreadsheet_headers_unknown",
+      "rule_id": "doc_spreadsheet_headers_unknown",
+      "content_type": "pages",
+      "location_hint": "page-doc-sheet-unknown",
+      "expectation_tier": "strict",
+      "html": "<p>Data <a href=\"https://example.com/qa-data.xlsx\">Export (XLSX, 1 MB)</a>.</p>"
+    },
+    {
+      "fixture_id": "page_doc_pdf_course_upload",
+      "rule_id": "doc_pdf_accessibility_unknown",
+      "content_type": "pages",
+      "location_hint": "page-doc-pdf-course-upload",
+      "expectation_tier": "strict",
+      "use_course_pdf_placeholder": true,
+      "html": "<p>Uploaded course file <a href=\"PLACEHOLDER_COURSE_PDF\">Handbook (PDF, 1 MB)</a>.</p>"
+    },
+    {
+      "fixture_id": "page_video_missing_captions_inline",
+      "rule_id": "video_missing_captions",
+      "content_type": "pages",
+      "location_hint": "page-video-no-captions",
+      "expectation_tier": "strict",
+      "html": "<p>Clip:</p><video controls width=\"320\" height=\"180\"><source src=\"https://example.com/qa-a11y-clip.mp4\" type=\"video/mp4\"/></video>"
+    },
+    {
+      "fixture_id": "page_audio_missing_transcript_inline",
+      "rule_id": "audio_missing_transcript",
+      "content_type": "pages",
+      "location_hint": "page-audio-no-transcript",
+      "expectation_tier": "strict",
+      "html": "<p>Listen:</p><audio controls src=\"https://example.com/qa-a11y-audio.mp3\"></audio>"
+    },
+    {
+      "fixture_id": "page_video_embed_caption_unknown_yt",
+      "rule_id": "video_embed_caption_unknown",
+      "content_type": "pages",
+      "location_hint": "page-video-embed-yt-unknown",
+      "expectation_tier": "strict",
+      "html": "<p>Lecture recording.</p><iframe title=\"Lecture week 1\" width=\"560\" height=\"315\" src=\"https://www.youtube.com/embed/dQw4w9WgXcQ\" allowfullscreen></iframe>"
+    },
+    {
+      "fixture_id": "page_iframe_youtube_no_title",
+      "rule_id": "iframe_missing_title",
+      "content_type": "pages",
+      "location_hint": "page-iframe-youtube-no-title",
+      "expectation_tier": "strict",
+      "html": "<p>YouTube (no title):</p><iframe width=\"560\" height=\"315\" src=\"https://www.youtube.com/embed/dQw4w9WgXcQ\" allowfullscreen></iframe>"
+    },
+    {
+      "fixture_id": "page_iframe_vimeo_no_title",
+      "rule_id": "iframe_missing_title",
+      "content_type": "pages",
+      "location_hint": "page-iframe-vimeo-no-title",
+      "expectation_tier": "strict",
+      "html": "<p>Vimeo (no title):</p><iframe src=\"https://player.vimeo.com/video/148751763\" width=\"640\" height=\"360\"></iframe>"
+    },
+    {
+      "fixture_id": "page_iframe_gdocs_no_title",
+      "rule_id": "iframe_missing_title",
+      "content_type": "pages",
+      "location_hint": "page-iframe-gdocs-no-title",
+      "expectation_tier": "strict",
+      "html": "<p>Doc (no title):</p><iframe src=\"https://docs.google.com/document/d/e/2PACX-1vQExample/pub\" width=\"600\" height=\"400\"></iframe>"
     },
     {
       "fixture_id": "page_lang_inline_missing_franc",

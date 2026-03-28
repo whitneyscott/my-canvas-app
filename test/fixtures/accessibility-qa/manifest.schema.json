@@ -67,6 +67,10 @@
           },
           "pending_heuristic": { "type": "boolean" },
           "broken_link_url": { "type": "string" },
+          "correct_link_href": {
+            "type": "string",
+            "description": "Working URL for link_broken fix-mode teacher href simulation"
+          },
           "canvas_capability": { "type": "object" }
         }
       }

@@ -2877,6 +2877,21 @@ export class CanvasService {
     return await this.fetchPaginatedData(url, token);
   }
 
+  private async getCourseModuleItem(courseId: number, itemId: number) {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const res = await fetch(
+      `${baseUrl}/courses/${courseId}/module_items/${itemId}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      throw new Error(
+        `module_items ${itemId}: ${res.status} ${res.statusText}${t ? ` ${t.slice(0, 200)}` : ''}`,
+      );
+    }
+    return await res.json();
+  }
+
   async getCourseFiles(courseId: number) {
     const { token, baseUrl } = await this.getAuthHeaders();
     const filesUrl = `${baseUrl}/courses/${courseId}/files?per_page=100`;
@@ -8365,6 +8380,7 @@ export class CanvasService {
     'syllabus',
     'discussions',
     'quizzes',
+    'modules',
   ] as const;
 
   private resolveAccessibilityResourceTypes(
@@ -9592,6 +9608,86 @@ export class CanvasService {
         }),
       );
     }
+    if (types.includes('modules')) {
+      fetchers.push(
+        timed('fetch_modules', async () => {
+          const modules = await this.getCourseModules(courseId);
+          const items: Array<{
+            type: string;
+            id: string;
+            title: string;
+            html: string;
+            url?: string | null;
+          }> = [];
+          for (const mod of Array.isArray(modules) ? modules : []) {
+            const rawItems =
+              (mod as any)?.items ?? (mod as any)?.module_items ?? [];
+            for (const it of Array.isArray(rawItems) ? rawItems : []) {
+              const t = String((it as any)?.type || '');
+              if (t === 'Page') {
+                const pageUrl = String((it as any)?.page_url || '').trim();
+                if (!pageUrl) continue;
+                try {
+                  const full = await this.getPage(courseId, pageUrl);
+                  const { token, baseUrl } = await this.getAuthHeaders();
+                  const body = await this.resolveWikiPageBodyForGrid(
+                    courseId,
+                    pageUrl,
+                    full,
+                    token,
+                    baseUrl,
+                  );
+                  const html =
+                    typeof body === 'string'
+                      ? body
+                      : String((full as any)?.body ?? '');
+                  if (!String(html || '').trim()) continue;
+                  items.push({
+                    type: 'modules',
+                    id: String((it as any)?.id ?? ''),
+                    title: String(
+                      (it as any)?.title || pageUrl || 'Module page',
+                    ),
+                    html,
+                    url: (it as any)?.html_url || null,
+                  });
+                } catch {
+                  warnings.push(
+                    `module Page item ${(it as any)?.id}: body fetch failed`,
+                  );
+                }
+              } else if (t === 'Assignment') {
+                const aid = Number((it as any)?.content_id);
+                if (!Number.isFinite(aid)) continue;
+                try {
+                  const a = await this.getAssignment(courseId, aid);
+                  const html = String(a?.description ?? '');
+                  if (!String(html || '').trim()) continue;
+                  items.push({
+                    type: 'modules',
+                    id: String((it as any)?.id ?? ''),
+                    title: String(
+                      (it as any)?.title || a?.name || `Assignment ${aid}`,
+                    ),
+                    html,
+                    url:
+                      (it as any)?.html_url || (a as any)?.html_url || null,
+                  });
+                } catch {
+                  warnings.push(
+                    `module Assignment item ${(it as any)?.id}: fetch failed`,
+                  );
+                }
+              }
+            }
+          }
+          return { type: 'modules', items };
+        }).catch((e: any) => {
+          warnings.push(`modules fetch failed: ${e?.message || 'unknown error'}`);
+          return { type: 'modules', items: [] };
+        }),
+      );
+    }
     if (types.includes('syllabus')) {
       fetchers.push(
         timed('fetch_syllabus', async () => {
@@ -9828,6 +9924,53 @@ export class CanvasService {
             resourceTitle: String(q?.title ?? ''),
           }
         : null;
+    }
+    if (resourceType === 'modules') {
+      const item = await this.getCourseModuleItem(
+        courseId,
+        Number(resourceId),
+      );
+      const t = String((item as any)?.type || '');
+      if (t === 'Page') {
+        const pageUrl = String((item as any)?.page_url || '').trim();
+        if (!pageUrl) return null;
+        const full = await this.getPage(courseId, pageUrl);
+        const { token, baseUrl } = await this.getAuthHeaders();
+        const body = await this.resolveWikiPageBodyForGrid(
+          courseId,
+          pageUrl,
+          full,
+          token,
+          baseUrl,
+        );
+        const html =
+          typeof body === 'string' ? body : String((full as any)?.body ?? '');
+        return html
+          ? {
+              html,
+              updateKey: pageUrl,
+              resourceTitle: String(
+                (item as any)?.title || pageUrl || 'Module page',
+              ),
+            }
+          : null;
+      }
+      if (t === 'Assignment') {
+        const aid = Number((item as any)?.content_id);
+        if (!Number.isFinite(aid)) return null;
+        const a = await this.getAssignment(courseId, aid);
+        const html = String(a?.description ?? '');
+        return html
+          ? {
+              html,
+              updateKey: String(aid),
+              resourceTitle: String(
+                (item as any)?.title || a?.name || `Assignment ${aid}`,
+              ),
+            }
+          : null;
+      }
+      return null;
     }
     return null;
   }
@@ -13342,6 +13485,30 @@ export class CanvasService {
           await this.updatePage(courseId, entry.updateKey, {
             wiki_page: { body: html },
           });
+        } else if (entry.resourceType === 'modules') {
+          const firstAct = entry.actions[0];
+          const mid = Number(firstAct?.resource_id);
+          if (!Number.isFinite(mid)) {
+            throw new Error('Invalid module item id for apply');
+          }
+          const item = await this.getCourseModuleItem(courseId, mid);
+          const t = String((item as any)?.type || '');
+          if (t === 'Page') {
+            const pageUrl = String((item as any)?.page_url || '').trim();
+            if (!pageUrl) throw new Error('Module page item missing page_url');
+            await this.updatePage(courseId, pageUrl, {
+              wiki_page: { body: html },
+            });
+          } else if (t === 'Assignment') {
+            const aid = Number((item as any)?.content_id);
+            if (!Number.isFinite(aid))
+              throw new Error('Module assignment item missing content_id');
+            await this.updateAssignment(courseId, aid, {
+              description: html,
+            });
+          } else {
+            throw new Error(`Unsupported module item type: ${t || '(empty)'}`);
+          }
         } else if (entry.resourceType === 'assignments') {
           await this.updateAssignment(courseId, Number(entry.updateKey), {
             description: html,

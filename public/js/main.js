@@ -747,6 +747,7 @@ let gridApi, currentTab = 'assignments', originalData = {}, changes = {}, select
 let accessibilityLastReport = null;
 const ACCESSIBILITY_RUN_HISTORY_KEY = 'accessibility:runHistory:v1';
 let accessibilityGridApi = null;
+let accessibilityQaReportGridApi = null;
 let accessibilityFixPreviewActions = null;
 let accessibilityFixGenerationInProgress = false;
 let accessibilityFixQueueFilters = { ruleId: '', resourceType: '', tier: '' };
@@ -2216,6 +2217,71 @@ async function loadStandardsSyncTab() {
     });
 }
 
+function destroyAccessibilityQaReportGrid() {
+    if (accessibilityQaReportGridApi && typeof accessibilityQaReportGridApi.destroy === 'function') {
+        accessibilityQaReportGridApi.destroy();
+    }
+    accessibilityQaReportGridApi = null;
+}
+
+function renderAccessibilityQaReportGrid(report) {
+    const gridEl = document.getElementById('accessibilityQaReportGrid');
+    if (!gridEl || typeof agGrid === 'undefined') return;
+    destroyAccessibilityQaReportGrid();
+    const rows = Array.isArray(report?.results) ? report.results : [];
+    const rowData = rows.map((r) => ({
+        fixture_id: r?.fixture_id || '',
+        rule_id: r?.rule_id || '',
+        content_type: r?.content_type || '',
+        scanner_status: r?.scanner_status || '',
+        fix_status: r?.fix_status || '',
+        expectation_tier: r?.expectation_tier || '',
+        notes: r?.notes || '',
+    }));
+    gridEl.style.display = 'block';
+    accessibilityQaReportGridApi = agGrid.createGrid(gridEl, {
+        columnDefs: [
+            { field: 'fixture_id', headerName: 'Fixture', minWidth: 160 },
+            { field: 'rule_id', headerName: 'Rule', minWidth: 140 },
+            { field: 'content_type', headerName: 'Type', width: 120 },
+            { field: 'scanner_status', headerName: 'Scan', width: 100 },
+            { field: 'fix_status', headerName: 'Fix', width: 90 },
+            { field: 'expectation_tier', headerName: 'Tier', width: 100 },
+            { field: 'notes', headerName: 'Notes', flex: 1, minWidth: 220 },
+        ],
+        rowData,
+        defaultColDef: {
+            sortable: true,
+            resizable: true,
+            filter: 'agTextColumnFilter',
+            floatingFilter: true,
+            minWidth: 100,
+        },
+        animateRows: true,
+    });
+}
+
+function wireAccessibilityQaReportFileInput() {
+    const inp = document.getElementById('accessibilityQaReportFile');
+    if (!inp) return;
+    inp.onchange = () => {
+        const f = inp.files && inp.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const obj = JSON.parse(String(reader.result || '{}'));
+                renderAccessibilityQaReportGrid(obj);
+                showToast('Loaded QA report: ' + (obj.run_id || ''), 'success', 2000);
+            } catch (e) {
+                showToast('Invalid QA report JSON', 'error');
+            }
+        };
+        reader.readAsText(f);
+        inp.value = '';
+    };
+}
+
 function renderAccessibilityPanelSkeleton() {
     const summaryEl = document.getElementById('accessibilitySummaryContent');
     const findingsEl = document.getElementById('accessibilityFindingsContent');
@@ -2232,11 +2298,16 @@ function renderAccessibilityPanelSkeleton() {
             </div>
         </div>
         <div id="accessibilityOptionsPanel" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
-            ${buildAccessibilityTypesControls(['pages', 'assignments'])}
+            ${buildAccessibilityTypesControls()}
             ${buildAccessibilityRuleControls(getAllAccessibilityRuleIds())}
         </div>
         <div id="accessibilityMetrics" style="margin-top:10px;color:#444;">Ready to scan.</div>
         <div id="accessibilityRunHistory" style="margin-top:10px;"></div>
+        <div id="accessibilityQaReportWrap" style="margin-top:14px;padding-top:12px;border-top:1px solid #e5e5e5;">
+            <div style="font-weight:600;margin-bottom:6px;">QA automation report (JSON)</div>
+            <input type="file" id="accessibilityQaReportFile" accept="application/json,.json" style="font-size:13px;" />
+            <div id="accessibilityQaReportGrid" class="ag-theme-quartz" style="display:none;height:380px;width:100%;margin-top:10px;"></div>
+        </div>
     `;
     findingsEl.innerHTML = '<p>No scan has been run yet.</p>';
 
@@ -2245,6 +2316,7 @@ function renderAccessibilityPanelSkeleton() {
     if (runBtn) runBtn.onclick = () => runAccessibilityScan();
     if (exportBtn) exportBtn.onclick = () => downloadAccessibilityCsv();
     wireAccessibilityOptionToggles();
+    wireAccessibilityQaReportFileInput();
 }
 
 function loadAccessibilityRunHistory() {
@@ -2387,7 +2459,8 @@ function wireAccessibilityOptionToggles() {
 }
 
 function buildAccessibilityTypesControls(selectedTypes) {
-    const selected = new Set(Array.isArray(selectedTypes) && selectedTypes.length ? selectedTypes : ['pages', 'assignments']);
+    const allAccTypes = ['pages', 'assignments', 'announcements', 'discussions', 'syllabus', 'quizzes', 'modules'];
+    const selected = new Set(Array.isArray(selectedTypes) && selectedTypes.length ? selectedTypes : allAccTypes);
     const row = (value, label) => `
         <label style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid #e8e8e8;border-radius:6px;background:#fff;">
             <input type="checkbox" class="acc-type-checkbox" value="${value}" ${selected.has(value) ? 'checked' : ''}>
@@ -2407,6 +2480,8 @@ function buildAccessibilityTypesControls(selectedTypes) {
                 ${row('announcements', 'Announcements')}
                 ${row('discussions', 'Discussions')}
                 ${row('syllabus', 'Syllabus')}
+                ${row('quizzes', 'Quizzes')}
+                ${row('modules', 'Modules (Page/Assignment items)')}
             </div>
         </details>
     `;
@@ -2421,7 +2496,12 @@ function renderAccessibilityReport(report) {
     const summary = report?.summary || {};
     const benchmark = report?.benchmark || {};
     const bySeverity = summary.by_severity || {};
-    const selectedTypes = report?.requested_resource_types || Object.keys(summary.resources_scanned_by_type || {});
+    const allAccTypes = ['pages', 'assignments', 'announcements', 'discussions', 'syllabus', 'quizzes', 'modules'];
+    const selectedTypes = Array.isArray(report?.requested_resource_types) && report.requested_resource_types.length
+        ? report.requested_resource_types
+        : (Object.keys(summary.resources_scanned_by_type || {}).length
+            ? Object.keys(summary.resources_scanned_by_type || {})
+            : allAccTypes);
     const selectedRuleIds = report?.requested_rule_ids || getAllAccessibilityRuleIds();
     const metricsHtml = `
         <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;">
@@ -2452,9 +2532,15 @@ function renderAccessibilityReport(report) {
             ${benchmark.slower_than_canvas === false ? '&nbsp;|&nbsp; <span style="color:#2b7a0b;"><strong>Faster than Canvas baseline</strong></span>' : ''}
         </div>
         <div id="accessibilityRunHistory" style="margin-top:10px;"></div>
+        <div id="accessibilityQaReportWrap" style="margin-top:14px;padding-top:12px;border-top:1px solid #e5e5e5;">
+            <div style="font-weight:600;margin-bottom:6px;">QA automation report (JSON)</div>
+            <input type="file" id="accessibilityQaReportFile" accept="application/json,.json" style="font-size:13px;" />
+            <div id="accessibilityQaReportGrid" class="ag-theme-quartz" style="display:none;height:380px;width:100%;margin-top:10px;"></div>
+        </div>
     `;
     summaryEl.innerHTML = metricsHtml;
     renderAccessibilityRunHistory();
+    wireAccessibilityQaReportFileInput();
 
     const findings = Array.isArray(report?.findings) ? report.findings : [];
     if (!findings.length) {

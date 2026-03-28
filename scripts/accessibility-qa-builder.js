@@ -133,11 +133,165 @@ function mapCanvasResourceType(contentType) {
       return 'discussion_topic';
     case 'quizzes':
       return 'quiz';
+    case 'modules':
+      return 'module_item';
     case 'syllabus':
       return 'syllabus';
     default:
       return contentType;
   }
+}
+
+const QA_MODULE_NAME = '[QA][A11y] Fixture Module';
+
+function pageSlugFromFixture(f) {
+  return (f.location_hint || f.fixture_id).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
+async function findOrCreateQaModule(baseUrl, token, courseId) {
+  const listRes = await canvasFetch(baseUrl, token, `/courses/${courseId}/modules?per_page=100`);
+  const list = await listRes.json();
+  const existing = Array.isArray(list)
+    ? list.find((m) => String(m.name) === QA_MODULE_NAME)
+    : null;
+  if (existing?.id) return existing.id;
+  const postRes = await canvasFetch(baseUrl, token, `/courses/${courseId}/modules`, {
+    method: 'POST',
+    body: JSON.stringify({ module: { name: QA_MODULE_NAME, published: false } }),
+  });
+  const row = await postRes.json();
+  const mod = row.module || row;
+  return mod.id;
+}
+
+async function ensureModulePageItem(baseUrl, token, courseId, moduleId, pageSlug, title) {
+  const itemsRes = await canvasFetch(
+    baseUrl,
+    token,
+    `/courses/${courseId}/modules/${moduleId}/items?per_page=100`,
+  );
+  const items = await itemsRes.json();
+  const slug = String(pageSlug);
+  const existing = Array.isArray(items)
+    ? items.find((it) => String(it.type) === 'Page' && String(it.page_url) === slug)
+    : null;
+  if (existing?.id) return { resource_id: String(existing.id) };
+  const postRes = await canvasFetch(
+    baseUrl,
+    token,
+    `/courses/${courseId}/modules/${moduleId}/items`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        module_item: {
+          type: 'Page',
+          page_url: slug,
+          title: title || slug,
+        },
+      }),
+    },
+  );
+  const raw = await postRes.json();
+  const it = raw.module_item || raw;
+  return { resource_id: String(it.id) };
+}
+
+async function findAssignmentByName(baseUrl, token, courseId, name) {
+  const listRes = await canvasFetch(
+    baseUrl,
+    token,
+    `/courses/${courseId}/assignments?per_page=100&search_term=${encodeURIComponent(name)}`,
+  );
+  const list = await listRes.json();
+  const t = String(name);
+  return Array.isArray(list) ? list.find((a) => String(a.name) === t) : null;
+}
+
+async function ensureModuleAssignmentItem(baseUrl, token, courseId, moduleId, assignmentId, title) {
+  const itemsRes = await canvasFetch(
+    baseUrl,
+    token,
+    `/courses/${courseId}/modules/${moduleId}/items?per_page=100`,
+  );
+  const items = await itemsRes.json();
+  const aid = Number(assignmentId);
+  const existing = Array.isArray(items)
+    ? items.find(
+        (it) =>
+          String(it.type) === 'Assignment' && Number(it.content_id) === aid,
+      )
+    : null;
+  if (existing?.id) return { resource_id: String(existing.id) };
+  const postRes = await canvasFetch(
+    baseUrl,
+    token,
+    `/courses/${courseId}/modules/${moduleId}/items`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        module_item: {
+          type: 'Assignment',
+          content_id: aid,
+          title: title || `Assignment ${aid}`,
+        },
+      }),
+    },
+  );
+  const raw = await postRes.json();
+  const it = raw.module_item || raw;
+  return { resource_id: String(it.id) };
+}
+
+const MINIMAL_PDF_BYTES = Buffer.from(
+  '%PDF-1.1\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 3 3]>>endobj\nxref\n0 4\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n100\n%%EOF\n',
+  'utf8',
+);
+
+async function uploadCourseFile(baseUrl, token, courseId, filename, buffer, contentType) {
+  const urlRoot = baseUrl.replace(/\/$/, '');
+  const initRes = await fetch(`${urlRoot}/courses/${courseId}/files`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: filename,
+      size: buffer.length,
+      content_type: contentType,
+    }),
+  });
+  if (!initRes.ok) {
+    const t = await initRes.text();
+    throw new Error(`files init ${initRes.status}: ${t.slice(0, 240)}`);
+  }
+  const spec = await initRes.json();
+  const uploadUrl = spec.upload_url;
+  const params = spec.upload_params || {};
+  if (!uploadUrl || typeof params !== 'object') {
+    throw new Error('Canvas files init missing upload_url or upload_params');
+  }
+  const form = new FormData();
+  for (const [k, v] of Object.entries(params)) {
+    form.append(k, String(v));
+  }
+  form.append('file', new Blob([buffer]), filename);
+  const upRes = await fetch(uploadUrl, { method: 'POST', body: form });
+  if (!upRes.ok) {
+    const t = await upRes.text();
+    throw new Error(`files upload ${upRes.status}: ${t.slice(0, 240)}`);
+  }
+  const fileId = spec.id;
+  if (!fileId) {
+    const uj = await upRes.json().catch(() => ({}));
+    return { file_id: uj.id, file_url: uj.url || uj.public_url || null };
+  }
+  const metaRes = await fetch(`${urlRoot}/files/${fileId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const meta = metaRes.ok ? await metaRes.json() : {};
+  const fileUrl = meta.url || meta.public_url || meta.download_url || null;
+  return { file_id: String(fileId), file_url: fileUrl };
 }
 
 async function findDiscussionTopicByTitle(baseUrl, token, courseId, title, announcementsOnly) {
@@ -267,6 +421,24 @@ function expandFixturesForAllContentTypes(rawFixtures) {
         content_type: 'quizzes',
         location_hint: `[QA] Quiz ${f.location_hint || f.fixture_id}`,
       });
+      out.push({
+        ...f,
+        fixture_id: `mod_${f.fixture_id}`,
+        content_type: 'modules',
+        location_hint: `[QA] Mod ${f.fixture_id}`,
+        module_link: 'page',
+        module_page_slug: pageSlugFromFixture(f),
+      });
+    }
+    if (f.content_type === 'assignments' && !f.is_clean_control) {
+      out.push({
+        ...f,
+        fixture_id: `mod_${f.fixture_id}`,
+        content_type: 'modules',
+        location_hint: `[QA] Mod ${f.fixture_id}`,
+        module_link: 'assignment',
+        module_assignment_name: f.location_hint,
+      });
     }
   }
   return out;
@@ -326,7 +498,11 @@ async function main() {
     rebuild_reason: forceRebuild ? 'force-rebuild' : 'script run',
     registry_rule_count: Object.keys(fixabilityMap).length,
     fixtures: [],
+    canvas_capability: {},
   };
+
+  let qaModuleId = null;
+  let quizRichTextOk = null;
 
   for (const f of expandedFixtures) {
     const ruleId = f.rule_id || 'clean_control';
@@ -354,16 +530,44 @@ async function main() {
         entry.dual_option_choice = f.dual_option_choice.trim();
       if (typeof f.broken_link_url === 'string' && f.broken_link_url.trim())
         entry.broken_link_url = f.broken_link_url.trim();
+      if (typeof f.correct_link_href === 'string' && f.correct_link_href.trim())
+        entry.correct_link_href = f.correct_link_href.trim();
     }
     try {
       if (f.content_type === 'pages') {
         const slug = (f.location_hint || f.fixture_id).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        let bodyHtml = f.html || '';
+        if (f.use_course_pdf_placeholder) {
+          try {
+            const { file_url } = await uploadCourseFile(
+              baseUrl,
+              token,
+              courseId,
+              'qa-minimal.pdf',
+              MINIMAL_PDF_BYTES,
+              'application/pdf',
+            );
+            if (file_url) {
+              bodyHtml = bodyHtml.split('PLACEHOLDER_COURSE_PDF').join(file_url);
+              entry.injection_method = 'hybrid';
+            } else {
+              entry.injection_method = 'api_html';
+            }
+          } catch (e) {
+            console.warn(`Fixture ${f.fixture_id} PDF upload:`, e.message || e);
+            bodyHtml = bodyHtml
+              .split('PLACEHOLDER_COURSE_PDF')
+              .join('https://example.com/qa-fallback.pdf');
+            entry.injection_method = 'api_html';
+            manifest.canvas_capability.course_pdf_upload = false;
+          }
+        }
         const { resource_id } = await createOrUpdatePage(
           baseUrl,
           token,
           courseId,
           slug,
-          f.html || '',
+          bodyHtml,
           f.location_hint,
         );
         entry.resource_id = resource_id;
@@ -391,14 +595,66 @@ async function main() {
         );
         entry.resource_id = resource_id;
       } else if (f.content_type === 'quizzes') {
+        const htmlIn = f.html || '';
         const { resource_id } = await createOrUpdateQuiz(
           baseUrl,
           token,
           courseId,
           f.location_hint,
-          f.html || '',
+          htmlIn,
         );
         entry.resource_id = resource_id;
+        if (quizRichTextOk === null && htmlIn.length > 12) {
+          try {
+            const getRes = await fetch(
+              `${baseUrl.replace(/\/$/, '')}/courses/${courseId}/quizzes/${resource_id}`,
+              { headers: { Authorization: `Bearer ${token}` } },
+            );
+            const qj = getRes.ok ? await getRes.json() : {};
+            const back = String(qj.description || '');
+            const needle = htmlIn.replace(/\s+/g, ' ').trim().slice(0, 24);
+            quizRichTextOk = needle.length > 0 && back.includes(needle.slice(0, 12));
+          } catch {
+            quizRichTextOk = false;
+          }
+        }
+      } else if (f.content_type === 'modules') {
+        if (!qaModuleId) {
+          qaModuleId = await findOrCreateQaModule(baseUrl, token, courseId);
+        }
+        if (f.module_link === 'page' && f.module_page_slug) {
+          const { resource_id } = await ensureModulePageItem(
+            baseUrl,
+            token,
+            courseId,
+            qaModuleId,
+            f.module_page_slug,
+            f.location_hint,
+          );
+          entry.resource_id = resource_id;
+        } else if (f.module_link === 'assignment' && f.module_assignment_name) {
+          const a = await findAssignmentByName(
+            baseUrl,
+            token,
+            courseId,
+            f.module_assignment_name,
+          );
+          if (!a?.id) {
+            entry.skipped_reason = 'module_assignment_not_found';
+          } else {
+            const { resource_id } = await ensureModuleAssignmentItem(
+              baseUrl,
+              token,
+              courseId,
+              qaModuleId,
+              a.id,
+              f.module_assignment_name,
+            );
+            entry.resource_id = resource_id;
+          }
+        } else {
+          entry.skipped_reason = 'module_fixture_missing_target';
+        }
       } else {
         entry.skipped_reason = 'content_type_not_implemented';
       }
@@ -460,6 +716,13 @@ async function main() {
       });
       console.warn(`Syllabus composite: ${msg}`);
     }
+  }
+
+  if (quizRichTextOk !== null) {
+    manifest.canvas_capability.quizzes_rich_text = !!quizRichTextOk;
+  }
+  if (qaModuleId) {
+    manifest.canvas_capability.module_items_seeded = true;
   }
 
   const outDir = path.join(__dirname, '..', 'test', 'fixtures', 'accessibility-qa');
