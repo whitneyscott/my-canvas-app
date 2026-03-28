@@ -86,4 +86,20 @@ describe('runFixExecutor accessibility probes', () => {
     if (!r) return;
     expect(r.changes.length).toBeGreaterThan(0);
   });
+
+  it('iframe_title_from_src uses SproutVideo label for sproutvideo.com hosts', () => {
+    const { runFixExecutor } = service as unknown as {
+      runFixExecutor: RunFixExecutor;
+    };
+    const html =
+      '<iframe src="https://videos.sproutvideo.com/embed/a/b"></iframe>';
+    const r = runFixExecutor.call(
+      service,
+      html,
+      'iframe_title_from_src',
+    ) as { newHtml: string; changes: unknown[] } | null;
+    expect(r).not.toBeNull();
+    if (!r) return;
+    expect(r.newHtml).toContain('SproutVideo embedded content');
+  });
 });

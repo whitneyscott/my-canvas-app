@@ -129,6 +129,22 @@
       "html": "<table><tr><td>1</td><td>2</td></tr><tr><td>3</td><td>4</td></tr><tr><td>5</td><td>6</td></tr></table>"
     },
     {
+      "fixture_id": "page_iframe_sproutvideo_no_title",
+      "rule_id": "iframe_missing_title",
+      "content_type": "pages",
+      "location_hint": "page-iframe-sproutvideo-no-title",
+      "expectation_tier": "strict",
+      "html": "<p>SproutVideo embed (no title):</p><iframe src=\"https://videos.sproutvideo.com/embed/00000000/qa-placeholder\" width=\"560\" height=\"315\" allowfullscreen></iframe>"
+    },
+    {
+      "fixture_id": "assign_iframe_sproutvideo_no_title",
+      "rule_id": "iframe_missing_title",
+      "content_type": "assignments",
+      "location_hint": "[QA] Assignment iframe_sproutvideo_no_title",
+      "expectation_tier": "strict",
+      "html": "<p>Assignment SproutVideo:</p><iframe src=\"https://videos.sproutvideo.com/embed/00000000/qa-placeholder\" width=\"560\" height=\"315\"></iframe>"
+    },
+    {
       "fixture_id": "page_clean_control",
       "rule_id": null,
       "content_type": "pages",

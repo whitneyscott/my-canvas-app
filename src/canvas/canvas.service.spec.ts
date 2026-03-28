@@ -85,4 +85,32 @@ describe('CanvasService', () => {
     const out = raw.call(service, base, html) as Array<{ rule_id: string }>;
     expect(out.some((f) => f.rule_id === 'table_layout_heuristic')).toBe(true);
   });
+
+  it('tier2 flags iframe without title', () => {
+    const base = {
+      resource_type: 'pages',
+      resource_id: 'x',
+      resource_title: 't',
+      resource_url: null as string | null,
+    };
+    const html =
+      '<iframe src="https://videos.sproutvideo.com/embed/x/y" width="1" height="1"></iframe>';
+    const raw = (service as any).evaluateAccessibilityTier2ForHtml;
+    const out = raw.call(service, base, html) as Array<{ rule_id: string }>;
+    expect(out.some((f) => f.rule_id === 'iframe_missing_title')).toBe(true);
+  });
+
+  it('tier2 skips iframe with non-empty title', () => {
+    const base = {
+      resource_type: 'pages',
+      resource_id: 'x',
+      resource_title: 't',
+      resource_url: null as string | null,
+    };
+    const html =
+      '<iframe title="Intro video" src="https://videos.sproutvideo.com/embed/x/y"></iframe>';
+    const raw = (service as any).evaluateAccessibilityTier2ForHtml;
+    const out = raw.call(service, base, html) as Array<{ rule_id: string }>;
+    expect(out.some((f) => f.rule_id === 'iframe_missing_title')).toBe(false);
+  });
 });

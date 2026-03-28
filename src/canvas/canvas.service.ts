@@ -9133,6 +9133,30 @@ export class CanvasService {
       );
     }
 
+    const iframeTagRegex = /<iframe\b[^>]*>/gi;
+    let iframeTagMatch: RegExpExecArray | null;
+    while ((iframeTagMatch = iframeTagRegex.exec(content)) !== null) {
+      const iframeTag = iframeTagMatch[0];
+      const iframeTitleMatch = iframeTag.match(
+        /\btitle\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i,
+      );
+      const iframeTitleVal = (
+        iframeTitleMatch?.[2] ??
+        iframeTitleMatch?.[3] ??
+        iframeTitleMatch?.[4] ??
+        ''
+      ).trim();
+      if (iframeTitleVal) continue;
+      this.addFinding(
+        findings,
+        base,
+        'iframe_missing_title',
+        'medium',
+        'Iframe is missing a descriptive title attribute.',
+        iframeTag,
+      );
+    }
+
     const controlRegex = /<(input|select|textarea)\b([^>]*)>/gi;
     let cMatch: RegExpExecArray | null;
     while ((cMatch = controlRegex.exec(content))) {
@@ -10503,20 +10527,7 @@ export class CanvasService {
         srcMatch?.[4] ??
         ''
       ).trim();
-      let domain = 'unknown';
-      try {
-        if (src.startsWith('//')) {
-          const u = new URL('https:' + src);
-          domain = u.hostname;
-        } else if (/^https?:\/\//i.test(src)) {
-          domain = new URL(src).hostname;
-        } else if (src) {
-          domain = src.split(/[/?#]/)[0] || 'content';
-        }
-      } catch {
-        domain = src ? src.split(/[/?#]/)[0] || 'content' : 'unknown';
-      }
-      const title = `Embedded content from ${domain}`;
+      const title = suggestIframeTitleFromSrc(src);
       const withTitle = tag.replace(
         /<iframe\b/i,
         `<iframe title="${title.replace(/"/g, '&quot;')}"`,

@@ -201,6 +201,7 @@ export function suggestIframeTitleFromSrc(src: string): string {
   }
   if (host.includes('forms.gle') || host.includes('forms.google.com'))
     return 'Google form';
+  if (host.includes('sproutvideo.com')) return 'SproutVideo embedded content';
   return `${host || 'Site'} embedded content`;
 }
 

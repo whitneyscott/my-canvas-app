@@ -119,7 +119,7 @@ Then expand to:
 - [x] Inline hardcoded font sizes below 10px (`font_size_too_small`)
 
 ### Embedded content
-- [ ] Iframes without meaningful `title` (`iframe_missing_title` — suggest fix exists; scanner not wired for generic iframes)
+- [x] Iframes without meaningful `title` (`iframe_missing_title`)
 
 ### Forms and interactive controls
 - [x] Inputs/selects/textareas without labels (`form_control_missing_label`)
