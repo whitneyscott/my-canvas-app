@@ -35,6 +35,8 @@ Creates/updates course `[QA][A11y] Automated Fixtures` (code `QA-A11Y-FIX`), inj
 
 ## 2. Run QA (Phase 2)
 
+**Before starting the API (optional but recommended if the port is stuck):** free Nest’s default port — `npm run kill:api-port` (stops whatever is **listening on 3002**). Override with `powershell -File scripts/kill-listen-port.ps1 3002` or pass another port as the argument.
+
 Start the app with QA auth enabled:
 
 ```bash

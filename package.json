@@ -22,7 +22,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "down": "cd services/accreditation-lookup && wsl docker compose down",
     "qa:accessibility:build": "nest build && node scripts/accessibility-qa-builder.js",
-    "qa:accessibility:run": "node scripts/accessibility-qa-runner.js"
+    "qa:accessibility:run": "node scripts/accessibility-qa-runner.js",
+    "kill:api-port": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kill-listen-port.ps1 3002"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
