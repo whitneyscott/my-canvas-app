@@ -50,7 +50,7 @@ cp docker-compose/config/canvas.env.example docker-compose/config/canvas.env
 docker-compose up -d
 ```
 
-Canvas will be available at `http://localhost:3000` after initial setup completes (first run takes 15-30 minutes to build).
+After setup, open the URL shown by your compose port mapping (official `canvas-lms` stack often maps **web to host port 80** — e.g. `http://localhost/`). Use `docker ps` on **`canvas-web`** for the exact host port.
 
 **After setup:**
 1. Create an admin account
@@ -63,13 +63,13 @@ Canvas will be available at `http://localhost:3000` after initial setup complete
 Add these to your local `.env` (never commit to git):
 
 ```
-QA_CANVAS_BASE_URL=http://localhost:3000
+QA_CANVAS_BASE_URL=http://127.0.0.1/api/v1
 QA_CANVAS_TOKEN=<your-local-canvas-api-token>
 QA_ACCESSIBILITY_ENABLED=1
 QA_COURSE_ID=<populated automatically after first builder run>
 ```
 
-**QA scripts (`accessibility-qa-helpers.js`):** **Token:** `CANVAS_ACCESS_TOKEN`, then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`. **API base:** `CANVAS_BASE_URL` / `QA_CANVAS_BASE_URL` if set; otherwise **`CANVAS_QA_PROFILE`** (`docker`|`local` → `http://127.0.0.1:3000/api/v1` by default — IPv4 loopback avoids Windows `localhost`→IPv6 issues with Docker; `online`|`hosted` → Instructure API default). No third hidden default — missing both URL and profile is an error. Project `.env` is loaded for CLI runs without overriding existing shell env. **Browser login** in `AppController` keeps its own defaults; that path is separate.
+**QA scripts (`accessibility-qa-helpers.js`):** **Token:** `CANVAS_ACCESS_TOKEN`, then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`. **API base:** `CANVAS_BASE_URL` / `QA_CANVAS_BASE_URL` if set; otherwise **`CANVAS_QA_PROFILE`** (`docker`|`local` → `http://127.0.0.1/api/v1` — host port **80**, usual official `canvas-lms` compose; `online`|`hosted` → Instructure API default). No third hidden default — missing both URL and profile is an error. Project `.env` is loaded for CLI runs without overriding existing shell env. **Browser login** in `AppController` keeps its own defaults; that path is separate.
 
 ### Local Service Routing Switch
 
