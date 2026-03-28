@@ -8364,6 +8364,7 @@ export class CanvasService {
     'announcements',
     'syllabus',
     'discussions',
+    'quizzes',
   ] as const;
 
   private resolveAccessibilityResourceTypes(
@@ -9569,6 +9570,28 @@ export class CanvasService {
         }),
       );
     }
+    if (types.includes('quizzes')) {
+      fetchers.push(
+        timed('fetch_quizzes', async () => {
+          const quizzes = await this.getCourseQuizzes(courseId);
+          const items = (Array.isArray(quizzes) ? quizzes : [])
+            .map((q: any) => ({
+              type: 'quizzes',
+              id: String(q?.id ?? ''),
+              title: String(q?.title || `Quiz ${q?.id ?? ''}`),
+              html: String(q?.description || ''),
+              url: q?.html_url || null,
+            }))
+            .filter((x: any) => x.id && x.html);
+          return { type: 'quizzes', items };
+        }).catch((e: any) => {
+          warnings.push(
+            `quizzes fetch failed: ${e?.message || 'unknown error'}`,
+          );
+          return { type: 'quizzes', items: [] };
+        }),
+      );
+    }
     if (types.includes('syllabus')) {
       fetchers.push(
         timed('fetch_syllabus', async () => {
@@ -9792,6 +9815,17 @@ export class CanvasService {
             html,
             updateKey: String(courseId),
             resourceTitle: 'Course Syllabus',
+          }
+        : null;
+    }
+    if (resourceType === 'quizzes') {
+      const q = await this.getQuiz(courseId, Number(resourceId));
+      const html = String(q?.description ?? '');
+      return html
+        ? {
+            html,
+            updateKey: resourceId,
+            resourceTitle: String(q?.title ?? ''),
           }
         : null;
     }
@@ -13347,6 +13381,10 @@ export class CanvasService {
             body: JSON.stringify({ course: { syllabus_body: html } }),
           });
           if (!r.ok) throw new Error(`Syllabus update failed: ${r.status}`);
+        } else if (entry.resourceType === 'quizzes') {
+          await this.updateQuiz(courseId, Number(entry.updateKey), {
+            description: html,
+          });
         } else {
           for (const a of entry.actions) {
             results.push({

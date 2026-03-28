@@ -131,6 +131,8 @@ function mapCanvasResourceType(contentType) {
     case 'announcements':
     case 'discussions':
       return 'discussion_topic';
+    case 'quizzes':
+      return 'quiz';
     case 'syllabus':
       return 'syllabus';
     default:
@@ -146,6 +148,42 @@ async function findDiscussionTopicByTitle(baseUrl, token, courseId, title, annou
   const list = await listRes.json();
   const t = String(title);
   return Array.isArray(list) ? list.find((row) => String(row.title) === t) : null;
+}
+
+async function createOrUpdateQuiz(baseUrl, token, courseId, title, description) {
+  const listRes = await canvasFetch(baseUrl, token, `/courses/${courseId}/quizzes?per_page=100`);
+  const list = await listRes.json();
+  const t = String(title);
+  const existing = Array.isArray(list) ? list.find((row) => String(row.title) === t) : null;
+  const payload = {
+    quiz: {
+      title: t,
+      description: description || '',
+      quiz_type: 'assignment',
+      published: false,
+    },
+  };
+  if (existing) {
+    const putRes = await canvasFetch(
+      baseUrl,
+      token,
+      `/courses/${courseId}/quizzes/${existing.id}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      },
+    );
+    const raw = await putRes.json();
+    const q = raw.quiz || raw;
+    return { resource_id: String(q.id) };
+  }
+  const postRes = await canvasFetch(baseUrl, token, `/courses/${courseId}/quizzes`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  const raw = await postRes.json();
+  const row = raw.quiz || raw;
+  return { resource_id: String(row.id) };
 }
 
 async function createOrUpdateDiscussionTopic(
@@ -222,6 +260,12 @@ function expandFixturesForAllContentTypes(rawFixtures) {
         fixture_id: `disc_${f.fixture_id}`,
         content_type: 'discussions',
         location_hint: `[QA] Disc ${f.location_hint || f.fixture_id}`,
+      });
+      out.push({
+        ...f,
+        fixture_id: `quiz_${f.fixture_id}`,
+        content_type: 'quizzes',
+        location_hint: `[QA] Quiz ${f.location_hint || f.fixture_id}`,
       });
     }
   }
@@ -344,6 +388,15 @@ async function main() {
           f.location_hint,
           f.html || '',
           false,
+        );
+        entry.resource_id = resource_id;
+      } else if (f.content_type === 'quizzes') {
+        const { resource_id } = await createOrUpdateQuiz(
+          baseUrl,
+          token,
+          courseId,
+          f.location_hint,
+          f.html || '',
         );
         entry.resource_id = resource_id;
       } else {
