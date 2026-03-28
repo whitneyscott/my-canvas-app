@@ -115,8 +115,8 @@ Then expand to:
 ### Color, sensory, and readability
 - [ ] Information conveyed by color alone (`color_only_information` — fix metadata only)
 - [ ] Instructions based only on sensory cues (left/right/red/etc.) (`sensory_only_instructions` — fix metadata only)
-- [ ] Fully justified paragraph text (`text_justified` — auto-fix exists; scanner not wired)
-- [ ] Inline hardcoded font sizes below 10px (`font_size_too_small` — auto-fix exists; scanner not wired)
+- [x] Fully justified paragraph text (`text_justified`)
+- [x] Inline hardcoded font sizes below 10px (`font_size_too_small`)
 
 ### Embedded content
 - [ ] Iframes without meaningful `title` (`iframe_missing_title` — suggest fix exists; scanner not wired for generic iframes)

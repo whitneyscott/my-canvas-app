@@ -8681,6 +8681,32 @@ export class CanvasService {
     let styleMatch: RegExpExecArray | null;
     while ((styleMatch = styleTagRegex.exec(content))) {
       const style = styleMatch[3] ?? styleMatch[4] ?? '';
+      if (/text-align\s*:\s*justify/i.test(style)) {
+        this.addFinding(
+          findings,
+          base,
+          'text_justified',
+          'low',
+          'Text uses full justification, which can reduce readability for some users.',
+          styleMatch[0],
+        );
+      }
+      const smallFsMatch = style.match(
+        /(?:^|;)\s*font-size\s*:\s*([0-9.]+)px/i,
+      );
+      if (smallFsMatch) {
+        const pxSmall = Number(smallFsMatch[1]);
+        if (Number.isFinite(pxSmall) && pxSmall > 0 && pxSmall < 10) {
+          this.addFinding(
+            findings,
+            base,
+            'font_size_too_small',
+            'medium',
+            `Inline font size ${pxSmall}px is below 10px and may be hard to read.`,
+            styleMatch[0],
+          );
+        }
+      }
       const colorMatch = style.match(/(?:^|;)\s*color\s*:\s*([^;]+)/i);
       const bgMatch = style.match(
         /(?:^|;)\s*background(?:-color)?\s*:\s*([^;]+)/i,
