@@ -53,7 +53,7 @@ npm run qa:accessibility:run
 
 Runner loads manifest, calls scan API with `X-QA-Canvas-Token` and `X-QA-Canvas-Url`, asserts expected findings (resource types `page` / `assignment` match the API), writes `test/fixtures/accessibility-qa/report-<run_id>.json`. Exits 1 on strict-tier scanner failures and, when fix QA is on, strict-tier **fix** failures.
 
-**Optional auto-fix verification:** set `QA_FIX_AUTO=1` to run `fix-preview-item` → `fix-apply` → re-scan per strict `auto` fixture (skips `uses_ai` rules unless `QA_FIX_AUTO_AI=1`, skips `dual_option` rows). Default is scan-only (`QA_FIX_AUTO` unset).
+**Optional auto-fix verification:** set `QA_FIX_AUTO=1` to run `fix-preview-item` → `fix-apply` → re-scan. **Auto rules:** `fix_strategy === 'auto'` (skips `uses_ai` unless `QA_FIX_AUTO_AI=1`). **Dual-option suggested rules:** manifest rows with `dual_option_choice` set (`acc_fix:aria_hidden:remove` / `tabindex`, `acc_fix:table_layout:presentation` / `headers`) use the same path with `edited_suggestion`. Rows with `dual_option` but no `dual_option_choice` are skipped for fix. Default is scan-only (`QA_FIX_AUTO` unset).
 
 ## Env vars
 

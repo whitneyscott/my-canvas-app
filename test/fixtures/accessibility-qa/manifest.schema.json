@@ -61,6 +61,10 @@
           "is_image_rule": { "type": "boolean" },
           "uses_second_stage_ai": { "type": "boolean" },
           "dual_option": { "type": "boolean" },
+          "dual_option_choice": {
+            "type": "string",
+            "description": "acc_fix:aria_hidden:remove|tabindex or acc_fix:table_layout:presentation|headers"
+          },
           "pending_heuristic": { "type": "boolean" },
           "broken_link_url": { "type": "string" },
           "canvas_capability": { "type": "object" }

@@ -71,6 +71,93 @@ async function postJson(url, headers, body) {
   });
 }
 
+async function trySuggestedFixWithEditedChoice({
+  apiBase,
+  courseId,
+  headers,
+  fixture,
+  finding,
+  editedSuggestion,
+}) {
+  const previewUrl = `${apiBase}/canvas/courses/${courseId}/accessibility/fix-preview-item`;
+  const body = {
+    finding: {
+      resource_type: finding.resource_type,
+      resource_id: finding.resource_id,
+      resource_title: finding.resource_title,
+      rule_id: finding.rule_id,
+      snippet: finding.snippet ?? null,
+    },
+  };
+  const previewRes = await postJson(previewUrl, headers, body);
+  if (!previewRes.ok) {
+    const t = await previewRes.text();
+    return {
+      ok: false,
+      meter: null,
+      reason: `fix-preview-item ${previewRes.status}: ${t.slice(0, 300)}`,
+    };
+  }
+  const data = await previewRes.json();
+  const action = data.action;
+  const meter = data.meter || null;
+  if (!action) {
+    return {
+      ok: false,
+      meter,
+      reason: data.error || 'No action returned from preview',
+    };
+  }
+  const fs = action.fix_strategy;
+  if (fs !== 'suggested' && fs !== 'auto') {
+    return {
+      ok: false,
+      meter,
+      reason: `Preview fix_strategy is ${fs}, expected suggested or auto`,
+    };
+  }
+  const choices = action.fix_choices;
+  if (Array.isArray(choices) && choices.length) {
+    const ok = choices.some((c) => c && c.value === editedSuggestion);
+    if (!ok) {
+      return {
+        ok: false,
+        meter,
+        reason: `edited choice ${editedSuggestion} not in fix_choices`,
+      };
+    }
+  }
+  const applyUrl = `${apiBase}/canvas/courses/${courseId}/accessibility/fix-apply`;
+  const applyBody = {
+    actions: [
+      {
+        action_id: action.action_id,
+        resource_type: action.resource_type,
+        resource_id: action.resource_id,
+        update_key: action.update_key,
+        rule_id: action.rule_id,
+        content_hash: action.content_hash,
+        fix_strategy: action.fix_strategy,
+        before_html: action.before_html,
+        after_html: action.after_html,
+        proposed_html: action.proposed_html,
+        suggestion: action.suggestion,
+        edited_suggestion: editedSuggestion,
+      },
+    ],
+  };
+  const applyRes = await postJson(applyUrl, headers, applyBody);
+  if (!applyRes.ok) {
+    const t = await applyRes.text();
+    return {
+      ok: false,
+      meter,
+      reason: `fix-apply ${applyRes.status}: ${t.slice(0, 300)}`,
+    };
+  }
+  return { ok: true, meter, reason: '' };
+}
+
 async function tryAutoFixOne({
   apiBase,
   courseId,
@@ -285,27 +372,25 @@ async function main() {
       let fixNotes = '';
       let previewMeter = null;
 
-      if (
-        fixAuto &&
-        scannerOk &&
-        fixture.fix_strategy === 'auto' &&
-        !fixture.dual_option
-      ) {
-        if (fixture.uses_ai && !fixAutoAi) {
-          fixStatus = 'skip';
-          fixNotes = 'uses_ai (set QA_FIX_AUTO_AI=1 to attempt)';
-        } else {
+      if (fixAuto && scannerOk) {
+        const dualChoice =
+          typeof fixture.dual_option_choice === 'string'
+            ? fixture.dual_option_choice.trim()
+            : '';
+
+        if (fixture.dual_option && dualChoice) {
           const match = resourceFindings.find((x) => x.rule_id === fixture.rule_id);
           if (!match) {
             fixStatus = 'skip';
-            fixNotes = 'No matching finding for fix';
+            fixNotes = 'No matching finding for dual-option fix';
           } else {
-            const fixResult = await tryAutoFixOne({
+            const fixResult = await trySuggestedFixWithEditedChoice({
               apiBase,
               courseId,
               headers,
               fixture,
               finding: match,
+              editedSuggestion: dualChoice,
             });
             previewMeter = fixResult.meter;
             if (previewMeter && report.fix_meter_aggregate) {
@@ -338,7 +423,7 @@ async function main() {
                 else bestEffortFixFail++;
               } else {
                 fixStatus = 'pass';
-                fixNotes = 'Rule cleared on resource after apply';
+                fixNotes = 'Rule cleared on resource after apply (dual_option_choice)';
               }
               byResource.clear();
               for (const [k, v] of indexFindingsByResource(findings).entries()) {
@@ -346,13 +431,70 @@ async function main() {
               }
             }
           }
+        } else if (fixture.fix_strategy === 'auto' && !fixture.dual_option) {
+          if (fixture.uses_ai && !fixAutoAi) {
+            fixStatus = 'skip';
+            fixNotes = 'uses_ai (set QA_FIX_AUTO_AI=1 to attempt)';
+          } else {
+            const match = resourceFindings.find((x) => x.rule_id === fixture.rule_id);
+            if (!match) {
+              fixStatus = 'skip';
+              fixNotes = 'No matching finding for fix';
+            } else {
+              const fixResult = await tryAutoFixOne({
+                apiBase,
+                courseId,
+                headers,
+                fixture,
+                finding: match,
+              });
+              previewMeter = fixResult.meter;
+              if (previewMeter && report.fix_meter_aggregate) {
+                report.fix_meter_aggregate.input_tokens +=
+                  Number(previewMeter.input_tokens) || 0;
+                report.fix_meter_aggregate.output_tokens +=
+                  Number(previewMeter.output_tokens) || 0;
+                report.fix_meter_aggregate.cache_read_input_tokens +=
+                  Number(previewMeter.cache_read_input_tokens) || 0;
+                report.fix_meter_aggregate.cache_creation_input_tokens +=
+                  Number(previewMeter.cache_creation_input_tokens) || 0;
+              }
+              if (!fixResult.ok) {
+                fixStatus = 'fail';
+                fixNotes = fixResult.reason;
+                report.by_tier[tier].fix_fail++;
+                if (tier === 'strict') strictFixFail++;
+                else bestEffortFixFail++;
+              } else {
+                scanData = await fetchScan(apiBase, courseId, headers);
+                findings = scanData.findings || [];
+                const br2 = indexFindingsByResource(findings);
+                const rf2 = br2.get(rk) || [];
+                const after = rf2.filter((x) => x.rule_id === fixture.rule_id).length;
+                if (after > 0) {
+                  fixStatus = 'fail';
+                  fixNotes = `After apply, expected 0 findings for ${fixture.rule_id}, got ${after}`;
+                  report.by_tier[tier].fix_fail++;
+                  if (tier === 'strict') strictFixFail++;
+                  else bestEffortFixFail++;
+                } else {
+                  fixStatus = 'pass';
+                  fixNotes = 'Rule cleared on resource after apply';
+                }
+                byResource.clear();
+                for (const [k, v] of indexFindingsByResource(findings).entries()) {
+                  byResource.set(k, v);
+                }
+              }
+            }
+          }
+        } else if (fixture.dual_option && !dualChoice) {
+          fixStatus = 'skip';
+          fixNotes = 'dual_option (add dual_option_choice to fixture)';
+        } else if (fixture.fix_strategy && fixture.fix_strategy !== 'auto') {
+          fixStatus = 'skip';
+          fixNotes = `fix_strategy ${fixture.fix_strategy}`;
         }
-      } else if (fixAuto && scannerOk && fixture.dual_option) {
-        fixStatus = 'skip';
-        fixNotes = 'dual_option (use dedicated variants)';
-      } else if (fixAuto && scannerOk && fixture.fix_strategy && fixture.fix_strategy !== 'auto') {
-        fixStatus = 'skip';
-        fixNotes = `fix_strategy ${fixture.fix_strategy}`;
       }
 
       report.results.push({

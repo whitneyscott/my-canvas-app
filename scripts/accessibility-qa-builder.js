@@ -162,6 +162,8 @@ async function main() {
       entry.uses_second_stage_ai = reg.uses_second_stage_ai;
       if (reg.dual_option) entry.dual_option = true;
       if (reg.pending_heuristic) entry.pending_heuristic = true;
+      if (typeof f.dual_option_choice === 'string' && f.dual_option_choice.trim())
+        entry.dual_option_choice = f.dual_option_choice.trim();
     }
     try {
       if (f.content_type === 'pages') {

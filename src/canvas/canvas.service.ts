@@ -8955,10 +8955,16 @@ export class CanvasService {
     let tMatch: RegExpExecArray | null;
     while ((tMatch = tableRegex.exec(content))) {
       const tableHtml = tMatch[0];
+      const tableOpenTag = tableHtml.match(/^<table\b[^>]*>/i)?.[0] || '';
       const noHeaders = !/<th\b/i.test(tableHtml);
       const rowCount = (tableHtml.match(/<tr\b/gi) || []).length;
       const colCount = (tableHtml.match(/<t[dh]\b/gi) || []).length;
-      if (noHeaders && rowCount > 2 && colCount > 4) {
+      if (
+        noHeaders &&
+        rowCount > 2 &&
+        colCount > 4 &&
+        !/\brole\s*=\s*["']presentation["']/i.test(tableOpenTag)
+      ) {
         this.addFinding(
           findings,
           base,
@@ -9286,7 +9292,7 @@ export class CanvasService {
       }
     }
     if (
-      /\baria-hidden\s*=\s*["']true["'][^>]*\b(?:tabindex\s*=\s*["']?[0-9]+["']?|href=|onclick=)|<(a|button|input|select|textarea)\b[^>]*\baria-hidden\s*=\s*["']true["']/i.test(
+      /\baria-hidden\s*=\s*["']true["'][^>]*\b(?:tabindex\s*=\s*["']?[0-9]+["']?|href=|onclick=)/i.test(
         content,
       )
     ) {
@@ -9297,6 +9303,22 @@ export class CanvasService {
         'high',
         'Focusable interactive element is marked aria-hidden="true".',
       );
+    } else {
+      const fhRe = /<(a|button|input|select|textarea)\b([^>]*)>/gi;
+      let fh: RegExpExecArray | null;
+      while ((fh = fhRe.exec(content)) !== null) {
+        const attrs = fh[2] || '';
+        if (!/\baria-hidden\s*=\s*["']true["']/i.test(attrs)) continue;
+        if (/\btabindex\s*=\s*["']?-1["']?/i.test(attrs)) continue;
+        this.addFinding(
+          findings,
+          base,
+          'aria_hidden_focusable',
+          'high',
+          'Focusable interactive element is marked aria-hidden="true".',
+        );
+        break;
+      }
     }
     const idRegex = /\bid\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi;
     const ids = new Map<string, number>();

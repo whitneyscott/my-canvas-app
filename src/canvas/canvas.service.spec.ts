@@ -100,6 +100,34 @@ describe('CanvasService', () => {
     expect(out.some((f) => f.rule_id === 'iframe_missing_title')).toBe(true);
   });
 
+  it('tier2 skips aria-hidden focusable when tabindex is -1', () => {
+    const base = {
+      resource_type: 'pages',
+      resource_id: 'x',
+      resource_title: 't',
+      resource_url: null as string | null,
+    };
+    const html =
+      '<p><a href="https://example.com" aria-hidden="true" tabindex="-1">x</a></p>';
+    const raw = (service as any).evaluateAccessibilityTier2ForHtml;
+    const out = raw.call(service, base, html) as Array<{ rule_id: string }>;
+    expect(out.some((f) => f.rule_id === 'aria_hidden_focusable')).toBe(false);
+  });
+
+  it('tier2 skips table_layout_heuristic when table has role presentation', () => {
+    const base = {
+      resource_type: 'pages',
+      resource_id: 'x',
+      resource_title: 't',
+      resource_url: null as string | null,
+    };
+    const html =
+      '<table role="presentation"><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr><tr><td>e</td><td>f</td></tr></table>';
+    const raw = (service as any).evaluateAccessibilityTier2ForHtml;
+    const out = raw.call(service, base, html) as Array<{ rule_id: string }>;
+    expect(out.some((f) => f.rule_id === 'table_layout_heuristic')).toBe(false);
+  });
+
   it('tier2 skips iframe with non-empty title', () => {
     const base = {
       resource_type: 'pages',
