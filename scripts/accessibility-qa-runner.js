@@ -255,7 +255,10 @@ async function main() {
     process.env.MANIFEST_PATH ||
     process.env.QA_MANIFEST_PATH ||
     path.join(__dirname, '..', 'test', 'fixtures', 'accessibility-qa', 'manifest.json');
-  const apiBase = process.env.API_BASE_URL || process.env.QA_API_BASE_URL || 'http://localhost:3002';
+  const apiBase =
+    process.env.API_BASE_URL ||
+    process.env.QA_API_BASE_URL ||
+    'http://127.0.0.1:3002';
   const token = resolveCanvasTokenForScripts();
   let baseUrl;
   try {
@@ -324,7 +327,7 @@ async function main() {
       'Start API in another terminal: $env:QA_ACCESSIBILITY_ENABLED="1"; npm run start:api',
     );
     console.error(
-      'If connection fails on Windows, try: $env:API_BASE_URL="http://127.0.0.1:3002"',
+      'Override base if needed: $env:API_BASE_URL="http://localhost:3002"',
     );
     process.exit(1);
   }

@@ -46,7 +46,7 @@ In another terminal:
 
 ```bash
 export CANVAS_ACCESS_TOKEN="your_canvas_api_token"
-export API_BASE_URL="http://localhost:3002"   # default
+export API_BASE_URL="http://127.0.0.1:3002"   # default in runner (avoids Windows localhost/IPv6 issues)
 
 npm run qa:accessibility:run
 ```
@@ -79,7 +79,7 @@ That only affects the **current** PowerShell window. To go back to scan-only, cl
 | CANVAS_QA_PROFILE | ✓ | ✓ | `docker` \| `local` \| `online` \| `hosted` when URL envs unset |
 | QA_CANVAS_PROFILE | ✓ | ✓ | Same as `CANVAS_QA_PROFILE` |
 | QA_ACCESSIBILITY_ENABLED | — | (server) | Set `1` so server accepts QA headers |
-| API_BASE_URL | — | ✓ | App URL (default `http://localhost:3002`) |
+| API_BASE_URL | — | ✓ | App URL (default `http://127.0.0.1:3002` in runner) |
 | MANIFEST_PATH | — | ✓ | Override manifest path |
 | QA_STRICT_ALL | — | ✓ | Set `1` to fail on best_effort tier too |
 | QA_REPORT_PATH | — | ✓ | Override report output path |
@@ -96,7 +96,9 @@ With `QA_ACCESSIBILITY_ENABLED=1`, **header override is disabled when `NODE_ENV=
 
 Run these **on the same PC** where Docker and the repo live (your terminal, not a remote agent).
 
-**`qa:accessibility:run` → “fetch failed” (Nest, not Canvas):** The runner calls **`API_BASE_URL`** (default `http://localhost:3002`). Start **`npm run start:api`** with **`QA_ACCESSIBILITY_ENABLED=1`** in another terminal first. On Windows, if `localhost` misbehaves, set **`API_BASE_URL=http://127.0.0.1:3002`**. Confirm something is listening: `netstat -ano | findstr :3002`.
+**`qa:accessibility:run` → “fetch failed” (Nest, not Canvas):** The runner defaults to **`http://127.0.0.1:3002`** so Windows does not resolve `localhost` to IPv6 while Nest listens on IPv4 only. Start **`npm run start:api`** with **`QA_ACCESSIBILITY_ENABLED=1`** first. Confirm **`netstat -ano | findstr :3002`** shows `LISTENING`. Set **`API_BASE_URL`** only if you use another host/port.
+
+If **`.env`** sets **`API_BASE_URL=http://localhost:3002`**, that overrides the runner default — use **`http://127.0.0.1:3002`** there instead, or remove the line so the script default applies.
 
 1. **Confirm the real published port**  
    `docker ps` — find **`canvas-web`** (or `web`): e.g. `0.0.0.0:80->80/tcp` → use `http://127.0.0.1/api/v1`; `0.0.0.0:3000->3000/tcp` → `http://127.0.0.1:3000/api/v1`. Set **`CANVAS_BASE_URL`** to match the **left** (host) port.

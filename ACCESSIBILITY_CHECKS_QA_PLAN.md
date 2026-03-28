@@ -75,7 +75,7 @@ QA_COURSE_ID=<populated automatically after first builder run>
 
 **Implemented:** In `src/main.ts`, when `QA_ACCESSIBILITY_ENABLED=1` and a request path starts with `/canvas/`, middleware reads `X-QA-Canvas-Token` and `X-QA-Canvas-Url` and writes `session.canvasToken` and `session.canvasUrl` (API base with `/api/v1`). `CanvasService` then uses the session for outbound Canvas calls on that request. Normal teacher flows (LTI/session) are unchanged when those headers are absent.
 
-**Runner wiring:** `scripts/accessibility-qa-runner.js` calls `GET {API_BASE_URL}/canvas/courses/{courseId}/accessibility/scan` with those headers (`API_BASE_URL` defaults to `http://localhost:3002`, the Nest app port in `main.ts`).
+**Runner wiring:** `scripts/accessibility-qa-runner.js` calls `GET {API_BASE_URL}/canvas/courses/{courseId}/accessibility/scan` with those headers (`API_BASE_URL` defaults to `http://127.0.0.1:3002`, the Nest app port in `main.ts`).
 
 **Done:** `qaAccessibilityHeadersAllowed()` in `src/qa-accessibility-env.ts` disables QA header handling when `NODE_ENV=production`; startup warns when `QA_ACCESSIBILITY_ENABLED=1` (production vs non-production message). Unit tests in `src/qa-accessibility-env.spec.ts`.
 
@@ -97,7 +97,7 @@ QA_COURSE_ID=<populated automatically after first builder run>
 | `QA_CANVAS_BASE_URL` | Overrides `CANVAS_BASE_URL` when set | *(not set)* | *(must not be set)* |
 | `QA_CANVAS_TOKEN` | OSS token (recommended) | *(not set)* | *(must not be set)* |
 | `QA_ACCESSIBILITY_ENABLED` | `1` on Nest process for runner | *(not set)* | *(ignored for header override when `NODE_ENV=production`)* |
-| `API_BASE_URL` / `QA_API_BASE_URL` | Runner → Nest (default `http://localhost:3002`) | — | — |
+| `API_BASE_URL` / `QA_API_BASE_URL` | Runner → Nest (default `http://127.0.0.1:3002`) | — | — |
 | `NODE_ENV` | `development` | `development` | `production` |
 
 #### Safety rules
