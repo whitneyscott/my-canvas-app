@@ -1,6 +1,6 @@
-# Canvas Bulk Editor — User How-To Manual
+# Canvas Bulk Editor — User Guide
 
-This guide describes the **Canvas Bulk Editor** web app: signing in, choosing a course, working with the data grid, using bulk actions, syncing changes to Canvas, and using the **ADA Compliance Sync** and **Standards Sync** areas.
+This user guide describes the **Canvas Bulk Editor** web app: signing in, choosing a course, working with the data grid, using bulk actions, syncing changes to Canvas, and using the **ADA Compliance Sync** and **Standards Sync** areas.
 
 ---
 
@@ -269,4 +269,4 @@ For deeper technical detail on standards data, see other docs in the repository�
 
 ---
 
-*This manual matches the application behavior as implemented in the Canvas Bulk Editor codebase. If your host customizes labels or hides features, defer to your local administrator.*
+*This user guide matches the application behavior as implemented in the Canvas Bulk Editor codebase. If your host customizes labels or hides features, defer to your local administrator.*
