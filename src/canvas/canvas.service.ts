@@ -9317,7 +9317,7 @@ export class CanvasService {
           const items = (Array.isArray(pages) ? pages : [])
             .map((p: any) => ({
               type: 'pages',
-              id: String(p?.id ?? p?.page_id ?? p?.url ?? ''),
+              id: String(p?.url || p?.page_id || p?.id || '').trim(),
               title: String(p?.title || p?.name || p?.url || 'Untitled Page'),
               html: String(p?.body || ''),
               url: p?.html_url || p?.url || null,

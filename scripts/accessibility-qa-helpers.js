@@ -100,12 +100,6 @@ function loadFixabilityMapFromDist() {
   return map;
 }
 
-function manifestContentTypeToScanResourceType(contentType) {
-  if (contentType === 'pages') return 'page';
-  if (contentType === 'assignments') return 'assignment';
-  return contentType;
-}
-
 function enrichFixtureRegistryFields(ruleId, fixabilityMap) {
   const contract = fixabilityMap[ruleId];
   const dual_option = DUAL_OPTION_RULE_IDS.has(ruleId);
@@ -133,7 +127,6 @@ function enrichFixtureRegistryFields(ruleId, fixabilityMap) {
 module.exports = {
   loadFixabilityMapFromDist,
   loadLocalProjectDotEnv,
-  manifestContentTypeToScanResourceType,
   enrichFixtureRegistryFields,
   DUAL_OPTION_RULE_IDS,
   CANVAS_QA_DEFAULT_BASES,

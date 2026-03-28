@@ -4,7 +4,6 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  manifestContentTypeToScanResourceType,
   loadLocalProjectDotEnv,
   resolveCanvasApiBaseForScripts,
   resolveCanvasTokenForScripts,
@@ -33,8 +32,7 @@ function indexFindingsByResource(findings) {
 }
 
 function resourceKey(fixture) {
-  const rt = manifestContentTypeToScanResourceType(fixture.content_type);
-  return `${rt}:${fixture.resource_id}`;
+  return `${fixture.content_type}:${fixture.resource_id}`;
 }
 
 function assertScannerForFixture(fixture, resourceFindings) {
