@@ -17,15 +17,15 @@ Purpose: define the minimum and expanded accessibility checks for Canvas Bulk Ed
 
 **Goal:** Maintain an **automatic** way to create a **dedicated Canvas course** (or sandbox shell) populated with **artifacts that intentionally trigger every `rule_id`** in the accessibility checker, so you can run **end-to-end QA**: scan → grid → fix preview → apply → re-scan, without hunting production content.
 
-**Deliverable:** A generator (script or small admin flow) that:
+**Deliverable:** Implemented as **`npm run qa:accessibility:build`** / **`qa:accessibility:build:force`** (`scripts/accessibility-qa-builder.js`) plus **`npm run qa:accessibility:run`** (`scripts/accessibility-qa-runner.js`). Details:
 
 | Done | Requirement | Detail |
 |:----:|-------------|--------|
-| [ ] | **Coverage** | At least one **HTML body** per rule (or one combined page with **labeled sections** per rule, if some rules conflict in one snippet—document the split). |
-| [ ] | **Resource mix** | Pages, assignments, announcements, discussions, syllabus—matching `ACCESSIBILITY_SUPPORTED_TYPES` / scan targets. |
-| [ ] | **Deterministic** | Same generator version → same expected rule hits (golden list: `rule_id` → resource + snippet id). |
-| [ ] | **Safe** | Use a **throwaway course** or naming like `[QA] A11y Broken Fixtures` so it never ships to learners. |
-| [ ] | **CI / regression** | Optional: headless or API-driven **“expect N findings for rule X”** assertions against generated HTML strings before Canvas upload. |
+| [x] | **Coverage** | `test/fixtures/accessibility-qa/fixtures.json` drives per-rule HTML; builder expands page rows to announcements, discussions, quizzes, and module items; merged syllabus composite. **Gap:** not every `rule_id` in `ACCESSIBILITY_FIXABILITY_MAP` has a fixture row (e.g. some manual-only or AI-only-without-harness rows). |
+| [x] | **Resource mix** | Pages, assignments, announcements, discussions, **quizzes**, **modules**, **syllabus** — aligned with scanner resource types and `RUNBOOK.md`. |
+| [x] | **Deterministic** | Versioned `fixtures.json` → `manifest.json` with `resource_id` + `expected_findings`; runner asserts counts per manifest row. |
+| [x] | **Safe** | Course **`[QA][A11y] Automated Fixtures`**, code **`QA-A11Y-FIX`**; local Canvas OSS only per `ACCESSIBILITY_CHECKS_QA_PLAN.md`. |
+| [x] | **CI / regression** | **Local:** runner asserts scanner (+ optional fix modes). **GitHub Actions:** `build` + unit tests only — **no** live Canvas QA in CI. |
 
 **Non-goals for v1:** Perfect WCAG pedagogy; the point is **checker coverage**, not course design.
 
@@ -45,6 +45,8 @@ Then expand to:
 - [x] Announcements
 - [x] Syllabus
 - [x] Discussions
+- [x] Quizzes (classic quiz `description`; capability in `manifest.canvas_capability`)
+- [x] Module items (Page + Assignment links under QA fixture module)
 
 ---
 
@@ -85,12 +87,12 @@ Then expand to:
 - [x] Generic/ambiguous link text ("click here", "read more") without context (`link_ambiguous_text`)
 - [x] New-tab links without warning text/indicator (`link_new_tab_no_warning`)
 - [x] File links without type/size hint (PDF/DOC/PPT) (`link_file_missing_type_size_hint`)
-- [ ] Broken links (HTTP error responses such as 404/403/500) (`link_broken` — fix metadata only; no live HTTP check in scanner)
+- [x] Broken links (HTTP error responses such as 404/403/500) (`link_broken` — allowlisted HTTP probe in `accessibility-link-probe.ts`; see `ACCESSIBILITY_CHECKS_QA_PLAN.md` §2.5)
 
 ### Language and internationalization
-- [ ] Missing document language (`lang` on root HTML) (`lang_missing` — fix metadata only)
-- [ ] Invalid or unrecognized language code in `lang` (`lang_invalid` — fix metadata only)
-- [ ] Missing inline language override for mixed-language content (`lang_inline_missing` — fix metadata only)
+- [ ] Missing document language (`lang` on root HTML) (`lang_missing` — **auto-fix** `set_html_lang` exists; **scanner does not emit** this `rule_id` on typical Canvas HTML fragments because content has no root `<html>`)
+- [x] Invalid or unrecognized language code in `lang` (`lang_invalid` — `evaluateLangScannerFindingsForHtml` in `canvas.service.ts`)
+- [x] Missing inline language override for mixed-language content (`lang_inline_missing` — same; franc-backed heuristics in `accessibility-heuristics.ts`)
 
 ### Heading and structure quality
 - [x] Duplicate H1 or empty headings (`heading_duplicate_h1`, `heading_empty`)
@@ -136,7 +138,7 @@ Then expand to:
 - [x] Focusability/keyboard-trap heuristic warnings (where detectable) (`keyboard_focus_trap_heuristic`)
 
 ### Document/file accessibility (if linked/attached)
-- [ ] PDF likely image-only (no text layer) — not implemented; see below
+- [ ] PDF likely image-only (no text layer) — **not implemented** (no file introspection / text-layer probe)
 - [x] Linked PDF: accessibility unknown / verify (`doc_pdf_accessibility_unknown`) — link-level flag, not file introspection
 - [x] DOC/PPT structural accessibility flags (headings, slide titles, alt text) — as `doc_office_structure_unknown` (verify linked file)
 - [x] Spreadsheet header/merge risk flags (`doc_spreadsheet_headers_unknown`)
@@ -205,3 +207,19 @@ Goal: beat Canvas perceived scan time for repeat runs while staying within API l
 - [ ] Save checkpoints continuously so interrupted scans resume instead of restart.
 - [ ] Prefer continuous delta scans over repeated full scans.
 - [ ] Track scan telemetry: items scanned, changed items, 429 count, avg latency, total duration.
+
+---
+
+## What’s left (product vs doc)
+
+**Still open as features**
+
+- **`lang_missing` scanner:** Auto-fix exists for full `<html>` fragments; typical Canvas bodies omit root `<html>`, so this `rule_id` is usually not emitted by the scanner.
+- **`color_only_information` / `sensory_only_instructions`:** No deterministic Tier 2 HTML scanner; registry + AI checkpoint fix path only — add heuristics + fixtures if you want harness coverage.
+- **`session_timeout_no_warning`:** `manual_only` unless you add detection.
+- **PDF image-only / text layer:** Not implemented.
+- **Performance section above:** Delta scans, resume, richer caching, telemetry — roadmap; optional **Suggested rollout** item 3 (feature flags for higher-risk Tier 2).
+
+**Doc / metadata (optional)**
+
+- Per-rule **`wcag_ref`** and **`default_enabled`** in operational metadata — not required for runtime.
