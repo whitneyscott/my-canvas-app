@@ -5,6 +5,8 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import {
   detectLangWithFranc,
+  findLangInlineMissingForeignSpanSnippet,
+  findLangInvalidLangAttributeSnippet,
   extractTableCaptionFromContext,
   findSmallestManualListRegion,
   isLayoutTableCandidate,
@@ -9358,6 +9360,39 @@ export class CanvasService {
     return findings;
   }
 
+  private evaluateLangScannerFindingsForHtml(
+    base: Omit<
+      AccessibilityFinding,
+      'rule_id' | 'tier' | 'severity' | 'message' | 'snippet'
+    >,
+    html: string,
+  ): AccessibilityFinding[] {
+    const findings: AccessibilityFinding[] = [];
+    const miss = findLangInlineMissingForeignSpanSnippet(html);
+    if (miss) {
+      this.addFinding(
+        findings,
+        base,
+        'lang_inline_missing',
+        'medium',
+        'Span contains substantial non-English text without a lang attribute.',
+        miss,
+      );
+    }
+    const inv = findLangInvalidLangAttributeSnippet(html);
+    if (inv) {
+      this.addFinding(
+        findings,
+        base,
+        'lang_invalid',
+        'medium',
+        'A lang attribute value is not a valid normalized BCP 47 tag.',
+        inv,
+      );
+    }
+    return findings;
+  }
+
   private async evaluateLinkBrokenFindingsForHtml(
     base: Omit<
       AccessibilityFinding,
@@ -9568,6 +9603,9 @@ export class CanvasService {
         );
         all.push(
           ...this.evaluateAccessibilityTier2ForHtml(base, resource.html),
+        );
+        all.push(
+          ...this.evaluateLangScannerFindingsForHtml(base, resource.html),
         );
         all.push(
           ...(await this.evaluateLinkBrokenFindingsForHtml(

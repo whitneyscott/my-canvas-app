@@ -128,6 +128,34 @@ describe('CanvasService', () => {
     expect(out.some((f) => f.rule_id === 'table_layout_heuristic')).toBe(false);
   });
 
+  it('tier2 lang scan flags lang_inline_missing for long foreign span', () => {
+    const base = {
+      resource_type: 'pages',
+      resource_id: 'x',
+      resource_title: 't',
+      resource_url: null as string | null,
+    };
+    const html =
+      '<p><span>El reconocimiento del merito literario de una obra no depende unicamente de la moda o de los premios contemporaneos sino de la capacidad del texto para resonar con multiples generaciones de lectores a lo largo del tiempo. Las novelas que sobreviven al paso de los siglos suelen combinar una prosa clara con conflictos humanos universales que trascienden el contexto historico en el que fueron escritas originalmente. La traduccion fiel preserva el tono y el ritmo del autor sin sacrificar la comprension del lector moderno. Los criticos deben evaluar tanto la forma como el fondo sin reducir la lectura a una lista de simbolos aislados.</span></p>';
+    const raw = (service as any).evaluateLangScannerFindingsForHtml;
+    const out = raw.call(service, base, html) as Array<{ rule_id: string }>;
+    expect(out.some((f) => f.rule_id === 'lang_inline_missing')).toBe(true);
+  });
+
+  it('tier2 lang scan flags lang_invalid for non-canonical lang token', () => {
+    const base = {
+      resource_type: 'pages',
+      resource_id: 'x',
+      resource_title: 't',
+      resource_url: null as string | null,
+    };
+    const html =
+      '<p><span lang="english">Short text.</span></p>';
+    const raw = (service as any).evaluateLangScannerFindingsForHtml;
+    const out = raw.call(service, base, html) as Array<{ rule_id: string }>;
+    expect(out.some((f) => f.rule_id === 'lang_invalid')).toBe(true);
+  });
+
   it('tier2 skips iframe with non-empty title', () => {
     const base = {
       resource_type: 'pages',

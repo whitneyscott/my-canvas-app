@@ -203,6 +203,38 @@
       "html": "<p>Assignment allowlisted broken link: <a href=\"https://httpbin.org/status/404\">Expected 404 probe</a></p>"
     },
     {
+      "fixture_id": "page_lang_inline_missing_franc",
+      "rule_id": "lang_inline_missing",
+      "content_type": "pages",
+      "location_hint": "page-lang-inline-missing-franc",
+      "expectation_tier": "strict",
+      "html": "<p><span>El reconocimiento del merito literario de una obra no depende unicamente de la moda o de los premios contemporaneos sino de la capacidad del texto para resonar con multiples generaciones de lectores a lo largo del tiempo. Las novelas que sobreviven al paso de los siglos suelen combinar una prosa clara con conflictos humanos universales que trascienden el contexto historico en el que fueron escritas originalmente. La traduccion fiel preserva el tono y el ritmo del autor sin sacrificar la comprension del lector moderno. Los criticos deben evaluar tanto la forma como el fondo sin reducir la lectura a una lista de simbolos aislados.</span></p>"
+    },
+    {
+      "fixture_id": "assign_lang_inline_missing_franc",
+      "rule_id": "lang_inline_missing",
+      "content_type": "assignments",
+      "location_hint": "[QA] Assignment lang_inline_missing franc",
+      "expectation_tier": "strict",
+      "html": "<p><span>El reconocimiento del merito literario de una obra no depende unicamente de la moda o de los premios contemporaneos sino de la capacidad del texto para resonar con multiples generaciones de lectores a lo largo del tiempo. Las novelas que sobreviven al paso de los siglos suelen combinar una prosa clara con conflictos humanos universales que trascienden el contexto historico en el que fueron escritas originalmente. La traduccion fiel preserva el tono y el ritmo del autor sin sacrificar la comprension del lector moderno. Los criticos deben evaluar tanto la forma como el fondo sin reducir la lectura a una lista de simbolos aislados.</span></p>"
+    },
+    {
+      "fixture_id": "page_lang_invalid_alias",
+      "rule_id": "lang_invalid",
+      "content_type": "pages",
+      "location_hint": "page-lang-invalid-alias",
+      "expectation_tier": "strict",
+      "html": "<p><span lang=\"english\">This paragraph uses a non-canonical lang token that should normalize to en.</span></p>"
+    },
+    {
+      "fixture_id": "assign_lang_invalid_alias",
+      "rule_id": "lang_invalid",
+      "content_type": "assignments",
+      "location_hint": "[QA] Assignment lang_invalid alias",
+      "expectation_tier": "strict",
+      "html": "<p><span lang=\"english\">This paragraph uses a non-canonical lang token that should normalize to en.</span></p>"
+    },
+    {
       "fixture_id": "page_clean_control",
       "rule_id": null,
       "content_type": "pages",

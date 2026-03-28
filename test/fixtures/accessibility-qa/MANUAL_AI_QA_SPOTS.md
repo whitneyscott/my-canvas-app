@@ -36,7 +36,7 @@ Verify link text, labels, and rewrites are sensible in context.
 
 ## Language fixes (franc + normalization)
 
-`lang_inline_missing` and `lang_invalid` use **franc** for detection. Short or mixed-language snippets can be wrong — use **~50+ words** of coherent text in fixtures; do not assert a specific language code for ambiguous content.
+Strict QA fixtures use **50+ words** of coherent Spanish inside a **`<span>` without `lang`** for `lang_inline_missing` (scanner uses **franc**). `lang_invalid` uses **`lang="english"`** (non-canonical vs `en`). Preview/apply wording and franc edge cases still deserve a quick human glance on real courses.
 
 ## Not covered by scanner-only QA
 

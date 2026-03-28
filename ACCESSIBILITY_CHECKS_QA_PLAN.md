@@ -566,10 +566,10 @@ For rules with `dual_option: true` in the manifest (`aria_hidden_focusable`, `ta
 
 ## 7. Deliverables Checklist
 
-**Where we are (Mar 2026):** **Scanner:** **24** violation fixtures + clean (**25** rows) on pages + assignments, including **allowlisted `link_broken`** probes (`httpbin.org/status/404`). **Dual-option** rows use `dual_option_choice`; **`QA_FIX_AUTO=1`** runs suggested preview/apply with `edited_suggestion` for those rows. Next gaps: optional non-Sprout iframe parity, **lang** scanner fixtures when emission is stable, **CI** wiring.
+**Where we are (Mar 2026):** **Scanner:** **28** violation fixtures + clean (**29** rows) on pages + assignments, including **`lang_inline_missing`** / **`lang_invalid`**, **allowlisted `link_broken`**, dual-option rows, and SproutVideo iframe. **Dual-option** rows use `dual_option_choice`; **`QA_FIX_AUTO=1`** runs suggested preview/apply with `edited_suggestion` for those rows. Next gaps: optional non-Sprout iframe parity, **CI** wiring.
 
 - [x] Manifest JSON Schema (`test/fixtures/accessibility-qa/manifest.schema.json`) — registry fields (`fix_strategy`, `uses_ai`, `is_image_rule`, `uses_second_stage_ai`, `dual_option`, `pending_heuristic`), `broken_link_url`, `canvas_capability` property placeholders; optional: richer `canvas_capability` inner shape per §2.1.
-- [x] Fixture definitions (`test/fixtures/accessibility-qa/fixtures.json`) — pages + assignments **strict scanner** set (**24** violation rows + clean control), including **dual-option** `dual_option_choice` rows, **SproutVideo `iframe_missing_title`**, and **`link_broken`** with **`broken_link_url`** (`https://httpbin.org/status/404`). **Still to add:** franc-length lang fixtures (when scanner emits), optional YouTube/Vimeo/Docs iframe parity rows, more content types.
+- [x] Fixture definitions (`test/fixtures/accessibility-qa/fixtures.json`) — pages + assignments **strict scanner** set (**28** violation rows + clean control), including **`lang_inline_missing`** (50+ word Spanish span, franc) and **`lang_invalid`** (`lang="english"`), **dual-option** rows, **SproutVideo `iframe_missing_title`**, **`link_broken`**. **Still to add:** optional YouTube/Vimeo/Docs iframe parity rows, more content types.
 - [x] Runbook (`test/fixtures/accessibility-qa/RUNBOOK.md`) — env vars, `QA_FIX_AUTO`, production QA note, builder `nest build` prerequisite.
 - [x] Builder (`scripts/accessibility-qa-builder.js`) — **done for v1:** course create/reuse, pages + assignments HTML, manifest emit, **registry sync from `dist`** after `nest build`. **Still missing:** `--force-rebuild`, announcements/discussions/syllabus/quizzes/modules, file-upload pipeline.
 - [x] Runner (`scripts/accessibility-qa-runner.js`) — manifest load + schema validation, **strict/best-effort** scanner assertions, JSON report, **`QA_FIX_AUTO`** for **`auto`** / dual-option suggested fixes, **`QA_LINK_SCAN_RETRIES`** refetch for **`link_broken`** rows. **Still missing:** AI token assertions, broader suggested-flow simulation, regression baseline diff, full `link_broken` fix-preview teacher-URL simulation.
@@ -578,7 +578,7 @@ For rules with `dual_option: true` in the manifest (`aria_hidden_focusable`, `ta
 - [x] Documented default: **sequential_reapply** or **single_rule_per_resource** for fix QA (applies once fix loop exists).
 - [x] Allowlisted **broken link** URLs for E2E (§2.5) — `accessibility-link-probe.ts`, fixtures + manifest `broken_link_url`, runner retries.
 - [x] Dual-option **fix** fixture variants + runner: manifest **`dual_option_choice`** on **pages + assignments** for both rules; **`QA_FIX_AUTO=1`** applies chosen option via `edited_suggestion`. Scanner: **`tabindex="-1"`** exempts `aria_hidden_focusable`; **`role="presentation"`** on `<table>` suppresses `table_layout_heuristic` after layout fix.
-- [ ] Minimum-length text fixtures for `lang_inline_missing` and `lang_invalid` (franc requirement).
+- [x] Minimum-length text fixtures for `lang_inline_missing` and `lang_invalid` (franc + scanner in `accessibility-heuristics.ts` / `canvas.service.ts`).
 - [x] **Iframe fixtures (SproutVideo-first):** **SproutVideo** `src` without `title` on **pages + assignments** + Tier 2 scanner emission + **`suggestIframeTitleFromSrc`** Sprout label — **done**. Optional: YouTube, Vimeo, Google Docs/Forms, unknown-domain rows (§0.8, §3.7).
 
 ---

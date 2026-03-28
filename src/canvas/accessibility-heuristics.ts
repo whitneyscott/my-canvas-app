@@ -301,6 +301,59 @@ export function extractTableCaptionFromContext(
   return 'Table';
 }
 
+const MIN_WORDS_LANG_INLINE_SCAN = 50;
+
+function plainTextFromHtmlFragment(s: string): string {
+  return String(s || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function findLangInlineMissingForeignSpanSnippet(
+  html: string,
+): string | null {
+  const content = String(html || '');
+  const spanRe = /<span\b([^>]*)>([\s\S]*?)<\/span>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = spanRe.exec(content)) !== null) {
+    const attrs = m[1] || '';
+    if (/\blang\s*=\s*["'][^"']+["']/i.test(attrs)) continue;
+    const plain = plainTextFromHtmlFragment(m[2] || '');
+    const words = plain.split(/\s+/).filter(Boolean);
+    if (words.length < MIN_WORDS_LANG_INLINE_SCAN) continue;
+    const code = franc(plain.slice(0, 500));
+    if (!code || code === 'und' || code === 'eng') continue;
+    return m[0];
+  }
+  return null;
+}
+
+export function findLangInvalidLangAttributeSnippet(html: string): string | null {
+  const content = String(html || '');
+  const evalTag = (fullTag: string): string | null => {
+    const lm = fullTag.match(/\blang\s*=\s*["']([^"']*)["']/i);
+    const raw = (lm?.[1] ?? '').trim();
+    if (!raw) return null;
+    const norm = normalizeLangCode(raw);
+    const rawLc = raw.toLowerCase().replace(/_/g, '-');
+    if (norm === rawLc) return null;
+    return fullTag;
+  };
+  const htmlOpen = content.match(/<html\b[^>]*>/i);
+  if (htmlOpen) {
+    const r = evalTag(htmlOpen[0]);
+    if (r) return r;
+  }
+  const spanOpenRe = /<span\b[^>]*\blang\s*=\s*["'][^"']*["'][^>]*>/gi;
+  let sm: RegExpExecArray | null;
+  while ((sm = spanOpenRe.exec(content)) !== null) {
+    const r = evalTag(sm[0]);
+    if (r) return r;
+  }
+  return null;
+}
+
 export function isLayoutTableCandidate(
   html: string,
   tableOpenIdx: number,
