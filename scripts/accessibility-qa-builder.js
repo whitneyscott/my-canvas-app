@@ -446,7 +446,13 @@ function expandFixturesForAllContentTypes(rawFixtures) {
 
 async function main() {
   const forceRebuild = process.argv.includes('--force-rebuild');
-  const token = resolveCanvasTokenForScripts();
+  let token;
+  try {
+    token = resolveCanvasTokenForScripts();
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
   let baseUrl;
   try {
     baseUrl = resolveCanvasApiBaseForScripts();
@@ -456,7 +462,7 @@ async function main() {
   }
   if (!token) {
     console.error(
-      'Set CANVAS_ACCESS_TOKEN, CANVAS_TOKEN, or QA_CANVAS_TOKEN',
+      'Set exactly one Canvas token: CANVAS_ACCESS_TOKEN, CANVAS_TOKEN, or QA_CANVAS_TOKEN (Render or .env).',
     );
     process.exit(1);
   }

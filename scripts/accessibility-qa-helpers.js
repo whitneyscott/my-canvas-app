@@ -30,6 +30,12 @@ function loadLocalProjectDotEnv() {
   }
 }
 
+const CANVAS_API_TOKEN_ENV_KEYS = [
+  'CANVAS_ACCESS_TOKEN',
+  'CANVAS_TOKEN',
+  'QA_CANVAS_TOKEN',
+];
+
 function normalizeCanvasApiV1Base(raw) {
   const s = String(raw || '').trim();
   if (!s) return '';
@@ -64,12 +70,22 @@ function resolveCanvasApiBaseForScripts() {
 }
 
 function resolveCanvasTokenForScripts() {
-  return (
-    process.env.CANVAS_ACCESS_TOKEN ||
-    process.env.CANVAS_TOKEN ||
-    process.env.QA_CANVAS_TOKEN ||
-    ''
-  ).trim();
+  const entries = CANVAS_API_TOKEN_ENV_KEYS.map((key) => [
+    key,
+    String(process.env[key] || '').trim(),
+  ]).filter(([, v]) => v.length > 0);
+  if (entries.length === 0) return '';
+  const uniqueValues = [...new Set(entries.map(([, v]) => v))];
+  if (uniqueValues.length > 1) {
+    throw new Error(
+      [
+        'Canvas API token env vars disagree (different non-empty values):',
+        entries.map(([k]) => k).join(', '),
+        'Use one of CANVAS_ACCESS_TOKEN, CANVAS_TOKEN, QA_CANVAS_TOKEN, or set them to the same token.',
+      ].join(' '),
+    );
+  }
+  return uniqueValues[0];
 }
 
 const DUAL_OPTION_RULE_IDS = new Set([

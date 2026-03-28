@@ -69,7 +69,7 @@ QA_ACCESSIBILITY_ENABLED=1
 QA_COURSE_ID=<populated automatically after first builder run>
 ```
 
-**QA scripts (`accessibility-qa-helpers.js`):** **Token:** `CANVAS_ACCESS_TOKEN`, then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`. **API base:** `CANVAS_BASE_URL` / `QA_CANVAS_BASE_URL` if set; otherwise **`CANVAS_QA_PROFILE`** (`docker`|`local` → `http://127.0.0.1/api/v1` — host port **80**, usual official `canvas-lms` compose; `online`|`hosted` → Instructure API default). No third hidden default — missing both URL and profile is an error. Project `.env` is loaded for CLI runs without overriding existing shell env. **Browser login** in `AppController` keeps its own defaults; that path is separate.
+**QA scripts (`accessibility-qa-helpers.js`):** **Token:** any one of `CANVAS_ACCESS_TOKEN`, `CANVAS_TOKEN`, or `QA_CANVAS_TOKEN` (`.env` and/or shell / Render). If more than one is set to **different** values, the script errors. **API base:** `CANVAS_BASE_URL` / `QA_CANVAS_BASE_URL` if set; otherwise **`CANVAS_QA_PROFILE`** (`docker`|`local` → `http://127.0.0.1/api/v1` — host port **80**, usual official `canvas-lms` compose; `online`|`hosted` → Instructure API default). No third hidden default — missing both URL and profile is an error. Project `.env` is loaded for CLI runs without overriding existing shell env. **Browser login** in `AppController` keeps its own defaults; that path is separate.
 
 ### Local Service Routing Switch
 
@@ -92,7 +92,7 @@ QA_COURSE_ID=<populated automatically after first builder run>
 | Variable | Local QA | Local Dev | Render |
 |---|---|---|---|
 | `CANVAS_BASE_URL` | Explicit Canvas API base for scripts (wins over profile) | Institution/dev Canvas | Institution Canvas |
-| `CANVAS_ACCESS_TOKEN` / `CANVAS_TOKEN` / `QA_CANVAS_TOKEN` | Script token chain | Dev token | N/A for header QA path |
+| `CANVAS_ACCESS_TOKEN` / `CANVAS_TOKEN` / `QA_CANVAS_TOKEN` | Script token (one name; error if values disagree) | Dev token | N/A for header QA path |
 | `CANVAS_QA_PROFILE` | `docker` / `online` (etc.) when URL not set | Set in `.env` for local QA | *(typically unset)* |
 | `QA_CANVAS_BASE_URL` | Overrides `CANVAS_BASE_URL` when set | *(not set)* | *(must not be set)* |
 | `QA_CANVAS_TOKEN` | OSS token (recommended) | *(not set)* | *(must not be set)* |

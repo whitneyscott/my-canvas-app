@@ -64,7 +64,7 @@ Recent rows **do** exist (e.g. `id` 240, `workflow_state` `active`, `user_id` 1,
    `curl -sS -o NUL -w "%{http_code}" -H "Authorization: Bearer $CANVAS_ACCESS_TOKEN" "http://127.0.0.1/api/v1/users/self"`  
    Expect `200`. On `401`, stop; fix token or `CANVAS_BASE_URL` before `qa:accessibility:run` / builder.
 
-2. **Single source for the secret** — Prefer only `CANVAS_ACCESS_TOKEN` in `.env`; avoid mixing `CANVAS_TOKEN` / `QA_CANVAS_TOKEN` across shells. Echo last 4 chars only when debugging.
+2. **One token value** — QA scripts accept any of `CANVAS_ACCESS_TOKEN`, `CANVAS_TOKEN`, or `QA_CANVAS_TOKEN`, but if several are set to **different** strings they exit with an error (no silent precedence). Echo last 4 chars only when debugging.
 
 3. **Fail fast** — On first Nest/Canvas `401` with `Invalid access token`, abort the run; do not rely on “maybe later requests work.”
 

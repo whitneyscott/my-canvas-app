@@ -26,7 +26,7 @@ npm run qa:accessibility:build:force
 
 Same as `npm run qa:accessibility:build -- --force-rebuild`. If **`DELETE /api/v1/courses/:id`** is denied, the script warns and continues with the existing reuse/create behavior.
 
-Token resolution: **`CANVAS_ACCESS_TOKEN`**, then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`.
+Token resolution: any **one** of **`CANVAS_ACCESS_TOKEN`**, **`CANVAS_TOKEN`**, or **`QA_CANVAS_TOKEN`** (from project `.env` after load, or from the shell / Render). If more than one is set **to different values**, the QA scripts exit with an error so nothing is silently overridden.
 
 **Canvas API base (differentiated — no silent single default):**
 
