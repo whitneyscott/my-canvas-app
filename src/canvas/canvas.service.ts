@@ -8482,7 +8482,6 @@ export class CanvasService {
     'syllabus',
     'discussions',
     'quizzes',
-    'modules',
   ] as const;
 
   private resolveAccessibilityResourceTypes(
@@ -9730,86 +9729,6 @@ export class CanvasService {
             `quizzes fetch failed: ${e?.message || 'unknown error'}`,
           );
           return { type: 'quizzes', items: [] };
-        }),
-      );
-    }
-    if (types.includes('modules')) {
-      fetchers.push(
-        timed('fetch_modules', async () => {
-          const modules = await this.getCourseModules(courseId);
-          const items: Array<{
-            type: string;
-            id: string;
-            title: string;
-            html: string;
-            url?: string | null;
-          }> = [];
-          for (const mod of Array.isArray(modules) ? modules : []) {
-            const rawItems =
-              (mod as any)?.items ?? (mod as any)?.module_items ?? [];
-            for (const it of Array.isArray(rawItems) ? rawItems : []) {
-              const t = String((it as any)?.type || '');
-              if (t === 'Page') {
-                const pageUrl = String((it as any)?.page_url || '').trim();
-                if (!pageUrl) continue;
-                try {
-                  const full = await this.getPage(courseId, pageUrl);
-                  const { token, baseUrl } = await this.getAuthHeaders();
-                  const body = await this.resolveWikiPageBodyForGrid(
-                    courseId,
-                    pageUrl,
-                    full,
-                    token,
-                    baseUrl,
-                  );
-                  const html =
-                    typeof body === 'string'
-                      ? body
-                      : String((full as any)?.body ?? '');
-                  if (!String(html || '').trim()) continue;
-                  items.push({
-                    type: 'modules',
-                    id: String((it as any)?.id ?? ''),
-                    title: String(
-                      (it as any)?.title || pageUrl || 'Module page',
-                    ),
-                    html,
-                    url: (it as any)?.html_url || null,
-                  });
-                } catch {
-                  warnings.push(
-                    `module Page item ${(it as any)?.id}: body fetch failed`,
-                  );
-                }
-              } else if (t === 'Assignment') {
-                const aid = Number((it as any)?.content_id);
-                if (!Number.isFinite(aid)) continue;
-                try {
-                  const a = await this.getAssignment(courseId, aid);
-                  const html = String(a?.description ?? '');
-                  if (!String(html || '').trim()) continue;
-                  items.push({
-                    type: 'modules',
-                    id: String((it as any)?.id ?? ''),
-                    title: String(
-                      (it as any)?.title || a?.name || `Assignment ${aid}`,
-                    ),
-                    html,
-                    url:
-                      (it as any)?.html_url || (a as any)?.html_url || null,
-                  });
-                } catch {
-                  warnings.push(
-                    `module Assignment item ${(it as any)?.id}: fetch failed`,
-                  );
-                }
-              }
-            }
-          }
-          return { type: 'modules', items };
-        }).catch((e: any) => {
-          warnings.push(`modules fetch failed: ${e?.message || 'unknown error'}`);
-          return { type: 'modules', items: [] };
         }),
       );
     }

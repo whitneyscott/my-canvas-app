@@ -2459,7 +2459,7 @@ function wireAccessibilityOptionToggles() {
 }
 
 function buildAccessibilityTypesControls(selectedTypes) {
-    const allAccTypes = ['pages', 'assignments', 'announcements', 'discussions', 'syllabus', 'quizzes', 'modules'];
+    const allAccTypes = ['pages', 'assignments', 'announcements', 'discussions', 'syllabus', 'quizzes'];
     const selected = new Set(Array.isArray(selectedTypes) && selectedTypes.length ? selectedTypes : allAccTypes);
     const row = (value, label) => `
         <label style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid #e8e8e8;border-radius:6px;background:#fff;">
@@ -2481,7 +2481,6 @@ function buildAccessibilityTypesControls(selectedTypes) {
                 ${row('discussions', 'Discussions')}
                 ${row('syllabus', 'Syllabus')}
                 ${row('quizzes', 'Quizzes')}
-                ${row('modules', 'Modules (Page/Assignment items)')}
             </div>
         </details>
     `;
@@ -2496,7 +2495,7 @@ function renderAccessibilityReport(report) {
     const summary = report?.summary || {};
     const benchmark = report?.benchmark || {};
     const bySeverity = summary.by_severity || {};
-    const allAccTypes = ['pages', 'assignments', 'announcements', 'discussions', 'syllabus', 'quizzes', 'modules'];
+    const allAccTypes = ['pages', 'assignments', 'announcements', 'discussions', 'syllabus', 'quizzes'];
     const selectedTypes = Array.isArray(report?.requested_resource_types) && report.requested_resource_types.length
         ? report.requested_resource_types
         : (Object.keys(summary.resources_scanned_by_type || {}).length

@@ -133,113 +133,11 @@ function mapCanvasResourceType(contentType) {
       return 'discussion_topic';
     case 'quizzes':
       return 'quiz';
-    case 'modules':
-      return 'module_item';
     case 'syllabus':
       return 'syllabus';
     default:
       return contentType;
   }
-}
-
-const QA_MODULE_NAME = '[QA][A11y] Fixture Module';
-
-function pageSlugFromFixture(f) {
-  return (f.location_hint || f.fixture_id).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-}
-
-async function findOrCreateQaModule(baseUrl, token, courseId) {
-  const listRes = await canvasFetch(baseUrl, token, `/courses/${courseId}/modules?per_page=100`);
-  const list = await listRes.json();
-  const existing = Array.isArray(list)
-    ? list.find((m) => String(m.name) === QA_MODULE_NAME)
-    : null;
-  if (existing?.id) return existing.id;
-  const postRes = await canvasFetch(baseUrl, token, `/courses/${courseId}/modules`, {
-    method: 'POST',
-    body: JSON.stringify({ module: { name: QA_MODULE_NAME, published: false } }),
-  });
-  const row = await postRes.json();
-  const mod = row.module || row;
-  return mod.id;
-}
-
-async function ensureModulePageItem(baseUrl, token, courseId, moduleId, pageSlug, title) {
-  const itemsRes = await canvasFetch(
-    baseUrl,
-    token,
-    `/courses/${courseId}/modules/${moduleId}/items?per_page=100`,
-  );
-  const items = await itemsRes.json();
-  const slug = String(pageSlug);
-  const existing = Array.isArray(items)
-    ? items.find((it) => String(it.type) === 'Page' && String(it.page_url) === slug)
-    : null;
-  if (existing?.id) return { resource_id: String(existing.id) };
-  const postRes = await canvasFetch(
-    baseUrl,
-    token,
-    `/courses/${courseId}/modules/${moduleId}/items`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        module_item: {
-          type: 'Page',
-          page_url: slug,
-          title: title || slug,
-        },
-      }),
-    },
-  );
-  const raw = await postRes.json();
-  const it = raw.module_item || raw;
-  return { resource_id: String(it.id) };
-}
-
-async function findAssignmentByName(baseUrl, token, courseId, name) {
-  const listRes = await canvasFetch(
-    baseUrl,
-    token,
-    `/courses/${courseId}/assignments?per_page=100&search_term=${encodeURIComponent(name)}`,
-  );
-  const list = await listRes.json();
-  const t = String(name);
-  return Array.isArray(list) ? list.find((a) => String(a.name) === t) : null;
-}
-
-async function ensureModuleAssignmentItem(baseUrl, token, courseId, moduleId, assignmentId, title) {
-  const itemsRes = await canvasFetch(
-    baseUrl,
-    token,
-    `/courses/${courseId}/modules/${moduleId}/items?per_page=100`,
-  );
-  const items = await itemsRes.json();
-  const aid = Number(assignmentId);
-  const existing = Array.isArray(items)
-    ? items.find(
-        (it) =>
-          String(it.type) === 'Assignment' && Number(it.content_id) === aid,
-      )
-    : null;
-  if (existing?.id) return { resource_id: String(existing.id) };
-  const postRes = await canvasFetch(
-    baseUrl,
-    token,
-    `/courses/${courseId}/modules/${moduleId}/items`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        module_item: {
-          type: 'Assignment',
-          content_id: aid,
-          title: title || `Assignment ${aid}`,
-        },
-      }),
-    },
-  );
-  const raw = await postRes.json();
-  const it = raw.module_item || raw;
-  return { resource_id: String(it.id) };
 }
 
 const MINIMAL_PDF_BYTES = Buffer.from(
@@ -507,7 +405,6 @@ async function main() {
     canvas_capability: {},
   };
 
-  let qaModuleId = null;
   let quizRichTextOk = null;
 
   for (const f of expandedFixtures) {
@@ -727,10 +624,6 @@ async function main() {
   if (quizRichTextOk !== null) {
     manifest.canvas_capability.quizzes_rich_text = !!quizRichTextOk;
   }
-  if (qaModuleId) {
-    manifest.canvas_capability.module_items_seeded = true;
-  }
-
   const outDir = path.join(__dirname, '..', 'test', 'fixtures', 'accessibility-qa');
   const manifestPath = path.join(outDir, 'manifest.json');
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
