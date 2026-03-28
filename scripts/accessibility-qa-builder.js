@@ -73,14 +73,20 @@ async function createOrUpdatePage(baseUrl, token, courseId, wikiPageUrl, body, t
       body: JSON.stringify(editBody),
     });
     const page = await putRes.json();
-    return { resource_id: String(page.page_id || page.url || wikiPageUrl), update_key: page.url || wikiPageUrl };
+    return {
+      resource_id: String(page.url || page.page_id || wikiPageUrl),
+      update_key: page.url || wikiPageUrl,
+    };
   }
   const postRes = await canvasFetch(baseUrl, token, `/courses/${courseId}/pages`, {
     method: 'POST',
     body: JSON.stringify({ wiki_page: { ...editBody.wiki_page, url: wikiPageUrl } }),
   });
   const page = await postRes.json();
-  return { resource_id: String(page.page_id || page.url || wikiPageUrl), update_key: page.url || wikiPageUrl };
+  return {
+    resource_id: String(page.url || page.page_id || wikiPageUrl),
+    update_key: page.url || wikiPageUrl,
+  };
 }
 
 async function createOrUpdateAssignment(baseUrl, token, courseId, name, description) {
@@ -277,8 +283,15 @@ async function main() {
     try {
       if (f.content_type === 'pages') {
         const slug = (f.location_hint || f.fixture_id).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-        await createOrUpdatePage(baseUrl, token, courseId, slug, f.html || '', f.location_hint);
-        entry.resource_id = slug;
+        const { resource_id } = await createOrUpdatePage(
+          baseUrl,
+          token,
+          courseId,
+          slug,
+          f.html || '',
+          f.location_hint,
+        );
+        entry.resource_id = resource_id;
       } else if (f.content_type === 'assignments') {
         const { resource_id } = await createOrUpdateAssignment(baseUrl, token, courseId, f.location_hint, f.html || '');
         entry.resource_id = resource_id;

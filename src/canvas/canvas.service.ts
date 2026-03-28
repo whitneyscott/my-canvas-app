@@ -2790,10 +2790,14 @@ export class CanvasService {
 
     const pagesWithBody = await Promise.all(
       pages.map(async (page) => {
-        if (page.url) {
+        const urlKey =
+          (page.url && String(page.url).trim()) ||
+          (page.page_id != null ? String(page.page_id) : '') ||
+          (page.id != null ? String(page.id) : '');
+        if (urlKey) {
           try {
             const pageUrl =
-              `${baseUrl}/courses/${courseId}/pages/${encodeURIComponent(page.url)}` +
+              `${baseUrl}/courses/${courseId}/pages/${encodeURIComponent(urlKey)}` +
               '?include[]=body&include[]=block_editor_attributes';
             const pageResponse = await fetch(pageUrl, {
               headers: { Authorization: `Bearer ${token}` },
@@ -2801,22 +2805,26 @@ export class CanvasService {
 
             if (pageResponse.ok) {
               const pageDetails = await pageResponse.json();
+              const slugForBody =
+                pageDetails.url || page.url || String(page.page_id ?? page.id ?? '');
               const body = await this.resolveWikiPageBodyForGrid(
                 courseId,
-                page.url,
+                slugForBody,
                 pageDetails,
                 token,
                 baseUrl,
               );
               return {
                 ...page,
+                url: pageDetails.url || page.url,
+                page_id: pageDetails.page_id ?? page.page_id,
                 body: body ?? null,
                 html_url: pageDetails.html_url || page.html_url || null,
               };
             }
           } catch (error) {
             console.warn(
-              `[Service] Failed to fetch body for page ${page.url}:`,
+              `[Service] Failed to fetch body for page ${urlKey}:`,
               error,
             );
           }

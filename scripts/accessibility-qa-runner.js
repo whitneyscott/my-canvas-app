@@ -333,6 +333,19 @@ async function main() {
   }
 
   let findings = scanData.findings || [];
+  if (process.env.QA_DEBUG_SCAN === '1') {
+    const keys = [
+      ...new Set(
+        findings.map((f) => `${f.resource_type}:${f.resource_id}`),
+      ),
+    ].sort();
+    console.error(
+      '[QA_DEBUG_SCAN] findings=%d unique_resources=%d sample_keys=%j',
+      findings.length,
+      keys.length,
+      keys.slice(0, 30),
+    );
+  }
 
   const runManifestPass = async () => {
     const byResource = indexFindingsByResource(findings);
