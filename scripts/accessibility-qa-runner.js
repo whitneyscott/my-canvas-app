@@ -398,6 +398,9 @@ async function main() {
 
   let scanData;
   try {
+    console.error(
+      '[QA] Single scan request to Nest (no runner loop yet). The API loads the whole course from Canvas; large courses or many module items can take several minutes and will spam Canvas logs until it returns.',
+    );
     scanData = await fetchScan(apiBase, courseId, headers);
   } catch (e) {
     report.failure_domain = 'infrastructure';
