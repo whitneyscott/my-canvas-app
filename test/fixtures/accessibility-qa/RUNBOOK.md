@@ -97,6 +97,26 @@ Run these **on the same PC** where Docker and the repo live (your terminal, not 
 5. **Token**  
    The token must be issued **on that same Canvas instance** (Account → Settings → New Access Token).
 
+## WSL2: Canvas `docker compose` in Ubuntu, repo on `/mnt/c/...`
+
+Docker publishes ports on the **Linux** side. **`127.0.0.1` in Windows PowerShell is not always the same stack as `127.0.0.1` inside WSL.**
+
+**Reliable approach:** run the QA scripts from **the same WSL distro** where you ran `docker compose up`:
+
+```bash
+cd /mnt/c/dev/Canvas-Bulk-Editor
+# use Node/npm installed in WSL, or nvm
+npm run qa:accessibility:build
+```
+
+Check reachability **in WSL** (not `curl.exe`):
+
+```bash
+curl -sI http://127.0.0.1:3000/ | head -n1
+```
+
+If Canvas uses another host port, set `CANVAS_BASE_URL` in `.env` to `http://127.0.0.1:<port>/api/v1`. If you insist on running Node from **Windows** while Docker runs only in WSL, Docker Desktop must forward that port to Windows; if the builder still refuses, switch to running the command from WSL as above.
+
 ## Protection
 
 - Course name/code clearly labeled as QA
