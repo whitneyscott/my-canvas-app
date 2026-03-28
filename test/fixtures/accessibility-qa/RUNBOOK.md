@@ -96,6 +96,8 @@ With `QA_ACCESSIBILITY_ENABLED=1`, **header override is disabled when `NODE_ENV=
 
 Run these **on the same PC** where Docker and the repo live (your terminal, not a remote agent).
 
+**`qa:accessibility:run` → “fetch failed” (Nest, not Canvas):** The runner calls **`API_BASE_URL`** (default `http://localhost:3002`). Start **`npm run start:api`** with **`QA_ACCESSIBILITY_ENABLED=1`** in another terminal first. On Windows, if `localhost` misbehaves, set **`API_BASE_URL=http://127.0.0.1:3002`**. Confirm something is listening: `netstat -ano | findstr :3002`.
+
 1. **Confirm the real published port**  
    `docker ps` — find **`canvas-web`** (or `web`): e.g. `0.0.0.0:80->80/tcp` → use `http://127.0.0.1/api/v1`; `0.0.0.0:3000->3000/tcp` → `http://127.0.0.1:3000/api/v1`. Set **`CANVAS_BASE_URL`** to match the **left** (host) port.
 

@@ -11,9 +11,27 @@ const {
 
 loadLocalProjectDotEnv();
 
+function fetchErrorDetail(err) {
+  const c = err && err.cause;
+  if (!c) return '';
+  if (typeof c === 'object' && c !== null && 'code' in c) return String(c.code);
+  if (c instanceof Error) return c.message;
+  return String(c);
+}
+
 async function fetchScan(apiBase, courseId, headers) {
-  const scanUrl = `${apiBase}/canvas/courses/${courseId}/accessibility/scan`;
-  const scanRes = await fetch(scanUrl, { headers, credentials: 'include' });
+  const base = String(apiBase || '').replace(/\/$/, '');
+  const scanUrl = `${base}/canvas/courses/${courseId}/accessibility/scan`;
+  let scanRes;
+  try {
+    scanRes = await fetch(scanUrl, { headers, credentials: 'include' });
+  } catch (err) {
+    const d = fetchErrorDetail(err);
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `${msg}${d ? ` [${d}]` : ''} — tried ${scanUrl}`,
+    );
+  }
   if (!scanRes.ok) {
     const text = await scanRes.text();
     throw new Error(`Scan ${scanRes.status}: ${text.slice(0, 400)}`);
@@ -300,8 +318,14 @@ async function main() {
     scanData = await fetchScan(apiBase, courseId, headers);
   } catch (e) {
     report.failure_domain = 'infrastructure';
-    console.error('Scan request failed:', e.message);
-    console.error('Is the app running with QA_ACCESSIBILITY_ENABLED=1?');
+    console.error('Scan request failed:', e instanceof Error ? e.message : e);
+    console.error('Target Nest base:', apiBase);
+    console.error(
+      'Start API in another terminal: $env:QA_ACCESSIBILITY_ENABLED="1"; npm run start:api',
+    );
+    console.error(
+      'If connection fails on Windows, try: $env:API_BASE_URL="http://127.0.0.1:3002"',
+    );
     process.exit(1);
   }
 
