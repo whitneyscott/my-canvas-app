@@ -33,6 +33,18 @@ async function canvasFetch(baseUrl, token, pathname, options = {}) {
   return res;
 }
 
+async function tryDeleteCourseById(baseUrl, token, courseId) {
+  const url = `${baseUrl.replace(/\/$/, '')}/courses/${courseId}`;
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`DELETE course ${courseId}: ${res.status} ${text.slice(0, 200)}`);
+  }
+}
+
 async function findOrCreateCourse(baseUrl, token) {
   const listRes = await canvasFetch(baseUrl, token, '/courses?per_page=100&include[]=course_image');
   const courses = await listRes.json();
@@ -217,6 +229,7 @@ function expandFixturesForAllContentTypes(rawFixtures) {
 }
 
 async function main() {
+  const forceRebuild = process.argv.includes('--force-rebuild');
   const token = resolveCanvasTokenForScripts();
   let baseUrl;
   try {
@@ -236,6 +249,24 @@ async function main() {
   const rawFixtures = fixturesData.fixtures || [];
   const expandedFixtures = expandFixturesForAllContentTypes(rawFixtures);
   const fixabilityMap = loadFixabilityMapFromDist();
+  if (forceRebuild) {
+    try {
+      const listRes = await canvasFetch(baseUrl, token, '/courses?per_page=100&include[]=course_image');
+      const courses = await listRes.json();
+      const existing = Array.isArray(courses)
+        ? courses.find((c) => c.course_code === QA_COURSE_CODE || c.name === QA_COURSE_NAME)
+        : null;
+      if (existing?.id) {
+        await tryDeleteCourseById(baseUrl, token, existing.id);
+        console.log(`force-rebuild: deleted QA course ${existing.id}`);
+      }
+    } catch (e) {
+      console.warn(
+        'force-rebuild: could not delete existing QA course (continuing):',
+        e instanceof Error ? e.message : e,
+      );
+    }
+  }
   const courseId = await findOrCreateCourse(baseUrl, token);
   console.log(`Using course ${courseId} (${QA_COURSE_NAME})`);
 
@@ -248,7 +279,7 @@ async function main() {
     course_code: QA_COURSE_CODE,
     created_at: new Date().toISOString(),
     rebuilt_at: new Date().toISOString(),
-    rebuild_reason: 'script run',
+    rebuild_reason: forceRebuild ? 'force-rebuild' : 'script run',
     registry_rule_count: Object.keys(fixabilityMap).length,
     fixtures: [],
   };

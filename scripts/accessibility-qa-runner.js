@@ -53,6 +53,60 @@ function resourceKey(fixture) {
   return `${fixture.content_type}:${fixture.resource_id}`;
 }
 
+function compareStrictBaseline(currentReport, baselinePath, fixAuto) {
+  const regressions = [];
+  let baseline;
+  try {
+    baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+      regressions: [],
+      baseline_path: baselinePath,
+    };
+  }
+  const baseById = new Map();
+  for (const r of baseline.results || []) {
+    if ((r.expectation_tier || 'strict') !== 'strict') continue;
+    baseById.set(r.fixture_id, r);
+  }
+  for (const r of currentReport.results || []) {
+    if ((r.expectation_tier || 'strict') !== 'strict') continue;
+    const b = baseById.get(r.fixture_id);
+    if (!b) continue;
+    if (b.scanner_status === 'pass' && r.scanner_status !== 'pass') {
+      regressions.push({
+        fixture_id: r.fixture_id,
+        kind: 'scanner',
+        baseline: b.scanner_status,
+        current: r.scanner_status,
+      });
+    }
+    if (
+      fixAuto &&
+      b.fix_status === 'pass' &&
+      r.fix_status !== 'pass' &&
+      r.fix_status !== 'n/a' &&
+      r.fix_status !== 'skip'
+    ) {
+      regressions.push({
+        fixture_id: r.fixture_id,
+        kind: 'fix',
+        baseline: b.fix_status,
+        current: r.fix_status,
+      });
+    }
+  }
+  return {
+    ok: regressions.length === 0,
+    regressions,
+    baseline_path: baselinePath,
+    baseline_run_id: baseline.run_id ?? null,
+    compared_fixtures: baseById.size,
+  };
+}
+
 function assertScannerForFixture(fixture, resourceFindings) {
   const expected =
     fixture.expected_findings || [{ rule_id: fixture.rule_id, count_min: 1, count_max: 10 }];
@@ -585,6 +639,34 @@ async function main() {
 
   const { strictFixFail, bestEffortFixFail } = await runManifestPass();
 
+  const baselinePathRaw =
+    process.env.QA_BASELINE_REPORT || process.env.QA_BASELINE_PATH || '';
+  const baselinePath = String(baselinePathRaw || '').trim();
+  let baselineCompare = null;
+  let baselineFail = 0;
+  if (baselinePath) {
+    baselineCompare = compareStrictBaseline(report, baselinePath, fixAuto);
+    report.baseline_compare = baselineCompare;
+    if (baselineCompare.error) {
+      baselineFail = 1;
+      console.error('[QA] Baseline file error:', baselineCompare.error);
+    } else if (!baselineCompare.ok) {
+      baselineFail = baselineCompare.regressions.length;
+      console.error(
+        '[QA] Baseline regressions vs',
+        baselinePath,
+        ':',
+        baselineCompare.regressions,
+      );
+    } else {
+      console.log(
+        '[QA] Baseline OK (%d strict fixtures compared): %s',
+        baselineCompare.compared_fixtures,
+        baselinePath,
+      );
+    }
+  }
+
   const outPath =
     process.env.QA_REPORT_PATH ||
     path.join(__dirname, '..', 'test', 'fixtures', 'accessibility-qa', `report-${report.run_id}.json`);
@@ -596,7 +678,8 @@ async function main() {
   const exitFail =
     (strictAll ? strictFail + bestEffortFail : strictFail) +
     strictFixFail +
-    (strictAll ? bestEffortFixFail : 0);
+    (strictAll ? bestEffortFixFail : 0) +
+    baselineFail;
 
   console.log('QA Report:', outPath);
   console.log(

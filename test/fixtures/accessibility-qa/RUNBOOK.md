@@ -18,6 +18,14 @@ export CANVAS_ACCESS_TOKEN="your_canvas_api_token"
 npm run qa:accessibility:build
 ```
 
+**Force a brand-new QA course** (deletes `[QA][A11y] Automated Fixtures` when the token is allowed to, then creates a new course — new `course_id` in `manifest.json`):
+
+```powershell
+npm run qa:accessibility:build:force
+```
+
+Same as `npm run qa:accessibility:build -- --force-rebuild`. If **`DELETE /api/v1/courses/:id`** is denied, the script warns and continues with the existing reuse/create behavior.
+
 Token resolution: **`CANVAS_ACCESS_TOKEN`**, then `CANVAS_TOKEN`, then `QA_CANVAS_TOKEN`.
 
 **Canvas API base (differentiated — no silent single default):**
@@ -113,6 +121,7 @@ Costs API tokens; run only when you intend to validate AI-backed auto fixes.
 | QA_FIX_AUTO_AI | — | ✓ | Set `1` with `QA_FIX_AUTO=1` for `uses_ai` auto rules; or **`npm run qa:accessibility:run:fix:ai`** (needs **`ANTHROPIC_API_KEY`** on the Nest process) |
 | ANTHROPIC_API_KEY | — | (server) | Required only for `QA_FIX_AUTO_AI` / `run:fix:ai` when applying AI-backed auto fixes |
 | QA_DEBUG_SCAN | — | ✓ | Set `1` to log scan finding counts and sample `resource_type:resource_id` keys (debug) |
+| QA_BASELINE_REPORT | — | ✓ | Path to a prior **`report-qa-*.json`**; after the run, exit **1** if any **strict** row that **passed** in the baseline **fails** now (scanner and, when `QA_FIX_AUTO=1`, fix). Alias: **`QA_BASELINE_PATH`**. |
 | QA_LINK_SCAN_RETRIES | — | ✓ | Max scan refetches for `link_broken` fixtures when the HTTP probe is flaky (default `3`) |
 | ACCESSIBILITY_LINK_CHECK_HOSTS | — | (server) | Comma-separated extra hostnames allowed for `link_broken` HTTP probes in the Nest process (defaults include `httpbin.org`, `httpstat.us`) |
 
