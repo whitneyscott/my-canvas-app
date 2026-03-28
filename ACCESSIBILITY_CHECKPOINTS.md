@@ -1,8 +1,10 @@
 # Accessibility checkpoints — fix strategy by `rule_id`
 
-**SSOT for per-rule fix tier:** This file is the authoritative human-readable list of **Auto** (apply without confirmation), **Suggested** (AI-assisted, preview card), and **Manual only** (human intervention). **`ACCESSIBILITY_FIXABILITY_MAP`** in `src/canvas/canvas.service.ts` is the code source of truth and should stay aligned with this document. See also [`ACCESSIBILITY_CHECKS.md`](./ACCESSIBILITY_CHECKS.md).
+**Runtime SSOT (LTI tool / Bulk Editor):** Per-rule fix behavior — **Auto** (apply without confirmation), **Suggested** (AI-assisted, preview card), **Manual only** (human intervention), plus flags like `uses_ai` — lives in **`ACCESSIBILITY_FIXABILITY_MAP`** in [`src/canvas/canvas.service.ts`](./src/canvas/canvas.service.ts). That registry is what the deployed app uses when teachers launch the tool from Canvas; it is not defined by Canvas’s LTI registration screen or by this Markdown file.
 
-**Not duplicated here:** Which rules need **subjective** eyeballs during preview/apply (wording, franc edge cases, etc.) — that index lives in [`test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md`](./test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md). It does **not** redefine Auto/Suggested/Manual.
+**This document** is a **human-readable mirror** of that map for reviews, accreditation text, and planning. Change the map first, then update these tables to match. See also [`ACCESSIBILITY_CHECKS.md`](./ACCESSIBILITY_CHECKS.md).
+
+**Subjective spot-checks** (preview/apply quality, not tier assignment): [`test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md`](./test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md).
 
 ---
 

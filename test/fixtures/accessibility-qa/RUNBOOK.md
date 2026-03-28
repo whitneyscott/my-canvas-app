@@ -131,9 +131,9 @@ If Canvas uses another host port, set `CANVAS_BASE_URL` in `.env` to `http://127
 
 ## Human spot-checks (tiers vs subjective list)
 
-**Per-rule Auto / Suggested / Manual only:** [`ACCESSIBILITY_CHECKPOINTS.md`](../../ACCESSIBILITY_CHECKPOINTS.md) (registry mirror in code: `ACCESSIBILITY_FIXABILITY_MAP`).
+**Per-rule Auto / Suggested / Manual only (runtime):** `ACCESSIBILITY_FIXABILITY_MAP` in [`src/canvas/canvas.service.ts`](../../src/canvas/canvas.service.ts). **Readable tables:** [`ACCESSIBILITY_CHECKPOINTS.md`](../../ACCESSIBILITY_CHECKPOINTS.md).
 
-**Subjective verification** (AI wording, franc, iframe heuristics, etc.): [MANUAL_AI_QA_SPOTS.md](./MANUAL_AI_QA_SPOTS.md) — supplements checkpoints; does not replace them.
+**Subjective verification** (AI wording, franc, iframe heuristics, etc.): [MANUAL_AI_QA_SPOTS.md](./MANUAL_AI_QA_SPOTS.md).
 
 Strict `qa:accessibility:run` asserts **scanner** expectations; optional `QA_FIX_AUTO` / `QA_FIX_AUTO_AI` add fix pipeline checks per §2 above.
 

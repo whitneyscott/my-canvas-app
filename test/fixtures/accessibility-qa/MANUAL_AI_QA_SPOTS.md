@@ -1,6 +1,6 @@
 # Manual and subjective QA spots (accessibility fixes)
 
-**Fix tier** (auto / suggested / manual_only) per `rule_id` is defined in [`ACCESSIBILITY_CHECKPOINTS.md`](../../ACCESSIBILITY_CHECKPOINTS.md) (aligned with `ACCESSIBILITY_FIXABILITY_MAP` in code). **This file** only lists rules and situations where a human should **spot-check** output or environment-dependent behavior during **preview / apply** — it is not a second definition of those tiers.
+**Fix tier** per `rule_id` is defined at runtime in **`ACCESSIBILITY_FIXABILITY_MAP`** in [`src/canvas/canvas.service.ts`](../../src/canvas/canvas.service.ts) (the LTI-launched Bulk Editor). [`ACCESSIBILITY_CHECKPOINTS.md`](../../ACCESSIBILITY_CHECKPOINTS.md) mirrors that map for humans. **This file** only lists **subjective** spot-checks during preview/apply — not tier assignment.
 
 Use this list when exercising preview/apply or reviewing AI output. Default `qa:accessibility:run` asserts **scanner** expectations; optional `QA_FIX_AUTO` / `QA_FIX_AUTO_AI` extend automation (see [`RUNBOOK.md`](./RUNBOOK.md)).
 

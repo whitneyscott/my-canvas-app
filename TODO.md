@@ -32,7 +32,7 @@
   - Keep/verify `custom_gradebook_columns` path usage for accommodation flow.
 - **Checker roadmap**:
   - Use the Canvas Accessibility Checker to guide my custom checker and automatically apply fixes using AI suggestions where needed.
-  - Fix tiers (Auto / Suggested / Manual): [`ACCESSIBILITY_CHECKPOINTS.md`](./ACCESSIBILITY_CHECKPOINTS.md).
+  - Fix tiers: runtime `ACCESSIBILITY_FIXABILITY_MAP` in `canvas.service.ts`; tables in [`ACCESSIBILITY_CHECKPOINTS.md`](./ACCESSIBILITY_CHECKPOINTS.md).
 
 ---
 

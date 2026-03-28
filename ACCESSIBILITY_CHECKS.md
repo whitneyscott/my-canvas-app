@@ -5,11 +5,11 @@ Purpose: define the minimum and expanded accessibility checks for Canvas Bulk Ed
 - Tier 1 = minimum baseline (Canvas parity)
 - Tier 2 = expanded checks for stronger institutional compliance coverage
 
-**Implementation status:** Rules below are marked when the **scanner emits** `rule_id` findings (`canvas.service.ts` Tier 1 / Tier 2 evaluators). Fixability metadata lives in `ACCESSIBILITY_FIXABILITY_MAP` (some `rule_id`s have fix wiring but **no scanner yet**—left unchecked here).
+**Implementation status:** Rules below are marked when the **scanner emits** `rule_id` findings (`canvas.service.ts` Tier 1 / Tier 2 evaluators). **Fix strategy and fixability flags** (what the LTI-launched tool treats as auto vs suggested vs manual) live in **`ACCESSIBILITY_FIXABILITY_MAP`** in `canvas.service.ts` (some `rule_id`s have fix wiring but **no scanner yet**—left unchecked here).
 
-**Fix strategy checkpoints (Auto / Suggested / Manual):** [`ACCESSIBILITY_CHECKPOINTS.md`](./ACCESSIBILITY_CHECKPOINTS.md).
+**Human-readable mirror (Auto / Suggested / Manual tables):** [`ACCESSIBILITY_CHECKPOINTS.md`](./ACCESSIBILITY_CHECKPOINTS.md).
 
-**Subjective fix QA (preview/apply spot-checks):** [`test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md`](./test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md) — supplements checkpoints only.
+**Subjective fix QA (preview/apply spot-checks):** [`test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md`](./test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md).
 
 ---
 
