@@ -19,9 +19,27 @@ function fetchErrorDetail(err) {
   return String(c);
 }
 
-async function fetchScan(apiBase, courseId, headers) {
+const A11Y_SCOPED_RESOURCE_TYPES = new Set([
+  'pages',
+  'assignments',
+  'announcements',
+  'syllabus',
+  'discussions',
+  'quizzes',
+  'modules',
+]);
+
+async function fetchScan(apiBase, courseId, headers, opts) {
   const base = String(apiBase || '').replace(/\/$/, '');
-  const scanUrl = `${base}/canvas/courses/${courseId}/accessibility/scan`;
+  const params = new URLSearchParams();
+  if (opts && Array.isArray(opts.resource_types) && opts.resource_types.length) {
+    params.set('resource_types', opts.resource_types.join(','));
+  }
+  if (opts && Array.isArray(opts.rule_ids) && opts.rule_ids.length) {
+    params.set('rule_ids', opts.rule_ids.map(String).join(','));
+  }
+  const q = params.toString();
+  const scanUrl = `${base}/canvas/courses/${courseId}/accessibility/scan${q ? `?${q}` : ''}`;
   let scanRes;
   try {
     scanRes = await fetch(scanUrl, { headers, credentials: 'include' });
@@ -37,6 +55,27 @@ async function fetchScan(apiBase, courseId, headers) {
     throw new Error(`Scan ${scanRes.status}: ${text.slice(0, 400)}`);
   }
   return scanRes.json();
+}
+
+function partialScanOptsForFixture(fixture) {
+  const rt = String(fixture?.content_type || '').trim().toLowerCase();
+  if (!A11Y_SCOPED_RESOURCE_TYPES.has(rt)) return undefined;
+  return { resource_types: [rt] };
+}
+
+function mergeFindingsForResourceType(prev, partial, resourceType) {
+  const rt = String(resourceType || '').trim().toLowerCase();
+  const next = (prev || []).filter(
+    (f) => String(f.resource_type || '').toLowerCase() !== rt,
+  );
+  return next.concat(partial || []);
+}
+
+function syncFindingsMaps(byResource, findings) {
+  byResource.clear();
+  for (const [k, v] of indexFindingsByResource(findings).entries()) {
+    byResource.set(k, v);
+  }
 }
 
 function indexFindingsByResource(findings) {
@@ -399,7 +438,7 @@ async function main() {
   let scanData;
   try {
     console.error(
-      '[QA] Single scan request to Nest (no runner loop yet). The API loads the whole course from Canvas; large courses or many module items can take several minutes and will spam Canvas logs until it returns.',
+      '[QA] Initial scan loads the whole course from Canvas (can be slow). With QA_FIX_AUTO=1, post-fix reverification uses resource_types scoped to each fixture when supported, so Canvas is not fully re-listed after every fix.',
     );
     scanData = await fetchScan(apiBase, courseId, headers);
   } catch (e) {
@@ -500,17 +539,17 @@ async function main() {
         );
         for (let a = 1; a < retries && !scannerOk; a++) {
           await new Promise((r) => setTimeout(r, 1500));
+          const rt = String(fixture.content_type || '').trim().toLowerCase();
+          const opts = partialScanOptsForFixture(fixture);
           try {
-            scanData = await fetchScan(apiBase, courseId, headers);
+            scanData = await fetchScan(apiBase, courseId, headers, opts);
           } catch {
             continue;
           }
-          findings = scanData.findings || [];
-          const br = indexFindingsByResource(findings);
-          byResource.clear();
-          for (const [k, v] of br.entries()) {
-            byResource.set(k, v);
-          }
+          findings = opts
+            ? mergeFindingsForResourceType(findings, scanData.findings || [], rt)
+            : scanData.findings || [];
+          syncFindingsMaps(byResource, findings);
           resourceFindings = byResource.get(rk) || [];
           const again = assertScannerForFixture(fixture, resourceFindings);
           scannerOk = again.scannerOk;
@@ -572,10 +611,14 @@ async function main() {
               if (tier === 'strict') strictFixFail++;
               else bestEffortFixFail++;
             } else {
-              scanData = await fetchScan(apiBase, courseId, headers);
-              findings = scanData.findings || [];
-              const br2 = indexFindingsByResource(findings);
-              const rf2 = br2.get(rk) || [];
+              const rt = String(fixture.content_type || '').trim().toLowerCase();
+              const opts = partialScanOptsForFixture(fixture);
+              scanData = await fetchScan(apiBase, courseId, headers, opts);
+              findings = opts
+                ? mergeFindingsForResourceType(findings, scanData.findings || [], rt)
+                : scanData.findings || [];
+              syncFindingsMaps(byResource, findings);
+              const rf2 = byResource.get(rk) || [];
               const after = rf2.filter((x) => x.rule_id === 'link_broken').length;
               if (after > 0) {
                 fixStatus = 'fail';
@@ -586,10 +629,6 @@ async function main() {
               } else {
                 fixStatus = 'pass';
                 fixNotes = 'link_broken cleared after teacher href apply';
-              }
-              byResource.clear();
-              for (const [k, v] of indexFindingsByResource(findings).entries()) {
-                byResource.set(k, v);
               }
             }
           }
@@ -637,10 +676,14 @@ async function main() {
               if (tier === 'strict') strictFixFail++;
               else bestEffortFixFail++;
             } else {
-              scanData = await fetchScan(apiBase, courseId, headers);
-              findings = scanData.findings || [];
-              const br2 = indexFindingsByResource(findings);
-              const rf2 = br2.get(rk) || [];
+              const rt = String(fixture.content_type || '').trim().toLowerCase();
+              const opts = partialScanOptsForFixture(fixture);
+              scanData = await fetchScan(apiBase, courseId, headers, opts);
+              findings = opts
+                ? mergeFindingsForResourceType(findings, scanData.findings || [], rt)
+                : scanData.findings || [];
+              syncFindingsMaps(byResource, findings);
+              const rf2 = byResource.get(rk) || [];
               const after = rf2.filter((x) => x.rule_id === fixture.rule_id).length;
               if (after > 0) {
                 fixStatus = 'fail';
@@ -651,10 +694,6 @@ async function main() {
               } else {
                 fixStatus = 'pass';
                 fixNotes = 'Rule cleared on resource after apply (dual_option_choice)';
-              }
-              byResource.clear();
-              for (const [k, v] of indexFindingsByResource(findings).entries()) {
-                byResource.set(k, v);
               }
             }
           }
@@ -705,10 +744,14 @@ async function main() {
                 if (tier === 'strict') strictFixFail++;
                 else bestEffortFixFail++;
               } else {
-                scanData = await fetchScan(apiBase, courseId, headers);
-                findings = scanData.findings || [];
-                const br2 = indexFindingsByResource(findings);
-                const rf2 = br2.get(rk) || [];
+                const rt = String(fixture.content_type || '').trim().toLowerCase();
+                const opts = partialScanOptsForFixture(fixture);
+                scanData = await fetchScan(apiBase, courseId, headers, opts);
+                findings = opts
+                  ? mergeFindingsForResourceType(findings, scanData.findings || [], rt)
+                  : scanData.findings || [];
+                syncFindingsMaps(byResource, findings);
+                const rf2 = byResource.get(rk) || [];
                 const after = rf2.filter((x) => x.rule_id === fixture.rule_id).length;
                 if (after > 0) {
                   fixStatus = 'fail';
@@ -719,10 +762,6 @@ async function main() {
                 } else {
                   fixStatus = 'pass';
                   fixNotes = 'Rule cleared on resource after apply';
-                }
-                byResource.clear();
-                for (const [k, v] of indexFindingsByResource(findings).entries()) {
-                  byResource.set(k, v);
                 }
               }
             }
