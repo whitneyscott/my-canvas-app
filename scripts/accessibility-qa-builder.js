@@ -319,24 +319,6 @@ function expandFixturesForAllContentTypes(rawFixtures) {
         content_type: 'quizzes',
         location_hint: `[QA] Quiz ${f.location_hint || f.fixture_id}`,
       });
-      out.push({
-        ...f,
-        fixture_id: `mod_${f.fixture_id}`,
-        content_type: 'modules',
-        location_hint: `[QA] Mod ${f.fixture_id}`,
-        module_link: 'page',
-        module_page_slug: pageSlugFromFixture(f),
-      });
-    }
-    if (f.content_type === 'assignments' && !f.is_clean_control) {
-      out.push({
-        ...f,
-        fixture_id: `mod_${f.fixture_id}`,
-        content_type: 'modules',
-        location_hint: `[QA] Mod ${f.fixture_id}`,
-        module_link: 'assignment',
-        module_assignment_name: f.location_hint,
-      });
     }
   }
   return out;
@@ -520,43 +502,6 @@ async function main() {
           } catch {
             quizRichTextOk = false;
           }
-        }
-      } else if (f.content_type === 'modules') {
-        if (!qaModuleId) {
-          qaModuleId = await findOrCreateQaModule(baseUrl, token, courseId);
-        }
-        if (f.module_link === 'page' && f.module_page_slug) {
-          const { resource_id } = await ensureModulePageItem(
-            baseUrl,
-            token,
-            courseId,
-            qaModuleId,
-            f.module_page_slug,
-            f.location_hint,
-          );
-          entry.resource_id = resource_id;
-        } else if (f.module_link === 'assignment' && f.module_assignment_name) {
-          const a = await findAssignmentByName(
-            baseUrl,
-            token,
-            courseId,
-            f.module_assignment_name,
-          );
-          if (!a?.id) {
-            entry.skipped_reason = 'module_assignment_not_found';
-          } else {
-            const { resource_id } = await ensureModuleAssignmentItem(
-              baseUrl,
-              token,
-              courseId,
-              qaModuleId,
-              a.id,
-              f.module_assignment_name,
-            );
-            entry.resource_id = resource_id;
-          }
-        } else {
-          entry.skipped_reason = 'module_fixture_missing_target';
         }
       } else {
         entry.skipped_reason = 'content_type_not_implemented';
