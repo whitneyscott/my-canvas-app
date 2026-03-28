@@ -57,4 +57,32 @@ describe('CanvasService', () => {
     const out = raw.call(service, base, html) as Array<{ rule_id: string }>;
     expect(out.some((f) => f.rule_id === 'font_size_too_small')).toBe(true);
   });
+
+  it('tier2 flags aria-hidden on focusable link', () => {
+    const base = {
+      resource_type: 'pages',
+      resource_id: 'x',
+      resource_title: 't',
+      resource_url: null as string | null,
+    };
+    const html =
+      '<p><a href="https://example.com" aria-hidden="true">x</a></p>';
+    const raw = (service as any).evaluateAccessibilityTier2ForHtml;
+    const out = raw.call(service, base, html) as Array<{ rule_id: string }>;
+    expect(out.some((f) => f.rule_id === 'aria_hidden_focusable')).toBe(true);
+  });
+
+  it('tier2 flags layout table heuristic', () => {
+    const base = {
+      resource_type: 'pages',
+      resource_id: 'x',
+      resource_title: 't',
+      resource_url: null as string | null,
+    };
+    const html =
+      '<table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr><tr><td>e</td><td>f</td></tr></table>';
+    const raw = (service as any).evaluateAccessibilityTier2ForHtml;
+    const out = raw.call(service, base, html) as Array<{ rule_id: string }>;
+    expect(out.some((f) => f.rule_id === 'table_layout_heuristic')).toBe(true);
+  });
 });

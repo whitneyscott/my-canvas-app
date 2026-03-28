@@ -117,6 +117,10 @@ curl -sI http://127.0.0.1/ | head -n1
 
 If Canvas uses another host port, set `CANVAS_BASE_URL` in `.env` to `http://127.0.0.1:<port>/api/v1`. If you insist on running Node from **Windows** while Docker runs only in WSL, Docker Desktop must forward that port to Windows; if the builder still refuses, switch to running the command from WSL as above.
 
+## Manual AI and subjective fix QA
+
+Strict `qa:accessibility:run` asserts **scanner** counts. For **AI / suggested** fix quality, double-stage rules, franc language behavior, and dual-option fixes, use [MANUAL_AI_QA_SPOTS.md](./MANUAL_AI_QA_SPOTS.md).
+
 ## Protection
 
 - Course name/code clearly labeled as QA

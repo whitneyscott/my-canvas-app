@@ -89,12 +89,44 @@
       "html": "<p style=\"font-size:8px;\">Tiny text</p>"
     },
     {
+      "fixture_id": "page_aria_hidden_focusable",
+      "rule_id": "aria_hidden_focusable",
+      "content_type": "pages",
+      "location_hint": "page-aria-hidden-focusable",
+      "expectation_tier": "strict",
+      "html": "<p><a href=\"https://example.com/path\" aria-hidden=\"true\">Hidden link text</a></p>"
+    },
+    {
+      "fixture_id": "page_table_layout_heuristic",
+      "rule_id": "table_layout_heuristic",
+      "content_type": "pages",
+      "location_hint": "page-table-layout-heuristic",
+      "expectation_tier": "strict",
+      "html": "<table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr><tr><td>e</td><td>f</td></tr></table>"
+    },
+    {
       "fixture_id": "assign_img_missing_alt",
       "rule_id": "img_missing_alt",
       "content_type": "assignments",
       "location_hint": "[QA] Assignment img_missing_alt",
       "expectation_tier": "strict",
       "html": "<p>Assignment body: <img src=\"/images/photo.jpg\" /></p>"
+    },
+    {
+      "fixture_id": "assign_aria_hidden_focusable",
+      "rule_id": "aria_hidden_focusable",
+      "content_type": "assignments",
+      "location_hint": "[QA] Assignment aria_hidden_focusable",
+      "expectation_tier": "strict",
+      "html": "<p><a href=\"https://example.com/a\" aria-hidden=\"true\">Go</a></p>"
+    },
+    {
+      "fixture_id": "assign_table_layout_heuristic",
+      "rule_id": "table_layout_heuristic",
+      "content_type": "assignments",
+      "location_hint": "[QA] Assignment table_layout_heuristic",
+      "expectation_tier": "strict",
+      "html": "<table><tr><td>1</td><td>2</td></tr><tr><td>3</td><td>4</td></tr><tr><td>5</td><td>6</td></tr></table>"
     },
     {
       "fixture_id": "page_clean_control",

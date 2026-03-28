@@ -549,18 +549,18 @@ For rules with `dual_option: true` in the manifest (`aria_hidden_focusable`, `ta
 
 ## 7. Deliverables Checklist
 
-**Where we are (Mar 2026):** Local Canvas OSS + Nest QA headers can run **`qa:accessibility:build`** / **`qa:accessibility:run`** with **strict scanner assertions all passing** (**13/13**) for current pages + assignments fixtures. Next gaps are mostly **more content types**, **dual-option / AI / iframe / franc / broken-link** fixtures and runner depth, and **CI** wiring—not the core scanner manifest loop.
+**Where we are (Mar 2026):** Local Canvas OSS + Nest QA headers can run **`qa:accessibility:build`** / **`qa:accessibility:run`** with **strict scanner assertions** for **17** pages+assignments violation fixtures + clean control (rebuild manifest after pulling). Next gaps: **Option A/B HTML variants** for dual-option *fix* QA, **lang / iframe** scanner gaps, **broken-link** E2E, **CI** wiring.
 
 - [x] Manifest JSON Schema (`test/fixtures/accessibility-qa/manifest.schema.json`) — registry fields (`fix_strategy`, `uses_ai`, `is_image_rule`, `uses_second_stage_ai`, `dual_option`, `pending_heuristic`), `broken_link_url`, `canvas_capability` property placeholders; optional: richer `canvas_capability` inner shape per §2.1.
-- [x] Fixture definitions (`test/fixtures/accessibility-qa/fixtures.json`) — **v1 complete for strict scanner QA:** pages + assignments (**13 strict** scenarios + clean control); **still to add:** dual-option variants, franc-length text, iframe patterns, broken-link strategy, more content types.
+- [x] Fixture definitions (`test/fixtures/accessibility-qa/fixtures.json`) — pages + assignments **strict scanner** set (**17** violation rows + clean control), including `aria_hidden_focusable` and `table_layout_heuristic` on both surfaces. **Still to add:** dual-option **fix** variants (Option A/B HTML per rule), franc-length lang fixtures (when scanner emits), iframe patterns (when scanner emits), broken-link strategy, more content types.
 - [x] Runbook (`test/fixtures/accessibility-qa/RUNBOOK.md`) — env vars, `QA_FIX_AUTO`, production QA note, builder `nest build` prerequisite.
 - [x] Builder (`scripts/accessibility-qa-builder.js`) — **done for v1:** course create/reuse, pages + assignments HTML, manifest emit, **registry sync from `dist`** after `nest build`. **Still missing:** `--force-rebuild`, announcements/discussions/syllabus/quizzes/modules, file-upload pipeline.
-- [x] Runner (`scripts/accessibility-qa-runner.js`) — **done for v1:** manifest load + schema validation, **strict/best-effort** scanner assertions, JSON report, optional **`QA_FIX_AUTO`** path. **Verified:** end-to-end strict **pass 13/13** on Canvas OSS (Mar 2026). **Still missing:** dual-option tests, AI token assertions, suggested-flow simulation, regression baseline diff.
+- [x] Runner (`scripts/accessibility-qa-runner.js`) — **done for v1:** manifest load + schema validation, **strict/best-effort** scanner assertions, JSON report, optional **`QA_FIX_AUTO`** path. **Verified:** end-to-end strict run green on Canvas OSS with prior fixture set (Mar 2026); **re-run** after adding fixtures. **Still missing:** dual-option *fix* tests, AI token assertions, suggested-flow simulation, regression baseline diff.
 - [x] `NODE_ENV=production` guard + startup warning for `QA_ACCESSIBILITY_ENABLED` (`src/qa-accessibility-env.ts`, `main.ts`).
-- [ ] List of **manual** AI QA spots per rule (double-AI rules, franc ambiguity, etc.).
+- [x] List of **manual** AI QA spots per rule — [`test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md`](./test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md) (linked from RUNBOOK).
 - [x] Documented default: **sequential_reapply** or **single_rule_per_resource** for fix QA (applies once fix loop exists).
 - [ ] Allowlisted / internal **broken link** URLs for E2E (§2.5).
-- [ ] Dual-option fixture variants for `aria_hidden_focusable` and `table_layout_heuristic`.
+- [ ] Dual-option **fix** fixture variants (Option A vs B HTML) + runner coverage for `aria_hidden_focusable` and `table_layout_heuristic` (scanner fixtures for both rules exist on pages and assignments).
 - [ ] Minimum-length text fixtures for `lang_inline_missing` and `lang_invalid` (franc requirement).
 - [ ] iframe fixture variants covering YouTube, Vimeo, Google Docs, Google Forms, and unknown domain patterns.
 
