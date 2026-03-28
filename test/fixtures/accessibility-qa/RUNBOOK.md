@@ -152,6 +152,14 @@ If **`.env`** sets **`API_BASE_URL=http://localhost:3002`**, that overrides the 
 5. **Token**  
    The token must be issued **on that same Canvas instance** (Account → Settings → New Access Token).
 
+### Canvas `401` / `Invalid access token`
+
+Canvas returns that when the bearer **does not match any row** in this instance’s `access_tokens` (wrong secret, wrong instance, or DB reset). It is **not** the same shape as rate limits (`429`). Confirmed RCA for local OSS: [CANVAS_TOKEN_RCA.md](./CANVAS_TOKEN_RCA.md).
+
+**Before a long run:** Bash/WSL:  
+`curl -sS -w "\n%{http_code}\n" -H "Authorization: Bearer $CANVAS_ACCESS_TOKEN" "http://127.0.0.1/api/v1/users/self"`  
+PowerShell: same URL with `-H "Authorization: Bearer $env:CANVAS_ACCESS_TOKEN"`. Expect HTTP `200`. If `401`, fix token/URL before `qa:accessibility:build` or `qa:accessibility:run`.
+
 ## WSL2: Canvas `docker compose` in Ubuntu, repo on `/mnt/c/...`
 
 Docker publishes ports on the **Linux** side. **`127.0.0.1` in Windows PowerShell is not always the same stack as `127.0.0.1` inside WSL.**
