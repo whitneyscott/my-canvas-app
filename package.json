@@ -23,6 +23,8 @@
     "down": "cd services/accreditation-lookup && wsl docker compose down",
     "qa:accessibility:build": "nest build && node scripts/accessibility-qa-builder.js",
     "qa:accessibility:run": "node scripts/accessibility-qa-runner.js",
+    "qa:accessibility:run:fix": "node -r ./scripts/qa-fix-auto-prelude.cjs scripts/accessibility-qa-runner.js",
+    "qa:accessibility:run:fix:ai": "node -r ./scripts/qa-fix-auto-ai-prelude.cjs scripts/accessibility-qa-runner.js",
     "kill:api-port": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kill-listen-port.ps1 3002"
   },
   "dependencies": {

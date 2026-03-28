@@ -69,6 +69,26 @@ That only affects the **current** PowerShell window. To go back to scan-only, cl
 
 **Note:** fix mode **mutates** the QA course HTML in Canvas (then re-scans). If you need a clean course again, re-run `npm run qa:accessibility:build` afterward.
 
+### 2.1 Verify auto + dual-option fixes (full tool)
+
+Use a **fresh** course after Phase 1 (`npm run qa:accessibility:build`). Start the API as in §2, then:
+
+```powershell
+cd C:\dev\Canvas-Bulk-Editor
+npm run qa:accessibility:run:fix
+```
+
+Same as `QA_FIX_AUTO=1` + `qa:accessibility:run`: runs **`fix-preview-item` → `fix-apply` → re-scan** for manifest rows with **`fix_strategy === 'auto'`** and `uses_ai === false`, and for **`dual_option` + `dual_option_choice`** rows. **`fix_strategy: suggested`** rows without dual-option still show `fix_status` **skip** (expected). Exit **0** only if strict **scanner** and strict **fix** tiers both pass (`fix_fail=0`).
+
+**Optional — include `uses_ai` auto fixes:** set **`ANTHROPIC_API_KEY`** (see app `.env` / ConfigService), then:
+
+```powershell
+cd C:\dev\Canvas-Bulk-Editor
+npm run qa:accessibility:run:fix:ai
+```
+
+Costs API tokens; run only when you intend to validate AI-backed auto fixes.
+
 ## Env vars
 
 | Var | Builder | Runner | Description |
@@ -85,8 +105,10 @@ That only affects the **current** PowerShell window. To go back to scan-only, cl
 | MANIFEST_PATH | — | ✓ | Override manifest path |
 | QA_STRICT_ALL | — | ✓ | Set `1` to fail on best_effort tier too |
 | QA_REPORT_PATH | — | ✓ | Override report output path |
-| QA_FIX_AUTO | — | ✓ | Set `1` to verify non-AI `auto` fixes (preview → apply → re-scan) |
-| QA_FIX_AUTO_AI | — | ✓ | Set `1` with `QA_FIX_AUTO=1` to include `uses_ai` auto rules (calls Anthropic) |
+| QA_FIX_AUTO | — | ✓ | Set `1` to verify non-AI `auto` fixes (preview → apply → re-scan); or **`npm run qa:accessibility:run:fix`** |
+| QA_FIX_AUTO_AI | — | ✓ | Set `1` with `QA_FIX_AUTO=1` for `uses_ai` auto rules; or **`npm run qa:accessibility:run:fix:ai`** (needs **`ANTHROPIC_API_KEY`** on the Nest process) |
+| ANTHROPIC_API_KEY | — | (server) | Required only for `QA_FIX_AUTO_AI` / `run:fix:ai` when applying AI-backed auto fixes |
+| QA_DEBUG_SCAN | — | ✓ | Set `1` to log scan finding counts and sample `resource_type:resource_id` keys (debug) |
 | QA_LINK_SCAN_RETRIES | — | ✓ | Max scan refetches for `link_broken` fixtures when the HTTP probe is flaky (default `3`) |
 | ACCESSIBILITY_LINK_CHECK_HOSTS | — | (server) | Comma-separated extra hostnames allowed for `link_broken` HTTP probes in the Nest process (defaults include `httpbin.org`, `httpstat.us`) |
 
