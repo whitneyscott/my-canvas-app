@@ -9543,6 +9543,7 @@ export class CanvasService {
         timed('fetch_discussions', async () => {
           const discussions = await this.getCourseDiscussions(courseId);
           const items = (Array.isArray(discussions) ? discussions : [])
+            .filter((d: any) => !d?.is_announcement)
             .map((d: any) => ({
               type: 'discussions',
               id: String(d?.id ?? ''),

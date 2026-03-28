@@ -10,7 +10,7 @@ Per [ACCESSIBILITY_CHECKS_QA_PLAN.md](../../ACCESSIBILITY_CHECKS_QA_PLAN.md).
 
 ## 1. Build QA course (Phase 1)
 
-`npm run qa:accessibility:build` runs **`nest build`** first so the builder can load `ACCESSIBILITY_FIXABILITY_MAP` from `dist/canvas/canvas.service.js` and embed registry fields in the manifest.
+`npm run qa:accessibility:build` runs **`nest build`** first so the builder can load `ACCESSIBILITY_FIXABILITY_MAP` from `dist/canvas/canvas.service.js` and embed registry fields in the manifest. It writes **wiki pages**, **assignments**, **announcements**, and **discussions** (cloned from each non-clean **page** row in `fixtures.json`), sets **course syllabus** to a **composite** of all page-violation HTML, and appends manifest row **`syllabus_composite_page_violations`** with multi-rule `expected_findings`.
 
 ```bash
 export CANVAS_ACCESS_TOKEN="your_canvas_api_token"
