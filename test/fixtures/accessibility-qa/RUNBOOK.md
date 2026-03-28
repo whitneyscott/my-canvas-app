@@ -129,9 +129,13 @@ curl -sI http://127.0.0.1/ | head -n1
 
 If Canvas uses another host port, set `CANVAS_BASE_URL` in `.env` to `http://127.0.0.1:<port>/api/v1`. If you insist on running Node from **Windows** while Docker runs only in WSL, Docker Desktop must forward that port to Windows; if the builder still refuses, switch to running the command from WSL as above.
 
-## Manual AI and subjective fix QA
+## Human spot-checks (tiers vs subjective list)
 
-Strict `qa:accessibility:run` asserts **scanner** counts. For **AI / suggested** fix quality, double-stage rules, franc language behavior, and dual-option fixes, use [MANUAL_AI_QA_SPOTS.md](./MANUAL_AI_QA_SPOTS.md).
+**Per-rule Auto / Suggested / Manual only:** [`ACCESSIBILITY_CHECKPOINTS.md`](../../ACCESSIBILITY_CHECKPOINTS.md) (registry mirror in code: `ACCESSIBILITY_FIXABILITY_MAP`).
+
+**Subjective verification** (AI wording, franc, iframe heuristics, etc.): [MANUAL_AI_QA_SPOTS.md](./MANUAL_AI_QA_SPOTS.md) — supplements checkpoints; does not replace them.
+
+Strict `qa:accessibility:run` asserts **scanner** expectations; optional `QA_FIX_AUTO` / `QA_FIX_AUTO_AI` add fix pipeline checks per §2 above.
 
 ## Protection
 

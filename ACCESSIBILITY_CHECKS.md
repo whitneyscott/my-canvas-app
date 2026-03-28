@@ -9,6 +9,8 @@ Purpose: define the minimum and expanded accessibility checks for Canvas Bulk Ed
 
 **Fix strategy checkpoints (Auto / Suggested / Manual):** [`ACCESSIBILITY_CHECKPOINTS.md`](./ACCESSIBILITY_CHECKPOINTS.md).
 
+**Subjective fix QA (preview/apply spot-checks):** [`test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md`](./test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md) — supplements checkpoints only.
+
 ---
 
 ## **QA: Broken-course generator (required)**

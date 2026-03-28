@@ -1,6 +1,8 @@
 # Manual and subjective QA spots (accessibility fixes)
 
-Use this list when exercising **preview / apply** flows or reviewing AI output. Automated strict QA (`qa:accessibility:run`) covers **scanner** expectations only unless you enable `QA_FIX_AUTO` / AI flags.
+**Fix tier** (auto / suggested / manual_only) per `rule_id` is defined in [`ACCESSIBILITY_CHECKPOINTS.md`](../../ACCESSIBILITY_CHECKPOINTS.md) (aligned with `ACCESSIBILITY_FIXABILITY_MAP` in code). **This file** only lists rules and situations where a human should **spot-check** output or environment-dependent behavior during **preview / apply** — it is not a second definition of those tiers.
+
+Use this list when exercising preview/apply or reviewing AI output. Default `qa:accessibility:run` asserts **scanner** expectations; optional `QA_FIX_AUTO` / `QA_FIX_AUTO_AI` extend automation (see [`RUNBOOK.md`](./RUNBOOK.md)).
 
 ## Double-stage AI (`uses_second_stage_ai` in registry)
 
@@ -40,4 +42,4 @@ Verify link text, labels, and rewrites are sensible in context.
 
 - **`iframe_missing_title`:** scanner emits when an `<iframe>` has no non-empty `title`. Suggested title comes from **`suggestIframeTitleFromSrc`** (`accessibility-heuristics.ts`): **`SproutVideo embedded content`** for `*.sproutvideo.com`, known YouTube/Vimeo/Google patterns, else **`{hostname} embedded content`**. Strict QA fixtures use SproutVideo-style `src` on pages and assignments.
 - **Broken-link HTTP checks:** depend on network or allowlisted test URLs (see plan §2.5).
-- **Dual-option rules** (`aria_hidden_focusable`, `table_layout_heuristic`): each fix option should be exercised manually or via a future runner variant until automated dual-option runs exist.
+- **Dual-option rules** (`aria_hidden_focusable`, `table_layout_heuristic`): runner can apply one chosen option per manifest row via `dual_option_choice` and `QA_FIX_AUTO=1`; still spot-check that the **other** option behaves acceptably in the UI when you care about both paths.

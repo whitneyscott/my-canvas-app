@@ -1,6 +1,8 @@
 # Accessibility checkpoints — fix strategy by `rule_id`
 
-Canonical grouping for **Auto** (apply without confirmation), **Suggested** (AI-assisted, preview card), and **Manual only** (human intervention). `ACCESSIBILITY_FIXABILITY_MAP` in `canvas.service.ts` follows this document; see also [`ACCESSIBILITY_CHECKS.md`](./ACCESSIBILITY_CHECKS.md).
+**SSOT for per-rule fix tier:** This file is the authoritative human-readable list of **Auto** (apply without confirmation), **Suggested** (AI-assisted, preview card), and **Manual only** (human intervention). **`ACCESSIBILITY_FIXABILITY_MAP`** in `src/canvas/canvas.service.ts` is the code source of truth and should stay aligned with this document. See also [`ACCESSIBILITY_CHECKS.md`](./ACCESSIBILITY_CHECKS.md).
+
+**Not duplicated here:** Which rules need **subjective** eyeballs during preview/apply (wording, franc edge cases, etc.) — that index lives in [`test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md`](./test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md). It does **not** redefine Auto/Suggested/Manual.
 
 ---
 

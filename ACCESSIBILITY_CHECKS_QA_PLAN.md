@@ -3,7 +3,7 @@
 
 **Purpose:** Define a two-phase automated QA system for the Canvas accessibility **scanner** and **fixer**: (1) a programmatic test course builder, and (2) an automated QA runner that validates detection, fixes, and reporting against a manifest.
 
-**Fix tiers (expected Auto / Suggested / Manual behavior per `rule_id`):** [`ACCESSIBILITY_CHECKPOINTS.md`](./ACCESSIBILITY_CHECKPOINTS.md).
+**Fix tiers (SSOT, per `rule_id`):** [`ACCESSIBILITY_CHECKPOINTS.md`](./ACCESSIBILITY_CHECKPOINTS.md) ↔ `ACCESSIBILITY_FIXABILITY_MAP` in `canvas.service.ts`. **Subjective spot-check index** (preview/apply quality): [`test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md`](./test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md) — does not redefine tiers.
 
 **Constraints (non-negotiable):**
 
@@ -573,7 +573,7 @@ For rules with `dual_option: true` in the manifest (`aria_hidden_focusable`, `ta
 - [x] Builder (`scripts/accessibility-qa-builder.js`) — **done for v1:** course create/reuse, pages + assignments HTML, manifest emit, **registry sync from `dist`** after `nest build`. **Still missing:** `--force-rebuild`, announcements/discussions/syllabus/quizzes/modules, file-upload pipeline.
 - [x] Runner (`scripts/accessibility-qa-runner.js`) — manifest load + schema validation, **strict/best-effort** scanner assertions, JSON report, **`QA_FIX_AUTO`** for **`auto`** rules and for **`dual_option` + `dual_option_choice`** suggested fixes (`trySuggestedFixWithEditedChoice`). **Verified:** strict **pass 23/0** on Canvas OSS (`report-qa-1774710091861.json`, Mar 2026). **Still missing:** AI token assertions, broader suggested-flow simulation, regression baseline diff.
 - [x] `NODE_ENV=production` guard + startup warning for `QA_ACCESSIBILITY_ENABLED` (`src/qa-accessibility-env.ts`, `main.ts`).
-- [x] List of **manual** AI QA spots per rule — [`test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md`](./test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md) (linked from RUNBOOK).
+- [x] Subjective QA spot-check index — [`test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md`](./test/fixtures/accessibility-qa/MANUAL_AI_QA_SPOTS.md) (supplements tier SSOT in [`ACCESSIBILITY_CHECKPOINTS.md`](./ACCESSIBILITY_CHECKPOINTS.md); linked from RUNBOOK).
 - [x] Documented default: **sequential_reapply** or **single_rule_per_resource** for fix QA (applies once fix loop exists).
 - [ ] Allowlisted / internal **broken link** URLs for E2E (§2.5).
 - [x] Dual-option **fix** fixture variants + runner: manifest **`dual_option_choice`** on **pages + assignments** for both rules; **`QA_FIX_AUTO=1`** applies chosen option via `edited_suggestion`. Scanner: **`tabindex="-1"`** exempts `aria_hidden_focusable`; **`role="presentation"`** on `<table>` suppresses `table_layout_heuristic` after layout fix.
