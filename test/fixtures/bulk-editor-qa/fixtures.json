@@ -16,6 +16,20 @@
       "expect_status": 200
     },
     {
+      "fixture_id": "get_course_students",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/students",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "get_bulk_user_tags",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/bulk_user_tags",
+      "expect_status": 200
+    },
+    {
       "fixture_id": "list_assignments",
       "tier": "read_only",
       "method": "GET",
