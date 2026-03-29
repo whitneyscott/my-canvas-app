@@ -44,6 +44,8 @@ The tool is meant to support an end-to-end accreditation loop in Canvas, not onl
 
 **Data collection gap today:** **Outcomes** carry `|STANDARDS:|` (good for “which standards this outcome represents”). **Rubrics** may set `learning_outcome_id` on criteria when created through this app, but there is **no unified report artifact** that **joins** outcome standard sets ↔ rubric criteria ↔ assignment associations ↔ inferred/suggested rows. Report writers still bridge that mentally. **Closing that join is a top product priority** alongside truth-layer parsing.
 
+**Quizzes — per-question / banks:** **Not implemented.** Alignment and tagging are **whole-quiz** only: suggestions use **quiz title + description + instructions** (`getAccreditationAlignment`); **Apply tagging** appends an alignment block to the **quiz** description (`applyQuizTagging` / new-quiz equivalent). There is **no** fetch of **individual questions**, no **standard/outcome per question**, no join to **question banks** or **New Quizzes item banks**, and no export row per stem. That is exactly the gap for **final exams built from pooled items**—quiz-level metadata is too coarse. See **Phase D.5** below.
+
 **Conclusion:** Phases A / A.5 / B delivered **discovery, outcomes materialization, a v1 lexical matcher, append tagging, create-rubric, and operation logging**. **Phase D** delivers the **hybrid sequence** below: truth → **exports / evidence package** → stronger inference → remediation (**Phase C** in parallel if lookup data blocks real courses).
 
 ---
@@ -63,6 +65,7 @@ If resuming after a break, use this **recommended order**:
 3. **D.3 Stronger inference** — Embeddings / structured LLM matcher; **never overwrite** declared columns in exports—add **suggested_score / rationale** columns.
 4. **D.4 Remediation** — Instruction sync, rubric wording updates, associate existing rubric, real instruction-alignment API, richer matrix UI.
 5. **Phase C** — Lookup service (`source=all`, DAPIP upsert decision, optional typeahead) as needed in parallel with 1–2.
+6. **Phase D.5** — Per-question quiz / bank alignment: start after **D.2** export schema is sketched (question-level rows), or parallel **discovery** with D.1 if API research is blocking.
 
 ---
 
@@ -113,7 +116,21 @@ Goal: **Preview + apply** on top of trustworthy signals; keep logging.
 - [ ] **Instruction alignment API** — Replace stub `getInstructionAlignmentSuggestions` or retire until real.
 - [ ] **Rich matrix UI** — Interactive standard × artifact view (export remains source of truth for binders).
 
-**Phase D done when:** D.2 milestone met, D.3 improves suggestions without corrupting declared exports, and D.4 covers the critical remediation paths.
+**Phase D done when:** D.2 milestone met, D.3 improves suggestions without corrupting declared exports, D.4 covers the critical remediation paths, and **D.5** is at least scoped (API + Canvas constraints) with an MVP slice agreed.
+
+#### D.5 — Per-question quiz alignment (classic + New Quizzes / banks)
+
+Status: ⏳ Not started — **high value for assessment evidence and pooled finals**
+
+Goal: Align **standards and/or course outcomes to each question** (stem + key answer text where useful), persist or export in a way that **survives** reuse from **question banks** and **item banks** (identity stable per bank item, not only per quiz instance).
+
+- [ ] **Discovery** — Map Canvas APIs for **classic** quiz questions (`/courses/:id/quizzes/:quiz_id/questions` and bank membership) vs **New Quizzes** / **Quiz LTI** item APIs (versioning differs by host); document what is writable vs export-only.
+- [ ] **Declared storage** — Prefer **bank-item–scoped** metadata (e.g. HTML comment or agreed prefix in question text, or Canvas outcome alignment on question if API supports) so a final exam instance **inherits** alignment from the bank item.
+- [ ] **Alignment pass** — Extend `getAccreditationAlignment` (or sibling endpoint) with **`question_mappings`**: per question id, `existing_standards` / `suggested_standards`, optional `linked_outcome_ids`.
+- [ ] **UI** — Standards Sync alignment section: expand quiz → **per-question** rows; apply/save per question (or bulk from bank editor path if UI lives elsewhere).
+- [ ] **Report export** — D.2 join model gains **question_id** (and **bank_id** if available) columns for accreditation tables (“which standards does item X assess?”).
+
+**Milestone:** Pilot course with a **bank-sourced** final can export a **question-level** standard map without manual copy from Canvas UI.
 
 ### Phase A — Increase standards resolution to substandards
 Status: ✅ Completed (in repo)
