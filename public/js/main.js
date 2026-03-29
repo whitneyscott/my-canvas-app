@@ -3757,10 +3757,25 @@ async function loadAccreditationAlignment(profile) {
             ? rubrics.map(r => {
                 const criteria = Array.isArray(r?.criteria) ? r.criteria : [];
                 const criteriaWithSuggestions = criteria.filter(c => Array.isArray(c?.suggested_standards) && c.suggested_standards.length);
+                const roll = Array.isArray(r?.declared_standards_roll_up) ? r.declared_standards_roll_up : [];
+                const critDeclared = criteria.map(c => {
+                    const ex = Array.isArray(c?.existing_standards) ? c.existing_standards : [];
+                    const lo = c?.learning_outcome_id != null && c?.learning_outcome_id !== '' ? String(c.learning_outcome_id) : '';
+                    if (!ex.length && !lo) return '';
+                    return '<div style="font-size:12px;margin:4px 0;padding-left:8px;border-left:2px solid #e5e7eb;">' +
+                        '<span class="acc-align-muted">' + escapeHtml(String(c?.criterion_id || '')) + '</span>' +
+                        (ex.length ? '<div><span class="acc-align-key">Declared</span> ' + escapeHtml(ex.join(', ')) + '</div>' : '') +
+                        (lo ? '<div class="acc-align-muted">Canvas outcome on criterion: ' + escapeHtml(lo) + '</div>' : '') +
+                        '</div>';
+                }).join('');
                 return '<div class="acc-align-row">' +
-                    '<div><strong>' + escapeHtml(String(r?.title || 'Untitled rubric')) + '</strong></div>' +
+                    '<div><strong>' + escapeHtml(String(r?.title || 'Untitled rubric')) + '</strong>' +
+                    (Array.isArray(r?.discussion_ids) && r.discussion_ids.length ? ' <span class="acc-align-muted">(+' + escapeHtml(String(r.discussion_ids.length)) + ' discussion)</span>' : '') +
+                    '</div>' +
+                    (roll.length ? '<div class="acc-align-kv"><span class="acc-align-key">Declared (criteria)</span><span>' + escapeHtml(roll.join(', ')) + '</span></div>' : '') +
                     '<div class="acc-align-kv"><span class="acc-align-key">Rubric-level suggested</span><span class="acc-align-badges">' + renderAccSuggestionBadges(r?.suggested_standards || []) + '</span></div>' +
-                    '<div class="acc-align-kv"><span class="acc-align-key">Criteria with matches</span><span>' + escapeHtml(String(criteriaWithSuggestions.length)) + ' of ' + escapeHtml(String(criteria.length)) + '</span></div>' +
+                    '<div class="acc-align-kv"><span class="acc-align-key">Criteria with text matches</span><span>' + escapeHtml(String(criteriaWithSuggestions.length)) + ' of ' + escapeHtml(String(criteria.length)) + '</span></div>' +
+                    (critDeclared ? '<div style="margin-top:6px;">' + critDeclared + '</div>' : '') +
                     '</div>';
             }).join('')
             : '<p class="acc-align-muted">No rubrics found.</p>';
@@ -3797,7 +3812,20 @@ async function loadAccreditationAlignment(profile) {
               quizMappings.map(r => '<div class="acc-align-row"><strong>' + escapeHtml(r?.title || '') + '</strong> (Classic #' + escapeHtml(r?.resource_id || '') + ') ' + renderAccSuggestionBadges(r?.suggested_standards || []) + ' ' + quizBtn('quiz', r.resource_id, r.suggested_standards) + '</div>').join('') +
               newQuizMappings.map(r => '<div class="acc-align-row"><strong>' + escapeHtml(r?.title || '') + '</strong> (New Quiz #' + escapeHtml(r?.resource_id || '') + ') ' + renderAccSuggestionBadges(r?.suggested_standards || []) + ' ' + quizBtn('new_quiz', r.resource_id, r.suggested_standards) + '</div>').join('')
             : '';
-            host.innerHTML = '<div class="acc-align-summary">' +
+            const alignWarnings = Array.isArray(payload?.alignment_warnings) ? payload.alignment_warnings : [];
+            const warnBanner = alignWarnings.length
+                ? '<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px;margin-bottom:10px;">' +
+                  alignWarnings.map(function (w) { return '<p style="margin:4px 0;">' + escapeHtml(String(w)) + '</p>'; }).join('') + '</div>'
+                : '';
+            const reportBase = '/canvas/courses/' + selectedCourseId + '/accreditation/report' + qs;
+            const reportLinks = '<div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">' +
+                '<span class="acc-align-muted">Evidence export:</span>' +
+                '<a href="' + escapeHtml(reportBase) + '" target="_blank" rel="noopener noreferrer" style="color:#1565c0;">JSON report</a>' +
+                '<span class="acc-align-muted">|</span>' +
+                '<a href="' + escapeHtml(reportBase + (qs ? '&' : '?') + 'format=csv') + '" target="_blank" rel="noopener noreferrer" style="color:#1565c0;">CSV join table</a>' +
+                '</div>';
+            host.innerHTML = warnBanner + reportLinks +
+                '<div class="acc-align-summary">' +
                 '<span class="acc-align-pill">Standards considered: ' + escapeHtml(String(payload?.standards_considered || 0)) + '</span>' +
                 '<span class="acc-align-pill">Outcomes mapped: ' + escapeHtml(String(summary?.outcomes_with_suggestions || 0)) + '/' + escapeHtml(String(summary?.outcomes || 0)) + '</span>' +
                 '<span class="acc-align-pill">Resources mapped: ' + escapeHtml(String(summary?.resources_with_suggestions || 0)) + '/' + escapeHtml(String(summary?.resources_scanned || 0)) + '</span>' +

@@ -220,12 +220,27 @@ app.post('/admin/sync', async (req, res) => {
       const result = await runStandardsSync(syncId);
       return res.status(202).json({ source: 'standards', ...result });
     }
+    if (source === 'all') {
+      const rChea = await pool.query(
+        "INSERT INTO sync_log (source, status) VALUES ('chea', 'PENDING') RETURNING id"
+      );
+      const rDapip = await pool.query(
+        "INSERT INTO sync_log (source, status) VALUES ('dapip', 'PENDING') RETURNING id"
+      );
+      const cheaSyncId = rChea.rows[0]?.id;
+      const dapipSyncId = rDapip.rows[0]?.id;
+      const { runCheaSync } = await import('./sync/chea.sync');
+      const { runDapipSync } = await import('./sync/dapip.sync');
+      const chea = await runCheaSync(cheaSyncId);
+      const dapip = await runDapipSync(dapipSyncId);
+      return res.status(202).json({ source: 'all', chea, dapip });
+    }
     const r = await pool.query(
       'INSERT INTO sync_log (source, status) VALUES ($1, $2) RETURNING id',
-      [source === 'all' ? 'chea' : source, 'PENDING']
+      [source, 'PENDING']
     );
     const syncId = r.rows[0]?.id;
-    if (source === 'chea' || source === 'all') {
+    if (source === 'chea') {
       const { runCheaSync } = await import('./sync/chea.sync');
       const result = await runCheaSync(syncId);
       return res.status(202).json({ source: 'chea', ...result });

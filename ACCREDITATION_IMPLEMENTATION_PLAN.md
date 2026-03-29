@@ -76,28 +76,28 @@ Status: Phases **A**, **A.5**, **B** are done in repo. **Phase D** follows **D.1
 
 ### Phase D — Deep alignment + accreditation evidence (priority)
 
-Status: ⏳ Not started (defined here)
+Status: **D.1** largely implemented in API + alignment UI; **D.2** v1 report live (`GET /canvas/courses/:id/accreditation/report`); **D.3–D.5** still open.
 
 #### D.1 — Truth layer (declared alignment only)
 
 Goal: APIs and UI show **what is already claimed** in Canvas and parsed tags—before models invent links.
 
-- [ ] **Declared rubric alignment** — **Parse** criterion text for agreed conventions (e.g. `[QM-2.1]`); return **`existing_standards` per criterion** and rubric-level roll-up in alignment JSON.
-- [ ] **Canvas-declared links** — Surface **`learning_outcome_id`** on rubric criteria (from Canvas rubric payload) in alignment + export models; map outcome id → `|STANDARDS:|` set for **outcome ↔ rubric criterion** edges.
-- [ ] **Corpus completeness** — Syllabus body in alignment resource list where feasible; richer module traversal; document caps; optional subset analysis for large courses.
-- [ ] **Selected-standards UX** — When `selectedStandards` is empty, **warn** or gate full-catalog scoring.
-- [ ] **Milestone:** Declared columns in API responses are **complete enough** to drive a first **export** without inference.
+- [x] **Declared rubric alignment** — **Parse** criterion text for agreed conventions (e.g. `[QM-2.1]`); return **`existing_standards` per criterion** and rubric-level roll-up in alignment JSON (`declared_standards_roll_up`, bracket vs outcome-derived split).
+- [x] **Canvas-declared links** — Surface **`learning_outcome_id`** on rubric criteria (from Canvas rubric payload) in alignment; map outcome id → `|STANDARDS:|` set for **outcome ↔ rubric criterion** edges (`existing_standards_from_outcome`).
+- [x] **Corpus completeness** — Syllabus body in alignment resource list (`resource_type: syllabus` via course `syllabus_body`). Richer module traversal / caps doc still optional.
+- [x] **Selected-standards UX** — When `selectedStandards` is empty: `alignment_warnings` + `standards_selection_mode: full_catalog_fallback` (and banner in Standards Sync alignment UI).
+- [x] **Milestone (v1):** Declared columns drive **`/accreditation/report`** without inference.
 
 #### D.2 — Reporting & data collection (accreditation report writer)
 
 Goal: One **evidence package** that joins outcomes, rubrics, and graded artifacts so self-study authors **copy less from Canvas**.
 
-- [ ] **Join model** — For each course: rows (or graph) linking **standard_id** ↔ **outcome** (id, title, `|STANDARDS:|`) ↔ **rubric** ↔ **criterion** ↔ **learning_outcome_id** / parsed tags ↔ **assignment or discussion** (and gap if none).
-- [ ] **Export surfaces** — **CSV** (Excel-friendly) + **JSON** (`GET .../accreditation/report` or equivalent) with stable column names; optional **ZIP bundle** (CSVs + metadata JSON + timestamp).
-- [ ] **Gap columns** — Explicit flags: no rubric, no outcome link, no standard tag, standard selected but no artifact, etc.
-- [ ] **Operation log export** — Include **`logAccreditationOperation`** / workflow history in JSON or appendix CSV for “what we changed and when.”
-- [ ] **Optional narrative helpers** — Stub sections per standard (“artifacts addressing X: …”) generated from join data **without** pretending to be final prose (writer edits in Word).
-- [ ] **Milestone:** A report writer can produce a **standard → evidence table** from export alone, including **outcome–rubric–assignment** linkage where Canvas provides it.
+- [x] **Join model** — `join_rows` per standard: `outcome_ids`, `canvas_aligned_assignment_ids` (from Canvas `outcome_alignments`), `rubric_criteria` touchpoints, `gap_flags`.
+- [x] **Export surfaces** — **`GET /canvas/courses/:id/accreditation/report`** JSON default; **`?format=csv`** download. Links in alignment panel. Optional **ZIP bundle** still open.
+- [x] **Gap columns** — `gap_flags` on each join row (`no_outcome_with_standard`, `no_canvas_assignment_alignment`, `no_rubric_criterion_tag_or_outcome_link`).
+- [x] **Operation log export** — Full alignment snapshot + `operation_log` + `workflow_stages` embedded in JSON report.
+- [x] **Optional narrative helpers** — `narrative_stub_sections` per standard (starter sentences only).
+- [ ] **Milestone (full):** ZIP bundle + dedicated appendix CSV files per [docs/ACCREDITATION_EVIDENCE_BUNDLE_SPEC.md](./docs/ACCREDITATION_EVIDENCE_BUNDLE_SPEC.md) (multi-file).
 
 #### D.3 — Stronger inference (after D.2)
 
@@ -194,7 +194,7 @@ Done when:
 ### Phase C — Lookup service completion tasks
 Status: ⏳ Partially open
 
-- [ ] Update `POST /admin/sync` so `source=all` executes **both** CHEA and DAPIP with combined result metadata (today `source=all` still queues CHEA-only in `services/accreditation-lookup/src/main.ts`).
+- [x] Update `POST /admin/sync` so `source=all` executes **both** CHEA and DAPIP with combined result metadata (`{ source: 'all', chea, dapip }` in `services/accreditation-lookup/src/main.ts`).
 - [ ] Decide DAPIP write strategy: keep replace behavior or move to true upsert for historical continuity.
 - [ ] Optional: institution typeahead endpoint/UI (e.g. College Scorecard search)—not present as `institutions-search` in repo yet.
 

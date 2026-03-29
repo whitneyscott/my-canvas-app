@@ -7842,9 +7842,23 @@ export class CanvasService {
     return scored.slice(0, topN);
   }
 
-  private extractRubricCriteriaText(
-    rubric: any,
-  ): Array<{ id: string; text: string }> {
+  private static extractBracketStandardIdsFromText(text: string): string[] {
+    const s = String(text || '');
+    const re = /\[([A-Z]{2,}[A-Z0-9._-]*\d*[A-Z0-9._-]*)\]/g;
+    const out: string[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(s)) !== null) {
+      const id = m[1].trim();
+      if (id) out.push(id);
+    }
+    return Array.from(new Set(out));
+  }
+
+  private extractRubricCriteriaDetails(rubric: any): Array<{
+    id: string;
+    text: string;
+    learning_outcome_id: number | null;
+  }> {
     const rawCriteria = Array.isArray(rubric?.data)
       ? rubric.data
       : Array.isArray(rubric?.criteria)
@@ -7856,10 +7870,19 @@ export class CanvasService {
         const text = String(
           c?.long_description || c?.description || c?.title || '',
         ).trim();
-        if (!text) return null;
-        return { id: cid, text };
+        const loRaw = c?.learning_outcome_id ?? c?.learningOutcomeId;
+        const learning_outcome_id =
+          loRaw != null && Number.isFinite(Number(loRaw))
+            ? Number(loRaw)
+            : null;
+        if (!text && learning_outcome_id == null) return null;
+        return { id: cid, text, learning_outcome_id };
       })
-      .filter(Boolean) as Array<{ id: string; text: string }>;
+      .filter(Boolean) as Array<{
+      id: string;
+      text: string;
+      learning_outcome_id: number | null;
+    }>;
   }
 
   private async getCourseRubricAlignmentRows(courseId: number): Promise<any[]> {
@@ -7874,12 +7897,19 @@ export class CanvasService {
         const id = Number(r?.id);
         if (!Number.isFinite(id)) return null;
         const title = String(r?.title || `Rubric ${id}`);
-        const criteria = this.extractRubricCriteriaText(r);
-        const associations = (
-          Array.isArray(r?.associations) ? r.associations : []
-        )
+        const criteria = this.extractRubricCriteriaDetails(r);
+        const associations = Array.isArray(r?.associations) ? r.associations : [];
+        const assignment_ids = associations
           .filter(
             (a: any) => String(a?.association_type || '') === 'Assignment',
+          )
+          .map((a: any) => Number(a?.association_id))
+          .filter((n: number) => Number.isFinite(n));
+        const discussion_ids = associations
+          .filter((a: any) =>
+            ['DiscussionTopic', 'Discussion', 'discussion_topic'].includes(
+              String(a?.association_type || ''),
+            ),
           )
           .map((a: any) => Number(a?.association_id))
           .filter((n: number) => Number.isFinite(n));
@@ -7888,7 +7918,8 @@ export class CanvasService {
           title,
           url: `${htmlBase}/courses/${courseId}/rubrics/${id}`,
           criteria,
-          assignment_ids: associations,
+          assignment_ids,
+          discussion_ids,
         };
       })
       .filter(Boolean);
@@ -8008,6 +8039,27 @@ export class CanvasService {
         url: f?.url ? String(f.url) : null,
       });
     });
+    try {
+      const course = await this.getCourseDetails(courseId);
+      const rawSyllabus = String(course?.syllabus_body || '').trim();
+      if (rawSyllabus) {
+        const plain = rawSyllabus
+          .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+          .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        resources.push({
+          resource_type: 'syllabus',
+          resource_id: 'syllabus',
+          title: 'Course Syllabus',
+          text: (plain || rawSyllabus).slice(0, 500_000),
+          url: `${htmlBase}/courses/${courseId}/assignments/syllabus`,
+        });
+      }
+    } catch {
+      void 0;
+    }
     return resources;
   }
 
@@ -8084,19 +8136,56 @@ export class CanvasService {
         suggested_standards: suggestions,
       };
     });
+    const outcomeStandardsById = new Map<number, string[]>();
+    for (const o of outcomes as any[]) {
+      const oid = Number(o?.id);
+      if (!Number.isFinite(oid)) continue;
+      const stds = Array.isArray(o?.standards)
+        ? o.standards
+            .map((x: unknown) => String(x || '').trim())
+            .filter(Boolean)
+        : [];
+      outcomeStandardsById.set(oid, stds);
+    }
     const rubrics = await this.getCourseRubricAlignmentRows(courseId);
     const rubric_mappings = rubrics.map((r: any) => {
       const criteria = Array.isArray(r?.criteria) ? r.criteria : [];
-      const criterion_mappings = criteria.map((c: any) => ({
-        criterion_id: String(c?.id || ''),
-        text: String(c?.text || ''),
-        suggested_standards: CanvasService.suggestStandardsForText(
+      const criterion_mappings = criteria.map((c: any) => {
+        const bracket = CanvasService.extractBracketStandardIdsFromText(
+          String(c?.text || ''),
+        );
+        const loId =
+          c?.learning_outcome_id != null &&
+          Number.isFinite(Number(c.learning_outcome_id))
+            ? Number(c.learning_outcome_id)
+            : null;
+        const fromOutcome =
+          loId != null ? (outcomeStandardsById.get(loId) || []).slice() : [];
+        const existing_standards = Array.from(
+          new Set([...bracket, ...fromOutcome]),
+        );
+        const suggested = CanvasService.suggestStandardsForText(
           c?.text || '',
           standards,
           3,
-        ),
-      }));
+        );
+        const exSet = new Set(existing_standards);
+        return {
+          criterion_id: String(c?.id || ''),
+          text: String(c?.text || ''),
+          learning_outcome_id: loId,
+          existing_standards_from_brackets: bracket,
+          existing_standards_from_outcome: fromOutcome,
+          existing_standards,
+          suggested_standards: suggested.filter((s) => !exSet.has(s.id)),
+        };
+      });
       const summaryText = `${String(r?.title || '')} ${criteria.map((c: any) => String(c?.text || '')).join(' ')}`;
+      const declaredRoll = Array.from(
+        new Set(
+          criterion_mappings.flatMap((cm: any) => cm.existing_standards || []),
+        ),
+      );
       return {
         rubric_id: Number(r?.id),
         title: String(r?.title || ''),
@@ -8104,6 +8193,10 @@ export class CanvasService {
         assignment_ids: Array.isArray(r?.assignment_ids)
           ? r.assignment_ids
           : [],
+        discussion_ids: Array.isArray(r?.discussion_ids)
+          ? r.discussion_ids
+          : [],
+        declared_standards_roll_up: declaredRoll,
         suggested_standards: CanvasService.suggestStandardsForText(
           summaryText,
           standards,
@@ -8184,11 +8277,22 @@ export class CanvasService {
       )
       .slice(0, 120);
     const rubricRows = await this.getCourseRubricAlignmentRows(courseId);
-    const assignmentIdsWithRubrics = new Set(
-      rubricRows.flatMap((r: any) =>
-        Array.isArray(r?.assignment_ids) ? r.assignment_ids : [],
-      ),
-    );
+    const assignmentIdsWithRubrics = new Set<number>();
+    const discussionIdsWithRubrics = new Set<number>();
+    for (const r of rubricRows) {
+      for (const aid of Array.isArray(r?.assignment_ids)
+        ? r.assignment_ids
+        : []) {
+        const n = Number(aid);
+        if (Number.isFinite(n)) assignmentIdsWithRubrics.add(n);
+      }
+      for (const did of Array.isArray(r?.discussion_ids)
+        ? r.discussion_ids
+        : []) {
+        const n = Number(did);
+        if (Number.isFinite(n)) discussionIdsWithRubrics.add(n);
+      }
+    }
     const assignmentsOnly = resources.filter(
       (r) => r.resource_type === 'assignment',
     );
@@ -8198,7 +8302,9 @@ export class CanvasService {
     const assignmentsWithoutRubrics = assignmentsOnly.filter(
       (r) => !assignmentIdsWithRubrics.has(Number(r.resource_id)),
     );
-    const discussionsWithoutRubrics = discussionsOnly;
+    const discussionsWithoutRubrics = discussionsOnly.filter(
+      (r) => !discussionIdsWithRubrics.has(Number(r.resource_id)),
+    );
     const rubric_suggestions = {
       existing: rubric_mappings,
       without_rubrics: [
@@ -8225,10 +8331,21 @@ export class CanvasService {
             x.suggested_standards.length,
         ),
     };
+    const alignment_warnings: string[] = [];
+    let standards_selection_mode: 'selected' | 'full_catalog_fallback' =
+      'selected';
+    if (!selectedStandardIds.size) {
+      standards_selection_mode = 'full_catalog_fallback';
+      alignment_warnings.push(
+        'No standards selected on the accreditation profile; alignment used the full resolved catalog (capped at 800). Select standards on the profile for scoped reporting and exports.',
+      );
+    }
     return {
       cip: effectiveCip || null,
       standards_considered: standards.length,
       selected_standards: Array.from(selectedStandardIds),
+      standards_selection_mode,
+      alignment_warnings,
       outcome_mappings,
       rubric_mappings,
       resource_mappings,
@@ -8252,6 +8369,171 @@ export class CanvasService {
         resources_with_suggestions: resource_mappings.length,
       },
     };
+  }
+
+  async getAccreditationReport(
+    courseId: number,
+    cip?: string,
+    degreeLevel?: string,
+    format: 'json' | 'csv' = 'json',
+  ): Promise<string | Record<string, unknown>> {
+    const alignment = (await this.getAccreditationAlignment(
+      courseId,
+      cip,
+      degreeLevel,
+    )) as Record<string, unknown>;
+    const canvasAlign = await this.getCanvasOutcomeAlignments(courseId);
+    const workflow = await this.getAccreditationWorkflow(courseId);
+    const selected = Array.isArray(alignment.selected_standards)
+      ? (alignment.selected_standards as unknown[])
+          .map((x) => String(x || '').trim())
+          .filter(Boolean)
+      : [];
+    const allFromOutcomes = new Set<string>();
+    for (const om of (alignment.outcome_mappings as any[]) || []) {
+      for (const s of om?.existing_standards || [])
+        allFromOutcomes.add(String(s));
+    }
+    const standardIds =
+      selected.length > 0 ? selected : Array.from(allFromOutcomes);
+
+    const outcomesByStandard = new Map<string, number[]>();
+    for (const sid of standardIds) {
+      const oids: number[] = [];
+      for (const om of (alignment.outcome_mappings as any[]) || []) {
+        const ex: string[] = Array.isArray(om?.existing_standards)
+          ? om.existing_standards
+          : [];
+        if (ex.includes(sid)) {
+          const oid = Number(om?.outcome_id);
+          if (Number.isFinite(oid)) oids.push(oid);
+        }
+      }
+      outcomesByStandard.set(sid, oids);
+    }
+
+    const outcomeIdsForStandard = (sid: string): Set<number> => {
+      const s = new Set<number>();
+      for (const om of (alignment.outcome_mappings as any[]) || []) {
+        const ex: string[] = Array.isArray(om?.existing_standards)
+          ? om.existing_standards
+          : [];
+        if (ex.includes(sid)) {
+          const oid = Number(om?.outcome_id);
+          if (Number.isFinite(oid)) s.add(oid);
+        }
+      }
+      return s;
+    };
+
+    const canvasAssignmentsByStandard = new Map<string, number[]>();
+    for (const sid of standardIds) {
+      const want = outcomeIdsForStandard(sid);
+      const aset: number[] = [];
+      for (const row of canvasAlign.alignments) {
+        if (
+          row.assignment_id != null &&
+          Number.isFinite(row.assignment_id) &&
+          want.has(row.learning_outcome_id)
+        ) {
+          aset.push(row.assignment_id);
+        }
+      }
+      canvasAssignmentsByStandard.set(sid, Array.from(new Set(aset)));
+    }
+
+    const rubricTouchpoints: Record<string, unknown[]> = {};
+    for (const sid of standardIds) rubricTouchpoints[sid] = [];
+    for (const rm of (alignment.rubric_mappings as any[]) || []) {
+      for (const cm of rm?.criteria || []) {
+        const ex: string[] = Array.isArray(cm?.existing_standards)
+          ? cm.existing_standards
+          : [];
+        for (const sid of standardIds) {
+          if (ex.includes(sid)) {
+            (rubricTouchpoints[sid] as unknown[]).push({
+              rubric_id: rm.rubric_id,
+              criterion_id: cm.criterion_id,
+              learning_outcome_id: cm.learning_outcome_id,
+              existing_standards: cm.existing_standards,
+            });
+          }
+        }
+      }
+    }
+
+    const join_rows = standardIds.map((standard_id) => {
+      const outcome_ids = outcomesByStandard.get(standard_id) || [];
+      const canvas_aligned_assignment_ids =
+        canvasAssignmentsByStandard.get(standard_id) || [];
+      const rt = (rubricTouchpoints[standard_id] || []) as unknown[];
+      const gap_flags: string[] = [];
+      if (!outcome_ids.length) gap_flags.push('no_outcome_with_standard');
+      if (!canvas_aligned_assignment_ids.length)
+        gap_flags.push('no_canvas_assignment_alignment');
+      if (!rt.length) gap_flags.push('no_rubric_criterion_tag_or_outcome_link');
+      return {
+        standard_id,
+        outcome_ids,
+        canvas_aligned_assignment_ids,
+        rubric_criteria: rt,
+        gap_flags,
+      };
+    });
+
+    const narrative_stub_sections = standardIds.map((standard_id) => {
+      const jr = join_rows.find((j) => j.standard_id === standard_id);
+      const parts: string[] = [`Standard ${standard_id}:`];
+      if (jr?.outcome_ids?.length)
+        parts.push(
+          `Canvas outcomes ${jr.outcome_ids.join(', ')} list this standard.`,
+        );
+      if (jr?.canvas_aligned_assignment_ids?.length)
+        parts.push(
+          `Canvas outcome alignments on assignments ${jr.canvas_aligned_assignment_ids.join(', ')}.`,
+        );
+      if ((jr?.rubric_criteria as unknown[])?.length)
+        parts.push(
+          `${(jr?.rubric_criteria as unknown[]).length} rubric criterion row(s) declare this standard or a linked outcome.`,
+        );
+      return { standard_id, stub: parts.join(' ') };
+    });
+
+    const payload: Record<string, unknown> = {
+      v: 1,
+      generated_at: new Date().toISOString(),
+      course_id: courseId,
+      alignment,
+      canvas_outcome_alignments: canvasAlign,
+      workflow_stages: workflow.stages,
+      operation_log: workflow.operationLog,
+      join_rows,
+      narrative_stub_sections,
+    };
+
+    if (format === 'csv') {
+      const header = [
+        'standard_id',
+        'outcome_ids',
+        'canvas_aligned_assignment_ids',
+        'rubric_criteria_count',
+        'gap_flags',
+      ].join(',');
+      const lines = join_rows.map((row) => {
+        const rtc = (row.rubric_criteria as unknown[]) || [];
+        return [
+          this.escapeCsvCell(row.standard_id),
+          this.escapeCsvCell((row.outcome_ids as number[]).join('|')),
+          this.escapeCsvCell(
+            (row.canvas_aligned_assignment_ids as number[]).join('|'),
+          ),
+          this.escapeCsvCell(String(rtc.length)),
+          this.escapeCsvCell(row.gap_flags.join(';')),
+        ].join(',');
+      });
+      return [header, ...lines].join('\r\n');
+    }
+    return payload;
   }
 
   async getCanvasOutcomeAlignments(

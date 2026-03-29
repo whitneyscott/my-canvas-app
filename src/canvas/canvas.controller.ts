@@ -11,7 +11,9 @@ import {
   HttpException,
   HttpStatus,
   Header,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { CanvasService } from './canvas.service';
 @Controller('canvas')
 export class CanvasController {
@@ -440,6 +442,33 @@ export class CanvasController {
       cip || undefined,
       degreeLevel || undefined,
     );
+  }
+
+  @Get('courses/:id/accreditation/report')
+  async getAccreditationReport(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('cip') cip: string,
+    @Query('degree_level') degreeLevel: string,
+    @Query('format') formatRaw: string,
+    @Res({ passthrough: false }) res: Response,
+  ) {
+    const format = formatRaw === 'csv' ? 'csv' : 'json';
+    const out = await this.canvasService.getAccreditationReport(
+      id,
+      cip || undefined,
+      degreeLevel || undefined,
+      format,
+    );
+    if (format === 'csv') {
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="accreditation-report-course-${id}.csv"`,
+      );
+      res.send(out as string);
+      return;
+    }
+    res.json(out);
   }
 
   @Get('courses/:id/accreditation/canvas-outcome-alignments')

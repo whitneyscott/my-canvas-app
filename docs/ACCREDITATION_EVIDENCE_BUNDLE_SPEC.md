@@ -100,4 +100,5 @@ Output of merge rules from [ACCREDITATION_CANVAS_ALIGNMENT_MERGE.md](./ACCREDITA
 
 ## Implementation note
 
-Spikes live under `/canvas/courses/:id/accreditation/*` today; a future `GET .../accreditation/report` (or POST export job) should assemble this bundle server-side and optionally ZIP.
+- **Live:** `GET /canvas/courses/:courseId/accreditation/report` returns JSON with embedded `alignment`, `canvas_outcome_alignments`, `join_rows`, `narrative_stub_sections`, `operation_log`, and `workflow_stages`. Append **`?format=csv`** for a single join-table CSV download.
+- **Still open:** multi-file ZIP matching every table in this spec; POST/async export if courses are huge.
