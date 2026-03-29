@@ -86,6 +86,34 @@
       "expect_status": 200
     },
     {
+      "fixture_id": "list_rubrics",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/rubrics",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "list_new_quizzes",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/new_quizzes",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "get_accommodations",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/accommodations",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "get_custom_gradebook_columns",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/custom_gradebook_columns",
+      "expect_status": 200
+    },
+    {
       "fixture_id": "get_assignment",
       "tier": "read_only",
       "method": "GET",
