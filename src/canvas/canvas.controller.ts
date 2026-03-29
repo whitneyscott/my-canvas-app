@@ -442,6 +442,80 @@ export class CanvasController {
     );
   }
 
+  @Get('courses/:id/accreditation/canvas-outcome-alignments')
+  async getCanvasOutcomeAlignments(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('assignment_id') assignmentIdRaw?: string,
+  ) {
+    const assignmentId =
+      assignmentIdRaw != null && assignmentIdRaw !== ''
+        ? Number(assignmentIdRaw)
+        : undefined;
+    return this.canvasService.getCanvasOutcomeAlignments(
+      id,
+      Number.isFinite(assignmentId) ? assignmentId : undefined,
+    );
+  }
+
+  @Get('courses/:id/accreditation/alignment-merge-preview')
+  async getAccreditationAlignmentMergePreview(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('cip') cip: string,
+    @Query('degree_level') degreeLevel: string,
+  ) {
+    return this.canvasService.getAccreditationAlignmentMergePreview(
+      id,
+      cip || undefined,
+      degreeLevel || undefined,
+    );
+  }
+
+  @Get('courses/:id/accreditation/outcome-evidence')
+  async getAccreditationOutcomeEvidence(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('outcome_ids') outcomeIdsRaw?: string,
+  ) {
+    const outcomeIds =
+      outcomeIdsRaw != null && outcomeIdsRaw !== ''
+        ? outcomeIdsRaw
+            .split(',')
+            .map((x) => Number(x.trim()))
+            .filter((n) => Number.isFinite(n))
+        : undefined;
+    const rollups = await this.canvasService.getCourseOutcomeRollupsCourseAggregate(
+      id,
+      outcomeIds?.length ? outcomeIds : undefined,
+    );
+    return {
+      aggregate: 'course',
+      ferpa: {
+        student_level_rows: false,
+        contributing_scores_require_user_ids: true,
+      },
+      ...rollups,
+    };
+  }
+
+  @Get('courses/:id/accreditation/outcomes/:outcomeId/contributing-scores')
+  async getAccreditationContributingScores(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('outcomeId', ParseIntPipe) outcomeId: number,
+    @Query('user_ids') userIdsRaw?: string,
+  ) {
+    const userIds =
+      userIdsRaw != null && userIdsRaw !== ''
+        ? userIdsRaw
+            .split(',')
+            .map((x) => Number(x.trim()))
+            .filter((n) => Number.isFinite(n))
+        : [];
+    return this.canvasService.getOutcomeContributingScores(
+      id,
+      outcomeId,
+      userIds.length ? userIds : undefined,
+    );
+  }
+
   @Get('courses/:id/accessibility/scan')
   async getAccessibilityScan(
     @Param('id', ParseIntPipe) id: number,

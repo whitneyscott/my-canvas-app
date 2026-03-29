@@ -271,6 +271,9 @@ Criterion mapping in rubric text:
 
 ## References
 
+- Canvas alignment merge rules + spike routes: [`docs/ACCREDITATION_CANVAS_ALIGNMENT_MERGE.md`](./docs/ACCREDITATION_CANVAS_ALIGNMENT_MERGE.md)
+- Outcome evidence (rollups FERPA defaults) + contributing scores: [`docs/ACCREDITATION_EVIDENCE_BUNDLE_SPEC.md`](./docs/ACCREDITATION_EVIDENCE_BUNDLE_SPEC.md)
+- Blueprint API evaluation (scale / drift): [`docs/ACCREDITATION_BLUEPRINT_EVALUATION.md`](./docs/ACCREDITATION_BLUEPRINT_EVALUATION.md)
 - Operator guide (Standards Sync): [`docs/USER_GUIDE.md`](./docs/USER_GUIDE.md) §9
 - Standards DB + UI patterns: [`docs/STANDARDS_DATABASE_AND_UI.md`](./docs/STANDARDS_DATABASE_AND_UI.md)
 - Tab UI: `views/index.ejs`

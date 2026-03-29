@@ -8254,6 +8254,263 @@ export class CanvasService {
     };
   }
 
+  async getCanvasOutcomeAlignments(
+    courseId: number,
+    assignmentId?: number,
+  ): Promise<{
+    alignments: Array<{
+      learning_outcome_id: number;
+      assignment_id: number | null;
+      assessment_id: number | null;
+      submission_types: string | null;
+      url: string | null;
+      title: string | null;
+    }>;
+    raw_error?: string;
+  }> {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    let url = `${baseUrl}/courses/${courseId}/outcome_alignments?per_page=100`;
+    if (assignmentId != null && Number.isFinite(assignmentId)) {
+      url += `&assignment_id=${encodeURIComponent(String(assignmentId))}`;
+    }
+    try {
+      const rows = await this.fetchPaginatedData(url, token);
+      const alignments = (rows || []).map((row: any) => ({
+        learning_outcome_id: Number(row?.id),
+        assignment_id:
+          row?.assignment_id != null ? Number(row.assignment_id) : null,
+        assessment_id:
+          row?.assessment_id != null ? Number(row.assessment_id) : null,
+        submission_types:
+          row?.submission_types != null ? String(row.submission_types) : null,
+        url: row?.url != null ? String(row.url) : null,
+        title: row?.title != null ? String(row.title) : null,
+      }));
+      return {
+        alignments: alignments.filter((a) =>
+          Number.isFinite(a.learning_outcome_id),
+        ),
+      };
+    } catch (e: any) {
+      return {
+        alignments: [],
+        raw_error: e?.message || String(e),
+      };
+    }
+  }
+
+  async getAccreditationAlignmentMergePreview(
+    courseId: number,
+    cip?: string,
+    degreeLevel?: string,
+  ): Promise<{
+    canvas_outcome_alignments: Awaited<
+      ReturnType<CanvasService['getCanvasOutcomeAlignments']>
+    >;
+    lexical_alignment: Awaited<
+      ReturnType<CanvasService['getAccreditationAlignment']>
+    >;
+    merge: {
+      by_assignment_id: Record<
+        string,
+        {
+          title: string;
+          canvas_aligned_outcome_ids: number[];
+          lexical_suggested_standard_ids: string[];
+          overlap_both_sources: boolean;
+        }
+      >;
+      assignments_canvas_only: string[];
+      assignments_lexical_suggestions_only: string[];
+    };
+    merge_rule_reference: string;
+  }> {
+    const [canvasBlock, lexical] = await Promise.all([
+      this.getCanvasOutcomeAlignments(courseId),
+      this.getAccreditationAlignment(courseId, cip, degreeLevel),
+    ]);
+    const outcomes = await this.getCourseOutcomeLinks(courseId);
+    const outcomeStandards = new Map<number, string[]>();
+    for (const o of outcomes) {
+      const id = Number((o as any)?.id);
+      if (!Number.isFinite(id)) continue;
+      const stds = Array.isArray((o as any)?.standards)
+        ? ((o as any).standards as unknown[])
+            .map((x) => String(x || '').trim())
+            .filter(Boolean)
+        : [];
+      outcomeStandards.set(id, stds);
+    }
+    const byAssignment: Record<
+      string,
+      {
+        title: string;
+        canvas_aligned_outcome_ids: number[];
+        lexical_suggested_standard_ids: string[];
+        overlap_both_sources: boolean;
+      }
+    > = {};
+    const canvasOnly = new Set<string>();
+    const lexicalOnly = new Set<string>();
+    for (const a of canvasBlock.alignments) {
+      if (a.assignment_id == null || !Number.isFinite(a.assignment_id))
+        continue;
+      const key = String(a.assignment_id);
+      if (!byAssignment[key]) {
+        byAssignment[key] = {
+          title: a.title || `Assignment ${key}`,
+          canvas_aligned_outcome_ids: [],
+          lexical_suggested_standard_ids: [],
+          overlap_both_sources: false,
+        };
+      }
+      if (!byAssignment[key].canvas_aligned_outcome_ids.includes(a.learning_outcome_id)) {
+        byAssignment[key].canvas_aligned_outcome_ids.push(a.learning_outcome_id);
+      }
+      if (a.title) byAssignment[key].title = a.title;
+    }
+    const resourceMappings = Array.isArray(lexical?.resource_mappings)
+      ? lexical.resource_mappings
+      : [];
+    for (const r of resourceMappings) {
+      if (String((r as any)?.resource_type) !== 'assignment') continue;
+      const aid = String((r as any)?.resource_id || '');
+      if (!aid) continue;
+      const suggested = Array.isArray((r as any)?.suggested_standards)
+        ? (r as any).suggested_standards
+        : [];
+      const ids = suggested
+        .map((s: any) => String(s?.id || '').trim())
+        .filter(Boolean);
+      if (!ids.length) continue;
+      if (!byAssignment[aid]) {
+        byAssignment[aid] = {
+          title: String((r as any)?.title || `Assignment ${aid}`),
+          canvas_aligned_outcome_ids: [],
+          lexical_suggested_standard_ids: [],
+          overlap_both_sources: false,
+        };
+      }
+      byAssignment[aid].lexical_suggested_standard_ids = Array.from(
+        new Set([...byAssignment[aid].lexical_suggested_standard_ids, ...ids]),
+      );
+    }
+    for (const key of Object.keys(byAssignment)) {
+      const row = byAssignment[key];
+      const canvasStd = new Set<string>();
+      for (const oid of row.canvas_aligned_outcome_ids) {
+        for (const s of outcomeStandards.get(oid) || []) canvasStd.add(s);
+      }
+      const hasCanvas = row.canvas_aligned_outcome_ids?.length > 0;
+      const hasLex = row.lexical_suggested_standard_ids.length > 0;
+      row.overlap_both_sources = Boolean(
+        hasCanvas &&
+          hasLex &&
+          row.lexical_suggested_standard_ids.some((sid) => canvasStd.has(sid)),
+      );
+      if (hasCanvas && !hasLex) canvasOnly.add(key);
+      if (!hasCanvas && hasLex) lexicalOnly.add(key);
+    }
+    return {
+      canvas_outcome_alignments: canvasBlock,
+      lexical_alignment: lexical,
+      merge: {
+        by_assignment_id: byAssignment,
+        assignments_canvas_only: Array.from(canvasOnly),
+        assignments_lexical_suggestions_only: Array.from(lexicalOnly),
+      },
+      merge_rule_reference:
+        'docs/ACCREDITATION_CANVAS_ALIGNMENT_MERGE.md',
+    };
+  }
+
+  async getCourseOutcomeRollupsCourseAggregate(
+    courseId: number,
+    outcomeIds?: number[],
+  ): Promise<{
+    rollups: unknown;
+    linked: unknown;
+    raw_error?: string;
+  }> {
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const params = new URLSearchParams();
+    params.set('aggregate', 'course');
+    params.set('aggregate_stat', 'mean');
+    if (Array.isArray(outcomeIds) && outcomeIds.length) {
+      for (const id of outcomeIds) {
+        if (Number.isFinite(id)) params.append('outcome_ids[]', String(id));
+      }
+    }
+    params.append('include[]', 'outcomes');
+    params.append('include[]', 'outcome_groups');
+    const url = `${baseUrl}/courses/${courseId}/outcome_rollups?${params.toString()}`;
+    try {
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        return {
+          rollups: null,
+          linked: null,
+          raw_error: `${res.status} ${res.statusText} ${await res.text()}`,
+        };
+      }
+      const body = await res.json();
+      return {
+        rollups: body?.rollups ?? null,
+        linked: body?.linked ?? null,
+      };
+    } catch (e: any) {
+      return {
+        rollups: null,
+        linked: null,
+        raw_error: e?.message || String(e),
+      };
+    }
+  }
+
+  async getOutcomeContributingScores(
+    courseId: number,
+    outcomeId: number,
+    userIds?: number[],
+  ): Promise<{
+    payload: unknown;
+    raw_error?: string;
+    omitted_for_ferpa?: boolean;
+  }> {
+    if (!Array.isArray(userIds) || !userIds.length) {
+      return {
+        payload: null,
+        omitted_for_ferpa: true,
+        raw_error:
+          'contributing_scores requires explicit user_ids[]; use outcome_rollups aggregate for course-level evidence without student rows',
+      };
+    }
+    const { token, baseUrl } = await this.getAuthHeaders();
+    const params = new URLSearchParams();
+    for (const uid of userIds) {
+      if (Number.isFinite(uid)) params.append('user_ids[]', String(uid));
+    }
+    const url = `${baseUrl}/courses/${courseId}/outcomes/${outcomeId}/contributing_scores?${params.toString()}`;
+    try {
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        return {
+          payload: null,
+          raw_error: `${res.status} ${res.statusText} ${await res.text()}`,
+        };
+      }
+      return { payload: await res.json() };
+    } catch (e: any) {
+      return {
+        payload: null,
+        raw_error: e?.message || String(e),
+      };
+    }
+  }
+
   private static buildAccreditationTagBlock(
     standards: Array<{ id: string; title: string; org?: string }>,
   ): string {
