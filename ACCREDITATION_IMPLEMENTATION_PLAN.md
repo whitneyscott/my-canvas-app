@@ -2,6 +2,8 @@
 
 Single source of truth for accreditation work in this repo.
 
+**North star:** A **powerful standards alignment tool**—not only picking standards and surfacing suggestions, but helping teachers **bring assignment prompts and rubric language into explicit, auditable alignment** with the authoritative wording of selected standards (and with course outcomes), with clear before/apply flows and evidence an auditor can follow.
+
 ---
 
 ## Accreditation Manager — intended workflow (product objective)
@@ -26,6 +28,17 @@ The tool is meant to support an end-to-end accreditation loop in Canvas, not onl
 
 **Honest gap:** `GET .../accreditation/instruction-alignment` exists for an “instruction” stage, but `getInstructionAlignmentSuggestions` in `canvas.service.ts` currently returns placeholder `option_a` / `option_b` (null). **Narrative suggestions for net-new instructional content** to fill standard gaps are not fully implemented yet; alignment + rubric/tagging flows cover most of the “match and remediate existing content” story.
 
+### Have we built “sync assignment instructions to standards” and “adjust rubrics to standards language”?
+
+**Not to the bar implied by that wording.** What exists today is a strong **scaffold**, not the full product promise.
+
+| Target capability | What exists now | What is missing for a “powerful” tool |
+|-------------------|-----------------|----------------------------------------|
+| **Assignments ↔ standards** | Lexical **suggestions** over title + description (`getAccreditationAlignment`); **Apply tagging** appends a fixed **Accreditation Alignment** block (and machine comment) to assignment **description** via `applyResourceTagging`—in Canvas this is usually where instructions live, but it is **append-only**, not a structured rewrite of the prompt. | **Preview + apply** that revises or sections the **instruction text** so standards are woven in (objectives, measurable tasks, explicit standard IDs/titles from the resolver). Optional: map assignments to outcomes through Canvas APIs beyond description text. |
+| **Rubrics ↔ standards language** | **Create** a new rubric from alignment UI with criteria built from suggestions; criteria may pass **`learning_outcome_id`** when creating. Alignment **suggests** matches from criterion text but does **not** treat `[StandardId]`-style tags in criteria as first-class “already aligned” the way `|STANDARDS:|` does for outcomes. | **Update existing** rubrics: rewrite or augment criterion **description/long_description** with **authoritative standard language** (title + descriptor from lookup), parse and display existing criterion tags, bulk “align wording” with diff preview, **associate existing** course rubrics to assignments (not only create-new). |
+
+**Conclusion:** Phases A / A.5 / B delivered **discovery, outcomes materialization, suggestions, append tagging, and create-rubric**. They did **not** yet deliver **instruction-level sync** or **rubric language alignment** as first-class, reviewable transformations. That work is **Phase D** below and is now the **top accreditation priority** after this plan update.
+
 ---
 
 ## Start Here (Where we are RIGHT NOW)
@@ -33,19 +46,37 @@ The tool is meant to support an end-to-end accreditation loop in Canvas, not onl
 Current status snapshot:
 - Accreditation core foundation is complete (profile storage, outcomes mapping, CIP/program flow).
 - Accreditation tab exists and is functional for manual profile + standards selection flow.
-- **Phase A** (hierarchical standards in UI), **Phase A.5** (outcomes sync APIs + Canvas outcome creation), and **Phase B** (alignment tab backed by `/accreditation/alignment`) are implemented in code—see phase sections below.
-- Remaining accreditation work is concentrated in **Phase C** (lookup service) plus ongoing polish.
+- **Phase A**, **Phase A.5**, and **Phase B** are implemented (selection tree, outcomes sync, alignment scan + assisted actions).
+- **Phase D** (deep alignment: assignment instructions + rubric language + instruction-gap API) is the **main forward work** for the north star.
+- **Phase C** (lookup service hygiene) remains important but is **behind** Phase D for product impact.
 
 If resuming after a break, do these in order:
-1. **Lookup service cleanup** (`Phase C`—`source=all`, DAPIP upsert decision, optional typeahead)
-2. Polish or extend accreditation only as needed (A / A.5 / B are no longer greenfield)
+1. **Phase D** — Deep standards alignment (assignment instructions + rubrics + real instruction-alignment payloads)
+2. **Phase C** — Lookup service (`source=all`, DAPIP upsert decision, optional typeahead)
+3. Polish (matrix export, bulk actions, stronger matchers—often folded into D)
 
 ---
 
 ## Execution Queue (Next Work in Priority Order)
 
 ### Accreditation track
-Status: **Phase C** and polish remain as net-new work; Phases A, A.5, and B are done in repo.
+Status: Phases **A**, **A.5**, **B** are done in repo. **Phase D** is the active build target for a truly powerful alignment tool. **Phase C** follows.
+
+### Phase D — Deep alignment: instructions, rubric language, evidence (priority)
+
+Status: ⏳ Not started (defined here)
+
+Goal: Close the gap between “tags and suggestions” and what auditors and faculty expect: **assignment prompts and rubric criteria that explicitly use standards language**, with **preview, diff, and apply**—plus a real **instruction / gap** story backed by data (replacing placeholders).
+
+Deliverables (minimum credible set):
+
+- [ ] **Assignment instruction alignment** — For assignments (and optionally discussions with comparable fields): load authoritative **standard title + description** for selected IDs; generate or template a **revised instruction block** (AI and/or deterministic sections); **side-by-side preview**; **apply** replaces or inserts a defined section (policy: append vs replace scoped region—document the choice). Track in accreditation operation log.
+- [ ] **Rubric standards language** — **Parse** existing criterion text for standard-ID conventions (align with storage table: e.g. `[QM-2.1]`); show **current vs suggested** criterion rows using lookup text; **update existing** rubrics via Canvas API (not only `createRubricForResource`); optional bulk “align all criteria” with per-row approval.
+- [ ] **Rubric ↔ assignment workflow** — **Associate an existing course rubric** to an assignment/discussion where the API supports it; surface in alignment UI next to “create rubric.”
+- [ ] **Instruction alignment API** — Replace stub `option_a` / `option_b` in `getInstructionAlignmentSuggestions` with real structured suggestions (or remove the endpoint until implemented) so the “Instruction” workflow stage is honest.
+- [ ] **Coverage evidence (stretch inside D or immediate follow-up)** — Standard × artifact **matrix** (or CSV export) showing tag, rubric link, outcome link, or gap—so alignment is demonstrable outside the app.
+
+Done when: A reviewer can follow a single assignment from **selected standards → visible prompt language → rubric criteria wording** (and attachments) without relying only on a trailing alignment footer or token-scored guesses.
 
 ### Phase A — Increase standards resolution to substandards
 Status: ✅ Completed (in repo)
@@ -87,10 +118,10 @@ Done when:
 - Selected standards are reliably represented in Canvas outcomes with stable mapping on reload.
 
 ### Phase B — Content alignment view
-Status: ✅ Completed (in repo; iterative polish OK)
+Status: ✅ Completed in repo **as v1**; remains the **shell** for Phase D (previews, rubric edit, matrix).
 
 - [x] `loadAccreditationAlignment` loads `/canvas/courses/:id/accreditation/alignment` and renders outcomes, rubrics, resources, classic + new quizzes, summary pills, and apply actions (`public/js/main.js`)
-- [x] Backend alignment aggregation in `canvas.service.ts` (suggestions, gaps such as resources without rubrics, tagging helpers)
+- [x] Backend alignment aggregation in `canvas.service.ts` (lexical `suggestStandardsForText`, gaps such as resources without rubrics, append-only tagging, create rubric)
 
 Goal:
 - Show how assignments/quizzes/rubrics align to selected standards.
@@ -101,6 +132,8 @@ Deliverables:
 
 Done when:
 - Tab shows real alignment data instead of placeholder.
+
+**v1 limitation (feeds Phase D):** Matching is **token overlap**, not canonical “standards language” injection; rubric **existing** tags in criteria are not parsed like outcome `|STANDARDS:|`.
 
 ### Phase C — Lookup service completion tasks
 Status: ⏳ Partially open
