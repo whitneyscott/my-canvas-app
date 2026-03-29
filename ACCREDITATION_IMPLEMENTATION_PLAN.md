@@ -37,7 +37,9 @@ The tool is meant to support an end-to-end accreditation loop in Canvas, not onl
 | **Assignments ↔ standards** | Lexical **suggestions** over title + description (`getAccreditationAlignment`); **Apply tagging** appends a fixed **Accreditation Alignment** block (and machine comment) to assignment **description** via `applyResourceTagging`—in Canvas this is usually where instructions live, but it is **append-only**, not a structured rewrite of the prompt. | **Preview + apply** that revises or sections the **instruction text** so standards are woven in (objectives, measurable tasks, explicit standard IDs/titles from the resolver). Optional: map assignments to outcomes through Canvas APIs beyond description text. |
 | **Rubrics ↔ standards language** | **Create** a new rubric from alignment UI with criteria built from suggestions; criteria may pass **`learning_outcome_id`** when creating. Alignment **suggests** matches from criterion text but does **not** treat `[StandardId]`-style tags in criteria as first-class “already aligned” the way `|STANDARDS:|` does for outcomes. | **Update existing** rubrics: rewrite or augment criterion **description/long_description** with **authoritative standard language** (title + descriptor from lookup), parse and display existing criterion tags, bulk “align wording” with diff preview, **associate existing** course rubrics to assignments (not only create-new). |
 
-**Conclusion:** Phases A / A.5 / B delivered **discovery, outcomes materialization, suggestions, append tagging, and create-rubric**. They did **not** yet deliver **instruction-level sync** or **rubric language alignment** as first-class, reviewable transformations. That work is **Phase D** below and is now the **top accreditation priority** after this plan update.
+**Analysis vs remediation:** The **existing-content alignment pass** (`getAccreditationAlignment` → `suggestStandardsForText`) is **not useless**—it catches explicit **standard IDs in text** and rough **token overlap** with standard title/description—but it is **weak for real alignment**: synonyms, paraphrase, and pedagogical “this task measures that standard” relationships are largely missed. **Strengthening that analysis is Phase D.1 and the first implementation priority** before leaning on the same scores to drive instruction rewrites or rubric wording changes.
+
+**Conclusion:** Phases A / A.5 / B delivered **discovery, outcomes materialization, a v1 lexical matcher, append tagging, and create-rubric**. **Phase D** delivers **better evidence of alignment on existing artifacts first (D.1)**, then **instruction-level sync** and **rubric language alignment** (D.2) on top of trustworthy signals.
 
 ---
 
@@ -47,36 +49,48 @@ Current status snapshot:
 - Accreditation core foundation is complete (profile storage, outcomes mapping, CIP/program flow).
 - Accreditation tab exists and is functional for manual profile + standards selection flow.
 - **Phase A**, **Phase A.5**, and **Phase B** are implemented (selection tree, outcomes sync, alignment scan + assisted actions).
-- **Phase D** (deep alignment: assignment instructions + rubric language + instruction-gap API) is the **main forward work** for the north star.
+- **Phase D** is the **main forward work**: start with **stronger analysis of existing content (D.1)**, then **deep remediation** (instructions + rubric language + instruction-gap API) **(D.2)**.
 - **Phase C** (lookup service hygiene) remains important but is **behind** Phase D for product impact.
 
 If resuming after a break, do these in order:
-1. **Phase D** — Deep standards alignment (assignment instructions + rubrics + real instruction-alignment payloads)
-2. **Phase C** — Lookup service (`source=all`, DAPIP upsert decision, optional typeahead)
-3. Polish (matrix export, bulk actions, stronger matchers—often folded into D)
+1. **Phase D.1** — Stronger **analysis** of existing content (matcher upgrade, declared rubric tags, corpus coverage, confidence UX)
+2. **Phase D.2** — **Remediation**: assignment instruction sync, rubric language updates, associate existing rubrics, real instruction-alignment API, matrix/export
+3. **Phase C** — Lookup service (`source=all`, DAPIP upsert decision, optional typeahead)
 
 ---
 
 ## Execution Queue (Next Work in Priority Order)
 
 ### Accreditation track
-Status: Phases **A**, **A.5**, **B** are done in repo. **Phase D** is the active build target for a truly powerful alignment tool. **Phase C** follows.
+Status: Phases **A**, **A.5**, **B** are done in repo. **Phase D.1** (stronger analysis) is the **first** build slice; **D.2** then **Phase C**.
 
-### Phase D — Deep alignment: instructions, rubric language, evidence (priority)
+### Phase D — Deep alignment (priority)
 
 Status: ⏳ Not started (defined here)
 
-Goal: Close the gap between “tags and suggestions” and what auditors and faculty expect: **assignment prompts and rubric criteria that explicitly use standards language**, with **preview, diff, and apply**—plus a real **instruction / gap** story backed by data (replacing placeholders).
+**Order:** **D.1 first** (analysis you can trust), then **D.2** (writes and evidence). Premature “AI rewrite assignment” on top of a weak matcher produces confident wrong edits.
 
-Deliverables (minimum credible set):
+#### D.1 — Stronger analysis of existing content (do this first)
 
-- [ ] **Assignment instruction alignment** — For assignments (and optionally discussions with comparable fields): load authoritative **standard title + description** for selected IDs; generate or template a **revised instruction block** (AI and/or deterministic sections); **side-by-side preview**; **apply** replaces or inserts a defined section (policy: append vs replace scoped region—document the choice). Track in accreditation operation log.
-- [ ] **Rubric standards language** — **Parse** existing criterion text for standard-ID conventions (align with storage table: e.g. `[QM-2.1]`); show **current vs suggested** criterion rows using lookup text; **update existing** rubrics via Canvas API (not only `createRubricForResource`); optional bulk “align all criteria” with per-row approval.
-- [ ] **Rubric ↔ assignment workflow** — **Associate an existing course rubric** to an assignment/discussion where the API supports it; surface in alignment UI next to “create rubric.”
-- [ ] **Instruction alignment API** — Replace stub `option_a` / `option_b` in `getInstructionAlignmentSuggestions` with real structured suggestions (or remove the endpoint until implemented) so the “Instruction” workflow stage is honest.
-- [ ] **Coverage evidence (stretch inside D or immediate follow-up)** — Standard × artifact **matrix** (or CSV export) showing tag, rubric link, outcome link, or gap—so alignment is demonstrable outside the app.
+Goal: The alignment view and APIs should reflect **declared** mappings accurately and **infer** likely alignment with **semantic or model-assisted** scoring—not only token overlap—so teachers see defensible suggestions and gaps.
 
-Done when: A reviewer can follow a single assignment from **selected standards → visible prompt language → rubric criteria wording** (and attachments) without relying only on a trailing alignment footer or token-scored guesses.
+- [ ] **Matcher pipeline** — Tiered approach: keep fast **lexical** path for ID-in-text and exact-ish overlap; add **embedding** similarity (standard title + description vs artifact text) and/or optional **LLM structured compare** (course + artifact snippet + standard list → scores/rationale); surface **confidence** and **human-readable reason** in payload and UI.
+- [ ] **Declared rubric alignment** — **Parse** criterion text for agreed conventions (e.g. `[QM-2.1]` per storage table); return **`existing_standards` per criterion** (and rubric-level roll-up) in alignment JSON so the UI shows **aligned vs gap** without guessing.
+- [ ] **Corpus completeness** — Include **syllabus** and richer **module** traversal where feasible; document caps; optional “analyze this subset” for large courses.
+- [ ] **Selected-standards UX** — When `selectedStandards` is empty, **warn** or gate “full catalog” scoring so analysis scope matches teacher intent.
+- [ ] **Milestone:** D.1 done when stakeholders agree suggestions and gap lists are **materially more accurate** than v1 lexical scoring on a pilot course set (measure false positive/negative informally or with a small gold set).
+
+#### D.2 — Remediation, rubric language, evidence (after D.1)
+
+Goal: **Preview + apply** changes to instructions and rubrics, plus demonstrable coverage—built on D.1 signals.
+
+- [ ] **Assignment instruction alignment** — Authoritative standard text; **side-by-side preview**; **apply** with explicit policy (scoped section vs append). Log operations.
+- [ ] **Rubric standards language** — **Update existing** rubrics via Canvas API; **current vs suggested** criterion rows using lookup text; optional bulk align with per-row approval.
+- [ ] **Rubric ↔ assignment workflow** — **Associate existing** course rubric to assignment/discussion where API allows; surface next to “create rubric.”
+- [ ] **Instruction alignment API** — Replace stub `option_a` / `option_b` in `getInstructionAlignmentSuggestions` or retire until real.
+- [ ] **Coverage evidence** — Standard × artifact **matrix** or CSV (tag, rubric, outcome, gap).
+
+**Phase D done when:** D.1 milestone met **and** D.2 allows a reviewer to trace **selected standards → analysis quality → optional applied edits** without relying on token-scored guesses alone.
 
 ### Phase A — Increase standards resolution to substandards
 Status: ✅ Completed (in repo)
