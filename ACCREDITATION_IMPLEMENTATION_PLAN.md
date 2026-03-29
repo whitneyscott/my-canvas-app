@@ -23,15 +23,14 @@ This audit is a **blocking hygiene step** whenever we add or change rules—not 
 Current status snapshot:
 - Accreditation core foundation is complete (profile storage, outcomes mapping, CIP/program flow).
 - Accreditation tab exists and is functional for manual profile + standards selection flow.
+- **Phase A** (hierarchical standards in UI), **Phase A.5** (outcomes sync APIs + Canvas outcome creation), and **Phase B** (alignment tab backed by `/accreditation/alignment`) are implemented in code—see phase sections below.
 - Accessibility work is now urgent and should run as the primary execution track.
-- Remaining accreditation work is now mostly product logic/UX, not data plumbing.
+- Remaining accreditation work is concentrated in **Phase C** (lookup service) plus ongoing polish and the accessibility audit block above.
 
 If resuming after a break, do these in order:
-1. **Accessibility MVP track** (weekend-only phased plan below)
-2. **Increase standards resolution to substandards** (`Phase A`)
-3. **Connect selected standards to Canvas LMS outcomes** (`Phase A.5`)
-4. **Content alignment view** (`Phase B`)
-5. **Lookup service cleanup decisions** (`Phase C`)
+1. **Accessibility MVP track** (weekend-only phased plan below) + accessibility rules audit (top of this doc)
+2. **Lookup service cleanup** (`Phase C` only—`source=all`, DAPIP upsert decision, optional typeahead)
+3. Polish or extend accreditation only as needed (A / A.5 / B are no longer greenfield)
 
 ---
 
@@ -55,11 +54,17 @@ Implementation notes:
 - Keep autofix limited to deterministic reversible actions until v1 stability is proven.
 - Display accessibility findings in an AG Grid interface (filter/sort parity with other tabs) to support rapid triage workflows.
 
+**Repo note (Mar 2026):** Much of the Phase 0–1 *capability* (Tier 1/2 catalog, AG Grid triage, export/fix flows) already exists in the codebase ahead of the weekend calendar. Treat the table as **release gating / hardening milestones**, not “nothing built until Apr/May.”
+
 ### Accreditation Track (after Accessibility MVP baseline)
-Status: ⏳ Deferred behind accessibility urgency
+Status: ⏳ Deferred behind accessibility urgency (only **Phase C** and polish remain as net-new accreditation work)
 
 ### Phase A — Increase standards resolution to substandards (next)
-Status: ⏳ Not completed
+Status: ✅ Completed (in repo)
+
+- [x] Hierarchical standards tree in Standards Sync (`accStandardsList`, `bindAccStandardsTreeBlocks`, leaf `accStd` + branch toggles in `public/js/main.js`)
+- [x] Resolver / payload carries parent/child and org grouping (standards API + tree build path)
+- [x] Source/confidence surfaced in UI (`standards_source`, per-standard `sourceType` where present)
 
 Goal:
 - Retrieve and display finer-grained standards hierarchy (substandards/indicators), not only top-level standards.
@@ -76,7 +81,11 @@ Done when:
 - Teacher can browse and select substandards (not only top-level org standards), then save selection.
 
 ### Phase A.5 — Connect selected standards to Canvas LMS outcomes (after A)
-Status: ⏳ Not completed
+Status: ✅ Completed (in repo)
+
+- [x] `POST .../accreditation/outcomes/sync` → `syncCourseOutcomesFromSelectedStandards`
+- [x] `POST .../accreditation/outcomes/sync-org` → `syncOutcomesForOrg` (per-org groups, `|STANDARDS:|` in descriptions, idempotent skip when already linked)
+- [x] `GET .../accreditation/outcomes/preview` for preview-before-create flow
 
 Goal:
 - Materialize selected standards into Canvas outcomes and keep mappings synchronized.
@@ -90,7 +99,10 @@ Done when:
 - Selected standards are reliably represented in Canvas outcomes with stable mapping on reload.
 
 ### Phase B — Content alignment view (next after A)
-Status: ⏳ Not completed (placeholder currently)
+Status: ✅ Completed (in repo; iterative polish OK)
+
+- [x] `loadAccreditationAlignment` loads `/canvas/courses/:id/accreditation/alignment` and renders outcomes, rubrics, resources, classic + new quizzes, summary pills, and apply actions (`public/js/main.js`)
+- [x] Backend alignment aggregation in `canvas.service.ts` (suggestions, gaps such as resources without rubrics, tagging helpers)
 
 Goal:
 - Show how assignments/quizzes/rubrics align to selected standards.
@@ -105,10 +117,9 @@ Done when:
 ### Phase C — Lookup service completion tasks
 Status: ⏳ Partially open
 
-Remaining items:
-- Update `POST /admin/sync` so `source=all` executes both CHEA and DAPIP and returns combined result metadata.
-- Decide DAPIP write strategy: keep replace behavior or move to true upsert for historical continuity.
-- Optional: institution typeahead endpoint/UI (`/college-scorecard/institutions-search`).
+- [ ] Update `POST /admin/sync` so `source=all` executes **both** CHEA and DAPIP with combined result metadata (today `source=all` still queues CHEA-only in `services/accreditation-lookup/src/main.ts`).
+- [ ] Decide DAPIP write strategy: keep replace behavior or move to true upsert for historical continuity.
+- [ ] Optional: institution typeahead endpoint/UI (e.g. College Scorecard search)—not present as `institutions-search` in repo yet.
 
 ---
 
