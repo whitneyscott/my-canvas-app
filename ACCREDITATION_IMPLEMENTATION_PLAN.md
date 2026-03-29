@@ -4,6 +4,30 @@ Single source of truth for accreditation work in this repo.
 
 ---
 
+## Accreditation Manager — intended workflow (product objective)
+
+The tool is meant to support an end-to-end accreditation loop in Canvas, not only “pick standards”:
+
+1. **Course context** — Capture institution, program, and focus (CIP) so standards resolution is scoped to the offering (`docs/USER_GUIDE.md` §9.1).
+2. **Standards** — Load hierarchical standards for that context; the instructor selects applicable **leaf** (and optionally group) IDs; persist selection on the course accreditation profile (Standards Sync tab; Phase A).
+3. **Outcomes** — **Materialize** selected standards as Canvas course outcomes (or link to existing ones) using stable `|STANDARDS:...|` metadata in outcome descriptions (Phase A.5).
+4. **Content analysis** — **Scan** course artifacts (assignments, discussions, pages, announcements, quizzes, rubrics) against the selected standard set and surfaced text (Phase B: `getAccreditationAlignment` + alignment UI).
+5. **Match existing content** — Show **current** mappings (outcome-linked standards, rubric criteria tags, resource-level suggestions) and **gaps** (e.g. items with weak or no alignment, assignments/discussions **without rubrics** where rubrics are the primary measurable link).
+6. **Close gaps (assisted)** — Actions such as **apply suggested standards** to outcomes, **apply tagging** to resource bodies, **create rubric** from suggested criteria, and attach or align rubrics so assignments line up with measurable criteria (alignment UI + `createRubricForResource` / tagging APIs).
+7. **Chain: standards → rubrics → assignments** — Standards map to **rubric criteria** text; assignments (and similar gradable items) align through **rubric attachment** and criterion-level tags (see storage table below). The UI workflow stages (Workflow → Standards → Outcomes → Rubrics → Instruction → Resources → Quizzes) reflect this progression (`public/js/main.js` stage labels + `GET .../accreditation/workflow`).
+
+**Where the longer narrative lives today (no single standalone spec):**
+
+| Document | What it adds |
+|----------|----------------|
+| [`docs/USER_GUIDE.md`](./docs/USER_GUIDE.md) §9 | Operator-facing **Standards Sync**: profile cascade, **workflow** stages and log, outcomes & standards **buttons**, content alignment overview. |
+| [`docs/STANDARDS_DATABASE_AND_UI.md`](./docs/STANDARDS_DATABASE_AND_UI.md) | Lookup DB/API, and **recommended** shared standards tree across profile, outcomes, rubrics, and “match to standards” on assignments/quizzes/pages (some of this is still consolidation work, not one shared component everywhere). |
+| [`TODO.md`](./TODO.md) | Short **Standards Sync QA** checklist (regression-oriented, not product vision). |
+
+**Honest gap:** `GET .../accreditation/instruction-alignment` exists for an “instruction” stage, but `getInstructionAlignmentSuggestions` in `canvas.service.ts` currently returns placeholder `option_a` / `option_b` (null). **Narrative suggestions for net-new instructional content** to fill standard gaps are not fully implemented yet; alignment + rubric/tagging flows cover most of the “match and remediate existing content” story.
+
+---
+
 ## Start Here (Where we are RIGHT NOW)
 
 Current status snapshot:
@@ -158,6 +182,8 @@ Criterion mapping in rubric text:
 
 ## References
 
+- Operator guide (Standards Sync): [`docs/USER_GUIDE.md`](./docs/USER_GUIDE.md) §9
+- Standards DB + UI patterns: [`docs/STANDARDS_DATABASE_AND_UI.md`](./docs/STANDARDS_DATABASE_AND_UI.md)
 - Tab UI: `views/index.ejs`
 - Frontend logic: `public/js/main.js`, `public/js/config.js`
 - Canvas backend: `src/canvas/canvas.controller.ts`, `src/canvas/canvas.service.ts`
