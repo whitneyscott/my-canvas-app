@@ -509,6 +509,7 @@ For rules with `dual_option: true` in the manifest (`aria_hidden_focusable`, `ta
 ### 4.5 CI/CD integration
 
 - **Manual / on-demand:** `npm run qa:accessibility:build` then start Nest with `QA_ACCESSIBILITY_ENABLED=1`, then `npm run qa:accessibility:run`. Env vars: see [`test/fixtures/accessibility-qa/RUNBOOK.md`](./test/fixtures/accessibility-qa/RUNBOOK.md) (`CANVAS_ACCESS_TOKEN`, `CANVAS_BASE_URL` **or** `CANVAS_QA_PROFILE`, `API_BASE_URL`, manifest/report overrides). There is **no** single `npm run qa:accessibility` umbrella script.
+- **Bulk Editor core API QA (non-accessibility, non-accreditation):** `npm run qa:bulk:build` / `qa:bulk:build:force` then `qa:bulk:run` — see [`test/fixtures/bulk-editor-qa/RUNBOOK.md`](./test/fixtures/bulk-editor-qa/RUNBOOK.md).
 - **Pipeline (future):** Nightly or pre-deploy against Canvas OSS or isolated staging only; secrets in CI vault; **no** production Canvas URL; fail build on regression flag; artifact upload of JSON report.
 
 ### 4.6 Rate limiting

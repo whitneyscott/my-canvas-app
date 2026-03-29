@@ -9,6 +9,7 @@ Whenever you give **copy-paste steps** (or extend RUNBOOK-style docs) for:
 
 - `npm run start:api`, `start:dev`, or any Nest listen on **3002**
 - `npm run qa:accessibility:*` (runner expects API up)
+- `npm run qa:bulk:run` (bulk core canvas QA runner; same API + QA headers)
 
 **Always put this block first** (PowerShell, repo root), before starting the API or assuming port 3002 is free:
 

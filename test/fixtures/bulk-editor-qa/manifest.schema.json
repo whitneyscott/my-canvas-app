@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://canvas-bulk-editor.local/schemas/bulk-editor-qa-manifest.json",
+  "title": "Bulk Editor QA manifest",
+  "type": "object",
+  "required": ["manifest_version", "course_id", "rebuilt_at", "resources"],
+  "properties": {
+    "manifest_version": { "type": "string" },
+    "builder_version": { "type": "string" },
+    "canvas_base_url": { "type": "string" },
+    "course_id": { "type": "integer" },
+    "course_name": { "type": "string" },
+    "course_code": { "type": "string" },
+    "rebuilt_at": { "type": "string" },
+    "rebuild_reason": { "type": "string" },
+    "resources": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

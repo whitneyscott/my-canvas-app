@@ -1,0 +1,152 @@
+{
+  "fixtures_version": "1.0",
+  "cases": [
+    {
+      "fixture_id": "get_courses",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "get_course_detail",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "list_assignments",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/assignments",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "list_pages",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/pages",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "list_quizzes",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/quizzes",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "list_discussions",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/discussions",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "list_announcements",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/announcements",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "list_modules",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/modules",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "list_files",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/files",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "list_assignment_groups",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/assignment_groups",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "get_assignment",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/assignments/{assignment_id}",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "get_page",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/pages/{page_url}",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "get_quiz",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/quizzes/{quiz_id}",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "get_discussion",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/discussions/{discussion_id}",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "get_announcement",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/announcements/{announcement_id}",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "get_module",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/modules/{module_id}",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "list_module_items",
+      "tier": "read_only",
+      "method": "GET",
+      "path_template": "/canvas/courses/{course_id}/modules/{module_id}/items",
+      "expect_status": 200
+    },
+    {
+      "fixture_id": "pages_bulk_update_noop_title",
+      "tier": "safe_write",
+      "method": "PUT",
+      "path_template": "/canvas/courses/{course_id}/pages/_bulk/update",
+      "expect_status": 200,
+      "body_template": {
+        "itemIds": ["{page_url}"],
+        "updates": {
+          "wiki_page": {
+            "title": "[QA][Bulk] Core Page"
+          }
+        }
+      }
+    },
+    {
+      "fixture_id": "assignments_bulk_update_noop",
+      "tier": "safe_write",
+      "method": "PUT",
+      "path_template": "/canvas/courses/{course_id}/assignments/_bulk/update",
+      "expect_status": 200,
+      "body_template": {
+        "itemIds": ["{assignment_id}"],
+        "updates": {
+          "name": "[QA][Bulk] Core Assignment"
+        }
+      }
+    }
+  ]
+}

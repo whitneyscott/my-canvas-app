@@ -86,3 +86,6 @@ TEACHER_QA_CHECKLIST.md
 
 test/fixtures/accessibility-qa/qa-scan-telemetry.jsonl
 test/fixtures/accessibility-qa/qa-scan-telemetry.latest.json
+
+test/fixtures/bulk-editor-qa/manifest.json
+test/fixtures/bulk-editor-qa/report-bulk-qa-*.json
