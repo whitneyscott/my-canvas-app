@@ -6,60 +6,24 @@ Single source of truth for accreditation work in this repo.
 
 ## Start Here (Where we are RIGHT NOW)
 
-### Accessibility rules audit (do this before more feature work)
-
-Re-run a full pass over **every** accessibility check we ship (`ACCESSIBILITY_CHECKS.md` catalog + `ACCESSIBILITY_FIXABILITY_MAP` / `fix_type` wiring in `canvas.service.ts`).
-
-- For each `rule_id`, decide: **deterministic and reversible** (same input HTML → same safe fix) vs **needs human / AI / context**.
-- Anything that is **really deterministic** must be **treated as such in code**: `auto_fixable: true`, `fix_strategy: 'auto'`, a real `fix_type` executor (or merge into an existing one), and preview/apply behavior consistent with other auto rules—not left as `manual_only` or “suggested” unless there is a documented reason.
-- Fix mismatches: tighten the map, implement missing executors, and remove false “high risk” labels where the transform is purely mechanical (e.g. inline contrast when both colors are known in `style=""`).
-- Cross-check against `ACCESSIBILITY_CHECKS_QA_PLAN.md` **strict** vs **best-effort** tiers so tests and product expectations stay aligned.
-- Keep **`ACCESSIBILITY_FIXABILITY_MAP`** (runtime config in the LTI-launched tool) authoritative; align executors with it, then update [`ACCESSIBILITY_CHECKPOINTS.md`](./ACCESSIBILITY_CHECKPOINTS.md) as the human mirror (Auto vs Suggested vs Manual-only).
-
-This audit is a **blocking hygiene step** whenever we add or change rules—not optional polish.
-
----
-
 Current status snapshot:
 - Accreditation core foundation is complete (profile storage, outcomes mapping, CIP/program flow).
 - Accreditation tab exists and is functional for manual profile + standards selection flow.
 - **Phase A** (hierarchical standards in UI), **Phase A.5** (outcomes sync APIs + Canvas outcome creation), and **Phase B** (alignment tab backed by `/accreditation/alignment`) are implemented in code—see phase sections below.
-- Accessibility work is now urgent and should run as the primary execution track.
-- Remaining accreditation work is concentrated in **Phase C** (lookup service) plus ongoing polish and the accessibility audit block above.
+- Remaining accreditation work is concentrated in **Phase C** (lookup service) plus ongoing polish.
 
 If resuming after a break, do these in order:
-1. **Accessibility MVP track** (weekend-only phased plan below) + accessibility rules audit (top of this doc)
-2. **Lookup service cleanup** (`Phase C` only—`source=all`, DAPIP upsert decision, optional typeahead)
-3. Polish or extend accreditation only as needed (A / A.5 / B are no longer greenfield)
+1. **Lookup service cleanup** (`Phase C`—`source=all`, DAPIP upsert decision, optional typeahead)
+2. Polish or extend accreditation only as needed (A / A.5 / B are no longer greenfield)
 
 ---
 
 ## Execution Queue (Next Work in Priority Order)
 
-### Accessibility MVP Track (weekend-only timeline)
-Status: 🚧 Active priority track
+### Accreditation track
+Status: **Phase C** and polish remain as net-new work; Phases A, A.5, and B are done in repo.
 
-This is the realistic phased release path assuming coding happens on weekends only.
-
-| Phase | Target Weekend | Scope | Release Outcome |
-|------|-----------------|-------|-----------------|
-| 0 | Apr 4-5, 2026 | Tier 1 detection only + report/export + manual triage flow | Compliance triage release |
-| 1 | May 9-10, 2026 | Delta scans, throttling/backoff, stable course-level scans, core dashboard UX | Usable accessibility MVP |
-| 2 | Jun 13-14, 2026 | Hardening: checkpoint resume, telemetry, safe autofix subset, large-course QA | Hardened v1 candidate |
-| 3 | Jun 20-28, 2026 | Final bugfix/polish and release window | Stabilized public release |
-
-Implementation notes:
-- Tier 1 and Tier 2 rules live in `ACCESSIBILITY_CHECKS.md`.
-- Build for rate limits from day one (delta scans + adaptive throttling).
-- Keep autofix limited to deterministic reversible actions until v1 stability is proven.
-- Display accessibility findings in an AG Grid interface (filter/sort parity with other tabs) to support rapid triage workflows.
-
-**Repo note (Mar 2026):** Much of the Phase 0–1 *capability* (Tier 1/2 catalog, AG Grid triage, export/fix flows) already exists in the codebase ahead of the weekend calendar. Treat the table as **release gating / hardening milestones**, not “nothing built until Apr/May.”
-
-### Accreditation Track (after Accessibility MVP baseline)
-Status: ⏳ Deferred behind accessibility urgency (only **Phase C** and polish remain as net-new accreditation work)
-
-### Phase A — Increase standards resolution to substandards (next)
+### Phase A — Increase standards resolution to substandards
 Status: ✅ Completed (in repo)
 
 - [x] Hierarchical standards tree in Standards Sync (`accStandardsList`, `bindAccStandardsTreeBlocks`, leaf `accStd` + branch toggles in `public/js/main.js`)
@@ -98,7 +62,7 @@ Deliverables:
 Done when:
 - Selected standards are reliably represented in Canvas outcomes with stable mapping on reload.
 
-### Phase B — Content alignment view (next after A)
+### Phase B — Content alignment view
 Status: ✅ Completed (in repo; iterative polish OK)
 
 - [x] `loadAccreditationAlignment` loads `/canvas/courses/:id/accreditation/alignment` and renders outcomes, rubrics, resources, classic + new quizzes, summary pills, and apply actions (`public/js/main.js`)
@@ -199,4 +163,3 @@ Criterion mapping in rubric text:
 - Canvas backend: `src/canvas/canvas.controller.ts`, `src/canvas/canvas.service.ts`
 - College Scorecard: `src/college-scorecard/college-scorecard.controller.ts`, `src/college-scorecard/college-scorecard.service.ts`
 - Lookup service: `services/accreditation-lookup/`
-- Accessibility rules catalog: `ACCESSIBILITY_CHECKS.md` (Tier 1 minimum baseline + Tier 2 expanded checks)
